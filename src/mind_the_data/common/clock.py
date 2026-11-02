@@ -13,7 +13,7 @@ def utc_now() -> datetime:
 
 def ensure_utc(value: datetime) -> datetime:
     """Return ``value`` converted to UTC; reject naive datetimes."""
-    if value.tzinfo is None or value.utcoffset() is None:
+    if value.utcoffset() is None:
         raise ValueError("naive datetime: attach a timezone before storing")
     return value.astimezone(UTC)
 

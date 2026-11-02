@@ -1,23 +1,29 @@
 # Connection settings come from the environment so the same file serves local
-# runs and CI. Defaults are placeholders that let `dbt parse` run offline.
+# runs and CI. Each target reads its own variables, so a shell set up for prod
+# cannot make a dev run write to prod locations.
+#
+# The fallbacks are deliberately unusable (upper case is not allowed in S3
+# bucket or Athena workgroup names). They let `dbt parse` run offline, and any
+# real run without the variables fails instead of writing to a bucket someone
+# else could own or to the uncapped `primary` workgroup.
 mind_the_data:
   target: "{{ env_var('DBT_TARGET', 'dev') }}"
   outputs:
     dev:
       type: athena
       region_name: "{{ env_var('AWS_REGION', 'eu-west-2') }}"
-      s3_staging_dir: "{{ env_var('DBT_ATHENA_S3_STAGING_DIR', 's3://placeholder-athena-results/dev/') }}"
-      s3_data_dir: "{{ env_var('DBT_ATHENA_S3_DATA_DIR', 's3://placeholder-curated/dev/') }}"
+      s3_staging_dir: "{{ env_var('DBT_ATHENA_S3_STAGING_DIR_DEV', 's3://UNSET-DBT-ATHENA-S3-STAGING-DIR-DEV/') }}"
+      s3_data_dir: "{{ env_var('DBT_ATHENA_S3_DATA_DIR_DEV', 's3://UNSET-DBT-ATHENA-S3-DATA-DIR-DEV/') }}"
       database: awsdatacatalog
       schema: "{{ env_var('DBT_ATHENA_SCHEMA_DEV', 'dev') }}"
-      work_group: "{{ env_var('DBT_ATHENA_WORKGROUP', 'primary') }}"
+      work_group: "{{ env_var('DBT_ATHENA_WORKGROUP_DEV', 'UNSET-DBT-ATHENA-WORKGROUP-DEV') }}"
       threads: 4
     prod:
       type: athena
       region_name: "{{ env_var('AWS_REGION', 'eu-west-2') }}"
-      s3_staging_dir: "{{ env_var('DBT_ATHENA_S3_STAGING_DIR', 's3://placeholder-athena-results/prod/') }}"
-      s3_data_dir: "{{ env_var('DBT_ATHENA_S3_DATA_DIR', 's3://placeholder-curated/prod/') }}"
+      s3_staging_dir: "{{ env_var('DBT_ATHENA_S3_STAGING_DIR_PROD', 's3://UNSET-DBT-ATHENA-S3-STAGING-DIR-PROD/') }}"
+      s3_data_dir: "{{ env_var('DBT_ATHENA_S3_DATA_DIR_PROD', 's3://UNSET-DBT-ATHENA-S3-DATA-DIR-PROD/') }}"
       database: awsdatacatalog
       schema: "{{ env_var('DBT_ATHENA_SCHEMA_PROD', 'prod') }}"
-      work_group: "{{ env_var('DBT_ATHENA_WORKGROUP', 'primary') }}"
+      work_group: "{{ env_var('DBT_ATHENA_WORKGROUP_PROD', 'UNSET-DBT-ATHENA-WORKGROUP-PROD') }}"
       threads: 4

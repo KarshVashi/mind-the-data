@@ -4,8 +4,10 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 UV        ?= uv
+# --locked: fail if uv.lock is out of date instead of quietly re-resolving.
+UV_RUN    := $(UV) run --locked
 DBT_DIR   := transform
-DBT       := cd $(DBT_DIR) && $(UV) run --project .. dbt
+DBT       := cd $(DBT_DIR) && $(UV_RUN) --project .. dbt
 DBT_FLAGS := --profiles-dir .
 # Terraform roots that exist so far; modules are validated through the roots that call them.
 TF_ROOTS  := $(wildcard infra/bootstrap infra/envs/prod)
@@ -28,24 +30,24 @@ check-fast: lint typecheck test ## ruff, mypy, unit tests
 
 .PHONY: lint
 lint:
-	$(UV) run ruff check .
-	$(UV) run ruff format --check .
+	$(UV_RUN) ruff check .
+	$(UV_RUN) ruff format --check .
 
 .PHONY: typecheck
 typecheck:
-	$(UV) run mypy
+	$(UV_RUN) mypy
 
 .PHONY: test
 test: ## Unit tests
-	$(UV) run pytest tests/unit -q
+	$(UV_RUN) pytest tests/unit -q
 
 .PHONY: test-all
 test-all: ## Unit and integration tests
-	$(UV) run pytest tests -q
+	$(UV_RUN) pytest tests -q
 
 .PHONY: sql-lint
 sql-lint:
-	$(UV) run sqlfluff lint $(DBT_DIR)/models
+	$(UV_RUN) sqlfluff lint $(DBT_DIR)/models
 
 .PHONY: dbt-parse
 dbt-parse:
@@ -57,6 +59,7 @@ tf-fmt-check:
 
 .PHONY: tf-validate
 tf-validate:
+	@[ -n "$(TF_ROOTS)" ] || echo "terraform validate: no terraform roots yet, skipping"
 	@for d in $(TF_ROOTS); do \
 		echo "terraform validate $$d"; \
 		terraform -chdir=$$d init -backend=false -input=false >/dev/null; \
@@ -65,6 +68,7 @@ tf-validate:
 
 .PHONY: tf-lint
 tf-lint:
+	@[ -n "$(TF_ROOTS)" ] || echo "tflint: no terraform roots yet, skipping"
 	@for d in $(TF_ROOTS); do \
 		echo "tflint $$d"; \
 		tflint --chdir=$$d --init >/dev/null; \
@@ -75,15 +79,19 @@ tf-lint:
 
 .PHONY: fmt
 fmt: ## Format Python, Terraform and SQL in place
-	$(UV) run ruff check --fix .
-	$(UV) run ruff format .
+	$(UV_RUN) ruff check --fix .
+	$(UV_RUN) ruff format .
 	terraform fmt -recursive infra
-	$(UV) run sqlfluff fix --force $(DBT_DIR)/models
+	$(UV_RUN) sqlfluff fix $(DBT_DIR)/models
 
 # ---- Needs AWS access -------------------------------------------------------
 
+DBT_DEV_VARS := DBT_ATHENA_S3_STAGING_DIR_DEV DBT_ATHENA_S3_DATA_DIR_DEV DBT_ATHENA_WORKGROUP_DEV
+
 .PHONY: dbt-build-dev
 dbt-build-dev: ## dbt build against the dev target (needs AWS read access)
+	@missing=""; for v in $(DBT_DEV_VARS); do [ -n "$${!v:-}" ] || missing="$$missing $$v"; done; \
+	if [ -n "$$missing" ]; then echo "dbt-build-dev: set$$missing (see .env.example)" >&2; exit 1; fi
 	$(DBT) build --target dev $(DBT_FLAGS)
 
 .PHONY: plan
