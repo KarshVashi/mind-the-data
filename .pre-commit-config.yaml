@@ -1,0 +1,62 @@
+# Install with `make install`. Project tools run through uv so hooks use the
+# exact versions in uv.lock rather than a second set pinned here.
+default_install_hook_types: [pre-commit]
+fail_fast: false
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+        exclude: ^transform/
+      - id: check-json
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  - repo: local
+    hooks:
+      - id: no-tfl-app-key
+        name: no TfL app key in committed files
+        description: Recorded fixtures and logs must have app_key stripped.
+        language: pygrep
+        entry: "(?i)app_key=(?!\\s*$)[0-9a-f]{8,}"
+        exclude: ^\.pre-commit-config\.yaml$
+
+      - id: ruff-check
+        name: ruff check
+        language: system
+        entry: uv run --locked ruff check --fix
+        types_or: [python, pyi]
+
+      - id: ruff-format
+        name: ruff format
+        language: system
+        entry: uv run --locked ruff format
+        types_or: [python, pyi]
+
+      - id: mypy
+        name: mypy
+        language: system
+        entry: uv run --locked mypy
+        types_or: [python, pyi]
+        pass_filenames: false
+
+      - id: sqlfluff-lint
+        name: sqlfluff lint
+        language: system
+        entry: uv run --locked sqlfluff lint
+        files: ^transform/(models|tests|macros|analyses)/.*\.sql$
+
+      - id: terraform-fmt
+        name: terraform fmt
+        language: system
+        entry: terraform fmt
+        files: \.(tf|tfvars)$

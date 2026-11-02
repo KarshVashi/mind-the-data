@@ -34,9 +34,7 @@ def test_ensure_utc_converts_bst_to_utc() -> None:
         (datetime(2026, 10, 26, 8, 0), datetime(2026, 10, 26, 8, 0, tzinfo=UTC)),
     ],
 )
-def test_ensure_utc_across_london_clock_change(
-    local: datetime, expected_utc: datetime
-) -> None:
+def test_ensure_utc_across_london_clock_change(local: datetime, expected_utc: datetime) -> None:
     assert ensure_utc(local.replace(tzinfo=ZoneInfo("Europe/London"))) == expected_utc
 
 

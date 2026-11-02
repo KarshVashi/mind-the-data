@@ -17,8 +17,9 @@ help: ## List targets
 	@grep -E '^[a-z][a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
 
 .PHONY: install
-install: ## Install the locked Python environment
+install: ## Install the locked Python environment and git pre-commit hook
 	$(UV) sync --locked
+	$(UV_RUN) pre-commit install
 
 # ---- Full gate ---------------------------------------------------------------
 
@@ -71,8 +72,8 @@ tf-lint:
 	@[ -n "$(TF_ROOTS)" ] || echo "tflint: no terraform roots yet, skipping"
 	@for d in $(TF_ROOTS); do \
 		echo "tflint $$d"; \
-		tflint --chdir=$$d --init >/dev/null; \
-		tflint --chdir=$$d; \
+		tflint --chdir=$$d --config=$(CURDIR)/.tflint.hcl --init >/dev/null; \
+		tflint --chdir=$$d --config=$(CURDIR)/.tflint.hcl; \
 	done
 
 # ---- Formatting ------------------------------------------------------------
