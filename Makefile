@@ -94,7 +94,7 @@ DBT_DEV_VARS := DBT_ATHENA_S3_STAGING_DIR_DEV DBT_ATHENA_S3_DATA_DIR_DEV DBT_ATH
 .PHONY: dbt-build-dev
 dbt-build-dev: ## dbt build against the dev target (needs AWS read access)
 	@missing=""; for v in $(DBT_DEV_VARS); do [ -n "$${!v:-}" ] || missing="$$missing $$v"; done; \
-	if [ -n "$$missing" ]; then echo "dbt-build-dev: set$$missing (see .env.example)" >&2; exit 1; fi
+	if [ -n "$$missing" ]; then echo "dbt-build-dev: set$$missing (see env.example)" >&2; exit 1; fi
 	$(DBT) build --target dev $(DBT_FLAGS)
 
 .PHONY: plan
