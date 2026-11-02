@@ -1,0 +1,24 @@
+name: mind_the_data
+version: "0.1.0"
+config-version: 2
+profile: mind_the_data
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+# Every layer of a target lands in that target's single Glue database (`dev`
+# or `prod`, section 2 of the plan); the stg_/int_/fct_ prefixes carry the
+# layer. Hence no per-folder +schema, which would create dev_staging etc.
+models:
+  mind_the_data:
+    +table_type: iceberg
+    +format: parquet
+
+seeds:
+  mind_the_data:
+    +table_type: iceberg
