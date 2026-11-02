@@ -336,7 +336,7 @@ Each milestone ends with an acceptance check that can be run, a PR per task (sma
 ### M0. Foundations (target: days 1 to 2)
 
 Tasks
-- [ ] Repo scaffold per section 4; `uv` project; `Makefile` with `check`, `check-fast`, `test`, `fmt`, `dbt-build-dev`, `plan`.
+- [x] Repo scaffold per section 4; `uv` project; `Makefile` with `check`, `check-fast`, `test`, `fmt`, `dbt-build-dev`, `plan`.
 - [ ] Pre-commit hooks, ruff, mypy strict on `src/`, pytest, sqlfluff config, tflint.
 - [ ] `ci.yml` running `make check` on every PR.
 - [ ] `infra/bootstrap/`: Terraform with local state that creates the remote state bucket (versioned, encrypted, S3 native lockfile), the GitHub OIDC provider and the CI role (trust limited to this repo's `main` branch and `production` environment; separate read-only trust for pull requests). Applied once by a human (H6). Outputs the role ARN.
