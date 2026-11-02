@@ -98,6 +98,7 @@ dbt-build-dev: ## dbt build against the dev target (needs AWS read access)
 	$(DBT) build --target dev $(DBT_FLAGS)
 
 .PHONY: plan
-plan: ## terraform plan for infra/envs/prod (needs AWS access)
-	terraform -chdir=infra/envs/prod init -input=false
-	terraform -chdir=infra/envs/prod plan -input=false
+plan: ## terraform plan for infra/envs/prod (needs AWS read access and TF_STATE_BUCKET)
+	@[ -n "$${TF_STATE_BUCKET:-}" ] || { echo "plan: set TF_STATE_BUCKET (bootstrap output state_bucket)" >&2; exit 1; }
+	terraform -chdir=infra/envs/prod init -input=false -backend-config="bucket=$$TF_STATE_BUCKET"
+	terraform -chdir=infra/envs/prod plan -input=false -lock=false
