@@ -25,7 +25,12 @@ A second constraint: the repository is private. On GitHub Free, a private reposi
 - **The pipeline can manage only `mind-the-data-*`.** That covers resources named `mind-the-data-*`, and Glue databases named `mind_the_data_*`.
   - S3 permissions are pinned to this account with `s3:ResourceAccount`.
   - Glue actions are listed explicitly. A wildcard would reach account-wide catalog settings.
-- **Protected buckets.** The pipeline cannot delete a project bucket, delete object versions, change versioning, remove public-access blocks, or set ACLs.
+- **Protected buckets.** The pipeline cannot:
+  - delete a project bucket or object versions
+  - change versioning
+  - set ACLs
+  - delete objects in the raw bucket (`mind-the-data-raw-*`)
+- **Public access.** A bucket's public access block can't be protected from CI. Removing it is authorised as `s3:PutBucketPublicAccessBlock`, which creating one also needs. The account-level public access block (runbook H6 step 1) is the real control, and CI cannot change it.
 - **No public functions.** The pipeline cannot create Lambda function URLs, or add resource policies to a function.
 - **No account-wide listing.** PR jobs cannot list all Lambda functions, because that call returns every function's environment variables across the account.
 - **Its own access is out of reach.** The CI roles and the boundary policy are named `mtd-*`, outside the prefix the pipeline can manage, so it cannot edit them.
@@ -35,6 +40,7 @@ A second constraint: the repository is private. On GitHub Free, a private reposi
 ### Invariants later milestones must keep
 
 - **Every `mind-the-data-*` IAM role carries the workload boundary.** `iam:UpdateAssumeRolePolicy` is not checked against the boundary, so a role created outside Terraform without the boundary could have its trust changed by CI. Create no such roles by hand.
+- **Declare no `aws_s3_bucket_versioning` resource for the raw bucket**, not even `Disabled`. CI is denied `s3:PutBucketVersioning`.
 - **Never read the TfL key through a Terraform `data "aws_ssm_parameter"`.** That would put the plaintext in state, which plan jobs (and so every pull request) can read. Lambdas read it at runtime instead, and Terraform refers to the parameter by ARN only.
 
 ## Alternatives considered
@@ -43,6 +49,11 @@ A second constraint: the repository is private. On GitHub Free, a private reposi
 - **A single role for both plan and apply.** Pull requests would then hold write credentials.
 - **The AWS managed `ReadOnlyAccess` policy for plans.** It would let pull request jobs read every object and every Lambda configuration in the account, including other projects'.
 - **Customising the OIDC subject claim to include the branch, so the apply role trusts `environment:production` and `main` together.** This would work, but it changes a repository-wide setting through the GitHub API and is easy to undo by accident. Enforced environment rules, or no apply role at all, are simpler.
+
+## Accepted risks (review is the only control)
+
+- **Lifecycle rules.** CI can still set lifecycle rules on project buckets, so an expiration rule on the raw bucket would delete raw data. The raw bucket's lifecycle needs particular care in review.
+- **Bucket policies.** CI can still set bucket policies. The account-level block stops public policies, but not a grant to one named external account.
 
 ## Consequences
 

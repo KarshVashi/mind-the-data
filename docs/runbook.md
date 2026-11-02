@@ -78,18 +78,24 @@ The apply role trusts any job that names the `production` environment. It is onl
    - **Prevent self-review:** off.
    - **Deployment branches and tags:** Selected branches, rule `main`.
 2. Check that the rules show as active, with no banner saying they are unavailable on your plan.
-3. Create the apply role and set its variable:
+3. Record the setting locally, so every later bootstrap apply keeps the role. The file is gitignored.
 
    ```sh
-   AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap plan -var enable_apply_role=true -out=bootstrap.tfplan
+   echo 'enable_apply_role = true' >> infra/bootstrap/terraform.tfvars
+   ```
+
+4. Create the apply role and set its variable:
+
+   ```sh
+   AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
    #   Expect: 1 IAM role (mtd-ci-apply) and 2 inline policies added. Nothing else.
    AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap apply bootstrap.tfplan
    gh variable set AWS_ROLE_ARN --body "$(terraform -chdir=infra/bootstrap output -raw apply_role_arn)"
    ```
 
-4. Repeat H6 step 4 to back up the state.
+5. Repeat H6 step 4 to back up the state.
 
-From then on, keep `-var enable_apply_role=true` on every bootstrap plan, or the role is removed.
+The uploaded plan artifact holds unredacted values, such as the alarm email address. It is kept for one day. Anyone with read access to the repository can download it during that time, which matters if the repository is public.
 
 **3. If they cannot be enforced (private repository on GitHub Free):** leave the apply role disabled and `AWS_ROLE_ARN` unset. Deploy `infra/envs/prod` from your machine after review:
 

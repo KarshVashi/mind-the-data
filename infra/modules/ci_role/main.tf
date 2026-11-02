@@ -21,6 +21,7 @@ locals {
 
   arn = {
     buckets     = "arn:aws:s3:::${local.p}-*"
+    raw_objects = "arn:aws:s3:::${local.p}-raw-*/*"
     objects     = "arn:aws:s3:::${local.p}-*/*"
     functions   = "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.p}-*"
     roles       = "arn:aws:iam::${local.account_id}:role/${local.p}-*"
@@ -40,11 +41,12 @@ locals {
   # Glue actions authorise against the catalog ARN as well as the database or
   # table, so they are listed explicitly; a wildcard on the catalog would also
   # allow account-wide settings such as the catalog resource policy.
-  glue_read = ["glue:GetDatabase", "glue:GetDatabases", "glue:GetTable", "glue:GetTables", "glue:GetTableVersion", "glue:GetTableVersions", "glue:GetPartition", "glue:GetPartitions", "glue:GetTags"]
+  glue_read = ["glue:GetDatabase", "glue:GetDatabases", "glue:GetTable", "glue:GetTables", "glue:GetTableVersion", "glue:GetTableVersions", "glue:GetPartition", "glue:GetPartitions", "glue:GetPartitionIndexes", "glue:GetTags"]
   glue_write = [
     "glue:CreateDatabase", "glue:UpdateDatabase", "glue:DeleteDatabase",
     "glue:CreateTable", "glue:UpdateTable", "glue:DeleteTable", "glue:DeleteTableVersion", "glue:BatchDeleteTableVersion",
     "glue:CreatePartition", "glue:BatchCreatePartition", "glue:UpdatePartition", "glue:DeletePartition", "glue:BatchDeletePartition",
+    "glue:CreatePartitionIndex", "glue:DeletePartitionIndex",
     "glue:TagResource", "glue:UntagResource",
   ]
 }
@@ -159,6 +161,13 @@ data "aws_iam_policy_document" "write" {
     actions   = ["s3:PutObject", "s3:DeleteObject"]
     resources = ["${var.state_bucket_arn}/${var.state_key_prefix}*"]
   }
+  # A bucket that does not exist yet has no owning account to compare, and a
+  # new bucket always belongs to the caller's account.
+  statement {
+    sid       = "CreateProjectBuckets"
+    actions   = ["s3:CreateBucket"]
+    resources = [local.arn.buckets]
+  }
   statement {
     sid       = "ProjectBuckets"
     actions   = ["s3:*"]
@@ -169,8 +178,10 @@ data "aws_iam_policy_document" "write" {
       values   = [local.account_id]
     }
   }
-  # Raw data is irreplaceable: no merged change may delete a bucket or its
-  # history, suspend versioning, or remove public access blocks.
+  # No merged change may delete a project bucket or object versions, change
+  # versioning, or set ACLs. Bucket public access blocks cannot be protected
+  # here (removing one is authorised as s3:PutBucketPublicAccessBlock, which
+  # creating one also needs); the account-level block is the control.
   statement {
     sid    = "ProtectProjectBuckets"
     effect = "Deny"
@@ -179,11 +190,17 @@ data "aws_iam_policy_document" "write" {
       "s3:DeleteObjectVersion",
       "s3:PutBucketVersioning",
       "s3:DeleteBucketPolicy",
-      "s3:DeletePublicAccessBlock",
       "s3:PutBucketAcl",
       "s3:PutObjectAcl",
     ]
     resources = [local.arn.buckets, local.arn.objects]
+  }
+  # Raw is unversioned and irreplaceable, so CI may never delete raw objects.
+  statement {
+    sid       = "ProtectRawObjects"
+    effect    = "Deny"
+    actions   = ["s3:DeleteObject"]
+    resources = [local.arn.raw_objects]
   }
   statement {
     sid       = "ProjectServices"
