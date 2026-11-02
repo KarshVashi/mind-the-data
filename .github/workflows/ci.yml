@@ -11,7 +11,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Supersede older runs of the same PR; let every main run finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # The job id is the required status check name in the main branch ruleset.
