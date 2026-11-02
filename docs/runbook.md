@@ -1,6 +1,6 @@
 # Runbook
 
-Commands for the steps a person has to do. Run them from the repository root unless stated. Region is `eu-west-2` throughout.
+Commands for the steps a person has to do. Run them from the repository root unless stated. Region is `eu-west-2` throughout. Admin commands pass `--profile mtd-admin` or set it inline, so the admin profile never stays set in your shell.
 
 The rest of the runbook (alarms, re-runs, backfills, key rotation in depth) arrives with M1 and M7.
 
@@ -8,69 +8,98 @@ The rest of the runbook (alarms, re-runs, backfills, key rotation in depth) arri
 
 ## H6: Bootstrap (once)
 
-Creates the remote state bucket and the CI roles, and wires the existing GitHub OIDC provider to them. Run it as the admin profile (`mtd-admin`, with MFA), never from CI.
+Creates the remote state bucket and the read-only CI plan role, and wires them to the existing GitHub OIDC provider. Run it as `mtd-admin` with MFA, never from CI.
 
-**1. Check whether the account already has a GitHub OIDC provider.** An account can have only one.
+**1. Block public S3 access for the whole account.** It is currently off. This is the strongest guard against a bucket being made public by mistake.
+
+```sh
+ACCOUNT_ID=$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)
+aws s3control put-public-access-block --profile mtd-admin --account-id "$ACCOUNT_ID" \
+  --public-access-block-configuration \
+  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+```
+
+This applies to every bucket in the account, including other projects'. Check first that none of them is meant to be public.
+
+**2. Check whether the account already has a GitHub OIDC provider.** An account can have only one.
 
 ```sh
 aws iam list-open-id-connect-providers --profile mtd-admin
 ```
 
-If the output lists `token.actions.githubusercontent.com`, keep the default (`create_github_oidc_provider = false`). If it is empty, add `-var create_github_oidc_provider=true` to the plan command in step 2.
+If the output lists `token.actions.githubusercontent.com`, keep the default. If it is empty, add `-var create_github_oidc_provider=true` to the plan command in step 3.
 
-**2. Plan, review, apply.**
+**3. Plan, review, apply.**
 
 ```sh
-export AWS_PROFILE=mtd-admin
-terraform -chdir=infra/bootstrap init
-terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
+AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap init
+AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
 #   Expect: 1 S3 bucket and its settings, 1 IAM policy (mtd-workload-boundary),
-#   2 IAM roles (mtd-ci-plan, mtd-ci-apply) with inline policies, and an OIDC
-#   provider only if you asked for one. Nothing else.
-terraform -chdir=infra/bootstrap apply bootstrap.tfplan
-terraform -chdir=infra/bootstrap output
+#   1 IAM role (mtd-ci-plan) with an inline policy, and an OIDC provider only
+#   if you asked for one. No apply role yet (see H7).
+AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap apply bootstrap.tfplan
 ```
 
-**3. Keep the bootstrap state safe.** It is local by design and is gitignored. Copy it into the state bucket so it survives a lost laptop:
+**4. Keep the bootstrap state safe.** It is local by design and is gitignored. Copy it into the state bucket so it survives a lost laptop:
 
 ```sh
 BUCKET=$(terraform -chdir=infra/bootstrap output -raw state_bucket)
-aws s3 cp infra/bootstrap/terraform.tfstate "s3://$BUCKET/bootstrap/terraform.tfstate"
+aws s3 cp --profile mtd-admin infra/bootstrap/terraform.tfstate "s3://$BUCKET/bootstrap/terraform.tfstate"
 ```
 
-CI can read and write only `envs/` in that bucket, so it cannot touch this copy.
+CI can read and write only `envs/` in that bucket, so it cannot touch this copy. Repeat the copy after every bootstrap apply.
 
-**4. Set the repository variables.** CI reads these. They are identifiers, not secrets.
+**5. Set the plan variables.** These are identifiers, not secrets.
 
 ```sh
 gh variable set TF_STATE_BUCKET   --body "$(terraform -chdir=infra/bootstrap output -raw state_bucket)"
 gh variable set AWS_PLAN_ROLE_ARN --body "$(terraform -chdir=infra/bootstrap output -raw plan_role_arn)"
-gh variable set AWS_ROLE_ARN      --body "$(terraform -chdir=infra/bootstrap output -raw apply_role_arn)"
 ```
 
-Do H7 before setting `AWS_ROLE_ARN`. The apply job starts as soon as that variable exists, and GitHub creates a missing environment automatically with no protection rules.
+Pull requests that touch `infra/` now get a `terraform plan`. Nothing is applied from CI until H7.
 
-**Re-applying.** When a later milestone needs the CI roles to manage a new kind of resource, the change lands in `infra/modules/ci_role` and you re-run step 2. CI cannot change its own permissions.
+**Re-applying.** When a later milestone needs the CI roles to manage a new kind of resource, the change lands in `infra/modules/ci_role` and you re-run steps 3 and 4. CI cannot change its own permissions.
 
 ---
 
-## H7: `production` environment and merge settings
+## H7: `production` environment and the apply role
 
-**Environment.** In the repository on GitHub, go to Settings → Environments → New environment and name it `production`. Then set:
+The apply role trusts any job that names the `production` environment. It is only safe once that environment's protection rules are enforced. On a private repository, that needs a paid GitHub plan; a public repository has them for free.
 
-- **Required reviewers:** you.
-- **Prevent self-review:** off. You are the only reviewer.
-- **Deployment branches and tags:** Selected branches, rule `main`.
-
-**Merge settings.** In Settings → General → Pull Requests:
+**1. Merge settings.** In the repository's Settings → General → Pull Requests:
 
 - Allow squash merging only.
 - Automatically delete head branches: on.
 
-**GitHub plan.** Required reviewers on environments, and enforced rulesets, need either a public repository or a paid GitHub plan. On a private repository under GitHub Free, the `production` environment will not wait for approval. In that case:
+**2. If the protection rules can be enforced (public repository or paid plan):**
 
-- Leave `AWS_ROLE_ARN` unset until the repository is public or the plan allows the gate.
-- Deploy infra with `make plan` and a reviewed local apply as `mtd-admin` instead.
+1. In Settings → Environments, create `production` and set:
+   - **Required reviewers:** you.
+   - **Prevent self-review:** off.
+   - **Deployment branches and tags:** Selected branches, rule `main`.
+2. Check that the rules show as active, with no banner saying they are unavailable on your plan.
+3. Create the apply role and set its variable:
+
+   ```sh
+   AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap plan -var enable_apply_role=true -out=bootstrap.tfplan
+   #   Expect: 1 IAM role (mtd-ci-apply) and 2 inline policies added. Nothing else.
+   AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap apply bootstrap.tfplan
+   gh variable set AWS_ROLE_ARN --body "$(terraform -chdir=infra/bootstrap output -raw apply_role_arn)"
+   ```
+
+4. Repeat H6 step 4 to back up the state.
+
+From then on, keep `-var enable_apply_role=true` on every bootstrap plan, or the role is removed.
+
+**3. If they cannot be enforced (private repository on GitHub Free):** leave the apply role disabled and `AWS_ROLE_ARN` unset. Deploy `infra/envs/prod` from your machine after review:
+
+```sh
+TF_STATE_BUCKET=$(terraform -chdir=infra/bootstrap output -raw state_bucket)
+AWS_PROFILE=mtd-admin terraform -chdir=infra/envs/prod init -backend-config="bucket=$TF_STATE_BUCKET"
+AWS_PROFILE=mtd-admin terraform -chdir=infra/envs/prod plan -out=prod.tfplan
+#   Compare with the plan shown on the merged pull request.
+AWS_PROFILE=mtd-admin terraform -chdir=infra/envs/prod apply prod.tfplan
+```
 
 ---
 
@@ -110,17 +139,19 @@ After the first green `ci` run on a pull request:
 3. Add `ci`.
 4. Enable "Require branches to be up to date".
 
-The same GitHub plan note as H7 applies.
+On a private repository under GitHub Free, rulesets are not enforced. The same plan note as H7 applies.
 
 ---
 
 ## H10: Approve a production apply
 
-A merge to `main` that touches `infra/` starts the `infra` workflow. Its `apply` job waits on the `production` environment.
+A merge to `main` that touches `infra/` starts the `infra` workflow.
 
-1. Open the run.
-2. Read the plan step's output.
-3. Approve only if the plan shows the changes the pull request said it would make.
+1. **Plan.** The `plan` job runs first, without approval, and writes the plan to the run summary.
+2. **Review.** The `apply` job then waits on the `production` environment. Read the plan in the summary, or in the `plan` job's log.
+3. **Approve.** Approve only if the plan shows the changes the pull request said it would make.
+
+The apply runs exactly the saved plan. If anything changed state in between, Terraform rejects the plan as stale and nothing is applied.
 
 ---
 

@@ -15,3 +15,9 @@ variable "create_github_oidc_provider" {
   description = "Create the token.actions.githubusercontent.com OIDC provider. Leave false when the account already has one (there can be only one)."
   default     = false
 }
+
+variable "enable_apply_role" {
+  type        = bool
+  description = "Create the CI apply role. Leave false until the production environment's protection rules are enforced (runbook H7)."
+  default     = false
+}

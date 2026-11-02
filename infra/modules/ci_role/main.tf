@@ -1,12 +1,14 @@
 # GitHub Actions roles for this repository, assumed through OIDC.
 #
-# - plan role: pull requests; read-only, runs `terraform plan -lock=false`.
-# - apply role: only the `production` environment (which is restricted to
-#   main and needs a reviewer); runs `terraform apply`.
+# - plan role: pull requests, and plans on main before an apply. Read-only;
+#   plans run with -lock=false.
+# - apply role: only jobs in the `production` environment. Created only when
+#   enable_apply_role is true, which must wait until that environment's
+#   required reviewer and main-only branch rule are actually enforced.
 #
-# Both roles, and the boundary policy, are named outside the project prefix,
-# so nothing the pipeline is allowed to manage can change its own access.
-# They are applied by a human from infra/bootstrap, never by CI.
+# The roles and the boundary policy are named outside the project prefix and
+# outside the PassRole set, so nothing the pipeline manages can change its own
+# access. They are applied by a human from infra/bootstrap, never by CI.
 
 data "aws_caller_identity" "current" {}
 
@@ -34,6 +36,17 @@ locals {
     glue_tables = "arn:aws:glue:${local.region}:${local.account_id}:table/${local.glue_p}_*/*"
     parameters  = "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.p}/*"
   }
+
+  # Glue actions authorise against the catalog ARN as well as the database or
+  # table, so they are listed explicitly; a wildcard on the catalog would also
+  # allow account-wide settings such as the catalog resource policy.
+  glue_read = ["glue:GetDatabase", "glue:GetDatabases", "glue:GetTable", "glue:GetTables", "glue:GetTableVersion", "glue:GetTableVersions", "glue:GetPartition", "glue:GetPartitions", "glue:GetTags"]
+  glue_write = [
+    "glue:CreateDatabase", "glue:UpdateDatabase", "glue:DeleteDatabase",
+    "glue:CreateTable", "glue:UpdateTable", "glue:DeleteTable", "glue:DeleteTableVersion", "glue:BatchDeleteTableVersion",
+    "glue:CreatePartition", "glue:BatchCreatePartition", "glue:UpdatePartition", "glue:DeletePartition", "glue:BatchDeletePartition",
+    "glue:TagResource", "glue:UntagResource",
+  ]
 }
 
 # ---- Trust ------------------------------------------------------------------
@@ -50,10 +63,14 @@ data "aws_iam_policy_document" "trust_plan" {
       variable = "${local.oidc_host}:aud"
       values   = ["sts.amazonaws.com"]
     }
+    # Pull requests, and the ungated plan that runs on main before an apply.
     condition {
       test     = "StringEquals"
       variable = "${local.oidc_host}:sub"
-      values   = ["repo:${var.github_repository}:pull_request"]
+      values = [
+        "repo:${var.github_repository}:pull_request",
+        "repo:${var.github_repository}:ref:refs/heads/main",
+      ]
     }
   }
 }
@@ -70,9 +87,9 @@ data "aws_iam_policy_document" "trust_apply" {
       variable = "${local.oidc_host}:aud"
       values   = ["sts.amazonaws.com"]
     }
-    # A job that names an environment gets this subject regardless of branch;
-    # the environment's deployment-branch rule (main only) and required
-    # reviewer provide the branch and approval checks.
+    # A job that names an environment gets this subject regardless of branch.
+    # Branch and approval checks come from the environment's protection rules,
+    # which is why this role exists only once they are enforced.
     condition {
       test     = "StringEquals"
       variable = "${local.oidc_host}:sub"
@@ -94,35 +111,42 @@ data "aws_iam_policy_document" "read" {
     actions   = ["s3:GetObject"]
     resources = ["${var.state_bucket_arn}/${var.state_key_prefix}*"]
   }
+  # S3 ARNs carry no account, so pin reads to buckets in this account.
   statement {
     sid       = "ProjectBucketsRead"
     actions   = ["s3:Get*", "s3:List*"]
     resources = [local.arn.buckets, local.arn.objects]
+    condition {
+      test     = "StringEquals"
+      variable = "s3:ResourceAccount"
+      values   = [local.account_id]
+    }
   }
   statement {
     sid       = "ProjectResourcesRead"
-    actions   = ["lambda:Get*", "lambda:List*", "sns:Get*", "sns:List*", "athena:Get*", "athena:List*", "glue:Get*", "scheduler:Get*", "scheduler:List*", "iam:Get*", "iam:List*"]
-    resources = [local.arn.functions, local.arn.topics, local.arn.workgroups, local.arn.glue_cat, local.arn.glue_dbs, local.arn.glue_tables, local.arn.schedules, local.arn.sched_group, local.arn.roles, aws_iam_policy.workload_boundary.arn]
+    actions   = ["lambda:Get*", "lambda:List*", "sns:Get*", "sns:List*", "athena:Get*", "athena:List*", "scheduler:Get*", "scheduler:List*", "iam:Get*", "iam:List*"]
+    resources = [local.arn.functions, local.arn.topics, local.arn.workgroups, local.arn.schedules, local.arn.sched_group, local.arn.roles, aws_iam_policy.workload_boundary.arn]
   }
-  # These describe/list calls do not support resource-level scoping and
-  # return metadata only.
+  statement {
+    sid       = "ProjectGlueRead"
+    actions   = local.glue_read
+    resources = [local.arn.glue_cat, local.arn.glue_dbs, local.arn.glue_tables]
+  }
+  # Metadata-only calls that do not support resource-level scoping. Lambda's
+  # ListFunctions is left out on purpose: it returns every function's
+  # environment variables across the account.
   statement {
     sid = "UnscopedDescribe"
     actions = [
       "cloudwatch:DescribeAlarms",
       "cloudwatch:ListTagsForResource",
-      "lambda:ListFunctions",
       "logs:DescribeLogGroups",
       "logs:ListTagsForResource",
       "scheduler:ListScheduleGroups",
       "scheduler:ListSchedules",
       "sns:ListTopics",
+      "ssm:DescribeParameters",
     ]
-    resources = ["*"]
-  }
-  statement {
-    sid       = "ParameterMetadata"
-    actions   = ["ssm:DescribeParameters"]
     resources = ["*"]
   }
 }
@@ -139,11 +163,46 @@ data "aws_iam_policy_document" "write" {
     sid       = "ProjectBuckets"
     actions   = ["s3:*"]
     resources = [local.arn.buckets, local.arn.objects]
+    condition {
+      test     = "StringEquals"
+      variable = "s3:ResourceAccount"
+      values   = [local.account_id]
+    }
+  }
+  # Raw data is irreplaceable: no merged change may delete a bucket or its
+  # history, suspend versioning, or remove public access blocks.
+  statement {
+    sid    = "ProtectProjectBuckets"
+    effect = "Deny"
+    actions = [
+      "s3:DeleteBucket",
+      "s3:DeleteObjectVersion",
+      "s3:PutBucketVersioning",
+      "s3:DeleteBucketPolicy",
+      "s3:DeletePublicAccessBlock",
+      "s3:PutBucketAcl",
+      "s3:PutObjectAcl",
+    ]
+    resources = [local.arn.buckets, local.arn.objects]
   }
   statement {
     sid       = "ProjectServices"
-    actions   = ["lambda:*", "sns:*", "scheduler:*", "athena:*", "glue:*"]
-    resources = [local.arn.functions, local.arn.topics, local.arn.schedules, local.arn.sched_group, local.arn.workgroups, local.arn.glue_cat, local.arn.glue_dbs, local.arn.glue_tables]
+    actions   = ["lambda:*", "sns:*", "scheduler:*", "athena:*"]
+    resources = [local.arn.functions, local.arn.topics, local.arn.schedules, local.arn.sched_group, local.arn.workgroups]
+  }
+  # Function URLs and resource policies could expose a workload role (which
+  # can read the TfL key) to unauthenticated callers. Scheduler invokes
+  # through its own role, so neither is needed.
+  statement {
+    sid       = "NoPublicFunctions"
+    effect    = "Deny"
+    actions   = ["lambda:CreateFunctionUrlConfig", "lambda:UpdateFunctionUrlConfig", "lambda:AddPermission"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "ProjectGlue"
+    actions   = concat(local.glue_read, local.glue_write)
+    resources = [local.arn.glue_cat, local.arn.glue_dbs, local.arn.glue_tables]
   }
   statement {
     sid       = "ProjectLogs"
@@ -174,6 +233,8 @@ data "aws_iam_policy_document" "write" {
       values   = [aws_iam_policy.workload_boundary.arn]
     }
   }
+  # iam:PermissionsBoundary is not evaluated for these actions. This relies
+  # on every mind-the-data-* role carrying the boundary (ADR-005).
   statement {
     sid = "WorkloadRolesManage"
     actions = [
@@ -202,9 +263,9 @@ data "aws_iam_policy_document" "write" {
     resources = [local.arn.parameters]
   }
   statement {
-    sid       = "NeverRemoveBoundary"
+    sid       = "BoundaryIsFixed"
     effect    = "Deny"
-    actions   = ["iam:DeleteRolePermissionsBoundary"]
+    actions   = ["iam:DeleteRolePermissionsBoundary", "iam:CreatePolicyVersion", "iam:SetDefaultPolicyVersion", "iam:DeletePolicy"]
     resources = ["*"]
   }
 }
@@ -216,6 +277,11 @@ data "aws_iam_policy_document" "workload_boundary" {
     sid       = "ProjectData"
     actions   = ["s3:GetObject", "s3:PutObject", "s3:ListBucket", "s3:GetBucketLocation"]
     resources = [local.arn.buckets, local.arn.objects]
+    condition {
+      test     = "StringEquals"
+      variable = "s3:ResourceAccount"
+      values   = [local.account_id]
+    }
   }
   statement {
     sid       = "Logs"
@@ -269,7 +335,7 @@ resource "aws_iam_policy" "workload_boundary" {
 
 resource "aws_iam_role" "plan" {
   name                 = "${var.ci_name_prefix}-ci-plan"
-  description          = "GitHub Actions, pull requests: terraform plan (read-only)."
+  description          = "GitHub Actions: terraform plan for pull requests and main (read-only)."
   assume_role_policy   = data.aws_iam_policy_document.trust_plan.json
   max_session_duration = 3600
 }
@@ -281,6 +347,8 @@ resource "aws_iam_role_policy" "plan_read" {
 }
 
 resource "aws_iam_role" "apply" {
+  count = var.enable_apply_role ? 1 : 0
+
   name                 = "${var.ci_name_prefix}-ci-apply"
   description          = "GitHub Actions, production environment: terraform apply."
   assume_role_policy   = data.aws_iam_policy_document.trust_apply.json
@@ -288,13 +356,17 @@ resource "aws_iam_role" "apply" {
 }
 
 resource "aws_iam_role_policy" "apply_read" {
+  count = var.enable_apply_role ? 1 : 0
+
   name   = "read"
-  role   = aws_iam_role.apply.id
+  role   = aws_iam_role.apply[0].id
   policy = data.aws_iam_policy_document.read.json
 }
 
 resource "aws_iam_role_policy" "apply_write" {
+  count = var.enable_apply_role ? 1 : 0
+
   name   = "write"
-  role   = aws_iam_role.apply.id
+  role   = aws_iam_role.apply[0].id
   policy = data.aws_iam_policy_document.write.json
 }
