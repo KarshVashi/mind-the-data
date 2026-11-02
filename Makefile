@@ -11,6 +11,8 @@ DBT       := cd $(DBT_DIR) && $(UV_RUN) --project .. dbt
 DBT_FLAGS := --profiles-dir .
 # Terraform roots that exist so far; modules are validated through the roots that call them.
 TF_ROOTS  := $(wildcard infra/bootstrap infra/envs/prod)
+# Hand-written SQL; macros are skipped by the dbt templater anyway.
+SQL_DIRS  := $(DBT_DIR)/models $(DBT_DIR)/tests $(DBT_DIR)/analyses
 
 .PHONY: help
 help: ## List targets
@@ -48,7 +50,7 @@ test-all: ## Unit and integration tests
 
 .PHONY: sql-lint
 sql-lint:
-	$(UV_RUN) sqlfluff lint $(DBT_DIR)/models
+	$(UV_RUN) sqlfluff lint $(SQL_DIRS)
 
 .PHONY: dbt-parse
 dbt-parse:
@@ -83,7 +85,7 @@ fmt: ## Format Python, Terraform and SQL in place
 	$(UV_RUN) ruff check --fix .
 	$(UV_RUN) ruff format .
 	terraform fmt -recursive infra
-	$(UV_RUN) sqlfluff fix $(DBT_DIR)/models
+	$(UV_RUN) sqlfluff fix $(SQL_DIRS)
 
 # ---- Needs AWS access -------------------------------------------------------
 
