@@ -1,0 +1,23 @@
+name: mind_the_data
+version: "0.1.0"
+config-version: 2
+profile: mind_the_data
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  mind_the_data:
+    +table_type: iceberg
+    +format: parquet
+    staging:
+      +schema: staging
+    intermediate:
+      +schema: intermediate
+    marts:
+      +schema: marts

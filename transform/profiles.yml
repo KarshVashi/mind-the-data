@@ -1,0 +1,23 @@
+# Connection settings come from the environment so the same file serves local
+# runs and CI. Defaults are placeholders that let `dbt parse` run offline.
+mind_the_data:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: athena
+      region_name: "{{ env_var('AWS_REGION', 'eu-west-2') }}"
+      s3_staging_dir: "{{ env_var('DBT_ATHENA_S3_STAGING_DIR', 's3://placeholder-athena-results/dev/') }}"
+      s3_data_dir: "{{ env_var('DBT_ATHENA_S3_DATA_DIR', 's3://placeholder-curated/dev/') }}"
+      database: awsdatacatalog
+      schema: "{{ env_var('DBT_ATHENA_SCHEMA_DEV', 'dev') }}"
+      work_group: "{{ env_var('DBT_ATHENA_WORKGROUP', 'primary') }}"
+      threads: 4
+    prod:
+      type: athena
+      region_name: "{{ env_var('AWS_REGION', 'eu-west-2') }}"
+      s3_staging_dir: "{{ env_var('DBT_ATHENA_S3_STAGING_DIR', 's3://placeholder-athena-results/prod/') }}"
+      s3_data_dir: "{{ env_var('DBT_ATHENA_S3_DATA_DIR', 's3://placeholder-curated/prod/') }}"
+      database: awsdatacatalog
+      schema: "{{ env_var('DBT_ATHENA_SCHEMA_PROD', 'prod') }}"
+      work_group: "{{ env_var('DBT_ATHENA_WORKGROUP', 'primary') }}"
+      threads: 4
