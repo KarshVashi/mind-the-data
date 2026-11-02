@@ -2,7 +2,7 @@
 
 London rail reliability data products. The first is the **Tube League Table**: a weekly reliability ranking of London rail lines built from TfL's live API, ranking each line by what TfL declares (Disruption Index) and by what passengers experience (Experienced Reliability).
 
-The build plan, architecture, metric definitions and milestones are in [docs/PLAN.md](docs/PLAN.md). Decisions are recorded in [docs/adr/](docs/adr/).
+Design decisions are recorded in [docs/adr/](docs/adr/).
 
 ## Getting started
 
