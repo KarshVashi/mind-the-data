@@ -23,7 +23,7 @@ What else, and why not.
 What gets easier, what gets harder, what to revisit and when.
 ```
 
-Records to write in M0 (content is in docs/PLAN.md sections 3, 5.4 and 7.4):
+Records to write in M0 (content is in docs/PLAN.md sections 3, 5.1, 5.4 and 7.4):
 
 - ADR-001: Stack (Lambda + S3 + Athena/Iceberg + dbt + GitHub Actions)
 - ADR-002: Polling interval (60 s, with the week-one review as the revisit trigger)

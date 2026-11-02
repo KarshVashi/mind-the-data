@@ -311,10 +311,10 @@ Some steps need a person: account security, secrets, approvals and anything that
 
 | Id | Step | Needed before | Status |
 |---|---|---|---|
-| H1 | Local tools: `claude` 2.1.139+, `gh auth login`, `uv`, `terraform` 1.10+, `tflint`, `jq`, AWS CLI v2 | M0 | [ ] |
+| H1 | Local tools: `gh auth login`, `uv`, `terraform` 1.10+, `tflint`, `jq`, AWS CLI v2 | M0 | [ ] |
 | H2 | Repo set up: `bash local-setup/install.sh`, git name and noreply email | M0 | [x] |
 | H3 | AWS account security: root MFA on, no root access keys, `mtd-admin` IAM user with MFA (profile `mtd-admin`) | M0 bootstrap | [ ] |
-| H4 | Dev identity: `wiki-lake-user` re-scoped to `ReadOnlyAccess` (profile `mtd-dev`); Claude sessions start with `AWS_PROFILE=mtd-dev` | first read of real AWS state (M1 deploy check) | [ ] |
+| H4 | Dev identity: `wiki-lake-user` re-scoped to `ReadOnlyAccess` (profile `mtd-dev`); local sessions start with `AWS_PROFILE=mtd-dev` | first read of real AWS state (M1 deploy check) | [ ] |
 | H5 | AWS Budget: £5 a month with alerts at 50%, 80%, 100% | M1 deploy | [ ] |
 | H6 | Run the bootstrap once as `mtd-admin` (state bucket, GitHub OIDC provider, CI role), following `docs/runbook.md`; then set repo variable `AWS_ROLE_ARN` | `infra.yml` plan/apply | [ ] |
 | H7 | GitHub: `production` environment with you as required reviewer; squash merge only | first `terraform apply` | [ ] |
