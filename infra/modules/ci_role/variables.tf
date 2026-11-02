@@ -20,7 +20,7 @@ variable "oidc_provider_arn" {
 
 variable "enable_apply_role" {
   type        = bool
-  description = "Create the apply role. Only enable once the GitHub environment's required reviewer and branch rule are enforced (needs a public repository or a paid plan)."
+  description = "Create the apply role. Only enable once the GitHub environment's required reviewer and branch rule are enforced (needs a public repository, or GitHub Enterprise for a private one)."
   default     = false
 }
 

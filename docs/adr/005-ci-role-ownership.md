@@ -19,7 +19,7 @@ A second constraint: the repository is private. On GitHub Free, a private reposi
   - Plans run with `-lock=false`.
 - **Apply role (`mtd-ci-apply`), write access.**
   - Assumable only by jobs in the `production` environment.
-  - It is created only when `enable_apply_role = true`. That waits until the environment's required reviewer and main-only branch rule are actually enforced, which needs a public repository or a paid plan.
+  - It is created only when `enable_apply_role = true`. That waits until the environment's required reviewer and main-only branch rule are actually enforced, which needs a public repository (or GitHub Enterprise; Free, Pro and Team offer required reviewers on public repositories only).
   - Until then, `infra/envs/prod` is applied from a workstation by `mtd-admin` after review (runbook H7).
 - **Approval sees the plan.** On `main`, the plan runs ungated first. The apply job, after approval, applies exactly that saved plan.
 - **The pipeline can manage only `mind-the-data-*`.** That covers resources named `mind-the-data-*`, and Glue databases named `mind_the_data_*`.
@@ -60,5 +60,5 @@ A second constraint: the repository is private. On GitHub Free, a private reposi
 - **New permissions need a human.** When a milestone adds a new kind of resource, the permission change goes in `infra/modules/ci_role` and Karsh re-applies the bootstrap. Plans in CI fail with AccessDenied until then, which is noisy but safe.
   - M2's transform and publish roles will need Athena and Glue in the workload boundary.
   - Any bucket whose versioning CI must manage will need an exception to the bucket protections.
-- **Deploying depends on the GitHub plan.** Until the repository is public or on a paid plan, deploying infrastructure is a reviewed local apply, so M1's deploy waits on a person rather than a click.
+- **Deploying depends on the GitHub plan.** Until the repository is public (or on GitHub Enterprise), deploying infrastructure is a reviewed local apply, so M1's deploy waits on a person rather than a click.
 - **Plans can't lock state.** Plans run without a state lock. An apply rejects a saved plan if the state has moved since, so a stale plan can never be applied.

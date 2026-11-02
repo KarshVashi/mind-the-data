@@ -64,14 +64,14 @@ Pull requests that touch `infra/` now get a `terraform plan`. Nothing is applied
 
 ## H7: `production` environment and the apply role
 
-The apply role trusts any job that names the `production` environment. It is only safe once that environment's protection rules are enforced. On a private repository, that needs a paid GitHub plan; a public repository has them for free.
+The apply role trusts any job that names the `production` environment. It is only safe once that environment's protection rules are enforced. Required reviewers work on public repositories on every plan. On a private repository they need GitHub Enterprise; Pro and Team do not include them.
 
 **1. Merge settings.** In the repository's Settings → General → Pull Requests:
 
 - Allow squash merging only.
 - Automatically delete head branches: on.
 
-**2. If the protection rules can be enforced (public repository or paid plan):**
+**2. If the protection rules can be enforced (public repository, or GitHub Enterprise):**
 
 1. In Settings → Environments, create `production` and set:
    - **Required reviewers:** you.
@@ -145,7 +145,7 @@ After the first green `ci` run on a pull request:
 3. Add `ci`.
 4. Enable "Require branches to be up to date".
 
-On a private repository under GitHub Free, rulesets are not enforced. The same plan note as H7 applies.
+Rulesets are enforced on public repositories on every plan. On a private repository they need a paid plan.
 
 ---
 
