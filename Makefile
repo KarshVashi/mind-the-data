@@ -11,14 +11,17 @@ DBT       := cd $(DBT_DIR) && $(UV_RUN) --project .. dbt
 DBT_FLAGS := --profiles-dir .
 # Terraform roots that exist so far; modules are validated through the roots that call them.
 TF_ROOTS  := $(wildcard infra/bootstrap infra/envs/prod)
+# Hand-written SQL; macros are skipped by the dbt templater anyway.
+SQL_DIRS  := $(DBT_DIR)/models $(DBT_DIR)/tests $(DBT_DIR)/analyses
 
 .PHONY: help
 help: ## List targets
 	@grep -E '^[a-z][a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
 
 .PHONY: install
-install: ## Install the locked Python environment
+install: ## Install the locked Python environment and git pre-commit hook
 	$(UV) sync --locked
+	$(UV_RUN) pre-commit install
 
 # ---- Full gate ---------------------------------------------------------------
 
@@ -47,7 +50,7 @@ test-all: ## Unit and integration tests
 
 .PHONY: sql-lint
 sql-lint:
-	$(UV_RUN) sqlfluff lint $(DBT_DIR)/models
+	$(UV_RUN) sqlfluff lint $(SQL_DIRS)
 
 .PHONY: dbt-parse
 dbt-parse:
@@ -71,8 +74,8 @@ tf-lint:
 	@[ -n "$(TF_ROOTS)" ] || echo "tflint: no terraform roots yet, skipping"
 	@for d in $(TF_ROOTS); do \
 		echo "tflint $$d"; \
-		tflint --chdir=$$d --init >/dev/null; \
-		tflint --chdir=$$d; \
+		tflint --chdir=$$d --config=$(CURDIR)/.tflint.hcl --init >/dev/null; \
+		tflint --chdir=$$d --config=$(CURDIR)/.tflint.hcl; \
 	done
 
 # ---- Formatting ------------------------------------------------------------
@@ -82,7 +85,7 @@ fmt: ## Format Python, Terraform and SQL in place
 	$(UV_RUN) ruff check --fix .
 	$(UV_RUN) ruff format .
 	terraform fmt -recursive infra
-	$(UV_RUN) sqlfluff fix $(DBT_DIR)/models
+	$(UV_RUN) sqlfluff fix $(SQL_DIRS)
 
 # ---- Needs AWS access -------------------------------------------------------
 
