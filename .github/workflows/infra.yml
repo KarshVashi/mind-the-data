@@ -12,12 +12,26 @@ on:
       - "infra/**"
       - ".github/workflows/infra.yml"
       - ".github/scripts/**"
+      # The Lambda package is built from these, so code changes redeploy.
+      - "src/**"
+      - "config/**"
+      - "scripts/zip_lambda.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "Makefile"
   push:
     branches: [main]
     paths:
       - "infra/**"
       - ".github/workflows/infra.yml"
       - ".github/scripts/**"
+      # The Lambda package is built from these, so code changes redeploy.
+      - "src/**"
+      - "config/**"
+      - "scripts/zip_lambda.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "Makefile"
   workflow_dispatch:
     inputs:
       allow_destroy:
@@ -39,6 +53,8 @@ env:
   TF_IN_AUTOMATION: "true"
   AWS_REGION: eu-west-2
   TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  # Optional: without it the alerts topic has no email subscription.
+  TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
 
 jobs:
   not-configured:
@@ -71,6 +87,14 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.16"
+
+      # Terraform hashes dist/lambda.zip, so it must exist before plan.
+      - name: build Lambda package
+        run: make package
 
       - name: terraform init
         run: terraform -chdir="$TF_DIR" init -input=false -backend-config="bucket=$TF_STATE_BUCKET"
@@ -111,6 +135,14 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.16"
+
+      # Terraform hashes dist/lambda.zip, so it must exist before plan.
+      - name: build Lambda package
+        run: make package
 
       - name: terraform init
         run: terraform -chdir="$TF_DIR" init -input=false -backend-config="bucket=$TF_STATE_BUCKET"
