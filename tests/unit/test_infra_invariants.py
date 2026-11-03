@@ -81,3 +81,31 @@ def test_raw_tables_never_hide_bad_lines() -> None:
         text = path.read_text()
         for prop in ("ignore.malformed.json", "use.null.for.invalid.data"):
             assert f'"{prop}"' not in text, f"{path}: {prop} would hide bad raw lines"
+
+
+def test_transform_role_names_match_the_prod_stack() -> None:
+    # The bootstrap cannot read envs/prod outputs, so ci_role rebuilds the
+    # names from the same patterns; a rename on one side only would surface
+    # as AccessDenied in the first scheduled build.
+    ci_role = (INFRA / "modules" / "ci_role" / "main.tf").read_text()
+    prod = (INFRA / "envs" / "prod" / "main.tf").read_text()
+    for pattern in (
+        "-athena-results-${local.account_id}",
+        "-curated-${local.account_id}",
+        "-raw-${local.account_id}",
+    ):
+        assert pattern in ci_role and pattern in prod, pattern
+    assert '"${local.glue_prefix}_raw"' in prod and "${local.glue_p}_raw" in ci_role
+    assert (
+        '"${local.prefix}-${target}"' in prod
+        and "workgroup/${local.p}-${var.transform_target}" in ci_role
+    )
+
+
+def test_transform_role_cannot_write_raw() -> None:
+    text = (INFRA / "modules" / "ci_role" / "main.tf").read_text()
+    policies = blocks(text, "data", "aws_iam_policy_document")
+    transform = next(b for b in policies if "GlueTargetWrite" in b)
+    for statement in transform.split("statement {")[1:]:
+        if re.search(r'"(s3:(Put|Delete)|glue:(Create|Update|Delete|Batch))', statement):
+            assert "raw" not in statement, statement
