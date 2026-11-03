@@ -10,6 +10,7 @@ from mind_the_data.common.raw import (
     Envelope,
     Feed,
     RequestInfo,
+    check_one_poll,
     decode_ndjson_gz,
     encode_ndjson_gz,
     object_key,
@@ -100,3 +101,46 @@ def test_polled_at_is_stored_to_the_millisecond() -> None:
 
 def test_ndjson_encoding_is_deterministic() -> None:
     assert encode_ndjson_gz([_envelope()]) == encode_ndjson_gz([_envelope()])
+
+
+def test_naive_polled_at_fails_when_the_envelope_is_built() -> None:
+    with pytest.raises(ValidationError, match="naive"):
+        _envelope(polled_at=datetime(2026, 11, 8, 8, 15))
+
+
+def test_polled_at_is_normalised_to_utc() -> None:
+    bst = timezone(timedelta(hours=1))
+    env = _envelope(polled_at=datetime(2026, 7, 1, 9, 15, tzinfo=bst))
+    assert env.polled_at == datetime(2026, 7, 1, 8, 15, tzinfo=UTC)
+
+
+def test_success_with_unusable_body_is_not_ok() -> None:
+    assert not _envelope(http_status=200, error="invalid_json", payload="<html>").ok
+
+
+@pytest.mark.parametrize("status", [99, 600])
+def test_http_status_must_be_a_real_status(status: int) -> None:
+    with pytest.raises(ValidationError):
+        _envelope(http_status=status)
+
+
+def test_check_one_poll_accepts_matching_envelopes() -> None:
+    check_one_poll([_envelope(), _envelope()], Feed.ARRIVALS, POLL_ID, POLLED_AT)
+
+
+@pytest.mark.parametrize(
+    "other",
+    [
+        {"feed": Feed.LINE_STATUS},
+        {"poll_id": UUID("00000000-0000-0000-0000-000000000001")},
+        {"polled_at": POLLED_AT + timedelta(seconds=1)},
+    ],
+)
+def test_check_one_poll_rejects_mixed_envelopes(other: dict[str, object]) -> None:
+    with pytest.raises(ValueError, match="does not belong"):
+        check_one_poll([_envelope(), _envelope(**other)], Feed.ARRIVALS, POLL_ID, POLLED_AT)
+
+
+def test_check_one_poll_rejects_empty() -> None:
+    with pytest.raises(ValueError, match="at least one"):
+        check_one_poll([], Feed.ARRIVALS, POLL_ID, POLLED_AT)
