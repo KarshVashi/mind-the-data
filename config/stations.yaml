@@ -6,8 +6,12 @@
 #   where lines.yaml sets min_stations because the line is that short.
 # - One Arrivals call returns every line serving that StopPoint, so interchanges
 #   are reused wherever they fit. Each distinct naptan_id costs one call a
-#   minute; status and disruption add two. Budget: 52 calls a minute in total,
-#   so at most 50 distinct stations.
+#   minute; line status and line disruption add two, and stop disruption adds
+#   one more every fifth minute. Budget: 52 calls a minute (53 every fifth
+#   minute), so at most 50 distinct stations; the loader enforces this.
+# - Entries are station-level, not platform-level: one Arrivals call returns
+#   every platform at the station, and grouping by platform and direction
+#   happens downstream in dbt.
 # - Where one station sees every train from several branches (a junction or
 #   the station just inside it), it stands in for those branch ends.
 # - naptan_id is the station-level StopPoint id the Arrivals endpoint accepts:
@@ -47,10 +51,10 @@ lines:
       name: Bank
       role: core
       reason: "City trunk; shared with Northern and W&C"
-    - naptan_id: 940GZZLULVT
-      name: Liverpool Street
+    - naptan_id: 940GZZLUSTD
+      name: Stratford
       role: core
-      reason: "east of the core, every train calls; shared with Circle, H&C, Met"
+      reason: every eastbound train calls before the Leytonstone split; shared with Jubilee
     - naptan_id: 940GZZLUEBY
       name: Ealing Broadway
       role: terminus
@@ -58,7 +62,7 @@ lines:
     - naptan_id: 940GZZLUEPG
       name: Epping
       role: terminus
-      reason: busiest eastern branch end; West Ruislip and Hainault are the lighter ends left out
+      reason: busiest eastern branch end; West Ruislip and Hainault are left out to stay within the station budget
 
   circle:
     - naptan_id: 940GZZLUHSC
@@ -164,7 +168,7 @@ lines:
     - naptan_id: 940GZZLUAMS
       name: Amersham
       role: terminus
-      reason: main-line end; Chesham and Watford are low-frequency ends left out
+      reason: main-line end; the Chesham and Watford ends are left out to stay within the station budget
 
   northern:
     - naptan_id: 940GZZLUBNK
@@ -186,7 +190,7 @@ lines:
     - naptan_id: 940GZZLUMDN
       name: Morden
       role: terminus
-      reason: southern terminus; Battersea trains are seen at Waterloo
+      reason: southern terminus; Battersea trains run via the Charing Cross branch and are seen at Waterloo
 
   piccadilly:
     - naptan_id: 940GZZLUKSX
@@ -254,7 +258,7 @@ lines:
     - naptan_id: 910GHTRWAPT
       name: "Heathrow Terminals 2 & 3"
       role: branch
-      reason: every Heathrow train calls here, covering the T4 and T5 ends; Reading left out (low frequency)
+      reason: every Heathrow train calls here, covering the T4 and T5 ends; Reading left out to stay within the station budget
 
   dlr:
     - naptan_id: 940GZZDLBNK
@@ -264,7 +268,7 @@ lines:
     - naptan_id: 940GZZDLCGT
       name: Canning Town DLR
       role: core
-      reason: junction seen by Stratford, Beckton and Woolwich services
+      reason: junction seen by Stratford International, Beckton and Woolwich Arsenal services
     - naptan_id: 940GZZDLLEW
       name: Lewisham DLR
       role: terminus
