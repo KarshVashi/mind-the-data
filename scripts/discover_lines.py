@@ -9,6 +9,7 @@ Usage:
     uv run python scripts/discover_lines.py              # every line in scope
     uv run python scripts/discover_lines.py central dlr  # just these lines
     uv run python scripts/discover_lines.py --inbound    # inbound sequences too
+    uv run python scripts/discover_lines.py --check-arrivals --strict  # in service hours
 """
 
 import argparse
@@ -55,11 +56,12 @@ def print_route(client: httpx.Client, line_id: str, direction: str) -> None:
     print()
 
 
-def check_arrivals(client: httpx.Client, expected: dict[str, set[str]]) -> int:
+def check_arrivals(client: httpx.Client, expected: dict[str, set[str]], *, strict: bool) -> int:
     """Call Arrivals once per station and compare the lines seen with the config.
 
     A line missing from a board can just mean no train is due (late night), so
-    only a non-200 response counts as a failure; missing lines are reported.
+    by default only a non-200 response counts as a failure. With ``strict``
+    (run during service hours) a configured line never seen at its id fails too.
     """
     failures = 0
     print(f"# Arrivals check: {len(expected)} distinct stations")
@@ -73,6 +75,9 @@ def check_arrivals(client: httpx.Client, expected: dict[str, set[str]]) -> int:
         seen = {p["lineId"] for p in response.json() if p.get("naptanId") == naptan_id}
         missing = sorted(lines - seen)
         note = f"  no predictions now for {missing}" if missing else ""
+        if missing and strict:
+            failures += 1
+            note += "  FAIL"
         print(f"{naptan_id:<14} expected {sorted(lines)} seen {sorted(seen)}{note}")
     return failures
 
@@ -86,6 +91,11 @@ def main() -> None:
         action="store_true",
         help="call Arrivals for every station in config/stations.yaml instead",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="with --check-arrivals: fail if a configured line is not seen at its station",
+    )
     args = parser.parse_args()
 
     with httpx.Client(base_url=BASE_URL, timeout=30.0) as client:
@@ -94,7 +104,7 @@ def main() -> None:
             expected: dict[str, set[str]] = {}
             for station in stations:
                 expected.setdefault(station.naptan_id, set()).add(station.line_id)
-            raise SystemExit(1 if check_arrivals(client, expected) else 0)
+            raise SystemExit(1 if check_arrivals(client, expected, strict=args.strict) else 0)
 
         lines: list[dict[str, Any]] = get_json(client, f"/Line/Mode/{MODES}")
         print_lines(lines)

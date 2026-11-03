@@ -14,15 +14,20 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
 
-# NaPTAN StopPoint ids that the Arrivals endpoint accepts: 940GZZ... for
-# Underground, DLR and tram stations, 910G... for National Rail-style stations
-# (Elizabeth line, Overground). Hub ids (HUB...) are rejected on purpose: a hub
-# groups several stations, so one id would no longer mean one measured board.
-NAPTAN_ID_PATTERN = r"^[0-9]{3}[A-Z0-9]+$"
+# Station-level NaPTAN StopPoint ids that the Arrivals endpoint accepts:
+# 940GZZ... for Underground, DLR and tram, 910G... for Elizabeth line and
+# Overground. Hub ids (HUB...) are rejected on purpose: a hub groups several
+# stations, so one id would no longer mean one measured board.
+NAPTAN_ID_PATTERN = r"^(940GZZ[A-Z0-9]{5,}|910G[A-Z0-9]+)$"
 MAX_STATIONS_PER_LINE = 5
 DEFAULT_MIN_STATIONS = 3
+# One Arrivals call per distinct station each minute, plus line status and line
+# disruption: 52 calls a minute (53 every fifth minute, with stop disruption)
+# against the 500/min key limit (PLAN 5.3). Checked at load so a bad CONFIG_DIR
+# bundle fails at cold start rather than by quietly overspending the budget.
+MAX_DISTINCT_STATIONS = 50
 
 LineId = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z-]*$")]
 NaptanId = Annotated[str, StringConstraints(pattern=NAPTAN_ID_PATTERN)]
@@ -40,6 +45,16 @@ class Mode(StrEnum):
     DLR = "dlr"
     OVERGROUND = "overground"
     TRAM = "tram"
+
+
+# The id prefix each mode's stations must use.
+NAPTAN_PREFIX_BY_MODE = {
+    Mode.TUBE: "940GZZ",
+    Mode.DLR: "940GZZ",
+    Mode.TRAM: "940GZZ",
+    Mode.ELIZABETH_LINE: "910G",
+    Mode.OVERGROUND: "910G",
+}
 
 
 class StationRole(StrEnum):
@@ -94,7 +109,10 @@ def load_lines(path: Path) -> list[Line]:
     raw = _read_mapping(path, "lines")
     if not isinstance(raw, list) or not raw:
         raise ConfigError(f"{path}: 'lines' must be a non-empty list")
-    lines = [Line.model_validate(item) for item in raw]
+    try:
+        lines = [Line.model_validate(item) for item in raw]
+    except ValidationError as exc:
+        raise ConfigError(f"{path}: {exc}") from exc
     duplicates = sorted(i for i, n in Counter(line.id for line in lines).items() if n > 1)
     if duplicates:
         raise ConfigError(f"{path}: duplicate line ids {duplicates}")
@@ -108,9 +126,12 @@ def load_stations(path: Path) -> list[Station]:
         raise ConfigError(f"{path}: 'lines' must be a non-empty mapping of line id to stations")
     stations: list[Station] = []
     for line_id, entries in raw.items():
-        if not isinstance(entries, list):
-            raise ConfigError(f"{path}: stations for {line_id!r} must be a list")
-        stations.extend(Station.model_validate({"line_id": line_id, **e}) for e in entries)
+        if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
+            raise ConfigError(f"{path}: stations for {line_id!r} must be a list of mappings")
+        try:
+            stations.extend(Station.model_validate({"line_id": line_id, **e}) for e in entries)
+        except ValidationError as exc:
+            raise ConfigError(f"{path}: {exc}") from exc
 
     pairs = Counter((s.line_id, s.naptan_id) for s in stations)
     duplicates = sorted(p for p, n in pairs.items() if n > 1)
@@ -127,11 +148,19 @@ def load_stations(path: Path) -> list[Station]:
 
 
 def validate_stations(lines: Sequence[Line], stations: Sequence[Station]) -> None:
-    """Cross-file rules: known lines only, and every line measured within its limits."""
+    """Cross-file rules: known lines, id prefix matching the mode, per-line and total counts."""
     known = {line.id: line for line in lines}
     unknown = sorted({s.line_id for s in stations} - known.keys())
     if unknown:
         raise ConfigError(f"stations reference lines not in lines.yaml: {unknown}")
+
+    wrong_prefix = sorted(
+        f"{s.line_id}/{s.naptan_id}"
+        for s in stations
+        if not s.naptan_id.startswith(NAPTAN_PREFIX_BY_MODE[known[s.line_id].mode])
+    )
+    if wrong_prefix:
+        raise ConfigError(f"naptan id prefix does not match the line's mode: {wrong_prefix}")
 
     counts = Counter(s.line_id for s in stations)
     problems = [
@@ -141,6 +170,12 @@ def validate_stations(lines: Sequence[Line], stations: Sequence[Station]) -> Non
     ]
     if problems:
         raise ConfigError(f"measurement stations per line out of range: {problems}")
+
+    distinct = len(distinct_station_ids(stations))
+    if distinct > MAX_DISTINCT_STATIONS:
+        raise ConfigError(
+            f"{distinct} distinct stations exceeds the budget of {MAX_DISTINCT_STATIONS}"
+        )
 
 
 def distinct_station_ids(stations: Sequence[Station]) -> list[str]:
