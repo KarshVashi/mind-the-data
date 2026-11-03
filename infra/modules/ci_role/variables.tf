@@ -18,16 +18,10 @@ variable "oidc_provider_arn" {
   description = "ARN of the account's token.actions.githubusercontent.com OIDC provider."
 }
 
-variable "enable_apply_role" {
-  type        = bool
-  description = "Create the apply role. Only enable once the GitHub environment's required reviewer and branch rule are enforced (needs a public repository, or GitHub Enterprise for a private one)."
-  default     = false
-}
-
-variable "apply_environment" {
+variable "apply_branch" {
   type        = string
-  description = "GitHub environment whose jobs may assume the apply role."
-  default     = "production"
+  description = "Branch whose workflow runs may assume the apply role; merging into it is the approval."
+  default     = "main"
 }
 
 variable "state_bucket_arn" {

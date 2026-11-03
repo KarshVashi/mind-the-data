@@ -1,10 +1,10 @@
 name: infra
 
-# Plans infra/envs/prod on pull requests. On main, plans first (ungated,
-# read-only), then applies exactly that saved plan once a reviewer approves
-# the `production` environment, so the approval is given with the plan in
-# view. Jobs skip with a notice until the repository variables exist
-# (runbook H6, H7).
+# Pull requests that touch infra/ get a read-only plan. Merging into main is
+# the approval: the run on main plans and applies (ADR-005). Credentials are
+# decided by AWS from the job's branch, so a pull request cannot deploy even
+# if it edits this file. Jobs skip with a notice until the repository
+# variables exist (runbook H6).
 
 on:
   pull_request:
@@ -21,7 +21,7 @@ on:
 permissions:
   contents: read
 
-# PR plans run side by side; main runs queue behind each other.
+# Pull request plans run side by side; runs on main queue behind each other.
 concurrency:
   group: infra-${{ github.event_name == 'pull_request' && github.ref || 'prod' }}
   cancel-in-progress: false
@@ -35,19 +35,13 @@ env:
 
 jobs:
   not-configured:
-    if: vars.AWS_PLAN_ROLE_ARN == '' || vars.TF_STATE_BUCKET == ''
+    if: vars.TF_STATE_BUCKET == '' || vars.AWS_PLAN_ROLE_ARN == '' || vars.AWS_ROLE_ARN == ''
     runs-on: ubuntu-24.04
     steps:
-      - run: echo "::notice title=infra plan skipped::Set the TF_STATE_BUCKET and AWS_PLAN_ROLE_ARN repository variables after the bootstrap apply (docs/runbook.md, H6)."
-
-  apply-not-enabled:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.AWS_ROLE_ARN == ''
-    runs-on: ubuntu-24.04
-    steps:
-      - run: echo "::notice title=infra apply skipped::AWS_ROLE_ARN is not set, so nothing is applied from CI (docs/runbook.md, H7)."
+      - run: echo "::notice title=infra skipped::Set the TF_STATE_BUCKET, AWS_PLAN_ROLE_ARN and AWS_ROLE_ARN repository variables after the bootstrap apply (docs/runbook.md, H6)."
 
   plan:
-    if: vars.AWS_PLAN_ROLE_ARN != '' && vars.TF_STATE_BUCKET != '' && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main')
+    if: github.event_name == 'pull_request' && vars.TF_STATE_BUCKET != '' && vars.AWS_PLAN_ROLE_ARN != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -72,42 +66,17 @@ jobs:
       - name: terraform init
         run: terraform -chdir="$TF_DIR" init -input=false -backend-config="bucket=$TF_STATE_BUCKET"
 
-      # The plan role is read-only, so no state lock is taken. If state moves
-      # before the apply, Terraform rejects the saved plan as stale.
+      # The plan role is read-only, so no state lock is taken.
       - name: terraform plan
         run: |
           terraform -chdir="$TF_DIR" plan -input=false -lock=false -no-color -out=tfplan
           terraform -chdir="$TF_DIR" show -no-color tfplan > plan.txt
-          lines=$(wc -l < plan.txt)
-          {
-            echo '### terraform plan (infra/envs/prod)'
-            echo '```'
-            head -n 400 plan.txt
-            echo '```'
-            if [ "$lines" -gt 400 ]; then
-              echo "Truncated: showing 400 of $lines lines. The full plan is in the job log and the tfplan artifact."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-          cat plan.txt
+          ./.github/scripts/plan-summary.sh plan.txt "terraform plan (infra/envs/prod)"
 
-      - name: upload plan for apply
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: tfplan
-          path: ${{ env.TF_DIR }}/tfplan
-          # The plan holds unredacted values (e.g. alarm email); keep it briefly.
-          retention-days: 1
-          if-no-files-found: error
-
-  apply:
-    needs: plan
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.AWS_ROLE_ARN != ''
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.TF_STATE_BUCKET != '' && vars.AWS_ROLE_ARN != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # Required reviewer and main-only deployment branches are set on this
-    # environment (runbook H7); the apply role trusts only this environment.
-    environment: production
     permissions:
       contents: read
       id-token: write
@@ -116,16 +85,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: tfplan
-          path: ${{ env.TF_DIR }}
-
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-          role-session-name: infra-apply-${{ github.run_id }}
+          role-session-name: infra-deploy-${{ github.run_id }}
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
@@ -135,5 +99,13 @@ jobs:
       - name: terraform init
         run: terraform -chdir="$TF_DIR" init -input=false -backend-config="bucket=$TF_STATE_BUCKET"
 
-      - name: terraform apply (the plan approved above)
+      # Plan again from main (it may have moved since the pull request's plan)
+      # and record it in the run summary, then apply exactly that plan.
+      - name: terraform plan
+        run: |
+          terraform -chdir="$TF_DIR" plan -input=false -no-color -out=tfplan
+          terraform -chdir="$TF_DIR" show -no-color tfplan > plan.txt
+          ./.github/scripts/plan-summary.sh plan.txt "terraform plan applied from main (infra/envs/prod)"
+
+      - name: terraform apply
         run: terraform -chdir="$TF_DIR" apply -input=false -no-color tfplan

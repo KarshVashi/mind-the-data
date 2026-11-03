@@ -35,8 +35,8 @@ If the output lists `token.actions.githubusercontent.com`, keep the default. If 
 AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap init
 AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
 #   Expect: 1 S3 bucket and its settings, 1 IAM policy (mtd-workload-boundary),
-#   1 IAM role (mtd-ci-plan) with an inline policy, and an OIDC provider only
-#   if you asked for one. No apply role yet (see H7).
+#   2 IAM roles (mtd-ci-plan, mtd-ci-apply) with inline policies, and an OIDC
+#   provider only if you asked for one. Nothing else.
 AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap apply bootstrap.tfplan
 ```
 
@@ -49,61 +49,40 @@ aws s3 cp --profile mtd-admin infra/bootstrap/terraform.tfstate "s3://$BUCKET/bo
 
 CI can read and write only `envs/` in that bucket, so it cannot touch this copy. Repeat the copy after every bootstrap apply.
 
-**5. Set the plan variables.** These are identifiers, not secrets.
+**5. Set the repository variables.** These are identifiers, not secrets.
 
 ```sh
 gh variable set TF_STATE_BUCKET   --body "$(terraform -chdir=infra/bootstrap output -raw state_bucket)"
 gh variable set AWS_PLAN_ROLE_ARN --body "$(terraform -chdir=infra/bootstrap output -raw plan_role_arn)"
+gh variable set AWS_ROLE_ARN      --body "$(terraform -chdir=infra/bootstrap output -raw apply_role_arn)"
 ```
 
-Pull requests that touch `infra/` now get a `terraform plan`. Nothing is applied from CI until H7.
+From now on:
+
+- **Pull requests** that touch `infra/` get a read-only plan.
+- **Merging** such a pull request deploys it (see H10).
 
 **Re-applying.** When a later milestone needs the CI roles to manage a new kind of resource, the change lands in `infra/modules/ci_role` and you re-run steps 3 and 4. CI cannot change its own permissions.
 
 ---
 
-## H7: `production` environment and the apply role
+## H7: Merge settings
 
-The apply role trusts any job that names the `production` environment. It is only safe once that environment's protection rules are enforced. Required reviewers work on public repositories on every plan. On a private repository they need GitHub Enterprise; Pro and Team do not include them.
-
-**1. Merge settings.** In the repository's Settings → General → Pull Requests:
+Merging a pull request into `main` is what deploys infrastructure (ADR-005). In the repository's Settings → General → Pull Requests:
 
 - Allow squash merging only.
 - Automatically delete head branches: on.
 
-**2. If the protection rules can be enforced (public repository, or GitHub Enterprise):**
+Nothing else is needed. No GitHub environment is used. The deploy role trusts only jobs running on `main`, so it works the same on a free private repository.
 
-1. In Settings → Environments, create `production` and set:
-   - **Required reviewers:** you.
-   - **Prevent self-review:** off.
-   - **Deployment branches and tags:** Selected branches, rule `main`.
-2. Check that the rules show as active, with no banner saying they are unavailable on your plan.
-3. Record the setting locally, so every later bootstrap apply keeps the role. The file is gitignored.
+**Only you can deploy.** Today only you have write access to the repository, so only your merges or pushes to `main` can deploy. Before giving anyone else write access, revisit ADR-005.
 
-   ```sh
-   echo 'enable_apply_role = true' >> infra/bootstrap/terraform.tfvars
-   ```
-
-4. Create the apply role and set its variable:
-
-   ```sh
-   AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
-   #   Expect: 1 IAM role (mtd-ci-apply) and 2 inline policies added. Nothing else.
-   AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap apply bootstrap.tfplan
-   gh variable set AWS_ROLE_ARN --body "$(terraform -chdir=infra/bootstrap output -raw apply_role_arn)"
-   ```
-
-5. Repeat H6 step 4 to back up the state.
-
-The uploaded plan artifact holds unredacted values, such as the alarm email address. It is kept for one day. Anyone with read access to the repository can download it during that time, which matters if the repository is public.
-
-**3. If they cannot be enforced (private repository on GitHub Free):** leave the apply role disabled and `AWS_ROLE_ARN` unset. Deploy `infra/envs/prod` from your machine after review:
+**Deploying from your machine.** Use this only if CI cannot deploy, for example when GitHub Actions is down. Plan, check the plan against the merged pull request, then apply:
 
 ```sh
 TF_STATE_BUCKET=$(terraform -chdir=infra/bootstrap output -raw state_bucket)
 AWS_PROFILE=mtd-admin terraform -chdir=infra/envs/prod init -backend-config="bucket=$TF_STATE_BUCKET"
 AWS_PROFILE=mtd-admin terraform -chdir=infra/envs/prod plan -out=prod.tfplan
-#   Compare with the plan shown on the merged pull request.
 AWS_PROFILE=mtd-admin terraform -chdir=infra/envs/prod apply prod.tfplan
 ```
 
@@ -149,15 +128,15 @@ Rulesets are enforced on public repositories on every plan. On a private reposit
 
 ---
 
-## H10: Approve a production apply
+## H10: Approve an infrastructure change
 
-A merge to `main` that touches `infra/` starts the `infra` workflow.
+Merging is the approval.
 
-1. **Plan.** The `plan` job runs first, without approval, and writes the plan to the run summary.
-2. **Review.** The `apply` job then waits on the `production` environment. Read the plan in the summary, or in the `plan` job's log.
-3. **Approve.** Approve only if the plan shows the changes the pull request said it would make.
+1. **Review the plan.** On the pull request, the `infra` workflow's `plan` job writes the plan to its run summary. Read it there.
+2. **Merge.** Merge only if the plan shows the changes the pull request says it makes, and nothing else.
+3. **Watch the deploy.** The merge starts the `deploy` job on `main`. It plans again from `main` and applies that plan. It also writes the plan it applied to its run summary, so you can check it matches what you reviewed.
 
-The apply runs exactly the saved plan. If anything changed state in between, Terraform rejects the plan as stale and nothing is applied.
+If `main` moved after the pull request's plan ran, the deploy includes those changes too. Merging soon after the pull request's plan keeps the two the same.
 
 ---
 

@@ -9,7 +9,7 @@ output "plan_role_arn" {
 }
 
 output "apply_role_arn" {
-  description = "Set as the AWS_ROLE_ARN repository variable once enabled. Null until enable_apply_role is true."
+  description = "Set as the AWS_ROLE_ARN repository variable."
   value       = module.ci_role.apply_role_arn
 }
 

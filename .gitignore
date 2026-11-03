@@ -31,8 +31,6 @@ logs/
 *.tfstate
 *.tfstate.*
 *.tfplan
-# Local bootstrap settings, such as enable_apply_role (runbook H7).
-infra/bootstrap/terraform.tfvars
 crash.log
 .terraform.tfstate.lock.info
 

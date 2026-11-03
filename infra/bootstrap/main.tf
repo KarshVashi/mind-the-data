@@ -126,5 +126,4 @@ module "ci_role" {
   github_repository = var.github_repository
   oidc_provider_arn = local.oidc_provider_arn
   state_bucket_arn  = aws_s3_bucket.state.arn
-  enable_apply_role = var.enable_apply_role
 }

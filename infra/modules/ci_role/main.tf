@@ -1,10 +1,10 @@
 # GitHub Actions roles for this repository, assumed through OIDC.
 #
-# - plan role: pull requests, and plans on main before an apply. Read-only;
-#   plans run with -lock=false.
-# - apply role: only jobs in the `production` environment. Created only when
-#   enable_apply_role is true, which must wait until that environment's
-#   required reviewer and main-only branch rule are actually enforced.
+# - plan role: pull request jobs only. Read-only; plans run with -lock=false.
+# - apply role: jobs running on the main branch only. Merging a pull request
+#   is the approval (ADR-005); a pull request job, even one that rewrites the
+#   workflow, cannot get these credentials because AWS checks the job's
+#   branch, not the workflow file.
 #
 # The roles and the boundary policy are named outside the project prefix and
 # outside the PassRole set, so nothing the pipeline manages can change its own
@@ -65,14 +65,10 @@ data "aws_iam_policy_document" "trust_plan" {
       variable = "${local.oidc_host}:aud"
       values   = ["sts.amazonaws.com"]
     }
-    # Pull requests, and the ungated plan that runs on main before an apply.
     condition {
       test     = "StringEquals"
       variable = "${local.oidc_host}:sub"
-      values = [
-        "repo:${var.github_repository}:pull_request",
-        "repo:${var.github_repository}:ref:refs/heads/main",
-      ]
+      values   = ["repo:${var.github_repository}:pull_request"]
     }
   }
 }
@@ -89,13 +85,13 @@ data "aws_iam_policy_document" "trust_apply" {
       variable = "${local.oidc_host}:aud"
       values   = ["sts.amazonaws.com"]
     }
-    # A job that names an environment gets this subject regardless of branch.
-    # Branch and approval checks come from the environment's protection rules,
-    # which is why this role exists only once they are enforced.
+    # Only jobs on the apply branch. A job that names a GitHub environment
+    # gets an environment subject instead and is refused, so no workflow can
+    # route around this by adding one.
     condition {
       test     = "StringEquals"
       variable = "${local.oidc_host}:sub"
-      values   = ["repo:${var.github_repository}:environment:${var.apply_environment}"]
+      values   = ["repo:${var.github_repository}:ref:refs/heads/${var.apply_branch}"]
     }
   }
 }
@@ -352,7 +348,7 @@ resource "aws_iam_policy" "workload_boundary" {
 
 resource "aws_iam_role" "plan" {
   name                 = "${var.ci_name_prefix}-ci-plan"
-  description          = "GitHub Actions: terraform plan for pull requests and main (read-only)."
+  description          = "GitHub Actions, pull requests: Terraform plans (read-only)."
   assume_role_policy   = data.aws_iam_policy_document.trust_plan.json
   max_session_duration = 3600
 }
@@ -364,26 +360,20 @@ resource "aws_iam_role_policy" "plan_read" {
 }
 
 resource "aws_iam_role" "apply" {
-  count = var.enable_apply_role ? 1 : 0
-
   name                 = "${var.ci_name_prefix}-ci-apply"
-  description          = "GitHub Actions, production environment: terraform apply."
+  description          = "GitHub Actions, main branch: Terraform deploys after merge."
   assume_role_policy   = data.aws_iam_policy_document.trust_apply.json
   max_session_duration = 3600
 }
 
 resource "aws_iam_role_policy" "apply_read" {
-  count = var.enable_apply_role ? 1 : 0
-
   name   = "read"
-  role   = aws_iam_role.apply[0].id
+  role   = aws_iam_role.apply.id
   policy = data.aws_iam_policy_document.read.json
 }
 
 resource "aws_iam_role_policy" "apply_write" {
-  count = var.enable_apply_role ? 1 : 0
-
   name   = "write"
-  role   = aws_iam_role.apply[0].id
+  role   = aws_iam_role.apply.id
   policy = data.aws_iam_policy_document.write.json
 }
