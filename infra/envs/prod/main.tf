@@ -24,6 +24,11 @@ locals {
   poller_feeds    = ["line_status", "line_disruption", "arrivals", "stop_disruption"]
   reference_feeds = ["ref_route_sequence", "ref_timetable", "ref_severity"]
 
+  # Glue database names cannot contain hyphens.
+  glue_prefix = replace(local.prefix, "-", "_")
+  # Each dbt target gets a workgroup, a results prefix and a curated prefix.
+  dbt_targets = ["dev", "prod"]
+
   common_env = {
     RAW_BUCKET            = local.raw_bucket_name
     TFL_APP_KEY_PARAMETER = var.tfl_app_key_parameter
@@ -183,4 +188,48 @@ module "alarms" {
   reference_function_name = module.reference.function_name
   no_write_feeds          = ["line_status", "line_disruption", "arrivals"]
   request_failure_feed    = "line_status"
+}
+
+# ---- Catalog and query engine (M2) --------------------------------------------
+#
+# Glue tables over raw for Athena, a workgroup per dbt target, and the two
+# buckets dbt needs: query results (expired after a week) and the curated
+# Iceberg tables. dbt creates its own target databases (mind_the_data_dev,
+# mind_the_data_prod) with `create schema if not exists`, so they are not
+# declared here.
+
+module "catalog" {
+  source = "../../modules/catalog"
+
+  database_name = "${local.glue_prefix}_raw"
+  bucket_name   = module.raw_bucket.bucket_name
+  feeds         = concat(local.poller_feeds, local.reference_feeds)
+}
+
+module "athena_results_bucket" {
+  source = "../../modules/data_bucket"
+
+  bucket_name     = "${local.prefix}-athena-results-${local.account_id}"
+  expiration_days = var.athena_results_expiration_days
+}
+
+module "curated_bucket" {
+  source = "../../modules/data_bucket"
+
+  bucket_name = "${local.prefix}-curated-${local.account_id}"
+}
+
+module "athena" {
+  source = "../../modules/athena"
+
+  results_bucket_name            = module.athena_results_bucket.bucket_name
+  expected_bucket_owner          = local.account_id
+  bytes_scanned_cutoff_per_query = var.athena_bytes_scanned_cutoff_per_query
+
+  workgroups = {
+    for target in local.dbt_targets : "${local.prefix}-${target}" => {
+      description    = "dbt ${target} target and ad hoc ${target} queries."
+      results_prefix = target
+    }
+  }
 }
