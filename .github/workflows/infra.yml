@@ -1,0 +1,138 @@
+name: infra
+
+# Pull requests that touch infra/ get a read-only plan. Merging into main is
+# the approval: the run on main plans and applies (ADR-005). Credentials are
+# decided by AWS from the job's branch, so a pull request cannot deploy even
+# if it edits this file. Jobs skip with a notice until the repository
+# variables exist (runbook H6).
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra.yml"
+      - ".github/scripts/**"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra.yml"
+      - ".github/scripts/**"
+  workflow_dispatch:
+    inputs:
+      allow_destroy:
+        description: "Allow the deploy to delete or replace resources"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Pull request plans run side by side; runs on main queue behind each other.
+concurrency:
+  group: infra-${{ github.event_name == 'pull_request' && github.ref || 'prod' }}
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: "1.16.6"
+  TF_DIR: infra/envs/prod
+  TF_IN_AUTOMATION: "true"
+  AWS_REGION: eu-west-2
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+
+jobs:
+  not-configured:
+    if: >-
+      (github.event_name == 'pull_request' && (vars.TF_STATE_BUCKET == '' || vars.AWS_PLAN_ROLE_ARN == ''))
+      || (github.event_name != 'pull_request' && (vars.TF_STATE_BUCKET == '' || vars.AWS_ROLE_ARN == ''))
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "::notice title=infra skipped::Set the TF_STATE_BUCKET, AWS_PLAN_ROLE_ARN and AWS_ROLE_ARN repository variables after the bootstrap apply (docs/runbook.md, H6)."
+
+  plan:
+    if: github.event_name == 'pull_request' && vars.TF_STATE_BUCKET != '' && vars.AWS_PLAN_ROLE_ARN != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: infra-plan-${{ github.run_id }}
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform -chdir="$TF_DIR" init -input=false -backend-config="bucket=$TF_STATE_BUCKET"
+
+      # The plan role is read-only, so no state lock is taken.
+      - name: terraform plan
+        run: |
+          terraform -chdir="$TF_DIR" plan -input=false -lock=false -no-color -out=tfplan
+          terraform -chdir="$TF_DIR" show -no-color tfplan > plan.txt
+          ./.github/scripts/plan-summary.sh plan.txt "terraform plan (infra/envs/prod)"
+
+      # Flag deletes and replacements on the pull request, where they can
+      # still be questioned; the deploy blocks them without an opt-in.
+      - name: destroy check
+        run: |
+          terraform -chdir="$TF_DIR" show -json tfplan > plan.json
+          ./.github/scripts/destroy-guard.sh plan.json true
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.TF_STATE_BUCKET != '' && vars.AWS_ROLE_ARN != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: infra-deploy-${{ github.run_id }}
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform -chdir="$TF_DIR" init -input=false -backend-config="bucket=$TF_STATE_BUCKET"
+
+      # Plan again from main (it may have moved since the pull request's plan)
+      # and record it in the run summary, then apply exactly that plan.
+      - name: terraform plan
+        run: |
+          terraform -chdir="$TF_DIR" plan -input=false -no-color -out=tfplan
+          terraform -chdir="$TF_DIR" show -no-color tfplan > plan.txt
+          ./.github/scripts/plan-summary.sh plan.txt "terraform plan applied from main (infra/envs/prod)"
+
+      # Deletes and replacements are what an approval step would have caught,
+      # so they need an explicit opt-in: `[allow-destroy]` in the merged
+      # pull request's title (it is always in the squash commit message), or
+      # the allow_destroy input on a manual run.
+      - name: destroy guard
+        env:
+          ALLOW_DESTROY: ${{ contains(github.event.head_commit.message, '[allow-destroy]') || inputs.allow_destroy == true }}
+        run: |
+          terraform -chdir="$TF_DIR" show -json tfplan > plan.json
+          ./.github/scripts/destroy-guard.sh plan.json "$ALLOW_DESTROY"
+
+      - name: terraform apply
+        run: terraform -chdir="$TF_DIR" apply -input=false -no-color tfplan
