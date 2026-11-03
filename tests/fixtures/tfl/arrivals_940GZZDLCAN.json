@@ -1,0 +1,9 @@
+{
+  "request": {
+    "path": "/StopPoint/940GZZDLCAN/Arrivals"
+  },
+  "http_status": 200,
+  "recorded_at": "2026-11-03T01:35:51Z",
+  "trimmed": [],
+  "payload": []
+}
