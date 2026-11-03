@@ -1,19 +1,24 @@
 """Shared collection step for the poller and reference Lambdas.
 
-Plan the requests for each feed, run them inside one budget, then write one
-raw object per feed. Raw is written before, and regardless of, validation
-(ADR-003): validation only produces counts for the poll's log line.
+Plan the requests for each feed, run them inside one budget, write one raw
+object per feed, and only then validate (ADR-003): validation produces counts
+for the log line and can never stop or delay a raw write.
+
+A run fails (so the Lambda error alarm fires) when a raw write fails or when
+every request for a feed failed, which is what a revoked key or a TfL outage
+looks like. The raw objects for that run are still written first.
 """
 
+import asyncio
 import logging
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from mind_the_data.common.raw import Envelope, Feed, RequestInfo
 from mind_the_data.common.telemetry import emf_record, print_emf
@@ -22,6 +27,12 @@ from mind_the_data.ingest import models
 from mind_the_data.ingest.client import RequestResult, TflClient
 
 logger = logging.getLogger(__name__)
+
+AUTH_FAILURE_STATUSES = frozenset({401, 403})
+
+
+class CollectionFailed(RuntimeError):
+    """Raised after all writes, so the invocation fails and the alarm fires."""
 
 
 @dataclass(frozen=True)
@@ -35,22 +46,35 @@ class PlannedRequest:
 class FeedOutcome:
     requests: int = 0
     failures: int = 0
+    auth_failures: int = 0
     records: int = 0
     invalid_records: int = 0
     written_key: str | None = None
     write_error: str | None = None
+
+    @property
+    def all_failed(self) -> bool:
+        return self.requests > 0 and self.failures == self.requests
 
 
 @dataclass
 class CollectionSummary:
     poll_id: UUID
     polled_at: datetime
-    duration_ms: int
+    duration_ms: int = 0
     feeds: dict[Feed, FeedOutcome] = field(default_factory=dict)
 
     @property
     def write_failures(self) -> list[Feed]:
-        return [f for f, o in self.feeds.items() if o.write_error is not None]
+        return sorted(f for f, o in self.feeds.items() if o.write_error is not None)
+
+    @property
+    def outage_feeds(self) -> list[Feed]:
+        return sorted(f for f, o in self.feeds.items() if o.all_failed)
+
+    @property
+    def auth_failed(self) -> bool:
+        return any(o.auth_failures for o in self.feeds.values())
 
     def log_fields(self) -> dict[str, Any]:
         return {
@@ -84,28 +108,35 @@ _LIST_MODELS: dict[Feed, type[BaseModel]] = {
     Feed.STOP_DISRUPTION: models.StopDisruption,
     Feed.REF_SEVERITY: models.Severity,
 }
-_DOCUMENT_PARSERS: dict[Feed, Callable[[Any], object]] = {
+
+
+def _timetable_is_usable(payload: Any) -> bool:
+    # A disambiguation means TfL wanted a direction: no timetable was returned.
+    return models.parse_timetable(payload).timetable is not None
+
+
+_DOCUMENT_CHECKS: dict[Feed, Callable[[Any], object]] = {
     Feed.REF_ROUTE_SEQUENCE: models.parse_route_sequence,
-    Feed.REF_TIMETABLE: models.parse_timetable,
+    Feed.REF_TIMETABLE: _timetable_is_usable,
 }
 
 
 def count_records(feed: Feed, payload: Any) -> tuple[int, int]:
-    """(valid, invalid) records in one successful response; never raises."""
-    if feed in _DOCUMENT_PARSERS:
+    """(valid, invalid) records in one successful response. Never raises."""
+    if feed in _DOCUMENT_CHECKS:
         try:
-            _DOCUMENT_PARSERS[feed](payload)
-        except (ValidationError, ValueError, TypeError):
+            usable = _DOCUMENT_CHECKS[feed](payload)
+        except Exception:  # noqa: BLE001 - any parse problem is an invalid record
             return 0, 1
-        return 1, 0
-    model = _LIST_MODELS[feed]
+        return (0, 1) if usable is False else (1, 0)
     if not isinstance(payload, list):
         return 0, 1
+    model = _LIST_MODELS[feed]
     valid = invalid = 0
     for item in payload:
         try:
             model.model_validate(item)
-        except ValidationError:
+        except Exception:  # noqa: BLE001 - any parse problem is an invalid record
             invalid += 1
         else:
             valid += 1
@@ -140,29 +171,35 @@ async def collect(
         [(p.path, p.params) for p in planned], deadline=started + budget_s
     )
 
+    summary = CollectionSummary(poll_id=poll_id, polled_at=polled_at)
     by_feed: dict[Feed, list[Envelope]] = {}
-    summary = CollectionSummary(poll_id=poll_id, polled_at=polled_at, duration_ms=0)
     for request, result in zip(planned, results, strict=True):
-        outcome = summary.feeds.setdefault(request.feed, FeedOutcome())
-        outcome.requests += 1
-        envelope = to_envelope(request.feed, result, poll_id, polled_at)
-        by_feed.setdefault(request.feed, []).append(envelope)
-        if envelope.ok:
-            valid, invalid = count_records(request.feed, envelope.payload)
-            outcome.records += valid
-            outcome.invalid_records += invalid
-        else:
-            outcome.failures += 1
+        by_feed.setdefault(request.feed, []).append(
+            to_envelope(request.feed, result, poll_id, polled_at)
+        )
 
-    # Every feed is written, failures included; one failed write does not
-    # stop the others.
+    # 1. Write every feed, failures included; one failed write never stops the others.
     for feed, envelopes in by_feed.items():
-        outcome = summary.feeds[feed]
+        outcome = summary.feeds.setdefault(feed, FeedOutcome())
         try:
             outcome.written_key = writer.write(feed, polled_at, poll_id, envelopes)
         except Exception as exc:
             outcome.write_error = type(exc).__name__
             logger.exception("raw write failed", extra={"feed": feed.value})
+
+    # 2. Only then count and validate.
+    for feed, envelopes in by_feed.items():
+        outcome = summary.feeds[feed]
+        for env in envelopes:
+            outcome.requests += 1
+            if not env.ok:
+                outcome.failures += 1
+                if env.http_status in AUTH_FAILURE_STATUSES:
+                    outcome.auth_failures += 1
+                continue
+            valid, invalid = count_records(feed, env.payload)
+            outcome.records += valid
+            outcome.invalid_records += invalid
 
     summary.duration_ms = round((clock() - started) * 1000)
     return summary
@@ -185,3 +222,38 @@ def report(summary: CollectionSummary, namespace: str, message: str) -> None:
             timestamp=summary.polled_at,
         )
     )
+
+
+def run_collection(
+    planned: Sequence[PlannedRequest],
+    *,
+    writer: RawWriter,
+    app_key: str | None,
+    polled_at: datetime,
+    budget_s: float,
+    max_concurrency: int,
+    namespace: str,
+    message: str,
+    client_factory: Callable[..., TflClient] = TflClient,
+    on_auth_failure: Callable[[], None] = lambda: None,
+) -> CollectionSummary:
+    """Run one collection end to end and raise if it should alarm."""
+
+    async def go() -> CollectionSummary:
+        # One client per invocation: its connection pool belongs to this event loop.
+        async with client_factory(app_key, max_concurrency=max_concurrency) as client:
+            return await collect(
+                client, writer, planned, poll_id=uuid4(), polled_at=polled_at, budget_s=budget_s
+            )
+
+    summary = asyncio.run(go())
+    report(summary, namespace, message)
+
+    if summary.auth_failed:
+        # The cached key may have been rotated or revoked: fetch it afresh next time.
+        on_auth_failure()
+    problems = [f"raw write failed for {f.value}" for f in summary.write_failures]
+    problems += [f"every request failed for {f.value}" for f in summary.outage_feeds]
+    if problems:
+        raise CollectionFailed("; ".join(problems))
+    return summary
