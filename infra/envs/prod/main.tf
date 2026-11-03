@@ -17,6 +17,11 @@ locals {
   raw_bucket_name = "${local.prefix}-raw-${local.account_id}"
   raw_bucket_arn  = "arn:aws:s3:::${local.raw_bucket_name}"
 
+  # Fixed names: infra/modules/ci_role builds the transform role's ARNs from
+  # the same patterns, so change both together.
+  results_bucket_name = "${local.prefix}-athena-results-${local.account_id}"
+  curated_bucket_name = "${local.prefix}-curated-${local.account_id}"
+
   # Referenced by ARN only. Reading it through a data source would put the
   # key in state, which every pull request plan can read (ADR-005).
   app_key_parameter_arn = "arn:aws:ssm:${var.aws_region}:${local.account_id}:parameter${var.tfl_app_key_parameter}"
@@ -202,27 +207,27 @@ module "catalog" {
   source = "../../modules/catalog"
 
   database_name = "${local.glue_prefix}_raw"
-  bucket_name   = module.raw_bucket.bucket_name
+  bucket_name   = local.raw_bucket_name
   feeds         = concat(local.poller_feeds, local.reference_feeds)
 }
 
 module "athena_results_bucket" {
   source = "../../modules/data_bucket"
 
-  bucket_name     = "${local.prefix}-athena-results-${local.account_id}"
+  bucket_name     = local.results_bucket_name
   expiration_days = var.athena_results_expiration_days
 }
 
 module "curated_bucket" {
   source = "../../modules/data_bucket"
 
-  bucket_name = "${local.prefix}-curated-${local.account_id}"
+  bucket_name = local.curated_bucket_name
 }
 
 module "athena" {
   source = "../../modules/athena"
 
-  results_bucket_name            = module.athena_results_bucket.bucket_name
+  results_bucket_name            = local.results_bucket_name
   expected_bucket_owner          = local.account_id
   bytes_scanned_cutoff_per_query = var.athena_bytes_scanned_cutoff_per_query
 

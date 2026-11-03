@@ -63,7 +63,7 @@ output "dbt_athena_env" {
   value = merge([
     for target in local.dbt_targets : {
       "DBT_ATHENA_S3_STAGING_DIR_${upper(target)}" = module.athena.results_locations["${local.prefix}-${target}"]
-      "DBT_ATHENA_S3_DATA_DIR_${upper(target)}"    = "s3://${module.curated_bucket.bucket_name}/${target}/"
+      "DBT_ATHENA_S3_DATA_DIR_${upper(target)}"    = "s3://${local.curated_bucket_name}/${target}/"
       "DBT_ATHENA_WORKGROUP_${upper(target)}"      = "${local.prefix}-${target}"
       "DBT_ATHENA_SCHEMA_${upper(target)}"         = "${local.glue_prefix}_${target}"
     }
