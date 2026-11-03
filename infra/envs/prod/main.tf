@@ -169,6 +169,6 @@ module "alarms" {
   metric_namespace        = var.metric_namespace
   poller_function_name    = module.poller.function_name
   reference_function_name = module.reference.function_name
-  no_write_feeds          = ["line_status", "arrivals"]
+  no_write_feeds          = ["line_status", "line_disruption", "arrivals"]
   request_failure_feed    = "line_status"
 }

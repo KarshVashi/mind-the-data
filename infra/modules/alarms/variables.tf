@@ -48,7 +48,7 @@ variable "error_rate_datapoints" {
 variable "no_write_feeds" {
   type        = list(string)
   description = "Feeds whose ObjectsWritten metric must be at least 1 every minute."
-  default     = ["line_status", "arrivals"]
+  default     = ["line_status", "line_disruption", "arrivals"]
 }
 
 variable "no_write_minutes" {

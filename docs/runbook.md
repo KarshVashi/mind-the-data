@@ -272,11 +272,19 @@ Once this returns 1000, open a pull request that changes the default of `poller_
 | `mind-the-data-poller-error-rate` | The poller ends in an unhandled error in 3 of the last 5 minutes | Poller logs (`/aws/lambda/mind-the-data-poller`) |
 | `mind-the-data-poller-throttles` | Any poller invocation is throttled in 5 minutes | Account concurrency (above); a poll running past a minute |
 | `mind-the-data-no-objects-line-status` | No `line_status` object is written for 10 minutes, including when the poller isn't running at all | Schedule state, then poller logs |
+| `mind-the-data-no-objects-line-disruption` | No `line_disruption` object is written for 10 minutes | Poller logs |
 | `mind-the-data-no-objects-arrivals` | No `arrivals` object is written for 10 minutes | Poller logs; station config |
 | `mind-the-data-tfl-failures-line-status` | Every line status request to TfL fails for 5 minutes | The app key (H8), then TfL's status |
 | `mind-the-data-reference-errors` | The weekly reference fetch ends in an error | Reference logs (`/aws/lambda/mind-the-data-reference`) |
 
-A request that TfL rejects is still written to raw, as a failure envelope (ADR-003). So a revoked or disabled key sets off the TfL failures alarm, not the no-objects alarms.
+A request that TfL rejects is still written to raw, as a failure envelope (ADR-003). So a revoked or disabled key sets off the TfL failures alarm, not the no-objects alarms. It takes 5 consecutive failing minutes, so a single test invocation does not fire it.
+
+**After the collector's first deploy**, run the reference fetch once rather than waiting for Monday 03:00:
+
+```sh
+aws lambda invoke --profile mtd-admin --region eu-west-2 \
+  --function-name mind-the-data-reference --invocation-type Event /dev/null
+```
 
 ---
 
