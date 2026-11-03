@@ -1,16 +1,85 @@
 # Runbook
 
-Commands for the steps a person has to do. Run them from the repository root unless stated. Region is `eu-west-2` throughout. Admin commands pass `--profile mtd-admin` or set it inline, so the admin profile never stays set in your shell.
+Commands for the steps a person has to do. Run them from the repository root unless stated. Region is `eu-west-2` throughout.
 
 The rest of the runbook (alarms, re-runs, backfills, key rotation in depth) arrives with M1 and M7.
 
 ---
 
+## H3: Admin identity
+
+Admin work runs through IAM Identity Center. You sign in through your browser with MFA, and get short-lived credentials for an `AdministratorAccess` permission set. There are no long-lived access keys.
+
+**1. Secure the root user.** Sign in as root, then open the account menu (top right) → Security credentials.
+
+- Under "Multi-factor authentication", assign an MFA device (a passkey or an authenticator app).
+- Under "Access keys", there should be none. Delete any that exist.
+- After this, don't use root for day-to-day work.
+
+**2. Make sure the Identity Center user exists.** Go to IAM Identity Center → Users. The user `mtd-admin` should exist, with an MFA device.
+
+**3. Create the admin permission set.** Go to IAM Identity Center → Multi-account permissions → Permission sets → Create permission set.
+
+- **Type:** predefined, `AdministratorAccess`.
+- **Session duration:** 1 hour.
+
+**4. Assign it.** Go to IAM Identity Center → Multi-account permissions → AWS accounts.
+
+1. Tick this account → Assign users or groups.
+2. Pick the user `mtd-admin`.
+3. Pick the permission set `AdministratorAccess` → Submit.
+
+**5. Configure the CLI.** Note the AWS access portal URL (IAM Identity Center → Dashboard → Settings summary) and the region Identity Center runs in (Settings). Then:
+
+```sh
+aws configure sso
+#   SSO session name:     mtd
+#   SSO start URL:        <AWS access portal URL>
+#   SSO region:           <Identity Center region>
+#   Registration scopes:  (press Enter)
+#   Browser opens: sign in as mtd-admin with MFA, then allow access.
+#   Choose this account, then the AdministratorAccess role.
+#   Default client region: eu-west-2
+#   Output format:         json
+#   Profile name:          mtd-admin
+```
+
+**6. Test.**
+
+```sh
+aws sso login --sso-session mtd     # browser sign-in with MFA; lasts the session duration
+aws sts get-caller-identity --profile mtd-admin
+```
+
+The output should show an `assumed-role/AWSReservedSSO_AdministratorAccess_.../mtd-admin` ARN.
+
+**Admin credentials for Terraform.** After `aws sso login`, either run Terraform with `AWS_PROFILE=mtd-admin`, or export the credentials for the shell and clear them afterwards:
+
+```sh
+eval "$(aws configure export-credentials --profile mtd-admin --format env)"
+# ... terraform commands ...
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION
+```
+
+---
+
 ## H6: Bootstrap (once)
 
-Creates the remote state bucket and the two CI roles (read-only plan for pull requests, deploy for `main`), and wires them to the existing GitHub OIDC provider. Run it as `mtd-admin` with MFA, never from CI.
+Creates the remote state bucket and the two CI roles (read-only plan for pull requests, deploy for `main`), and wires them to the existing GitHub OIDC provider. Run it as `mtd-admin` through Identity Center (H3), never from CI.
 
 **1. Block public S3 access for the whole account.** It is currently off. This is the strongest guard against a bucket being made public by mistake.
+
+First check that no existing bucket relies on being public. This lists each bucket and whether AWS considers its policy public:
+
+```sh
+for b in $(aws s3api list-buckets --profile mtd-admin --query 'Buckets[].Name' --output text); do
+  printf '%s\t' "$b"
+  aws s3api get-bucket-policy-status --profile mtd-admin --bucket "$b" \
+    --query PolicyStatus.IsPublic --output text 2>/dev/null || echo "no policy"
+done
+```
+
+If any bucket shows `True`, or serves a public website, decide about it before turning the block on.
 
 ```sh
 ACCOUNT_ID=$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)
@@ -32,12 +101,15 @@ If the output lists `token.actions.githubusercontent.com`, keep the default. If 
 **3. Plan, review, apply.**
 
 ```sh
-AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap init
-AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
+aws sso login --sso-session mtd   # browser sign-in with MFA
+eval "$(aws configure export-credentials --profile mtd-admin --format env)"
+terraform -chdir=infra/bootstrap init
+terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
 #   Expect: 1 S3 bucket and its settings, 1 IAM policy (mtd-workload-boundary),
 #   2 IAM roles (mtd-ci-plan, mtd-ci-apply) with inline policies, and an OIDC
 #   provider only if you asked for one. Nothing else.
-AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap apply bootstrap.tfplan
+terraform -chdir=infra/bootstrap apply bootstrap.tfplan
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION
 ```
 
 **4. Keep the bootstrap state safe.** It is local by design and is gitignored. Copy it into the state bucket so it survives a lost laptop:
@@ -81,9 +153,12 @@ Nothing else is needed. No GitHub environment is used. The deploy role trusts on
 
 ```sh
 TF_STATE_BUCKET=$(terraform -chdir=infra/bootstrap output -raw state_bucket)
-AWS_PROFILE=mtd-admin terraform -chdir=infra/envs/prod init -backend-config="bucket=$TF_STATE_BUCKET"
-AWS_PROFILE=mtd-admin terraform -chdir=infra/envs/prod plan -out=prod.tfplan
-AWS_PROFILE=mtd-admin terraform -chdir=infra/envs/prod apply prod.tfplan
+aws sso login --sso-session mtd   # browser sign-in with MFA
+eval "$(aws configure export-credentials --profile mtd-admin --format env)"
+terraform -chdir=infra/envs/prod init -backend-config="bucket=$TF_STATE_BUCKET"
+terraform -chdir=infra/envs/prod plan -out=prod.tfplan
+terraform -chdir=infra/envs/prod apply prod.tfplan
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION
 ```
 
 ---
