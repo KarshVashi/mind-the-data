@@ -1,16 +1,102 @@
 # Runbook
 
-Commands for the steps a person has to do. Run them from the repository root unless stated. Region is `eu-west-2` throughout. Admin commands pass `--profile mtd-admin` or set it inline, so the admin profile never stays set in your shell.
+Commands for the steps a person has to do. Run them from the repository root unless stated. Region is `eu-west-2` throughout.
 
 The rest of the runbook (alarms, re-runs, backfills, key rotation in depth) arrives with M1 and M7.
 
 ---
 
+## H3: Admin identity
+
+Admin work runs as the `mtd-admin` IAM user assuming the `mtd-admin-role` role with MFA. The user's access key can do nothing by itself except assume that role, so a leaked key is useless without your MFA device.
+
+**1. Secure the root user.** Sign in as root, then open the account menu (top right) → Security credentials.
+
+- Under "Multi-factor authentication", assign an MFA device (a passkey or an authenticator app).
+- Under "Access keys", there should be none. Delete any that exist.
+- After this, don't use root for day-to-day work.
+
+**2. Create the user.** Go to IAM → Users → Create user.
+
+- **Name:** `mtd-admin`.
+- **Console access:** optional. Tick it if you want to stop using root in the console as well.
+- **Permissions:** attach none.
+
+**3. Give the user an MFA device.** Open the user → Security credentials → Assign MFA device, and choose an authenticator app. Note the device ARN it shows: `arn:aws:iam::<account-id>:mfa/<device-name>`.
+
+**4. Create a CLI access key.** On the same page → Create access key → Command Line Interface (CLI). Keep the key ID and secret for step 7.
+
+**5. Create the admin role.** Go to IAM → Roles → Create role.
+
+- **Trusted entity:** AWS account → This account. Tick "Require MFA".
+- **Permissions:** `AdministratorAccess`.
+- **Name:** `mtd-admin-role`.
+
+**6. Let the user assume only that role.** Open the user → Add permissions → Create inline policy (JSON), and name it `assume-mtd-admin-role`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "sts:AssumeRole",
+    "Resource": "arn:aws:iam::<account-id>:role/mtd-admin-role"
+  }]
+}
+```
+
+**7. Configure the CLI.** Store the access key under its own profile:
+
+```sh
+aws configure --profile mtd-admin-keys   # paste the key ID and secret; region eu-west-2; output json
+```
+
+Then add this to `~/.aws/config`:
+
+```ini
+[profile mtd-admin]
+role_arn = arn:aws:iam::<account-id>:role/mtd-admin-role
+source_profile = mtd-admin-keys
+mfa_serial = arn:aws:iam::<account-id>:mfa/<device-name>
+duration_seconds = 3600
+region = eu-west-2
+```
+
+**8. Test.**
+
+```sh
+aws sts get-caller-identity --profile mtd-admin
+```
+
+It asks for an MFA code, then shows `assumed-role/mtd-admin-role/...`.
+
+**Admin credentials for Terraform.** The AWS CLI prompts for the MFA code, but Terraform cannot. Load an hour of temporary credentials first, run the Terraform commands, then clear them:
+
+```sh
+eval "$(aws configure export-credentials --profile mtd-admin --format env)"   # MFA prompt
+# ... terraform commands ...
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION
+```
+
+---
+
 ## H6: Bootstrap (once)
 
-Creates the remote state bucket and the two CI roles (read-only plan for pull requests, deploy for `main`), and wires them to the existing GitHub OIDC provider. Run it as `mtd-admin` with MFA, never from CI.
+Creates the remote state bucket and the two CI roles (read-only plan for pull requests, deploy for `main`), and wires them to the existing GitHub OIDC provider. Run it as `mtd-admin` with MFA (H3), never from CI.
 
 **1. Block public S3 access for the whole account.** It is currently off. This is the strongest guard against a bucket being made public by mistake.
+
+First check that no existing bucket relies on being public. This lists each bucket and whether AWS considers its policy public:
+
+```sh
+for b in $(aws s3api list-buckets --profile mtd-admin --query 'Buckets[].Name' --output text); do
+  printf '%s\t' "$b"
+  aws s3api get-bucket-policy-status --profile mtd-admin --bucket "$b" \
+    --query PolicyStatus.IsPublic --output text 2>/dev/null || echo "no policy"
+done
+```
+
+If any bucket shows `True`, or serves a public website, decide about it before turning the block on.
 
 ```sh
 ACCOUNT_ID=$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)
@@ -32,12 +118,14 @@ If the output lists `token.actions.githubusercontent.com`, keep the default. If 
 **3. Plan, review, apply.**
 
 ```sh
-AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap init
-AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
+eval "$(aws configure export-credentials --profile mtd-admin --format env)"   # MFA prompt
+terraform -chdir=infra/bootstrap init
+terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
 #   Expect: 1 S3 bucket and its settings, 1 IAM policy (mtd-workload-boundary),
 #   2 IAM roles (mtd-ci-plan, mtd-ci-apply) with inline policies, and an OIDC
 #   provider only if you asked for one. Nothing else.
-AWS_PROFILE=mtd-admin terraform -chdir=infra/bootstrap apply bootstrap.tfplan
+terraform -chdir=infra/bootstrap apply bootstrap.tfplan
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION
 ```
 
 **4. Keep the bootstrap state safe.** It is local by design and is gitignored. Copy it into the state bucket so it survives a lost laptop:
@@ -81,9 +169,11 @@ Nothing else is needed. No GitHub environment is used. The deploy role trusts on
 
 ```sh
 TF_STATE_BUCKET=$(terraform -chdir=infra/bootstrap output -raw state_bucket)
-AWS_PROFILE=mtd-admin terraform -chdir=infra/envs/prod init -backend-config="bucket=$TF_STATE_BUCKET"
-AWS_PROFILE=mtd-admin terraform -chdir=infra/envs/prod plan -out=prod.tfplan
-AWS_PROFILE=mtd-admin terraform -chdir=infra/envs/prod apply prod.tfplan
+eval "$(aws configure export-credentials --profile mtd-admin --format env)"   # MFA prompt
+terraform -chdir=infra/envs/prod init -backend-config="bucket=$TF_STATE_BUCKET"
+terraform -chdir=infra/envs/prod plan -out=prod.tfplan
+terraform -chdir=infra/envs/prod apply prod.tfplan
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION
 ```
 
 ---
