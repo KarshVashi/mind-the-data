@@ -4,7 +4,12 @@ from datetime import UTC, datetime
 
 import pytest
 
-from mind_the_data.common.telemetry import JsonFormatter, emf_record, print_emf
+from mind_the_data.common.telemetry import (
+    JsonFormatter,
+    configure_logging,
+    emf_record,
+    print_emf,
+)
 
 
 def test_json_formatter_includes_extra_fields() -> None:
@@ -12,6 +17,7 @@ def test_json_formatter_includes_extra_fields() -> None:
     record.poll_id = "abc"
     record.requests = 52
     line = json.loads(JsonFormatter().format(record))
+    assert line.pop("time").endswith("Z")
     assert line == {
         "level": "INFO",
         "logger": "poller",
@@ -45,3 +51,26 @@ def test_print_emf_writes_raw_json_lines(capsys: pytest.CaptureFixture[str]) -> 
     print_emf([{"a": 1}, {"b": 2}])
     out = capsys.readouterr().out.splitlines()
     assert [json.loads(line) for line in out] == [{"a": 1}, {"b": 2}]
+
+
+def test_emf_rejects_fields_that_would_overwrite_metadata() -> None:
+    with pytest.raises(ValueError, match="overwrite"):
+        emf_record("MindTheData", {"arrivals": {"ObjectsWritten": 1}}, {"Feed": "x"})
+    with pytest.raises(ValueError, match="overwrite"):
+        emf_record("MindTheData", {"arrivals": {"ObjectsWritten": 1}}, {"ObjectsWritten": 9})
+
+
+def test_emf_rejects_non_numeric_metrics() -> None:
+    with pytest.raises(TypeError):
+        emf_record("MindTheData", {"arrivals": {"ObjectsWritten": True}}, {})
+
+
+def test_emf_rejects_naive_timestamp() -> None:
+    with pytest.raises(ValueError, match="naive"):
+        emf_record("MindTheData", {"arrivals": {"ObjectsWritten": 1}}, {}, datetime(2026, 1, 1))
+
+
+def test_configure_logging_silences_request_url_loggers() -> None:
+    configure_logging("DEBUG")
+    assert logging.getLogger("httpx").getEffectiveLevel() == logging.WARNING
+    assert logging.getLogger("httpcore").getEffectiveLevel() == logging.WARNING

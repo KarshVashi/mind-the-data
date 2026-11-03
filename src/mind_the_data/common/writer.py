@@ -6,7 +6,13 @@ from pathlib import Path
 from typing import Protocol
 from uuid import UUID
 
-from mind_the_data.common.raw import Envelope, Feed, encode_ndjson_gz, object_key
+from mind_the_data.common.raw import (
+    Envelope,
+    Feed,
+    check_one_poll,
+    encode_ndjson_gz,
+    object_key,
+)
 
 
 class RawWriter(Protocol):
@@ -16,7 +22,9 @@ class RawWriter(Protocol):
 
 
 class _S3Client(Protocol):
-    def put_object(self, *, Bucket: str, Key: str, Body: bytes, ContentType: str) -> object: ...
+    def put_object(
+        self, *, Bucket: str, Key: str, Body: bytes, ContentType: str, IfNoneMatch: str
+    ) -> object: ...
 
 
 class S3RawWriter:
@@ -27,15 +35,16 @@ class S3RawWriter:
     def write(
         self, feed: Feed, polled_at: datetime, poll_id: UUID, envelopes: Sequence[Envelope]
     ) -> str:
-        if not envelopes:
-            raise ValueError("refusing to write an empty raw object")
+        check_one_poll(envelopes, feed, poll_id, polled_at)
         key = object_key(feed, polled_at, poll_id)
         # No Content-Encoding: the .gz object is stored and read as-is by Athena.
+        # IfNoneMatch makes S3 refuse to overwrite: raw objects are write-once.
         self._s3.put_object(
             Bucket=self._bucket,
             Key=key,
             Body=encode_ndjson_gz(envelopes),
             ContentType="application/x-ndjson",
+            IfNoneMatch="*",
         )
         return key
 
@@ -49,10 +58,11 @@ class LocalRawWriter:
     def write(
         self, feed: Feed, polled_at: datetime, poll_id: UUID, envelopes: Sequence[Envelope]
     ) -> str:
-        if not envelopes:
-            raise ValueError("refusing to write an empty raw object")
+        check_one_poll(envelopes, feed, poll_id, polled_at)
         key = object_key(feed, polled_at, poll_id)
         path = self._root / key
+        if path.exists():
+            raise FileExistsError(key)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(encode_ndjson_gz(envelopes))
         return key

@@ -28,10 +28,12 @@ def resolve_app_key(
     parameter = env.get("TFL_APP_KEY_PARAMETER", "").strip()
     if parameter:
         response = ssm_factory().get_parameter(Name=parameter, WithDecryption=True)
-        value = response["Parameter"]
-        if not isinstance(value, Mapping) or not isinstance(value.get("Value"), str):
-            raise RuntimeError(f"SSM parameter {parameter} has no string value")
-        return str(value["Value"]), KeySource.SSM
+        value = response.get("Parameter")
+        key = value.get("Value") if isinstance(value, Mapping) else None
+        if not isinstance(key, str) or not key.strip():
+            # An empty key would silently fall back to the anonymous limit.
+            raise RuntimeError(f"SSM parameter {parameter} has no usable value")
+        return key.strip(), KeySource.SSM
 
     local = env.get("TFL_APP_KEY", "").strip()
     if local:

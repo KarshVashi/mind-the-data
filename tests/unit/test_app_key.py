@@ -41,3 +41,21 @@ def test_blank_values_are_ignored() -> None:
     assert resolve_app_key({"TFL_APP_KEY_PARAMETER": " ", "TFL_APP_KEY": ""}, _no_ssm)[1] is (
         KeySource.ANONYMOUS
     )
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"Parameter": {"Value": "   "}},
+        {"Parameter": {"Value": None}},
+        {"Parameter": "not-a-mapping"},
+        {},
+    ],
+)
+def test_unusable_ssm_value_is_an_error_not_anonymous(response: Mapping[str, object]) -> None:
+    class Broken:
+        def get_parameter(self, *, Name: str, WithDecryption: bool) -> Mapping[str, object]:
+            return response
+
+    with pytest.raises(RuntimeError, match="no usable value"):
+        resolve_app_key({"TFL_APP_KEY_PARAMETER": "/p"}, Broken)

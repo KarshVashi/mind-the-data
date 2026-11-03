@@ -4,6 +4,7 @@ from uuid import UUID
 
 import boto3
 import pytest
+from botocore.exceptions import ClientError
 from moto import mock_aws
 
 from mind_the_data.common.raw import Envelope, Feed, RequestInfo, decode_ndjson_gz
@@ -56,7 +57,7 @@ def test_s3_writer_puts_gzipped_ndjson_at_contract_key() -> None:
 @mock_aws
 def test_s3_writer_refuses_empty_objects() -> None:
     s3 = boto3.client("s3", region_name="eu-west-2")
-    with pytest.raises(ValueError, match="empty"):
+    with pytest.raises(ValueError, match="at least one"):
         S3RawWriter(s3, BUCKET).write(Feed.LINE_STATUS, POLLED_AT, POLL_ID, [])
 
 
@@ -65,3 +66,26 @@ def test_local_writer_uses_the_same_layout(tmp_path: Path) -> None:
     written = tmp_path / key
     assert written.is_file()
     assert decode_ndjson_gz(written.read_bytes()) == _envelopes()
+
+
+@mock_aws
+def test_s3_writer_never_overwrites_an_existing_object() -> None:
+    s3 = boto3.client("s3", region_name="eu-west-2")
+    s3.create_bucket(Bucket=BUCKET, CreateBucketConfiguration={"LocationConstraint": "eu-west-2"})
+    writer = S3RawWriter(s3, BUCKET)
+    writer.write(Feed.ARRIVALS, POLLED_AT, POLL_ID, _envelopes())
+    with pytest.raises(ClientError) as raised:
+        writer.write(Feed.ARRIVALS, POLLED_AT, POLL_ID, _envelopes())
+    assert raised.value.response["Error"]["Code"] == "PreconditionFailed"
+
+
+def test_writers_reject_envelopes_from_another_poll(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="does not belong"):
+        LocalRawWriter(tmp_path).write(Feed.LINE_STATUS, POLLED_AT, POLL_ID, _envelopes())
+
+
+def test_local_writer_never_overwrites(tmp_path: Path) -> None:
+    writer = LocalRawWriter(tmp_path)
+    writer.write(Feed.ARRIVALS, POLLED_AT, POLL_ID, _envelopes())
+    with pytest.raises(FileExistsError):
+        writer.write(Feed.ARRIVALS, POLLED_AT, POLL_ID, _envelopes())
