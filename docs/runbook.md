@@ -8,7 +8,7 @@ The rest of the runbook (alarms, re-runs, backfills, key rotation in depth) arri
 
 ## H3: Admin identity
 
-Admin work runs as the `mtd-admin` IAM user assuming the `mtd-admin-role` role with MFA. The user's access key can do nothing by itself except assume that role, so a leaked key is useless without your MFA device.
+Admin work runs through IAM Identity Center. You sign in through your browser with MFA, and get short-lived credentials for an `AdministratorAccess` permission set. There are no long-lived access keys.
 
 **1. Secure the root user.** Sign in as root, then open the account menu (top right) → Security credentials.
 
@@ -16,64 +16,47 @@ Admin work runs as the `mtd-admin` IAM user assuming the `mtd-admin-role` role w
 - Under "Access keys", there should be none. Delete any that exist.
 - After this, don't use root for day-to-day work.
 
-**2. Create the user.** Go to IAM → Users → Create user.
+**2. Make sure the Identity Center user exists.** Go to IAM Identity Center → Users. The user `mtd-admin` should exist, with an MFA device.
 
-- **Name:** `mtd-admin`.
-- **Console access:** optional. Tick it if you want to stop using root in the console as well.
-- **Permissions:** attach none.
+**3. Create the admin permission set.** Go to IAM Identity Center → Multi-account permissions → Permission sets → Create permission set.
 
-**3. Give the user an MFA device.** Open the user → Security credentials → Assign MFA device, and choose an authenticator app. Note the device ARN it shows: `arn:aws:iam::<account-id>:mfa/<device-name>`.
+- **Type:** predefined, `AdministratorAccess`.
+- **Session duration:** 1 hour.
 
-**4. Create a CLI access key.** On the same page → Create access key → Command Line Interface (CLI). Keep the key ID and secret for step 7.
+**4. Assign it.** Go to IAM Identity Center → Multi-account permissions → AWS accounts.
 
-**5. Create the admin role.** Go to IAM → Roles → Create role.
+1. Tick this account → Assign users or groups.
+2. Pick the user `mtd-admin`.
+3. Pick the permission set `AdministratorAccess` → Submit.
 
-- **Trusted entity:** AWS account → This account. Tick "Require MFA".
-- **Permissions:** `AdministratorAccess`.
-- **Name:** `mtd-admin-role`.
-
-**6. Let the user assume only that role.** Open the user → Add permissions → Create inline policy (JSON), and name it `assume-mtd-admin-role`:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Action": "sts:AssumeRole",
-    "Resource": "arn:aws:iam::<account-id>:role/mtd-admin-role"
-  }]
-}
-```
-
-**7. Configure the CLI.** Store the access key under its own profile:
+**5. Configure the CLI.** Note the AWS access portal URL (IAM Identity Center → Dashboard → Settings summary) and the region Identity Center runs in (Settings). Then:
 
 ```sh
-aws configure --profile mtd-admin-keys   # paste the key ID and secret; region eu-west-2; output json
+aws configure sso
+#   SSO session name:     mtd
+#   SSO start URL:        <AWS access portal URL>
+#   SSO region:           <Identity Center region>
+#   Registration scopes:  (press Enter)
+#   Browser opens: sign in as mtd-admin with MFA, then allow access.
+#   Choose this account, then the AdministratorAccess role.
+#   Default client region: eu-west-2
+#   Output format:         json
+#   Profile name:          mtd-admin
 ```
 
-Then add this to `~/.aws/config`:
-
-```ini
-[profile mtd-admin]
-role_arn = arn:aws:iam::<account-id>:role/mtd-admin-role
-source_profile = mtd-admin-keys
-mfa_serial = arn:aws:iam::<account-id>:mfa/<device-name>
-duration_seconds = 3600
-region = eu-west-2
-```
-
-**8. Test.**
+**6. Test.**
 
 ```sh
+aws sso login --sso-session mtd     # browser sign-in with MFA; lasts the session duration
 aws sts get-caller-identity --profile mtd-admin
 ```
 
-It asks for an MFA code, then shows `assumed-role/mtd-admin-role/...`.
+The output should show an `assumed-role/AWSReservedSSO_AdministratorAccess_.../mtd-admin` ARN.
 
-**Admin credentials for Terraform.** The AWS CLI prompts for the MFA code, but Terraform cannot. Load an hour of temporary credentials first, run the Terraform commands, then clear them:
+**Admin credentials for Terraform.** After `aws sso login`, either run Terraform with `AWS_PROFILE=mtd-admin`, or export the credentials for the shell and clear them afterwards:
 
 ```sh
-eval "$(aws configure export-credentials --profile mtd-admin --format env)"   # MFA prompt
+eval "$(aws configure export-credentials --profile mtd-admin --format env)"
 # ... terraform commands ...
 unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION
 ```
@@ -82,7 +65,7 @@ unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_E
 
 ## H6: Bootstrap (once)
 
-Creates the remote state bucket and the two CI roles (read-only plan for pull requests, deploy for `main`), and wires them to the existing GitHub OIDC provider. Run it as `mtd-admin` with MFA (H3), never from CI.
+Creates the remote state bucket and the two CI roles (read-only plan for pull requests, deploy for `main`), and wires them to the existing GitHub OIDC provider. Run it as `mtd-admin` through Identity Center (H3), never from CI.
 
 **1. Block public S3 access for the whole account.** It is currently off. This is the strongest guard against a bucket being made public by mistake.
 
@@ -118,7 +101,8 @@ If the output lists `token.actions.githubusercontent.com`, keep the default. If 
 **3. Plan, review, apply.**
 
 ```sh
-eval "$(aws configure export-credentials --profile mtd-admin --format env)"   # MFA prompt
+aws sso login --sso-session mtd   # browser sign-in with MFA
+eval "$(aws configure export-credentials --profile mtd-admin --format env)"
 terraform -chdir=infra/bootstrap init
 terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
 #   Expect: 1 S3 bucket and its settings, 1 IAM policy (mtd-workload-boundary),
@@ -169,7 +153,8 @@ Nothing else is needed. No GitHub environment is used. The deploy role trusts on
 
 ```sh
 TF_STATE_BUCKET=$(terraform -chdir=infra/bootstrap output -raw state_bucket)
-eval "$(aws configure export-credentials --profile mtd-admin --format env)"   # MFA prompt
+aws sso login --sso-session mtd   # browser sign-in with MFA
+eval "$(aws configure export-credentials --profile mtd-admin --format env)"
 terraform -chdir=infra/envs/prod init -backend-config="bucket=$TF_STATE_BUCKET"
 terraform -chdir=infra/envs/prod plan -out=prod.tfplan
 terraform -chdir=infra/envs/prod apply prod.tfplan
