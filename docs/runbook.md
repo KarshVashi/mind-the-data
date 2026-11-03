@@ -255,12 +255,23 @@ sed "s/ACCOUNT_ID/$ACCOUNT_ID/g" docs/policies/mtd-dev-athena.json > /tmp/mtd-de
 
 **3. Clean up and test.**
 
+`ReadOnlyAccess` can already describe the workgroup, so the test runs a real query. That exercises the workgroup, the results write and the Glue lookups together:
+
 ```sh
 rm /tmp/mtd-dev-athena.json
 aws sso login --sso-session mtd
-aws athena get-work-group --profile mtd-dev --region eu-west-2 --work-group mind-the-data-dev \
-  --query 'WorkGroup.Configuration.ResultConfiguration.OutputLocation'
+QID=$(aws athena start-query-execution --profile mtd-dev --region eu-west-2 \
+  --work-group mind-the-data-dev \
+  --query-string "select count(*) from mind_the_data_raw.line_status where dt = cast(current_date as varchar)" \
+  --query QueryExecutionId --output text)
+sleep 5
+aws athena get-query-execution --profile mtd-dev --region eu-west-2 --query-execution-id "$QID" \
+  --query 'QueryExecution.Status.{state:State,reason:StateChangeReason}'
 ```
+
+Expect `SUCCEEDED`. `AccessDenied` in the reason means the inline policy is missing or not yet provisioned.
+
+The permission set gets this policy for everyone assigned to it. If anyone or anything else uses the same `ReadOnlyAccess` permission set, create a dedicated one for the dev user instead.
 
 Then fill in the dev values in `.env` (next section) and run `make dbt-build-dev`.
 

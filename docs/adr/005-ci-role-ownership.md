@@ -75,8 +75,14 @@ GitHub Actions deploys `infra/envs/prod` through an OIDC role. Two questions:
 
 - **Deploys are automatic.** Infra changes deploy without a manual step, on a free private repository.
 - **New permissions need a human.** When a milestone adds a new kind of resource, the permission change goes in `infra/modules/ci_role` and Karsh re-applies the bootstrap. Plans in CI fail with AccessDenied until then, which is noisy but safe.
-  - M2's transform and publish roles will need Athena and Glue in the workload boundary.
+  - M2's transform and publish roles will need Athena and Glue in the workload boundary. (Superseded, see the M2 amendment below.)
   - Any bucket whose versioning CI must manage will need an exception to the bucket protections.
 - **Revisit triggers:**
   - The repository becomes public. The environment approval gate then becomes available at no cost.
   - A second person gets write access.
+
+## Amendment (M2, 2026-11-03): transform role
+
+- **The transform role is a CI role, not a workload role.** `mtd-ci-transform` is defined in `infra/modules/ci_role` next to the plan and apply roles, applied from the bootstrap by a human, and named `mtd-*` so the pipeline cannot edit it. It carries its own inline policy (prod workgroup, read on raw, write on `mind_the_data_prod` and the `prod/` prefixes of the curated and results buckets) rather than a permissions boundary. The workload boundary is unchanged: it only limits roles the pipeline creates, and the pipeline does not create this one.
+- **Four repository variables for AWS access:** `TF_STATE_BUCKET`, `AWS_PLAN_ROLE_ARN`, `AWS_ROLE_ARN` and `AWS_TRANSFORM_ROLE_ARN`.
+- **Same subject, separate role.** The transform role trusts the same `ref:refs/heads/main` subject as the apply role, so the accepted risk "any job running on `main` can assume" applies to it too, with far less reach than the apply role.
