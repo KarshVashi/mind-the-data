@@ -13,7 +13,7 @@ None rather than as a naive date.
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Self
 
 from pydantic import (
     AfterValidator,
@@ -22,6 +22,7 @@ from pydantic import (
     ConfigDict,
     Field,
     TypeAdapter,
+    model_validator,
 )
 from pydantic.alias_generators import to_camel
 
@@ -220,7 +221,8 @@ class RouteSequence(TflModel):
 
 
 class ClockTime(TflModel):
-    hour: int = Field(ge=0)
+    # The latest Night Tube journeys sit around hour 27; 30 leaves headroom.
+    hour: int = Field(ge=0, le=30)
     minute: int = Field(ge=0, le=59)
 
 
@@ -292,6 +294,14 @@ class Timetable(TflModel):
     stations: list[MatchedStop] = Field(default_factory=list)
     stops: list[MatchedStop] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def _timetable_or_disambiguation(self) -> Self:
+        # An error body or {} would otherwise read as an empty timetable,
+        # turning a failed fetch into "no service" rather than missing data.
+        if (self.timetable is None) == (self.disambiguation is None):
+            raise ValueError("expected exactly one of timetable or disambiguation")
+        return self
+
 
 # ---- Severity -----------------------------------------------------------------
 
@@ -342,5 +352,15 @@ def parse_severities(payload: Any) -> list[Severity]:
 
 
 def severity_lookup(severities: Sequence[Severity]) -> dict[tuple[str, int], str]:
-    """Map (mode, level) to description; the same level differs between modes."""
-    return {(s.mode_name, s.severity_level): s.description for s in severities}
+    """Map (mode, level) to description; the same level differs between modes.
+
+    Raises ValueError if one (mode, level) pair has two different descriptions,
+    since picking either would silently relabel statuses.
+    """
+    lookup: dict[tuple[str, int], str] = {}
+    for s in severities:
+        key = (s.mode_name, s.severity_level)
+        if lookup.get(key, s.description) != s.description:
+            raise ValueError(f"conflicting descriptions for severity {key}")
+        lookup[key] = s.description
+    return lookup

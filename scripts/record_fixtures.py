@@ -7,7 +7,12 @@ path, the HTTP status and the time it was recorded.
 
 Fixtures must stay under the 1 MB pre-commit limit. When a response is
 larger, the longest list in it is halved (keeping the first items) until the
-file fits, and every cut is listed in the fixture's ``trimmed`` field.
+file fits, and every cut is listed in the fixture's ``trimmed`` field. The cut
+ignores meaning (it could, say, shorten a timetable's stationIntervals while
+keeping journeys that point at them), so re-run the unit tests after any trim.
+Nothing needed trimming at the last recording.
+
+Any non-200 response aborts the run before a single file is written.
 """
 
 import json
@@ -87,31 +92,36 @@ def trim_to_size(document: dict[str, Any]) -> None:
         del items[keep:]
 
 
-def record(client: httpx.Client, name: str, path: str) -> None:
+def fetch(client: httpx.Client, name: str, path: str) -> dict[str, Any]:
     response = client.get(path)
+    if response.status_code != 200:
+        raise RuntimeError(f"{name}: HTTP {response.status_code}; no fixtures written")
     document: dict[str, Any] = {
         "request": {"path": strip_app_key(str(response.request.url.raw_path, "ascii"))},
         "http_status": response.status_code,
         "recorded_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "trimmed": [],
-        "payload": response.json() if response.content else None,
+        "payload": response.json(),
     }
     trim_to_size(document)
-    out = OUT_DIR / f"{name}.json"
-    out.write_text(_dump(document), encoding="utf-8")
-    print(
-        f"{name}: HTTP {response.status_code}, {out.stat().st_size} bytes, trimmed={document['trimmed']}"
-    )
+    return document
 
 
 def main() -> int:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
     headers = {"User-Agent": "mind-the-data fixture recorder"}
+    documents: dict[str, dict[str, Any]] = {}
     with httpx.Client(base_url=BASE_URL, headers=headers, timeout=30.0) as client:
         for index, (name, path) in enumerate(REQUESTS):
             if index:
                 time.sleep(PAUSE_SECONDS)
-            record(client, name, path)
+            documents[name] = fetch(client, name, path)
+    # Write only after every request succeeded, so a failed run never leaves a
+    # mix of old and new fixtures.
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    for name, document in documents.items():
+        out = OUT_DIR / f"{name}.json"
+        out.write_text(_dump(document), encoding="utf-8")
+        print(f"{name}: {out.stat().st_size} bytes, trimmed={document['trimmed']}")
     return 0
 
 

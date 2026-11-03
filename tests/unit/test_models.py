@@ -11,6 +11,7 @@ from mind_the_data.ingest.models import (
     Arrival,
     LineStatus,
     RouteSequence,
+    Severity,
     StopDisruption,
     parse_arrivals,
     parse_line_disruptions,
@@ -43,9 +44,12 @@ def test_every_fixture_records_a_keyless_request_path() -> None:
     files = sorted(FIXTURES.glob("*.json"))
     assert len(files) >= 12
     for path in files:
-        document = json.loads(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+        document = json.loads(text)
         assert document["request"]["path"].startswith("/")
-        assert "app_key" not in document["request"]["path"].lower()
+        # Anywhere in the file, including URIs inside the payload.
+        assert "app_key" not in text.lower()
+        assert "app_id" not in text.lower()
         assert path.stat().st_size < 1024 * 1024
 
 
@@ -116,6 +120,40 @@ def test_missing_severity_is_an_error_not_good_service() -> None:
     del payload[0]["lineStatuses"][0]["statusSeverity"]
     with pytest.raises(ValidationError):
         parse_line_statuses(payload)
+
+
+def test_good_service_and_delay_with_several_validity_periods() -> None:
+    # The recording was made after close of service, so build daytime shapes
+    # from it: one line on Good Service, one with Minor Delays in two windows.
+    payload = copy.deepcopy(load("line_status"))
+    good, delayed = payload[0], payload[1]
+    good_entry = good["lineStatuses"][0]
+    good["lineStatuses"] = [good_entry]
+    good_entry.update(statusSeverity=10, statusSeverityDescription="Good Service")
+    for key in ("reason", "disruption"):
+        good_entry.pop(key, None)
+    good_entry["validityPeriods"] = []
+    delayed_entry = delayed["lineStatuses"][0]
+    delayed["lineStatuses"] = [delayed_entry]
+    delayed_entry.update(statusSeverity=9, statusSeverityDescription="Minor Delays")
+    delayed_entry["validityPeriods"] = [
+        {"fromDate": "2026-11-03T08:00:00Z", "toDate": "2026-11-03T08:30:00Z", "isNow": True},
+        {"fromDate": "2026-11-03T17:00:00Z", "toDate": "2026-11-03T18:00:00Z", "isNow": False},
+    ]
+    lines = parse_line_statuses([good, delayed])
+    assert lines[0].line_statuses[0].status_severity == 10
+    assert lines[0].line_statuses[0].validity_periods == []
+    periods = lines[1].line_statuses[0].validity_periods
+    assert [p.is_now for p in periods] == [True, False]
+    assert periods[1].from_date == datetime(2026, 11, 3, 17, 0, tzinfo=UTC)
+
+
+def test_line_with_no_statuses_parses_as_empty_not_good_service() -> None:
+    # Pinned so downstream code has to treat an empty list as missing data.
+    payload = copy.deepcopy(load("line_status"))
+    payload[0]["lineStatuses"] = []
+    line = parse_line_statuses(payload)[0]
+    assert line.line_statuses == []
 
 
 def test_populate_by_snake_case_name() -> None:
@@ -246,6 +284,22 @@ def test_timetable_parses(direction: str) -> None:
     assert {j.interval_id for j in journeys} <= interval_ids
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {
+            "$type": "Tfl.Api.Presentation.Entities.ApiError, Tfl.Api.Presentation.Entities",
+            "httpStatusCode": 404,
+            "message": "not found",
+        },
+    ],
+)
+def test_timetable_error_body_is_rejected(payload: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        parse_timetable(payload)
+
+
 def test_timetable_hours_run_past_midnight() -> None:
     timetable = parse_timetable(load("timetable_victoria_940GZZLUOXC_inbound"))
     assert timetable.timetable is not None
@@ -269,6 +323,17 @@ def test_severity_codes_are_per_mode() -> None:
     assert lookup[("tube", 20)] == "Service Closed"
     assert lookup[("national-rail", 20)] == "No Service"
     assert lookup[("road", 10)] != "Good Service"
+
+
+def test_severity_lookup_rejects_conflicting_descriptions() -> None:
+    same = [
+        Severity(mode_name="tube", severity_level=10, description="Good Service"),
+        Severity(mode_name="tube", severity_level=10, description="Good Service"),
+    ]
+    assert severity_lookup(same) == {("tube", 10): "Good Service"}
+    conflicting = [*same, Severity(mode_name="tube", severity_level=10, description="Other")]
+    with pytest.raises(ValueError, match="conflicting"):
+        severity_lookup(conflicting)
 
 
 def test_every_status_severity_is_in_the_severity_reference() -> None:
