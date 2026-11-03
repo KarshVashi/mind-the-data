@@ -87,6 +87,33 @@ fmt: ## Format Python, Terraform and SQL in place
 	terraform fmt -recursive infra
 	$(UV_RUN) sqlfluff fix $(SQL_DIRS)
 
+# ---- Lambda package -----------------------------------------------------------
+
+LAMBDA_BUILD := build/lambda
+LAMBDA_REQS  := build/lambda-requirements.txt
+LAMBDA_ZIP   := dist/lambda.zip
+# The python3.12 Lambda runtime ships these; leaving them out keeps the zip
+# small. Their own dependencies (urllib3, python-dateutil, six) stay in: a
+# duplicate is harmless, a missing module is not.
+LAMBDA_RUNTIME_PROVIDED := boto3 botocore s3transfer jmespath
+
+# The export is the complete pinned set, so pip installs it with --no-deps and
+# resolves nothing again. config/ (line and station lists, read from
+# CONFIG_DIR) is copied when present.
+
+.PHONY: package
+package: ## Build dist/lambda.zip for the arm64 python3.12 Lambdas
+	rm -rf $(LAMBDA_BUILD) $(LAMBDA_ZIP)
+	mkdir -p $(LAMBDA_BUILD) dist
+	$(UV) export --no-dev --no-hashes --no-emit-project --frozen --quiet \
+		$(addprefix --no-emit-package ,$(LAMBDA_RUNTIME_PROVIDED)) -o $(LAMBDA_REQS)
+	$(UV) pip install --quiet --no-deps --python 3.12 --target $(LAMBDA_BUILD) \
+		--python-platform aarch64-manylinux_2_28 --python-version 3.12 \
+		--only-binary :all: -r $(LAMBDA_REQS)
+	cp -R src/mind_the_data $(LAMBDA_BUILD)/mind_the_data
+	if [ -d config ]; then mkdir -p $(LAMBDA_BUILD)/config && cp -R config/. $(LAMBDA_BUILD)/config/; fi
+	$(UV) run --no-project --python 3.12 python scripts/zip_lambda.py $(LAMBDA_BUILD) $(LAMBDA_ZIP)
+
 # ---- Needs AWS access -------------------------------------------------------
 
 DBT_DEV_VARS := DBT_ATHENA_S3_STAGING_DIR_DEV DBT_ATHENA_S3_DATA_DIR_DEV DBT_ATHENA_WORKGROUP_DEV
