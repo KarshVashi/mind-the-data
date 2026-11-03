@@ -23,9 +23,11 @@ What else, and why not.
 What gets easier, what gets harder, what to revisit and when.
 ```
 
-Records to write in M0:
+## Index
 
-- ADR-001: Stack (Lambda + S3 + Athena/Iceberg + dbt + GitHub Actions)
-- ADR-002: Polling interval (60 s, with the week-one review as the revisit trigger)
-- ADR-003: Raw format (gzipped NDJSON envelopes, failures recorded)
-- ADR-004: Multiple statuses per line (worst-status-wins)
+| ADR | Decision | Status |
+| --- | --- | --- |
+| [001](001-stack.md) | Stack: Lambda, S3, Athena and Iceberg, dbt, GitHub Actions | accepted |
+| [002](002-polling-interval.md) | Poll every 60 s; week-one review is the revisit trigger | accepted |
+| [003](003-raw-format.md) | Raw format: gzipped NDJSON envelopes, failures recorded | accepted |
+| [004](004-multiple-statuses.md) | Multiple statuses per line: highest weight wins | proposed |
