@@ -1,7 +1,7 @@
 # ADR-004: Multiple statuses per line
 
 Date: 2026-11-02
-Status: proposed (changes the plan's "lowest severity code" rule; needs sign-off)
+Status: accepted
 
 ## Context
 
@@ -59,4 +59,4 @@ Every status entry is kept in `stg_line_status`, at a grain of poll × line × s
 
 - **Delays always count:** an unplanned delay is never hidden by an overlapping planned closure.
 - **Part suspensions are flat:** a part suspension of two stations counts the same as one of twenty. This is a known limitation, stated in the methodology.
-- **Plan wording:** the plan's description of `int_line_minute_status` (section 6.2) and ADR-004's row in its fairness rules need the same correction once this is accepted.
+- **Plan wording:** the plan's description of `int_line_minute_status` and its fairness rules were updated to match.
