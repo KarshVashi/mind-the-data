@@ -15,7 +15,7 @@ mind_the_data:
       s3_staging_dir: "{{ env_var('DBT_ATHENA_S3_STAGING_DIR_DEV', 's3://UNSET-DBT-ATHENA-S3-STAGING-DIR-DEV/') }}"
       s3_data_dir: "{{ env_var('DBT_ATHENA_S3_DATA_DIR_DEV', 's3://UNSET-DBT-ATHENA-S3-DATA-DIR-DEV/') }}"
       database: awsdatacatalog
-      schema: "{{ env_var('DBT_ATHENA_SCHEMA_DEV', 'dev') }}"
+      schema: "{{ env_var('DBT_ATHENA_SCHEMA_DEV', 'mind_the_data_dev') }}"
       work_group: "{{ env_var('DBT_ATHENA_WORKGROUP_DEV', 'UNSET-DBT-ATHENA-WORKGROUP-DEV') }}"
       threads: 4
     prod:
@@ -24,6 +24,6 @@ mind_the_data:
       s3_staging_dir: "{{ env_var('DBT_ATHENA_S3_STAGING_DIR_PROD', 's3://UNSET-DBT-ATHENA-S3-STAGING-DIR-PROD/') }}"
       s3_data_dir: "{{ env_var('DBT_ATHENA_S3_DATA_DIR_PROD', 's3://UNSET-DBT-ATHENA-S3-DATA-DIR-PROD/') }}"
       database: awsdatacatalog
-      schema: "{{ env_var('DBT_ATHENA_SCHEMA_PROD', 'prod') }}"
+      schema: "{{ env_var('DBT_ATHENA_SCHEMA_PROD', 'mind_the_data_prod') }}"
       work_group: "{{ env_var('DBT_ATHENA_WORKGROUP_PROD', 'UNSET-DBT-ATHENA-WORKGROUP-PROD') }}"
       threads: 4
