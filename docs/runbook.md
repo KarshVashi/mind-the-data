@@ -277,7 +277,15 @@ Once this returns 1000, open a pull request that changes the default of `poller_
 | `mind-the-data-tfl-failures-line-status` | Every line status request to TfL fails for 5 minutes | The app key (H8), then TfL's status |
 | `mind-the-data-reference-errors` | The weekly reference fetch ends in an error | Reference logs (`/aws/lambda/mind-the-data-reference`) |
 
-A request that TfL rejects is still written to raw, as a failure envelope (ADR-003). So a revoked or disabled key sets off the TfL failures alarm, not the no-objects alarms. It takes 5 consecutive failing minutes, so a single test invocation does not fire it.
+A request that TfL rejects is still written to raw, as a failure envelope (ADR-003). When every request for a feed fails, which is what a revoked or disabled key looks like, the poller writes those envelopes and then ends the invocation in an error.
+
+**What a revoked or disabled key sets off:**
+
+- **`mind-the-data-poller-error-rate`**, within about 3 minutes.
+- **`mind-the-data-tfl-failures-line-status`**, after 5 minutes.
+- **Not the no-objects alarms.** Objects are still written.
+
+A 401 or 403 also makes the next run read the key from SSM again, so a rotated key is picked up without a redeploy.
 
 **After the collector's first deploy**, run the reference fetch once rather than waiting for Monday 03:00:
 

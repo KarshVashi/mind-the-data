@@ -106,6 +106,7 @@ module "poller" {
 
   environment = merge(local.common_env, {
     POLL_BUDGET_SECONDS = "45"
+    MAX_CONCURRENCY     = "10"
   })
 
   # A retried poll would run late and overlap the next minute's poll; the
@@ -117,16 +118,24 @@ module "poller" {
 module "reference" {
   source = "../../modules/lambda_function"
 
-  function_name            = "${local.prefix}-reference"
-  description              = "Fetches TfL route sequences, timetables and severity codes weekly into raw."
-  handler                  = "mind_the_data.ingest.reference.handler"
-  zip_path                 = var.lambda_zip_path
-  memory_mb                = 512
-  timeout_seconds          = 60
+  function_name = "${local.prefix}-reference"
+  description   = "Fetches TfL route sequences, timetables and severity codes weekly into raw."
+  handler       = "mind_the_data.ingest.reference.handler"
+  zip_path      = var.lambda_zip_path
+  # Larger than the plan's 60 s / 512 MB: about 199 calls and up to ~560 MB
+  # peak in the offline measurement (ADR-007).
+  memory_mb                = 1024
+  timeout_seconds          = 300
   log_retention_days       = var.log_retention_days
   policy_json              = data.aws_iam_policy_document.reference.json
   permissions_boundary_arn = data.aws_iam_policy.workload_boundary.arn
-  environment              = local.common_env
+
+  # Concurrency 4 keeps the weekly fetch from crowding out the poller's
+  # requests under the 500 per minute key limit.
+  environment = merge(local.common_env, {
+    POLL_BUDGET_SECONDS = "240"
+    MAX_CONCURRENCY     = "4"
+  })
 
   async_retry_attempts        = 2
   async_max_event_age_seconds = 3600
@@ -147,6 +156,8 @@ module "schedules" {
       function_arn          = module.poller.function_arn
       retry_attempts        = 0
       max_event_age_seconds = 60
+      # A late run keeps its scheduled minute's cadence (stop disruption every 5).
+      input = jsonencode({ scheduled_time = "<aws.scheduler.scheduled-time>" })
     }
     "${local.prefix}-reference-weekly" = {
       description           = "Invoke the reference fetch every Monday at 03:00 London time."
@@ -155,6 +166,7 @@ module "schedules" {
       function_arn          = module.reference.function_arn
       retry_attempts        = 2
       max_event_age_seconds = 3600
+      input                 = jsonencode({ scheduled_time = "<aws.scheduler.scheduled-time>" })
     }
   }
 }

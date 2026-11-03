@@ -58,6 +58,7 @@ resource "aws_scheduler_schedule" "this" {
   target {
     arn      = each.value.function_arn
     role_arn = aws_iam_role.scheduler.arn
+    input    = each.value.input
 
     retry_policy {
       maximum_retry_attempts       = each.value.retry_attempts

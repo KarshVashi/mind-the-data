@@ -22,6 +22,7 @@ variable "schedules" {
     function_arn          = string
     retry_attempts        = number
     max_event_age_seconds = number
+    input                 = optional(string)
   }))
   description = "Schedules keyed by name (mind-the-data-*): expression, timezone, target function and retry policy."
 
