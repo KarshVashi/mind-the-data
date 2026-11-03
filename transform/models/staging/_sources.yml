@@ -1,0 +1,89 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Raw TfL responses as written by the collector (ADR-003): Glue external
+      tables over gzipped NDJSON, one table per feed, one row per HTTP request.
+      `dt` and `hour` are UTC partitions served by partition projection, so
+      every query must filter on `dt` or it lists the whole prefix. Failed
+      requests are rows too, with a null or non-2xx `http_status` and/or an
+      `error`, and a null `payload`.
+    database: awsdatacatalog
+    schema: mind_the_data_raw
+    config:
+      # Only the minute feeds have a freshness promise. The 5-minute and
+      # weekly feeds would always look stale against these thresholds.
+      freshness: null
+      # Freshness compares with dbt-athena's current_timestamp(), a zoneless
+      # UTC timestamp, so the poll time is shifted to UTC and its zone dropped.
+      loaded_at_field: "cast(from_iso8601_timestamp(polled_at) at time zone 'UTC' as timestamp)"
+
+    tables:
+      - name: line_status
+        description: "`Line/Mode/{modes}/Status`, polled every minute. Payload is an array of lines."
+        config: &minute_freshness
+          freshness:
+            warn_after: {count: 15, period: minute}
+            error_after: {count: 60, period: minute}
+            # Bound the scan to yesterday and today (UTC partitions).
+            filter: "dt >= cast(current_date - interval '1' day as varchar)"
+        columns: &envelope_columns
+          - name: poll_id
+            description: UUID of the collector run. Shared by every request of one feed in that run.
+            data_type: string
+          - name: polled_at
+            description: Poll start, ISO 8601 UTC with milliseconds and a Z suffix.
+            data_type: string
+          - name: feed
+            description: Feed name, equal to the table name.
+            data_type: string
+          - name: request
+            description: The request made, without the app key. `request.path` is the TfL path.
+            data_type: struct<path:string>
+          - name: http_status
+            description: HTTP status, or null when no response came back.
+            data_type: int
+          - name: latency_ms
+            description: Request latency in milliseconds.
+            data_type: int
+          - name: error
+            description: Failure type when no usable response came back; null on success.
+            data_type: string
+          - name: payload
+            description: TfL's response body as JSON text, unchanged; null on failure.
+            data_type: string
+          - name: dt
+            description: UTC date partition, 'YYYY-MM-DD'.
+            data_type: string
+          - name: hour
+            description: UTC hour partition, '00' to '23'.
+            data_type: string
+
+      - name: line_disruption
+        description: "`Line/Mode/{modes}/Disruption`, polled every minute. Payload is an array of disruptions."
+        columns: *envelope_columns
+
+      - name: arrivals
+        description: >
+          `StopPoint/{naptanId}/Arrivals` for each measurement station, polled
+          every minute. One row per station per poll; payload is an array of
+          predictions.
+        config: *minute_freshness
+        columns: *envelope_columns
+
+      - name: stop_disruption
+        description: "`StopPoint/Mode/{modes}/Disruption`, polled every 5 minutes. Payload is an array of disrupted points."
+        columns: *envelope_columns
+
+      - name: ref_route_sequence
+        description: "`Line/{id}/Route/Sequence/{direction}`, fetched weekly. Payload is one route sequence object."
+        columns: *envelope_columns
+
+      - name: ref_timetable
+        description: "`Line/{id}/Timetable/{stopPointId}?direction=...`, fetched weekly per measurement station. Payload is one timetable object."
+        columns: *envelope_columns
+
+      - name: ref_severity
+        description: "`Line/Meta/Severity`, fetched weekly. Payload is an array of (mode, level, description)."
+        columns: *envelope_columns

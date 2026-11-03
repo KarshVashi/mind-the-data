@@ -1,0 +1,83 @@
+version: 2
+
+macros:
+  - name: staging_window
+    description: >
+      The raw days a staging run reads, as {start, end} 'YYYY-MM-DD' strings
+      (inclusive, UTC). `start_date`/`end_date` vars win; otherwise an
+      incremental run starts `lookback_days` before today and a full refresh
+      starts at `raw_start_date`. The end defaults to today. Fails compilation
+      on a malformed date or an inverted window.
+  - name: raw_dt_filter
+    description: "`dt between '<start>' and '<end>'` for the current staging window, as literals so partition projection prunes."
+  - name: staging_incremental_predicates
+    description: >
+      The merge's predicate on the existing staging table: `target.dt` from
+      `start_date` when set, otherwise from current_date minus
+      (lookback_days + 1) days. The extra day covers a run that crosses
+      midnight UTC (ADR-008).
+  - name: raw_feeds
+    description: Names of the raw feed tables in the `raw` source.
+  - name: envelope_is_ok
+    description: True when an envelope is 2xx, has no collector error and has a payload; never null.
+    arguments:
+      - name: http_status
+        type: string
+        description: Expression for the HTTP status.
+      - name: error
+        type: string
+        description: Expression for the collector error.
+      - name: payload
+        type: string
+        description: Expression for the payload text.
+  - name: raw_envelopes
+    description: >
+      Select of one raw feed's envelopes inside the staging window, one row
+      per (poll_id, request_path), with `polled_at` as UTC timestamp(6), `dt`
+      as a date and `is_ok`. Duplicate copies keep the successful one, then
+      the earliest.
+    arguments:
+      - name: feed
+        type: string
+        description: Raw table name, one of raw_feeds().
+      - name: successful_only
+        type: bool
+        description: Keep only `is_ok` envelopes (default true).
+  - name: utc_timestamp
+    description: ISO 8601 text with a zone to a zoneless UTC timestamp(6), the type Iceberg on Athena stores.
+    arguments:
+      - name: expr
+        type: string
+        description: SQL expression yielding ISO 8601 text.
+  - name: tfl_timestamp
+    description: Like utc_timestamp, but TfL's '0001-01-01...' placeholder and null become null.
+    arguments:
+      - name: expr
+        type: string
+        description: SQL expression yielding a TfL date string.
+  - name: json_text
+    description: A JSON string field with empty strings read as null.
+    arguments:
+      - name: json_expr
+        type: string
+        description: SQL expression of type json.
+      - name: path
+        type: string
+        description: JSONPath, e.g. '$.reason'.
+  - name: json_array_or_null
+    description: >
+      The JSON array at `path` as array(json), or array[null] when it is
+      missing or empty, so unnesting keeps the parent row.
+    arguments:
+      - name: json_expr
+        type: string
+        description: SQL expression of type json.
+      - name: path
+        type: string
+        description: JSONPath of the array.
+  - name: row_key
+    description: md5 hex of the given columns joined with '|', nulls spelled out. Staging merge key.
+    arguments:
+      - name: columns
+        type: list[string]
+        description: Column expressions making up the grain.
