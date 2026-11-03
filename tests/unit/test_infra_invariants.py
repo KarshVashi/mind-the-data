@@ -72,3 +72,12 @@ def test_no_function_urls_or_lambda_permissions() -> None:
 def test_raw_bucket_has_no_expiration() -> None:
     text = (INFRA / "modules" / "raw_bucket" / "main.tf").read_text()
     assert not re.search(r"^\s*(noncurrent_version_)?expiration\s*\{", text, re.MULTILINE)
+
+
+def test_raw_tables_never_hide_bad_lines() -> None:
+    # Either property turns a malformed or mistyped envelope into nulls, which
+    # downstream would read as a quiet period rather than missing data.
+    for path in (INFRA / "modules" / "catalog").glob("*.tf"):
+        text = path.read_text()
+        for prop in ("ignore.malformed.json", "use.null.for.invalid.data"):
+            assert f'"{prop}"' not in text, f"{path}: {prop} would hide bad raw lines"
