@@ -32,3 +32,4 @@ What gets easier, what gets harder, what to revisit and when.
 | [003](003-raw-format.md) | Raw format: gzipped NDJSON envelopes, failures recorded | accepted |
 | [004](004-multiple-statuses.md) | Multiple statuses per line: highest weight wins | accepted |
 | [005](005-ci-role-ownership.md) | CI roles owned by the bootstrap; merging to main is the deploy approval | accepted |
+| [008](008-staging-merge.md) | Staging merges whole days on a row key, not append | proposed |
