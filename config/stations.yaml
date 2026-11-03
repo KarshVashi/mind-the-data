@@ -65,10 +65,9 @@ lines:
       reason: busiest eastern branch end; West Ruislip and Hainault are left out to stay within the station budget
 
   circle:
-    - naptan_id: 940GZZLUHSC
-      name: "Hammersmith (H&C Line)"
-      role: terminus
-      reason: "western terminus of the Circle; shared with H&C"
+    # Not measured at Hammersmith: its Arrivals board labels Circle trains as
+    # hammersmith-city, so they cannot be told apart there (checked in service
+    # on 2026-11-03).
     - naptan_id: 940GZZLUBST
       name: Baker Street
       role: core
@@ -112,7 +111,7 @@ lines:
     - naptan_id: 940GZZLUHSC
       name: "Hammersmith (H&C Line)"
       role: terminus
-      reason: western terminus; shared with Circle
+      reason: western terminus; Circle trains here are reported as H&C
     - naptan_id: 940GZZLUBST
       name: Baker Street
       role: core
