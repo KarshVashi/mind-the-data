@@ -5,6 +5,8 @@
 #   is the approval (ADR-005); a pull request job, even one that rewrites the
 #   workflow, cannot get these credentials because AWS checks the job's
 #   branch, not the workflow file.
+# - transform role: the scheduled dbt build on the main branch. Athena, Glue
+#   and S3 data access for the prod target only; no infrastructure rights.
 #
 # The roles and the boundary policy are named outside the project prefix and
 # outside the PassRole set, so nothing the pipeline manages can change its own
@@ -49,6 +51,20 @@ locals {
     "glue:CreatePartitionIndex", "glue:DeletePartitionIndex",
     "glue:TagResource", "glue:UntagResource",
   ]
+
+  # What the scheduled dbt run touches. Names are fixed by infra/envs/prod;
+  # built here because the bootstrap cannot read that stack's outputs.
+  transform = {
+    workgroup      = "arn:aws:athena:${local.region}:${local.account_id}:workgroup/${local.p}-${var.transform_target}"
+    raw_bucket     = "arn:aws:s3:::${local.p}-raw-${local.account_id}"
+    curated_bucket = "arn:aws:s3:::${local.p}-curated-${local.account_id}"
+    results_bucket = "arn:aws:s3:::${local.p}-athena-results-${local.account_id}"
+    raw_db         = "arn:aws:glue:${local.region}:${local.account_id}:database/${local.glue_p}_raw"
+    raw_tables     = "arn:aws:glue:${local.region}:${local.account_id}:table/${local.glue_p}_raw/*"
+    default_db     = "arn:aws:glue:${local.region}:${local.account_id}:database/default"
+    target_db      = "arn:aws:glue:${local.region}:${local.account_id}:database/${local.glue_p}_${var.transform_target}"
+    target_tables  = "arn:aws:glue:${local.region}:${local.account_id}:table/${local.glue_p}_${var.transform_target}/*"
+  }
 }
 
 # ---- Trust ------------------------------------------------------------------
@@ -92,6 +108,28 @@ data "aws_iam_policy_document" "trust_apply" {
       test     = "StringEquals"
       variable = "${local.oidc_host}:sub"
       values   = ["repo:${var.github_repository}:ref:refs/heads/${var.apply_branch}"]
+    }
+  }
+}
+
+# Same subject as the apply role (jobs on main), but a separate role so the
+# scheduled transform never holds deploy credentials (ADR-005 invariant).
+data "aws_iam_policy_document" "trust_transform" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [var.oidc_provider_arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "${local.oidc_host}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "${local.oidc_host}:sub"
+      values   = ["repo:${var.github_repository}:ref:refs/heads/${var.transform_branch}"]
     }
   }
 }
@@ -283,6 +321,88 @@ data "aws_iam_policy_document" "write" {
   }
 }
 
+# ---- Transform access (scheduled dbt build) ---------------------------------
+
+# dbt on Athena: queries in one workgroup, reads raw, and owns one Glue
+# database and its prefixes in the curated and results buckets. It cannot
+# change raw, the other target, or any infrastructure.
+data "aws_iam_policy_document" "transform" {
+  statement {
+    sid = "AthenaWorkgroup"
+    actions = [
+      "athena:StartQueryExecution",
+      "athena:GetQueryExecution",
+      "athena:GetQueryResults",
+      "athena:StopQueryExecution",
+      "athena:GetWorkGroup",
+    ]
+    resources = [local.transform.workgroup]
+  }
+  # Athena looks up the `default` database when it runs queries and DDL,
+  # so it is readable (never writable) as well.
+  statement {
+    sid       = "GlueRead"
+    actions   = local.glue_read
+    resources = [local.arn.glue_cat, local.transform.default_db, local.transform.raw_db, local.transform.raw_tables, local.transform.target_db, local.transform.target_tables]
+  }
+  # dbt creates its database with `create schema if not exists`, swaps and
+  # drops tables, and prunes old table versions through the Glue API. No
+  # DeleteDatabase: dbt build never drops a schema, and a stray macro must
+  # not be able to empty the whole prod database.
+  statement {
+    sid = "GlueTargetWrite"
+    actions = [
+      "glue:CreateDatabase", "glue:UpdateDatabase",
+      "glue:CreateTable", "glue:UpdateTable", "glue:DeleteTable",
+      "glue:DeleteTableVersion", "glue:BatchDeleteTableVersion",
+      "glue:CreatePartition", "glue:BatchCreatePartition", "glue:UpdatePartition", "glue:BatchUpdatePartition",
+      "glue:DeletePartition", "glue:BatchDeletePartition",
+    ]
+    resources = [local.arn.glue_cat, local.transform.target_db, local.transform.target_tables]
+  }
+  statement {
+    sid       = "Buckets"
+    actions   = ["s3:ListBucket", "s3:GetBucketLocation", "s3:ListBucketMultipartUploads"]
+    resources = [local.transform.raw_bucket, local.transform.curated_bucket, local.transform.results_bucket]
+    condition {
+      test     = "StringEquals"
+      variable = "s3:ResourceAccount"
+      values   = [local.account_id]
+    }
+  }
+  statement {
+    sid       = "RawRead"
+    actions   = ["s3:GetObject"]
+    resources = ["${local.transform.raw_bucket}/raw/*"]
+    condition {
+      test     = "StringEquals"
+      variable = "s3:ResourceAccount"
+      values   = [local.account_id]
+    }
+  }
+  # Iceberg data and Athena results for the target only. Athena writes and
+  # cleans up with the caller's credentials.
+  statement {
+    sid = "TargetObjects"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:AbortMultipartUpload",
+      "s3:ListMultipartUploadParts",
+    ]
+    resources = [
+      "${local.transform.curated_bucket}/${var.transform_target}/*",
+      "${local.transform.results_bucket}/${var.transform_target}/*",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "s3:ResourceAccount"
+      values   = [local.account_id]
+    }
+  }
+}
+
 # ---- Boundary for every role the pipeline creates -------------------------
 
 data "aws_iam_policy_document" "workload_boundary" {
@@ -376,4 +496,17 @@ resource "aws_iam_role_policy" "apply_write" {
   name   = "write"
   role   = aws_iam_role.apply.id
   policy = data.aws_iam_policy_document.write.json
+}
+
+resource "aws_iam_role" "transform" {
+  name                 = "${var.ci_name_prefix}-ci-transform"
+  description          = "GitHub Actions, main branch: scheduled dbt build against the ${var.transform_target} target."
+  assume_role_policy   = data.aws_iam_policy_document.trust_transform.json
+  max_session_duration = 3600
+}
+
+resource "aws_iam_role_policy" "transform" {
+  name   = "transform"
+  role   = aws_iam_role.transform.id
+  policy = data.aws_iam_policy_document.transform.json
 }
