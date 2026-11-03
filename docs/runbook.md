@@ -8,7 +8,7 @@ The rest of the runbook (alarms, re-runs, backfills, key rotation in depth) arri
 
 ## H6: Bootstrap (once)
 
-Creates the remote state bucket and the read-only CI plan role, and wires them to the existing GitHub OIDC provider. Run it as `mtd-admin` with MFA, never from CI.
+Creates the remote state bucket and the two CI roles (read-only plan for pull requests, deploy for `main`), and wires them to the existing GitHub OIDC provider. Run it as `mtd-admin` with MFA, never from CI.
 
 **1. Block public S3 access for the whole account.** It is currently off. This is the strongest guard against a bucket being made public by mistake.
 
@@ -137,6 +137,13 @@ Merging is the approval.
 3. **Watch the deploy.** The merge starts the `deploy` job on `main`. It plans again from `main` and applies that plan. It also writes the plan it applied to its run summary, so you can check it matches what you reviewed.
 
 If `main` moved after the pull request's plan ran, the deploy includes those changes too. Merging soon after the pull request's plan keeps the two the same.
+
+**Deletes and replacements are blocked by default.**
+
+- The pull request's plan flags them with a warning.
+- The deploy fails if its plan deletes or replaces any resource, before anything is changed.
+- To allow it, put `[allow-destroy]` in the pull request title before merging. The title is always part of the squash commit message.
+- Or re-run the `infra` workflow by hand on `main` with `allow_destroy` ticked.
 
 ---
 

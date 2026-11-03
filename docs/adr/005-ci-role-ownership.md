@@ -60,11 +60,16 @@ GitHub Actions deploys `infra/envs/prod` through an OIDC role. Two questions:
 ## Accepted risks
 
 - **No second look before apply.** A merge to `main` applies without a further approval step. The reviewed plan is the one on the pull request.
+  - Deletes and replacements, the changes an approval step mostly existed to catch, are blocked unless opted in: `[allow-destroy]` in the pull request title, or the `allow_destroy` input on a manual run.
+  - Pull request plans flag them with a warning.
 - **The deploy plan can differ from the reviewed one.** If `main` moved after the pull request's plan ran, the deploy includes those changes too. Requiring branches to be up to date would prevent this, but on a private repository that needs a paid plan. The deploy job writes the plan it applied to the run summary.
 - **A direct push to `main` deploys.** On a free private repository, branch protection is not enforced, so nothing forces changes through a pull request. Only Karsh has write access, and the local tooling blocks pushes to `main`. Revisit this ADR before giving anyone else write access.
-- **Any workflow on `main` can assume the apply role.** Workflows still reach `main` only through Karsh's merge. Later workflows get their own roles (see the invariants).
+- **Any job running on `main` can assume the apply role.** The OIDC subject is the same for every event that runs on the default branch: `push`, `workflow_dispatch`, `schedule`, `workflow_run`, `issue_comment`, `repository_dispatch`. A later workflow with `id-token: write` on any of those triggers could get deploy credentials without a new merge of infra code.
+  - Workflows themselves still reach `main` only through Karsh's merge, and later workflows get their own roles (see the invariants).
+  - A stronger control is available if this ever matters: customise the repository's OIDC subject to include `job_workflow_ref`, and trust only `infra.yml` on `main`.
 - **Lifecycle rules.** CI can still set lifecycle rules on project buckets, so an expiration rule on the raw bucket would delete raw data. The raw bucket's lifecycle needs particular care in review.
 - **Bucket policies.** CI can still set bucket policies. The account-level block stops public policies, but not a grant to one named external account.
+- **Plans in logs.** Plan text is written to job logs and run summaries, which keep it for the repository's log retention (90 days by default). Plans can contain values such as the alarm email address. Lower the retention in the repository's Actions settings if that matters.
 
 ## Consequences
 
