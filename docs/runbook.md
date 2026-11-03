@@ -106,8 +106,10 @@ eval "$(aws configure export-credentials --profile mtd-admin --format env)"
 terraform -chdir=infra/bootstrap init
 terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
 #   Expect: 1 S3 bucket and its settings, 1 IAM policy (mtd-workload-boundary),
-#   2 IAM roles (mtd-ci-plan, mtd-ci-apply) with inline policies, and an OIDC
-#   provider only if you asked for one. Nothing else.
+#   3 IAM roles (mtd-ci-plan, mtd-ci-apply, mtd-ci-transform) with inline
+#   policies, and an OIDC provider only if you asked for one. Nothing else.
+#   On a re-apply for M2, expect only: mtd-ci-transform and its inline
+#   policy "transform" to be created.
 terraform -chdir=infra/bootstrap apply bootstrap.tfplan
 unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION
 ```
@@ -127,7 +129,10 @@ CI can read and write only `envs/` in that bucket, so it cannot touch this copy.
 gh variable set TF_STATE_BUCKET   --body "$(terraform -chdir=infra/bootstrap output -raw state_bucket)"
 gh variable set AWS_PLAN_ROLE_ARN --body "$(terraform -chdir=infra/bootstrap output -raw plan_role_arn)"
 gh variable set AWS_ROLE_ARN      --body "$(terraform -chdir=infra/bootstrap output -raw apply_role_arn)"
+gh variable set AWS_TRANSFORM_ROLE_ARN --body "$(terraform -chdir=infra/bootstrap output -raw transform_role_arn)"
 ```
+
+`AWS_TRANSFORM_ROLE_ARN` is used by the daily dbt build (see "Daily transform" below). Until it is set, that workflow skips with a notice.
 
 From now on:
 
@@ -219,6 +224,84 @@ If `main` moved after the pull request's plan ran, the deploy includes those cha
 - The deploy fails if its plan deletes or replaces any resource, before anything is changed.
 - To allow it, put `[allow-destroy]` in the pull request title before merging. The title is always part of the squash commit message.
 - Or re-run the `infra` workflow by hand on `main` with `allow_destroy` ticked.
+
+---
+
+## H11: Athena and Glue access for the dev identity
+
+`make dbt-build-dev` and `scripts/athena_query.py` run as the `mtd-dev` identity. Its `ReadOnlyAccess` permission set can't run Athena queries or write dbt's dev tables, so it gets one inline policy: [`docs/policies/mtd-dev-athena.json`](policies/mtd-dev-athena.json). The policy reaches the dev target only:
+
+- the `mind-the-data-dev` workgroup
+- read on the `mind_the_data_raw` tables, read and write on the `mind_the_data_dev` database
+- read on `raw/` in the raw bucket
+- read and write on `dev/` in the curated and Athena results buckets
+
+Do this after the M2 pull request is merged and deployed, so the workgroup and buckets exist.
+
+**1. Fill in the account id.** The file uses `ACCOUNT_ID` as a placeholder, so no account id is committed.
+
+```sh
+ACCOUNT_ID=$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)
+sed "s/ACCOUNT_ID/$ACCOUNT_ID/g" docs/policies/mtd-dev-athena.json > /tmp/mtd-dev-athena.json
+```
+
+**2. Attach it to the permission set.** In the console, as `mtd-admin`:
+
+1. Go to IAM Identity Center → Multi-account permissions → Permission sets.
+2. Open the permission set assigned to the dev user (the one with `ReadOnlyAccess`).
+3. Permissions tab → Inline policy → Edit (or "Create inline policy").
+4. Switch to the JSON editor, replace its contents with `/tmp/mtd-dev-athena.json`, and save.
+5. A banner offers to update the provisioned accounts. Accept it: Identity Center → AWS accounts → this account → "Update permission set" if the banner is gone. Wait until the status is "Provisioned".
+
+**3. Clean up and test.**
+
+```sh
+rm /tmp/mtd-dev-athena.json
+aws sso login --sso-session mtd
+aws athena get-work-group --profile mtd-dev --region eu-west-2 --work-group mind-the-data-dev \
+  --query 'WorkGroup.Configuration.ResultConfiguration.OutputLocation'
+```
+
+Then fill in the dev values in `.env` (next section) and run `make dbt-build-dev`.
+
+---
+
+## dbt connection settings
+
+Terraform outputs every dbt connection setting as `dbt_athena_env`. Reading outputs needs the state, so initialise first (read-only, as in "Planning locally"):
+
+```sh
+export AWS_PROFILE=mtd-dev
+terraform -chdir=infra/envs/prod init -input=false -backend-config="bucket=$TF_STATE_BUCKET"
+terraform -chdir=infra/envs/prod output -json dbt_athena_env
+```
+
+| Variable | Dev (`.env`) | Prod (repository variable) |
+| --- | --- | --- |
+| `DBT_ATHENA_S3_STAGING_DIR_*` | `s3://mind-the-data-athena-results-<account>/dev/` | `s3://mind-the-data-athena-results-<account>/prod/` |
+| `DBT_ATHENA_S3_DATA_DIR_*` | `s3://mind-the-data-curated-<account>/dev/` | `s3://mind-the-data-curated-<account>/prod/` |
+| `DBT_ATHENA_WORKGROUP_*` | `mind-the-data-dev` | `mind-the-data-prod` |
+| `DBT_ATHENA_SCHEMA_*` | `mind_the_data_dev` | `mind_the_data_prod` |
+
+The workgroups enforce their own results location and a 10 GiB scan limit per query, so a client setting cannot override either. Query results expire after 7 days.
+
+Set the prod values once, after the first deploy of M2:
+
+```sh
+terraform -chdir=infra/envs/prod output -json dbt_athena_env \
+  | jq -r 'to_entries[] | select(.key | endswith("_PROD")) | "\(.key) \(.value)"' \
+  | while read -r name value; do gh variable set "$name" --body "$value"; done
+```
+
+---
+
+## Daily transform
+
+`.github/workflows/transform-daily.yml` runs `dbt build --target prod` at 03:30 London time every day, as the `mtd-ci-transform` role. It needs `AWS_TRANSFORM_ROLE_ARN` (H6 step 5) and the four `DBT_ATHENA_*_PROD` repository variables (above); without the role variable it skips with a notice.
+
+**Why two cron lines.** GitHub's cron runs in UTC only. 03:30 London is 02:30 UTC in summer (BST) and 03:30 UTC in winter (GMT), so the workflow is scheduled at both. Its first step ends the run early unless the slot that fired matches London's current UTC offset: the 02:30 UTC slot builds only while London is on BST, the 03:30 UTC slot only while it is on GMT. Exactly one of the two builds each day. The check uses the slot that fired, not the time the job starts, so a run GitHub starts late under load still builds. The clocks change at 01:00 UTC, before either slot.
+
+**Re-running by hand.** Actions → transform-daily → Run workflow on `main`. A manual run skips the clock check.
 
 ---
 
