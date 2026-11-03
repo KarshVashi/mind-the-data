@@ -1,0 +1,72 @@
+{
+  "request": {
+    "path": "/StopPoint/940GZZLUOXC/Arrivals"
+  },
+  "http_status": 200,
+  "recorded_at": "2026-11-03T01:35:49Z",
+  "trimmed": [],
+  "payload": [
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Prediction, Tfl.Api.Presentation.Entities",
+      "id": "351445571",
+      "operationType": 1,
+      "vehicleId": "223",
+      "naptanId": "940GZZLUOXC",
+      "stationName": "Oxford Circus Underground Station",
+      "lineId": "bakerloo",
+      "lineName": "Bakerloo",
+      "platformName": "Southbound - Platform 3",
+      "direction": "inbound",
+      "bearing": "",
+      "destinationNaptanId": "940GZZLUEAC",
+      "destinationName": "Elephant & Castle Underground Station",
+      "timestamp": "2026-11-03T01:34:26.5894441Z",
+      "timeToStation": 1163,
+      "currentLocation": "Queen's Park North Sidings",
+      "towards": "Elephant and Castle",
+      "expectedArrival": "2026-11-03T01:53:49Z",
+      "timeToLive": "2026-11-03T01:53:49Z",
+      "modeName": "tube",
+      "timing": {
+        "$type": "Tfl.Api.Presentation.Entities.PredictionTiming, Tfl.Api.Presentation.Entities",
+        "countdownServerAdjustment": "00:00:00",
+        "source": "0001-01-01T00:00:00",
+        "insert": "0001-01-01T00:00:00",
+        "read": "2026-11-03T01:34:40.814Z",
+        "sent": "2026-11-03T01:34:26Z",
+        "received": "0001-01-01T00:00:00"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Prediction, Tfl.Api.Presentation.Entities",
+      "id": "1866696853",
+      "operationType": 1,
+      "vehicleId": "225",
+      "naptanId": "940GZZLUOXC",
+      "stationName": "Oxford Circus Underground Station",
+      "lineId": "bakerloo",
+      "lineName": "Bakerloo",
+      "platformName": "Southbound - Platform 3",
+      "direction": "inbound",
+      "bearing": "",
+      "destinationNaptanId": "940GZZLUEAC",
+      "destinationName": "Elephant & Castle Underground Station",
+      "timestamp": "2026-11-03T01:34:26.5894441Z",
+      "timeToStation": 1043,
+      "currentLocation": "Queen's Park North Sidings",
+      "towards": "Elephant and Castle",
+      "expectedArrival": "2026-11-03T01:51:49Z",
+      "timeToLive": "2026-11-03T01:51:49Z",
+      "modeName": "tube",
+      "timing": {
+        "$type": "Tfl.Api.Presentation.Entities.PredictionTiming, Tfl.Api.Presentation.Entities",
+        "countdownServerAdjustment": "00:00:00",
+        "source": "0001-01-01T00:00:00",
+        "insert": "0001-01-01T00:00:00",
+        "read": "2026-11-03T01:34:40.814Z",
+        "sent": "2026-11-03T01:34:26Z",
+        "received": "0001-01-01T00:00:00"
+      }
+    }
+  ]
+}
