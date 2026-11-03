@@ -3,13 +3,13 @@ variable "aws_region" {
   description = "Region the project's resources live in; used to build resource ARNs."
 }
 
-variable "github_repository" {
+variable "github_subject_prefix" {
   type        = string
-  description = "GitHub repository allowed to assume the roles, as owner/name."
+  description = "Start of the OIDC subject GitHub sends for this repository, without the trailing context. With immutable subjects (the repository's setting) it carries the owner and repository ids, e.g. repo:owner@123/name@456. Read it with: gh api repos/OWNER/REPO/actions/oidc/customization/sub (sub_claim_prefix)."
 
   validation {
-    condition     = can(regex("^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$", var.github_repository))
-    error_message = "Use the form owner/name."
+    condition     = can(regex("^repo:[A-Za-z0-9-]+(@[0-9]+)?/[A-Za-z0-9._-]+(@[0-9]+)?$", var.github_subject_prefix))
+    error_message = "Use repo:owner/name, or repo:owner@id/name@id for immutable subjects."
   }
 }
 
