@@ -247,4 +247,4 @@ uv run --locked dbt build --target dev --profiles-dir . --select staging \
 uv run --locked dbt build --target dev --profiles-dir . --select stg_arrivals --full-refresh
 ```
 
-A merge never deletes rows, so a logic change that drops rows needs `--full-refresh`.
+A merge never deletes rows, so a logic change that drops rows needs `--full-refresh`. Never combine `--full-refresh` with `start_date`/`end_date`: the table would keep only that window, so dbt refuses to compile it.

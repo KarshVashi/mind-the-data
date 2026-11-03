@@ -45,7 +45,8 @@
 {#
   Deterministic row key from several columns: the merge key of a staging
   model and the column its uniqueness test runs on. Nulls are spelled out so
-  (null, 'a') and ('', 'a') do not collide.
+  (null, 'a') and ('', 'a') do not collide. '|' is not escaped: key columns
+  are ids, ordinals and TfL paths, none of which contain it.
 #}
 {% macro row_key(columns) %}
     to_hex(md5(to_utf8(concat_ws(

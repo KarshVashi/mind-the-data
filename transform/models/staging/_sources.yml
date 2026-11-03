@@ -26,8 +26,14 @@ sources:
           freshness:
             warn_after: {count: 15, period: minute}
             error_after: {count: 60, period: minute}
-            # Bound the scan to yesterday and today (UTC partitions).
-            filter: "dt >= cast(current_date - interval '1' day as varchar)"
+            # Bound the scan to yesterday and today (UTC partitions), and count
+            # only successful requests: a run of 5xx or timeouts is stale data,
+            # not fresh data.
+            filter: >-
+              dt >= cast(current_date - interval '1' day as varchar)
+              and http_status between 200 and 299
+              and error is null
+              and payload is not null
         columns: &envelope_columns
           - name: poll_id
             description: UUID of the collector run. Shared by every request of one feed in that run.

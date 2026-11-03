@@ -63,7 +63,11 @@
                     {{ envelope_is_ok('src.http_status', 'src.error', 'src.payload') }} desc,
                     src.polled_at,
                     src.latency_ms,
-                    src.http_status
+                    src.http_status,
+                    -- Total order, so a rerun picks the same copy and
+                    -- position-keyed rows never mix two copies.
+                    src.error,
+                    src.payload
             ) as envelope_rank
         from {{ source('raw', feed) }} as src
         where src.{{ raw_dt_filter() }}

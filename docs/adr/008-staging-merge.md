@@ -28,7 +28,7 @@ Raw is replayable and holds every request, failed ones included (ADR-003), so st
 - **Which days a run reads** (`macros/staging_window.sql`). Every run reads whole raw days only, so a rerun rebuilds the same rows:
   - **Full refresh:** from `raw_start_date` to today.
   - **Incremental run:** the last `lookback_days` days (default 2) up to today.
-  - **Backfill:** `start_date` and `end_date`, inclusive, which override both.
+  - **Backfill:** `start_date` and `end_date`, inclusive, which override both. Combining them with `--full-refresh` is a compile error, because the rebuilt table would hold only that window.
 
   The bounds are rendered as literals, so Athena's partition projection can prune raw `dt` before it lists S3.
 - **Limiting the merge scan.** `incremental_predicates` stops the merge scanning the whole target table. Its default is `target.dt >= current_date - (lookback_days + 1) days`. The predicate is resolved when the project is parsed, so it cannot see the window computed at run time. The extra day covers a run that crosses midnight UTC.
@@ -44,4 +44,14 @@ Raw is replayable and holds every request, failed ones included (ADR-003), so st
 - **Reruns are safe.** Rerunning, or backfilling, any range of days gives the same rows.
 - **Deleted rows are not removed.** A merge never deletes. If a parser change starts dropping rows, the old rows stay until a full refresh. Changing a model's logic therefore needs a `--full-refresh`, which is cheap at staging's size.
 - **Reruns cost more.** Each daily run rescans the last `lookback_days` raw days, not just the new hours, so it reads about twice the raw bytes it strictly needs. Check this against the workgroup's per-query scan limit once a week of real data exists.
+- **stg_polls reads every feed again.** Each run reads every raw feed twice over the window: once for its feed model and once for `stg_polls`. This is acceptable at this volume.
 - **Section 6.1 of the plan** should read "incremental merge" for staging.
+
+## Related grain decision
+
+The plan gives `stg_line_status` a grain of poll × line × status entry. Staging instead adds validity period to that grain:
+
+- An entry with several periods gives one row per period, with `valid_from` and `valid_to`.
+- An entry with no periods gives one row with null period columns.
+
+`int_line_minute_status` needs to know, per entry, whether a period covers a minute. With one row per period, that is a plain range join, with no array handling. The plan's grain is still available by taking distinct (poll, line, status_ordinal).

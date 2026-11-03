@@ -87,13 +87,14 @@ parsed as (
     from validity_periods
 ),
 
+-- If TfL lists one line twice in a response, keep every entry of the first
+-- listing and none of the later ones, so entries are never mixed.
 deduplicated as (
     select
         *,
-        row_number() over (
-            partition by poll_id, request_path, line_id, status_ordinal, validity_ordinal
-            order by line_ordinal
-        ) as duplicate_rank
+        min(line_ordinal) over (
+            partition by poll_id, request_path, line_id
+        ) as first_line_ordinal
     from parsed
 )
 
@@ -120,4 +121,4 @@ select
         as line_status_key,
     date_trunc('minute', polled_at) as poll_minute
 from deduplicated
-where duplicate_rank = 1
+where line_ordinal = first_line_ordinal

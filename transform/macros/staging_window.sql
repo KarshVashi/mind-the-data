@@ -6,6 +6,11 @@
 #}
 {% macro staging_window() %}
     {%- set today = modules.datetime.datetime.now(modules.pytz.utc).date() -%}
+    {#- A full refresh rebuilds the table from the window alone, so a backfill
+        window would silently drop every other day. -#}
+    {%- if var('start_date') and flags.FULL_REFRESH -%}
+        {{ exceptions.raise_compiler_error("start_date/end_date cannot be combined with --full-refresh: the table would keep only that window") }}
+    {%- endif -%}
     {%- if var('start_date') -%}
         {%- set start = var('start_date') | string -%}
     {%- elif is_incremental() -%}

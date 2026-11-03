@@ -71,8 +71,13 @@ models:
       entry with none gives one row with null `validity_ordinal`,
       `valid_from` and `valid_to`, and applies to its poll's minute only.
       Only successful envelopes are read, so a failed poll leaves no rows here
-      and shows as not ok in stg_polls. If TfL lists one line twice in a
-      response, the first listing is kept.
+      and shows as not ok in stg_polls. A line returned with no status
+      entries also has no rows, so a successful poll without the line must be
+      read as missing for that line, never as Good Service (ADR-004). If TfL
+      lists one line twice in a response, every entry of the first listing
+      is kept and the later listing is dropped. The plan's grain is poll x
+      line x status entry; validity periods are unnested here so the minute
+      model can join on valid_from/valid_to directly (ADR-008).
     columns:
       - name: line_status_key
         description: Row key, a hash of (poll_id, request_path, line_id, status_ordinal, validity_ordinal). Merge key.
@@ -229,11 +234,17 @@ models:
         description: True when the appearance is `PlannedWork`.
         data_tests: [not_null]
       - name: valid_from
-        description: Start of the disruption, UTC.
-        data_tests: [not_null]
+        description: Start of the disruption, UTC; null for TfL's placeholder date.
+        data_tests:
+          # Stop disruptions are context, not a metric input; an open-ended
+          # point should be seen, not fail the daily build.
+          - not_null:
+              config: {severity: warn}
       - name: valid_to
-        description: End of the disruption, UTC.
-        data_tests: [not_null]
+        description: End of the disruption, UTC; null for TfL's placeholder date.
+        data_tests:
+          - not_null:
+              config: {severity: warn}
       - name: line_ordinal
         description: 1-based position of the concerned line; null when the point lists none.
       - name: line_id
