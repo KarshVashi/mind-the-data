@@ -1,0 +1,377 @@
+# Measurement stations: whose Arrivals board is polled every minute, per line.
+#
+# Chosen from Line/{id}/Route/Sequence/outbound (scripts/discover_lines.py,
+# 2026-11-03). Rules, from PLAN 5.2 and 5.3:
+# - 3 to 5 stations per line: busy core stations plus branch ends. Fewer only
+#   where lines.yaml sets min_stations because the line is that short.
+# - One Arrivals call returns every line serving that StopPoint, so interchanges
+#   are reused wherever they fit. Each distinct naptan_id costs one call a
+#   minute; status and disruption add two. Budget: 52 calls a minute in total,
+#   so at most 50 distinct stations.
+# - Where one station sees every train from several branches (a junction or
+#   the station just inside it), it stands in for those branch ends.
+# - naptan_id is the station-level StopPoint id the Arrivals endpoint accepts:
+#   940GZZ... for Underground, DLR and tram; 910G... for Elizabeth line and
+#   Overground. The same place can have two ids (Paddington H&C vs Bakerloo,
+#   Bank tube vs Bank DLR), and each one is a separate call.
+#
+# role: core = busy trunk station every (or nearly every) train calls at;
+#       branch = on a branch, seeing all trains for one or more branch ends;
+#       terminus = the end of the line or of a branch.
+
+lines:
+  bakerloo:
+    - naptan_id: 940GZZLUEAC
+      name: "Elephant & Castle"
+      role: terminus
+      reason: southern terminus; shared with Northern
+    - naptan_id: 940GZZLUWLO
+      name: Waterloo
+      role: core
+      reason: "busiest Bakerloo interchange; shared with Jubilee, Northern, W&C"
+    - naptan_id: 940GZZLUOXC
+      name: Oxford Circus
+      role: core
+      reason: central trunk; shared with Central and Victoria
+    - naptan_id: 940GZZLUBST
+      name: Baker Street
+      role: core
+      reason: "north end of the core before most trains turn at Queen's Park; shared with four lines"
+
+  central:
+    - naptan_id: 940GZZLUOXC
+      name: Oxford Circus
+      role: core
+      reason: busiest central-London Central stop; shared
+    - naptan_id: 940GZZLUBNK
+      name: Bank
+      role: core
+      reason: "City trunk; shared with Northern and W&C"
+    - naptan_id: 940GZZLULVT
+      name: Liverpool Street
+      role: core
+      reason: "east of the core, every train calls; shared with Circle, H&C, Met"
+    - naptan_id: 940GZZLUEBY
+      name: Ealing Broadway
+      role: terminus
+      reason: western branch end; shared with District
+    - naptan_id: 940GZZLUEPG
+      name: Epping
+      role: terminus
+      reason: busiest eastern branch end; West Ruislip and Hainault are the lighter ends left out
+
+  circle:
+    - naptan_id: 940GZZLUHSC
+      name: "Hammersmith (H&C Line)"
+      role: terminus
+      reason: "western terminus of the Circle; shared with H&C"
+    - naptan_id: 940GZZLUBST
+      name: Baker Street
+      role: core
+      reason: north side of the loop; shared
+    - naptan_id: 940GZZLUKSX
+      name: "King's Cross St. Pancras"
+      role: core
+      reason: busiest station on the loop; shared with five lines
+    - naptan_id: 940GZZLULVT
+      name: Liverpool Street
+      role: core
+      reason: City side of the loop; shared
+    - naptan_id: 940GZZLUVIC
+      name: Victoria
+      role: core
+      reason: south side of the loop; shared with District and Victoria
+
+  district:
+    - naptan_id: 940GZZLUECT
+      name: "Earl's Court"
+      role: core
+      reason: junction nearly every District train passes; stands in for the Richmond and Edgware Road ends
+    - naptan_id: 940GZZLUVIC
+      name: Victoria
+      role: core
+      reason: central trunk; shared with Circle and Victoria
+    - naptan_id: 940GZZLUBKG
+      name: Barking
+      role: core
+      reason: "eastern trunk every Upminster train calls at; shared with H&C"
+    - naptan_id: 940GZZLUEBY
+      name: Ealing Broadway
+      role: terminus
+      reason: western branch end; shared with Central
+    - naptan_id: 940GZZLUWIM
+      name: Wimbledon
+      role: terminus
+      reason: "busiest southern branch end; Richmond trains are seen at Earl's Court"
+
+  hammersmith-city:
+    - naptan_id: 940GZZLUHSC
+      name: "Hammersmith (H&C Line)"
+      role: terminus
+      reason: western terminus; shared with Circle
+    - naptan_id: 940GZZLUBST
+      name: Baker Street
+      role: core
+      reason: central trunk; shared
+    - naptan_id: 940GZZLUKSX
+      name: "King's Cross St. Pancras"
+      role: core
+      reason: central trunk; shared
+    - naptan_id: 940GZZLULVT
+      name: Liverpool Street
+      role: core
+      reason: City trunk; shared
+    - naptan_id: 940GZZLUBKG
+      name: Barking
+      role: terminus
+      reason: eastern terminus; shared with District
+
+  jubilee:
+    - naptan_id: 940GZZLUBST
+      name: Baker Street
+      role: core
+      reason: north of the core; shared
+    - naptan_id: 940GZZLUGPK
+      name: Green Park
+      role: core
+      reason: central trunk; shared with Piccadilly and Victoria
+    - naptan_id: 940GZZLUWLO
+      name: Waterloo
+      role: core
+      reason: busiest Jubilee interchange south of the river; shared
+    - naptan_id: 940GZZLUSTD
+      name: Stratford
+      role: terminus
+      reason: eastern terminus and the busy Docklands end; shared with Central
+
+  metropolitan:
+    - naptan_id: 940GZZLUBST
+      name: Baker Street
+      role: core
+      reason: where the main line meets the sub-surface core; shared
+    - naptan_id: 940GZZLUKSX
+      name: "King's Cross St. Pancras"
+      role: core
+      reason: City widened lines trunk; shared
+    - naptan_id: 940GZZLULVT
+      name: Liverpool Street
+      role: core
+      reason: City trunk near the Aldgate terminus; shared
+    - naptan_id: 940GZZLUUXB
+      name: Uxbridge
+      role: terminus
+      reason: Uxbridge branch end; shared with Piccadilly
+    - naptan_id: 940GZZLUAMS
+      name: Amersham
+      role: terminus
+      reason: main-line end; Chesham and Watford are low-frequency ends left out
+
+  northern:
+    - naptan_id: 940GZZLUBNK
+      name: Bank
+      role: core
+      reason: "Bank branch trunk; shared with Central and W&C"
+    - naptan_id: 940GZZLUWLO
+      name: Waterloo
+      role: core
+      reason: Charing Cross branch trunk; shared
+    - naptan_id: 940GZZLUEGW
+      name: Edgware
+      role: terminus
+      reason: Edgware branch end
+    - naptan_id: 940GZZLUHBT
+      name: High Barnet
+      role: terminus
+      reason: High Barnet branch end; Mill Hill East shuttle left out
+    - naptan_id: 940GZZLUMDN
+      name: Morden
+      role: terminus
+      reason: southern terminus; Battersea trains are seen at Waterloo
+
+  piccadilly:
+    - naptan_id: 940GZZLUKSX
+      name: "King's Cross St. Pancras"
+      role: core
+      reason: busiest Piccadilly station; shared
+    - naptan_id: 940GZZLUGPK
+      name: Green Park
+      role: core
+      reason: West End trunk; shared
+    - naptan_id: 940GZZLUCKS
+      name: Cockfosters
+      role: terminus
+      reason: northern terminus
+    - naptan_id: 940GZZLUHRC
+      name: "Heathrow Terminals 2 & 3"
+      role: branch
+      reason: every Heathrow train calls here, covering the T4 and T5 ends
+    - naptan_id: 940GZZLUUXB
+      name: Uxbridge
+      role: terminus
+      reason: Uxbridge branch end; shared with Metropolitan
+
+  victoria:
+    - naptan_id: 940GZZLUVIC
+      name: Victoria
+      role: core
+      reason: busiest Victoria line station; shared
+    - naptan_id: 940GZZLUGPK
+      name: Green Park
+      role: core
+      reason: central trunk; shared
+    - naptan_id: 940GZZLUOXC
+      name: Oxford Circus
+      role: core
+      reason: central trunk; shared
+    - naptan_id: 940GZZLUKSX
+      name: "King's Cross St. Pancras"
+      role: core
+      reason: northern core before trains thin out beyond Seven Sisters; shared
+
+  waterloo-city:
+    - naptan_id: 940GZZLUWLO
+      name: Waterloo
+      role: terminus
+      reason: "one of the line's two stations; shared"
+    - naptan_id: 940GZZLUBNK
+      name: Bank
+      role: terminus
+      reason: "one of the line's two stations; shared"
+
+  elizabeth:
+    - naptan_id: 910GTOTCTRD
+      name: Tottenham Court Road
+      role: core
+      reason: central tunnel section every through train uses
+    - naptan_id: 910GROMFORD
+      name: Romford
+      role: branch
+      reason: Shenfield branch, every eastern train calls; shared with Liberty
+    - naptan_id: 910GABWDXR
+      name: Abbey Wood
+      role: terminus
+      reason: south-eastern branch end
+    - naptan_id: 910GHTRWAPT
+      name: "Heathrow Terminals 2 & 3"
+      role: branch
+      reason: every Heathrow train calls here, covering the T4 and T5 ends; Reading left out (low frequency)
+
+  dlr:
+    - naptan_id: 940GZZDLBNK
+      name: Bank DLR
+      role: terminus
+      reason: City terminus, busiest DLR end
+    - naptan_id: 940GZZDLCGT
+      name: Canning Town DLR
+      role: core
+      reason: junction seen by Stratford, Beckton and Woolwich services
+    - naptan_id: 940GZZDLLEW
+      name: Lewisham DLR
+      role: terminus
+      reason: southern branch end
+    - naptan_id: 940GZZDLWLA
+      name: Woolwich Arsenal DLR
+      role: terminus
+      reason: Woolwich branch end
+
+  tram:
+    - naptan_id: 940GZZCRECR
+      name: East Croydon
+      role: core
+      reason: every tram route calls here
+    - naptan_id: 940GZZCRWMB
+      name: Wimbledon
+      role: terminus
+      reason: western terminus
+    - naptan_id: 940GZZCRNWA
+      name: New Addington
+      role: terminus
+      reason: busiest eastern branch end; Beckenham and Elmers End trams are seen at East Croydon
+
+  liberty:
+    - naptan_id: 910GROMFORD
+      name: Romford
+      role: terminus
+      reason: northern terminus; shared with Elizabeth line
+    - naptan_id: 910GUPMNSTR
+      name: Upminster
+      role: terminus
+      reason: southern terminus
+
+  lioness:
+    - naptan_id: 910GEUSTON
+      name: London Euston
+      role: terminus
+      reason: London terminus
+    - naptan_id: 910GWLSDJHL
+      name: Willesden Junction
+      role: core
+      reason: mid-line interchange; shared with Mildmay
+    - naptan_id: 910GWATFJDC
+      name: Watford Junction
+      role: terminus
+      reason: northern terminus
+
+  mildmay:
+    - naptan_id: 910GSTFD
+      name: Stratford (London)
+      role: terminus
+      reason: eastern terminus
+    - naptan_id: 910GHGHI
+      name: "Highbury & Islington"
+      role: core
+      reason: busiest Mildmay station; shared with Windrush
+    - naptan_id: 910GWLSDJHL
+      name: Willesden Junction
+      role: core
+      reason: where the branches split; sees every Clapham Junction train, so that end is left out; shared with Lioness
+    - naptan_id: 910GRICHMND
+      name: Richmond (London)
+      role: terminus
+      reason: Richmond branch end
+
+  suffragette:
+    - naptan_id: 910GGOSPLOK
+      name: Gospel Oak
+      role: terminus
+      reason: western terminus
+    - naptan_id: 910GBLCHSRD
+      name: Blackhorse Road
+      role: core
+      reason: busiest mid-line interchange (Victoria line)
+    - naptan_id: 910GBARKRIV
+      name: Barking Riverside
+      role: terminus
+      reason: eastern terminus
+
+  weaver:
+    - naptan_id: 910GHAKNYNM
+      name: Hackney Downs
+      role: core
+      reason: every Weaver train calls here before the branches split
+    - naptan_id: 910GEDMNGRN
+      name: Edmonton Green
+      role: branch
+      reason: sees every Enfield Town and Cheshunt train
+    - naptan_id: 910GCHINGFD
+      name: Chingford
+      role: terminus
+      reason: Chingford branch end
+
+  windrush:
+    - naptan_id: 910GHGHI
+      name: "Highbury & Islington"
+      role: terminus
+      reason: northern terminus; shared with Mildmay
+    - naptan_id: 910GCNDAW
+      name: Canada Water
+      role: core
+      reason: busiest core station south of the river, before the branches split
+    - naptan_id: 910GWCROYDN
+      name: West Croydon
+      role: terminus
+      reason: busiest southern branch end; Crystal Palace and New Cross left out
+    - naptan_id: 910GCLPHMJ1
+      name: Clapham Junction (Windrush)
+      role: terminus
+      reason: "Clapham branch end; the Windrush platforms have their own id, separate from Mildmay's 910GCLPHMJC"

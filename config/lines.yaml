@@ -1,0 +1,138 @@
+# Lines in scope for the league table.
+#
+# ids: exactly as returned by Line/Mode/tube,elizabeth-line,dlr,overground,tram
+#   (checked 2026-11-03 with scripts/discover_lines.py: 20 lines). The six
+#   Overground lines carry their 2024 names; there is no "london-overground" id.
+# colour: each line's Pantone reference in the TfL Colour Standard (issue 9,
+#   November 2024), written as Pantone's own sRGB conversion. TfL's digital
+#   colour standard uses slightly different screen values for some lines;
+#   confirm against the current issue before the first public export (M5).
+# low_volume: Trams and Liberty are shown but flagged (PLAN 7.4).
+# min_stations: defaults to 3; lower only where the line itself is that short.
+# division_seed: starting division, decided in M6. Null until then.
+
+lines:
+  - id: bakerloo
+    name: Bakerloo
+    mode: tube
+    colour: "#A45A2A"  # Pantone 470
+    low_volume: false
+    division_seed: null
+  - id: central
+    name: Central
+    mode: tube
+    colour: "#DA291C"  # Pantone 485
+    low_volume: false
+    division_seed: null
+  - id: circle
+    name: Circle
+    mode: tube
+    colour: "#FFCD00"  # Pantone 116
+    low_volume: false
+    division_seed: null
+  - id: district
+    name: District
+    mode: tube
+    colour: "#007A33"  # Pantone 356
+    low_volume: false
+    division_seed: null
+  - id: hammersmith-city
+    name: Hammersmith & City
+    mode: tube
+    colour: "#E89CAE"  # Pantone 197
+    low_volume: false
+    division_seed: null
+  - id: jubilee
+    name: Jubilee
+    mode: tube
+    colour: "#7C878E"  # Pantone 430
+    low_volume: false
+    division_seed: null
+  - id: metropolitan
+    name: Metropolitan
+    mode: tube
+    colour: "#840B55"  # Pantone 235
+    low_volume: false
+    division_seed: null
+  - id: northern
+    name: Northern
+    mode: tube
+    colour: "#000000"  # Black
+    low_volume: false
+    division_seed: null
+  - id: piccadilly
+    name: Piccadilly
+    mode: tube
+    colour: "#10069F"  # Pantone 072
+    low_volume: false
+    division_seed: null
+  - id: victoria
+    name: Victoria
+    mode: tube
+    colour: "#00A3E0"  # Pantone 299
+    low_volume: false
+    division_seed: null
+  - id: waterloo-city
+    name: Waterloo & City
+    mode: tube
+    colour: "#6ECEB2"  # Pantone 338
+    low_volume: false
+    # Two stations on the whole line.
+    min_stations: 2
+    division_seed: null
+  - id: elizabeth
+    name: Elizabeth line
+    mode: elizabeth-line
+    colour: "#753BBD"  # Pantone 266
+    low_volume: false
+    division_seed: null
+  - id: dlr
+    name: DLR
+    mode: dlr
+    colour: "#00B2A9"  # Pantone 326
+    low_volume: false
+    division_seed: null
+  - id: tram
+    name: Tram
+    mode: tram
+    colour: "#78BE20"  # Pantone 368
+    low_volume: true
+    division_seed: null
+  - id: liberty
+    name: Liberty
+    mode: overground
+    colour: "#606667"
+    low_volume: true
+    # Three stations on the whole line; the two ends see every train.
+    min_stations: 2
+    division_seed: null
+  - id: lioness
+    name: Lioness
+    mode: overground
+    colour: "#EF9600"
+    low_volume: false
+    division_seed: null
+  - id: mildmay
+    name: Mildmay
+    mode: overground
+    colour: "#2774AE"
+    low_volume: false
+    division_seed: null
+  - id: suffragette
+    name: Suffragette
+    mode: overground
+    colour: "#5BA763"
+    low_volume: false
+    division_seed: null
+  - id: weaver
+    name: Weaver
+    mode: overground
+    colour: "#893B67"
+    low_volume: false
+    division_seed: null
+  - id: windrush
+    name: Windrush
+    mode: overground
+    colour: "#D22730"
+    low_volume: false
+    division_seed: null
