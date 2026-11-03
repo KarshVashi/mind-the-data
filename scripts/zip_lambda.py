@@ -3,8 +3,8 @@
 The same inputs always give a byte-identical zip, so Terraform's
 source_code_hash only changes, and the functions only redeploy, when the code
 or a pinned dependency changes. Entries are sorted, timestamps fixed and
-permissions normalised; bytecode caches are left out because the runtime
-writes its own.
+permissions normalised. Bytecode caches are left out because the runtime
+writes its own, and so are placeholder files and wheel entry-point scripts.
 
 Usage: python scripts/zip_lambda.py <build_dir> <zip_path>
 """
@@ -17,7 +17,11 @@ from pathlib import Path
 
 # Earliest timestamp the zip format can hold.
 FIXED_DATE_TIME = (1980, 1, 1, 0, 0, 0)
+# bin/ holds wheel entry-point scripts whose shebang names the build
+# machine's interpreter, so they would make the zip differ between hosts.
+SKIPPED_TOP_LEVEL = frozenset({"bin"})
 SKIPPED_DIRS = frozenset({"__pycache__"})
+SKIPPED_NAMES = frozenset({".gitkeep", ".DS_Store"})
 SKIPPED_SUFFIXES = frozenset({".pyc", ".pyo"})
 
 
@@ -28,6 +32,8 @@ def files_to_zip(build_dir: Path) -> list[Path]:
         for path in build_dir.rglob("*")
         if path.is_file()
         and path.suffix not in SKIPPED_SUFFIXES
+        and path.name not in SKIPPED_NAMES
+        and path.relative_to(build_dir).parts[0] not in SKIPPED_TOP_LEVEL
         and not SKIPPED_DIRS.intersection(path.relative_to(build_dir).parts)
     )
 

@@ -92,11 +92,11 @@ fmt: ## Format Python, Terraform and SQL in place
 LAMBDA_BUILD := build/lambda
 LAMBDA_REQS  := build/lambda-requirements.txt
 LAMBDA_ZIP   := dist/lambda.zip
-# The python3.12 Lambda runtime ships these; leaving them out keeps the zip
-# small. Their own dependencies (urllib3, python-dateutil, six) stay in: a
-# duplicate is harmless, a missing module is not.
-LAMBDA_RUNTIME_PROVIDED := boto3 botocore s3transfer jmespath
-
+# boto3 and botocore are bundled at their locked versions rather than taken
+# from the runtime: the writer relies on S3 conditional writes (IfNoneMatch),
+# which older runtime SDKs reject, and the bundled urllib3 would shadow the
+# runtime's copy anyway.
+#
 # The export is the complete pinned set, so pip installs it with --no-deps and
 # resolves nothing again. config/ (line and station lists, read from
 # CONFIG_DIR) is copied when present.
@@ -106,7 +106,7 @@ package: ## Build dist/lambda.zip for the arm64 python3.12 Lambdas
 	rm -rf $(LAMBDA_BUILD) $(LAMBDA_ZIP)
 	mkdir -p $(LAMBDA_BUILD) dist
 	$(UV) export --no-dev --no-hashes --no-emit-project --frozen --quiet \
-		$(addprefix --no-emit-package ,$(LAMBDA_RUNTIME_PROVIDED)) -o $(LAMBDA_REQS)
+		-o $(LAMBDA_REQS)
 	$(UV) pip install --quiet --no-deps --python 3.12 --target $(LAMBDA_BUILD) \
 		--python-platform aarch64-manylinux_2_28 --python-version 3.12 \
 		--only-binary :all: -r $(LAMBDA_REQS)
@@ -125,7 +125,7 @@ dbt-build-dev: ## dbt build against the dev target (needs AWS read access)
 	$(DBT) build --target dev $(DBT_FLAGS)
 
 .PHONY: plan
-plan: ## terraform plan for infra/envs/prod (needs AWS read access and TF_STATE_BUCKET)
+plan: package ## terraform plan for infra/envs/prod (needs AWS read access and TF_STATE_BUCKET)
 	@[ -n "$${TF_STATE_BUCKET:-}" ] || { echo "plan: set TF_STATE_BUCKET (bootstrap output state_bucket)" >&2; exit 1; }
 	terraform -chdir=infra/envs/prod init -input=false -backend-config="bucket=$$TF_STATE_BUCKET"
 	terraform -chdir=infra/envs/prod plan -input=false -lock=false
