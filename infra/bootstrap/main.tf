@@ -122,8 +122,8 @@ locals {
 module "ci_role" {
   source = "../modules/ci_role"
 
-  aws_region        = var.aws_region
-  github_repository = var.github_repository
-  oidc_provider_arn = local.oidc_provider_arn
-  state_bucket_arn  = aws_s3_bucket.state.arn
+  aws_region            = var.aws_region
+  github_subject_prefix = var.github_subject_prefix
+  oidc_provider_arn     = local.oidc_provider_arn
+  state_bucket_arn      = aws_s3_bucket.state.arn
 }

@@ -32,3 +32,4 @@ What gets easier, what gets harder, what to revisit and when.
 | [003](003-raw-format.md) | Raw format: gzipped NDJSON envelopes, failures recorded | accepted |
 | [004](004-multiple-statuses.md) | Multiple statuses per line: highest weight wins | accepted |
 | [005](005-ci-role-ownership.md) | CI roles owned by the bootstrap; merging to main is the deploy approval | accepted |
+| [009](009-oidc-immutable-subjects.md) | CI roles trust the repository's immutable OIDC subject | proposed |
