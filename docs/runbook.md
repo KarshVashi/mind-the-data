@@ -222,6 +222,80 @@ If `main` moved after the pull request's plan ran, the deploy includes those cha
 
 ---
 
+## Alert email
+
+Alarms notify the `mind-the-data-alerts` SNS topic. The email address comes from the `ALERT_EMAIL` repository variable. If it is unset, the topic has no subscription and alarms notify nobody, so set it before the collector's first deploy:
+
+```sh
+gh variable set ALERT_EMAIL --body "you@example.com"
+```
+
+After the next deploy, AWS sends a confirmation email to that address. Click the link in it. Until you do, the subscription stays pending and no alarm email arrives.
+
+Check the subscription:
+
+```sh
+aws sns list-subscriptions-by-topic --profile mtd-dev --region eu-west-2 \
+  --topic-arn "arn:aws:sns:eu-west-2:$(aws sts get-caller-identity --profile mtd-dev --query Account --output text):mind-the-data-alerts" \
+  --query 'Subscriptions[].{endpoint:Endpoint,arn:SubscriptionArn}'
+```
+
+`PendingConfirmation` in place of an ARN means the link has not been clicked.
+
+---
+
+## Lambda concurrency quota
+
+The account's Lambda concurrency quota is 10. Lambda won't reserve concurrency for any function until the quota is higher, so the poller runs unreserved for now (ADR-006).
+
+Request the increase. It is free.
+
+```sh
+aws service-quotas request-service-quota-increase --profile mtd-admin --region eu-west-2 \
+  --service-code lambda --quota-code L-B99A9384 --desired-value 1000
+```
+
+Check progress:
+
+```sh
+aws lambda get-account-settings --profile mtd-dev --region eu-west-2 --query AccountLimit.ConcurrentExecutions
+```
+
+Once this returns 1000, open a pull request that changes the default of `poller_reserved_concurrency` in `infra/envs/prod/variables.tf` to `1`.
+
+---
+
+## Collector alarms
+
+| Alarm | Fires when | First check |
+| --- | --- | --- |
+| `mind-the-data-poller-error-rate` | The poller ends in an unhandled error in 3 of the last 5 minutes | Poller logs (`/aws/lambda/mind-the-data-poller`) |
+| `mind-the-data-poller-throttles` | Any poller invocation is throttled in 5 minutes | Account concurrency (above); a poll running past a minute |
+| `mind-the-data-no-objects-line-status` | No `line_status` object is written for 10 minutes, including when the poller isn't running at all | Schedule state, then poller logs |
+| `mind-the-data-no-objects-line-disruption` | No `line_disruption` object is written for 10 minutes | Poller logs |
+| `mind-the-data-no-objects-arrivals` | No `arrivals` object is written for 10 minutes | Poller logs; station config |
+| `mind-the-data-tfl-failures-line-status` | Every line status request to TfL fails for 5 minutes | The app key (H8), then TfL's status |
+| `mind-the-data-reference-errors` | The weekly reference fetch ends in an error | Reference logs (`/aws/lambda/mind-the-data-reference`) |
+
+A request that TfL rejects is still written to raw, as a failure envelope (ADR-003). When every request for a feed fails, which is what a revoked or disabled key looks like, the poller writes those envelopes and then ends the invocation in an error.
+
+**What a revoked or disabled key sets off:**
+
+- **`mind-the-data-poller-error-rate`**, within about 3 minutes.
+- **`mind-the-data-tfl-failures-line-status`**, after 5 minutes.
+- **Not the no-objects alarms.** Objects are still written.
+
+A 401 or 403 also makes the next run read the key from SSM again, so a rotated key is picked up without a redeploy.
+
+**After the collector's first deploy**, run the reference fetch once rather than waiting for Monday 03:00:
+
+```sh
+aws lambda invoke --profile mtd-admin --region eu-west-2 \
+  --function-name mind-the-data-reference --invocation-type Event /dev/null
+```
+
+---
+
 ## Planning locally
 
 ```sh

@@ -87,6 +87,33 @@ fmt: ## Format Python, Terraform and SQL in place
 	terraform fmt -recursive infra
 	$(UV_RUN) sqlfluff fix $(SQL_DIRS)
 
+# ---- Lambda package -----------------------------------------------------------
+
+LAMBDA_BUILD := build/lambda
+LAMBDA_REQS  := build/lambda-requirements.txt
+LAMBDA_ZIP   := dist/lambda.zip
+# boto3 and botocore are bundled at their locked versions rather than taken
+# from the runtime: the writer relies on S3 conditional writes (IfNoneMatch),
+# which older runtime SDKs reject, and the bundled urllib3 would shadow the
+# runtime's copy anyway.
+#
+# The export is the complete pinned set, so pip installs it with --no-deps and
+# resolves nothing again. config/ (line and station lists, read from
+# CONFIG_DIR) is copied when present.
+
+.PHONY: package
+package: ## Build dist/lambda.zip for the arm64 python3.12 Lambdas
+	rm -rf $(LAMBDA_BUILD) $(LAMBDA_ZIP)
+	mkdir -p $(LAMBDA_BUILD) dist
+	$(UV) export --no-dev --no-hashes --no-emit-project --frozen --quiet \
+		-o $(LAMBDA_REQS)
+	$(UV) pip install --quiet --no-deps --python 3.12 --target $(LAMBDA_BUILD) \
+		--python-platform aarch64-manylinux_2_28 --python-version 3.12 \
+		--only-binary :all: -r $(LAMBDA_REQS)
+	cp -R src/mind_the_data $(LAMBDA_BUILD)/mind_the_data
+	if [ -d config ]; then mkdir -p $(LAMBDA_BUILD)/config && cp -R config/. $(LAMBDA_BUILD)/config/; fi
+	$(UV) run --no-project --python 3.12 python scripts/zip_lambda.py $(LAMBDA_BUILD) $(LAMBDA_ZIP)
+
 # ---- Needs AWS access -------------------------------------------------------
 
 DBT_DEV_VARS := DBT_ATHENA_S3_STAGING_DIR_DEV DBT_ATHENA_S3_DATA_DIR_DEV DBT_ATHENA_WORKGROUP_DEV
@@ -98,7 +125,7 @@ dbt-build-dev: ## dbt build against the dev target (needs AWS read access)
 	$(DBT) build --target dev $(DBT_FLAGS)
 
 .PHONY: plan
-plan: ## terraform plan for infra/envs/prod (needs AWS read access and TF_STATE_BUCKET)
+plan: package ## terraform plan for infra/envs/prod (needs AWS read access and TF_STATE_BUCKET)
 	@[ -n "$${TF_STATE_BUCKET:-}" ] || { echo "plan: set TF_STATE_BUCKET (bootstrap output state_bucket)" >&2; exit 1; }
 	terraform -chdir=infra/envs/prod init -input=false -backend-config="bucket=$$TF_STATE_BUCKET"
 	terraform -chdir=infra/envs/prod plan -input=false -lock=false

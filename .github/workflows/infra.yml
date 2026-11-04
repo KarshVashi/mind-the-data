@@ -12,12 +12,26 @@ on:
       - "infra/**"
       - ".github/workflows/infra.yml"
       - ".github/scripts/**"
+      # The Lambda package is built from these, so code changes redeploy.
+      - "src/**"
+      - "config/**"
+      - "scripts/zip_lambda.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "Makefile"
   push:
     branches: [main]
     paths:
       - "infra/**"
       - ".github/workflows/infra.yml"
       - ".github/scripts/**"
+      # The Lambda package is built from these, so code changes redeploy.
+      - "src/**"
+      - "config/**"
+      - "scripts/zip_lambda.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "Makefile"
   workflow_dispatch:
     inputs:
       allow_destroy:
@@ -39,6 +53,8 @@ env:
   TF_IN_AUTOMATION: "true"
   AWS_REGION: eu-west-2
   TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  # Optional: without it the alerts topic has no email subscription.
+  TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
 
 jobs:
   not-configured:
@@ -60,6 +76,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # Terraform hashes dist/lambda.zip, so it must exist before plan. Built
+      # before AWS credentials exist in the job, since it downloads packages.
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.16"
+
+      - name: build Lambda package
+        run: make package
+
+      - name: alert email check
+        if: vars.ALERT_EMAIL == ''
+        run: echo "::warning title=No alert email::ALERT_EMAIL is not set, so collector alarms notify nobody (docs/runbook.md, Alert email)."
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
@@ -100,6 +129,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # Terraform hashes dist/lambda.zip, so it must exist before plan. Built
+      # before AWS credentials exist in the job, since it downloads packages.
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.16"
+
+      - name: build Lambda package
+        run: make package
+
+      - name: alert email check
+        if: vars.ALERT_EMAIL == ''
+        run: echo "::warning title=No alert email::ALERT_EMAIL is not set, so collector alarms notify nobody (docs/runbook.md, Alert email)."
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
