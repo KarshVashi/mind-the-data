@@ -31,13 +31,6 @@
 {% endmacro %}
 
 
-{# Predicate on a raw table's `dt` partition for the current window. #}
-{% macro raw_dt_filter() %}
-    {%- set window = staging_window() -%}
-    dt between '{{ window.start }}' and '{{ window.end }}'
-{%- endmacro %}
-
-
 {#
   Limits the merge's scan of the existing staging table to the days a run
   can touch. Config is resolved at parse time, before is_incremental() is

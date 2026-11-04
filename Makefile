@@ -11,7 +11,7 @@ DBT       := cd $(DBT_DIR) && $(UV_RUN) --project .. dbt
 DBT_FLAGS := --profiles-dir .
 # Terraform roots that exist so far; modules are validated through the roots that call them.
 TF_ROOTS  := $(wildcard infra/bootstrap infra/envs/prod)
-# Hand-written SQL; macros are skipped by the dbt templater anyway.
+# Hand-written SQL; macros are linted as rendered inside the models that call them.
 SQL_DIRS  := $(DBT_DIR)/models $(DBT_DIR)/tests $(DBT_DIR)/analyses
 
 .PHONY: help

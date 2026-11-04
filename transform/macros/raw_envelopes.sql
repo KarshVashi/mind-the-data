@@ -23,6 +23,17 @@
 
 
 {#
+  Predicate on a raw table's `dt` partition for the current window.
+  Kept out of staging_window.sql: sqlfluff's jinja templater only honours a
+  macro's return() when it is called from another file.
+#}
+{% macro raw_dt_filter() %}
+    {%- set window = staging_window() -%}
+    dt between '{{ window.start }}' and '{{ window.end }}'
+{%- endmacro %}
+
+
+{#
   Envelopes of one raw feed inside the staging window, one row per
   (poll_id, request_path).
 
