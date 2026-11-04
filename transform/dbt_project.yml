@@ -11,6 +11,20 @@ analysis-paths: ["analyses"]
 target-path: "target"
 clean-targets: ["target", "dbt_packages"]
 
+# Which raw days a staging run reads (macros/staging_window.sql). Raw `dt` is
+# the UTC date of the poll. Every read of a raw table is bounded by these, so
+# no query ever scans the whole raw prefix.
+vars:
+  # First raw day read by a full refresh.
+  raw_start_date: "2026-11-01"
+  # Whole UTC days an incremental run reprocesses, counting back from today,
+  # so a late raw object or a rerun after a failure is picked up.
+  lookback_days: 2
+  # Explicit backfill window ('YYYY-MM-DD', inclusive). Override both on the
+  # command line, e.g. --vars '{start_date: "2026-11-03", end_date: "2026-11-05"}'.
+  start_date: null
+  end_date: null
+
 # Every layer of a target lands in that target's single Glue database (`dev`
 # or `prod`, section 2 of the plan); the stg_/int_/fct_ prefixes carry the
 # layer. Hence no per-folder +schema, which would create dev_staging etc.
@@ -18,7 +32,23 @@ models:
   mind_the_data:
     +table_type: iceberg
     +format: parquet
+    # Staging is idempotent per day: a run re-reads whole raw days and merges
+    # on each model's row key, so rerunning a day rewrites the same rows
+    # instead of appending copies (ADR-008).
+    staging:
+      +materialized: incremental
+      +incremental_strategy: merge
+      +partitioned_by: ["dt"]
+      +on_schema_change: fail
 
 seeds:
   mind_the_data:
     +table_type: iceberg
+
+# Staging tests cover the last 7 days. Older days were tested when they were
+# built; rescanning all history on every daily run would only add cost.
+# (Project vars are not visible here, hence the literal.)
+data_tests:
+  mind_the_data:
+    staging:
+      +where: "dt >= current_date - interval '7' day"

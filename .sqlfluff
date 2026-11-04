@@ -1,13 +1,21 @@
 [sqlfluff]
 dialect = athena
-templater = dbt
+# The jinja templater with dbt builtins, not the dbt templater: the dbt
+# templater opens an Athena connection and lists the relations of every
+# model's schema before rendering, so linting would need AWS credentials and
+# a warehouse. Trade-off: is_incremental() always renders true (the full-
+# refresh branch is covered by `dbt parse` and dbt unit tests, not by lint),
+# var() reads dbt_project.yml defaults only, and source()/ref() render as
+# placeholder names. Every rule still runs on the rendered SQL, including the
+# project's macros.
+templater = jinja
 max_line_length = 100
 
-[sqlfluff:templater:dbt]
-project_dir = transform
-profiles_dir = transform
-profile = mind_the_data
-target = dev
+[sqlfluff:templater:jinja]
+apply_dbt_builtins = True
+load_macros_from_path = transform/macros
+# var(), modules, flags and exceptions for the macros (see its docstring).
+library_path = transform/sqlfluff_libs
 
 [sqlfluff:indentation]
 indent_unit = space
