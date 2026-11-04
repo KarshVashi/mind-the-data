@@ -1,0 +1,1006 @@
+{
+  "request": {
+    "path": "/Line/Mode/tube,elizabeth-line,dlr,overground,tram/Status"
+  },
+  "http_status": 200,
+  "recorded_at": "2026-11-03T01:35:42Z",
+  "trimmed": [],
+  "payload": [
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "bakerloo",
+      "name": "Bakerloo",
+      "modeName": "tube",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "bakerloo",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Bakerloo Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:14:26Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Bakerloo Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Bakerloo&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "central",
+      "name": "Central",
+      "modeName": "tube",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "central",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Central Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:14:35Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Central Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Central&serviceTypes=Regular"
+        },
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Night",
+          "uri": "/Line/Route?ids=Central&serviceTypes=Night"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "circle",
+      "name": "Circle",
+      "modeName": "tube",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "circle",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Circle Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:14:46Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Circle Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Circle&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "district",
+      "name": "District",
+      "modeName": "tube",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "district",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "District Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:14:54Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "District Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=District&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "dlr",
+      "name": "DLR",
+      "modeName": "dlr",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "dlr",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Docklands Light Railway: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:15:02Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Docklands Light Railway: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=DLR&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "elizabeth",
+      "name": "Elizabeth line",
+      "modeName": "elizabeth-line",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.05Z",
+      "modified": "2026-09-22T09:53:41.05Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "elizabeth",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:17:14Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Elizabeth line&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "hammersmith-city",
+      "name": "Hammersmith & City",
+      "modeName": "tube",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "hammersmith-city",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Hammersmith and City Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:15:14Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Hammersmith and City Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Hammersmith & City&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "jubilee",
+      "name": "Jubilee",
+      "modeName": "tube",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "jubilee",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Jubilee Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:15:20Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Jubilee Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Jubilee&serviceTypes=Regular"
+        },
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Night",
+          "uri": "/Line/Route?ids=Jubilee&serviceTypes=Night"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "liberty",
+      "name": "Liberty",
+      "modeName": "overground",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "liberty",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Liberty Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:16:32Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Liberty Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Liberty&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "lioness",
+      "name": "Lioness",
+      "modeName": "overground",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "lioness",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Lioness Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:16:13Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Lioness Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Lioness&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "metropolitan",
+      "name": "Metropolitan",
+      "modeName": "tube",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "metropolitan",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Metropolitan Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:15:27Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Metropolitan Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Metropolitan&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "mildmay",
+      "name": "Mildmay",
+      "modeName": "overground",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "mildmay",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Mildmay Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:16:42Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Mildmay Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Mildmay&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "northern",
+      "name": "Northern",
+      "modeName": "tube",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "northern",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Northern Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:15:39Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Northern Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Northern&serviceTypes=Regular"
+        },
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Night",
+          "uri": "/Line/Route?ids=Northern&serviceTypes=Night"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "piccadilly",
+      "name": "Piccadilly",
+      "modeName": "tube",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "piccadilly",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Piccadilly Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:17:07Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Piccadilly Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Piccadilly&serviceTypes=Regular"
+        },
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Night",
+          "uri": "/Line/Route?ids=Piccadilly&serviceTypes=Night"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "suffragette",
+      "name": "Suffragette",
+      "modeName": "overground",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "suffragette",
+          "statusSeverity": 5,
+          "statusSeverityDescription": "Part Closure",
+          "reason": "Suffragette Line: No service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to a operational incident. A reduced service is operating on the rest of the line. Trains will operate every thirty minutes in either direction departing Gospel Oak at xx:09 and xx:39 and departing South Tottenham at xx:13 and xx:43. London Underground and London Buses are accepting tickets via any reasonable routes.",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-01T09:45:00Z",
+              "toDate": "2026-11-11T01:29:00Z",
+              "isNow": false
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "PlannedWork",
+            "categoryDescription": "PlannedWork",
+            "description": "Suffragette Line: No service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to a operational incident. A reduced service is operating on the rest of the line. Trains will operate every thirty minutes in either direction departing Gospel Oak at xx:09 and xx:39 and departing South Tottenham at xx:13 and xx:43. London Underground and London Buses are accepting tickets via any reasonable routes.",
+            "created": "2026-10-27T09:56:00Z",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        },
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "suffragette",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Suffragette Line: Service will resume later this morning. However, there will be no service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to an operational incident. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:16:05Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Suffragette Line: Service will resume later this morning. However, there will be no service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to an operational incident. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Suffragette&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "tram",
+      "name": "Tram",
+      "modeName": "tram",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "tram",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "London Tramlink: Service will resume later this morning. No service between East Croydon and Beckenham Junction / Elmers End / New Addington due to planned engineering work. GOOD SERVICE on all other routes. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:18:02Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "London Tramlink: Service will resume later this morning. No service between East Croydon and Beckenham Junction / Elmers End / New Addington due to planned engineering work. GOOD SERVICE on all other routes. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Tram&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "victoria",
+      "name": "Victoria",
+      "modeName": "tube",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "victoria",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Victoria Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:18:10Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Victoria Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Victoria&serviceTypes=Regular"
+        },
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Night",
+          "uri": "/Line/Route?ids=Victoria&serviceTypes=Night"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "waterloo-city",
+      "name": "Waterloo & City",
+      "modeName": "tube",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "waterloo-city",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Waterloo and City Line: Service will resume at 06:00.\r\n ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T00:30:23Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Waterloo and City Line: Service will resume at 06:00.\r\n ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Waterloo & City&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "weaver",
+      "name": "Weaver",
+      "modeName": "overground",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "weaver",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Weaver Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:16:50Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Weaver Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Weaver&serviceTypes=Regular"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Line, Tfl.Api.Presentation.Entities",
+      "id": "windrush",
+      "name": "Windrush",
+      "modeName": "overground",
+      "disruptions": [],
+      "created": "2026-09-22T09:53:41.037Z",
+      "modified": "2026-09-22T09:53:41.037Z",
+      "lineStatuses": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineStatus, Tfl.Api.Presentation.Entities",
+          "id": 0,
+          "lineId": "windrush",
+          "statusSeverity": 20,
+          "statusSeverityDescription": "Service Closed",
+          "reason": "Windrush Line: Service will resume later this morning. ",
+          "created": "0001-01-01T00:00:00",
+          "validityPeriods": [
+            {
+              "$type": "Tfl.Api.Presentation.Entities.ValidityPeriod, Tfl.Api.Presentation.Entities",
+              "fromDate": "2026-11-03T01:16:59Z",
+              "toDate": "2026-11-03T04:34:57Z",
+              "isNow": true
+            }
+          ],
+          "disruption": {
+            "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+            "category": "RealTime",
+            "categoryDescription": "RealTime",
+            "description": "Windrush Line: Service will resume later this morning. ",
+            "affectedRoutes": [],
+            "affectedStops": []
+          }
+        }
+      ],
+      "routeSections": [],
+      "serviceTypes": [
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Regular",
+          "uri": "/Line/Route?ids=Windrush&serviceTypes=Regular"
+        },
+        {
+          "$type": "Tfl.Api.Presentation.Entities.LineServiceTypeInfo, Tfl.Api.Presentation.Entities",
+          "name": "Night",
+          "uri": "/Line/Route?ids=Windrush&serviceTypes=Night"
+        }
+      ],
+      "crowding": {
+        "$type": "Tfl.Api.Presentation.Entities.Crowding, Tfl.Api.Presentation.Entities"
+      }
+    }
+  ]
+}
