@@ -129,7 +129,7 @@ data "aws_iam_policy_document" "trust_transform" {
     condition {
       test     = "StringEquals"
       variable = "${local.oidc_host}:sub"
-      values   = ["repo:${var.github_repository}:ref:refs/heads/${var.transform_branch}"]
+      values   = ["${var.github_subject_prefix}:ref:refs/heads/${var.transform_branch}"]
     }
   }
 }

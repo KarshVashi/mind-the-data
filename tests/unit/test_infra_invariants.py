@@ -109,3 +109,17 @@ def test_transform_role_cannot_write_raw() -> None:
     for statement in transform.split("statement {")[1:]:
         if re.search(r'"(s3:(Put|Delete)|glue:(Create|Update|Delete|Batch))', statement):
             assert "raw" not in statement, statement
+
+
+def test_ci_role_trust_uses_the_immutable_subject() -> None:
+    # ADR-009: a subject built from the repository name would follow a rename
+    # or transfer; every trust policy must use the id-qualified prefix.
+    text = (INFRA / "modules" / "ci_role" / "main.tf").read_text()
+    trusts = [b for b in blocks(text, "data", "aws_iam_policy_document") if ":sub" in b]
+    assert len(trusts) == 3, "expected plan, apply and transform trust policies"
+    for trust in trusts:
+        subjects = re.findall(r':sub"\s+values\s+=\s+\["([^"]+)"\]', trust)
+        assert subjects, trust
+        for subject in subjects:
+            assert subject.startswith("${var.github_subject_prefix}:"), subject
+    assert "github_repository" not in text
