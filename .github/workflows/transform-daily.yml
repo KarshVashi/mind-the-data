@@ -1,0 +1,118 @@
+name: transform-daily
+
+# Daily `dbt build --target prod` at 03:30 Europe/London, as the transform
+# role (never the apply role, ADR-005). GitHub cron is UTC only, so both
+# 02:30 and 03:30 UTC are scheduled and the gate job keeps the one that is
+# 03:30 in London today (docs/runbook.md, Daily transform).
+
+on:
+  schedule:
+    - cron: "30 2 * * *" # 03:30 BST
+    - cron: "30 3 * * *" # 03:30 GMT
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: eu-west-2
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.clock.outputs.run }}
+    steps:
+      # Decided by the slot that fired, not the start time, so a run GitHub
+      # starts late still builds. Clocks change at 01:00 UTC, before either slot.
+      - id: clock
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          offset=$(TZ=Europe/London date +%z)
+          if [ "$EVENT" != "schedule" ]; then
+            run=true
+          else
+            case "$SCHEDULE|$offset" in
+              "30 2 * * *|+0100" | "30 3 * * *|+0000") run=true ;;
+              *) run=false ;;
+            esac
+          fi
+          echo "London UTC offset $offset, event $EVENT, slot '${SCHEDULE}': run=$run"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+  not-configured:
+    needs: gate
+    if: needs.gate.outputs.run == 'true' && vars.AWS_TRANSFORM_ROLE_ARN == ''
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "::notice title=transform skipped::Set the AWS_TRANSFORM_ROLE_ARN repository variable after the bootstrap re-apply (docs/runbook.md, H6)."
+
+  build:
+    needs: gate
+    if: needs.gate.outputs.run == 'true' && vars.AWS_TRANSFORM_ROLE_ARN != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    # One prod build at a time, and never cancel one half way through
+    # writing tables. Only the build job joins the group, so a slot the gate
+    # skips cannot displace a queued manual run (GitHub keeps one pending run
+    # per group).
+    concurrency:
+      group: transform-prod
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DBT_ATHENA_S3_STAGING_DIR_PROD: ${{ vars.DBT_ATHENA_S3_STAGING_DIR_PROD }}
+      DBT_ATHENA_S3_DATA_DIR_PROD: ${{ vars.DBT_ATHENA_S3_DATA_DIR_PROD }}
+      DBT_ATHENA_WORKGROUP_PROD: ${{ vars.DBT_ATHENA_WORKGROUP_PROD }}
+      DBT_ATHENA_SCHEMA_PROD: ${{ vars.DBT_ATHENA_SCHEMA_PROD }}
+      DBT_SEND_ANONYMOUS_USAGE_STATS: "false"
+    steps:
+      # profiles.yml falls back to unusable values when these are missing;
+      # failing here says which one.
+      - name: check dbt settings
+        run: |
+          missing=""
+          for v in DBT_ATHENA_S3_STAGING_DIR_PROD DBT_ATHENA_S3_DATA_DIR_PROD DBT_ATHENA_WORKGROUP_PROD DBT_ATHENA_SCHEMA_PROD; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error title=dbt settings missing::Set repository variables:$missing (docs/runbook.md, dbt connection settings)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.16"
+
+      # Python and dbt packages are installed before AWS credentials exist
+      # in the job, since both are downloads.
+      - name: install
+        run: uv sync --locked
+
+      - name: dbt deps
+        working-directory: transform
+        run: |
+          if [ -f packages.yml ]; then
+            uv run --locked dbt deps --profiles-dir .
+          else
+            echo "no packages.yml; nothing to install"
+          fi
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_TRANSFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: transform-${{ github.run_id }}
+
+      - name: dbt build
+        working-directory: transform
+        run: uv run --locked dbt build --target prod --profiles-dir .

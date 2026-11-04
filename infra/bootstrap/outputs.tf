@@ -13,6 +13,11 @@ output "apply_role_arn" {
   value       = module.ci_role.apply_role_arn
 }
 
+output "transform_role_arn" {
+  description = "Set as the AWS_TRANSFORM_ROLE_ARN repository variable."
+  value       = module.ci_role.transform_role_arn
+}
+
 output "workload_boundary_arn" {
   description = "Permissions boundary for every role the pipeline creates."
   value       = module.ci_role.workload_boundary_arn

@@ -116,7 +116,7 @@ package: ## Build dist/lambda.zip for the arm64 python3.12 Lambdas
 
 # ---- Needs AWS access -------------------------------------------------------
 
-DBT_DEV_VARS := DBT_ATHENA_S3_STAGING_DIR_DEV DBT_ATHENA_S3_DATA_DIR_DEV DBT_ATHENA_WORKGROUP_DEV
+DBT_DEV_VARS := DBT_ATHENA_S3_STAGING_DIR_DEV DBT_ATHENA_S3_DATA_DIR_DEV DBT_ATHENA_WORKGROUP_DEV DBT_ATHENA_SCHEMA_DEV
 
 .PHONY: dbt-build-dev
 dbt-build-dev: ## dbt build against the dev target (needs AWS read access)

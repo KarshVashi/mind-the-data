@@ -62,3 +62,15 @@ variable "poller_reserved_concurrency" {
     error_message = "Use 1 (one poll at a time) or -1 (unreserved, while the account concurrency quota is too low)."
   }
 }
+
+variable "athena_results_expiration_days" {
+  type        = number
+  description = "Days to keep Athena query results before they expire (plan section 11)."
+  default     = 7
+}
+
+variable "athena_bytes_scanned_cutoff_per_query" {
+  type        = number
+  description = "Per-query scan limit for every workgroup, in bytes (plan section 11: 10 GiB)."
+  default     = 10737418240
+}

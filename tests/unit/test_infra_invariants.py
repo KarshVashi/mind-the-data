@@ -72,3 +72,54 @@ def test_no_function_urls_or_lambda_permissions() -> None:
 def test_raw_bucket_has_no_expiration() -> None:
     text = (INFRA / "modules" / "raw_bucket" / "main.tf").read_text()
     assert not re.search(r"^\s*(noncurrent_version_)?expiration\s*\{", text, re.MULTILINE)
+
+
+def test_raw_tables_never_hide_bad_lines() -> None:
+    # Either property turns a malformed or mistyped envelope into nulls, which
+    # downstream would read as a quiet period rather than missing data.
+    for path in (INFRA / "modules" / "catalog").glob("*.tf"):
+        text = path.read_text()
+        for prop in ("ignore.malformed.json", "use.null.for.invalid.data"):
+            assert f'"{prop}"' not in text, f"{path}: {prop} would hide bad raw lines"
+
+
+def test_transform_role_names_match_the_prod_stack() -> None:
+    # The bootstrap cannot read envs/prod outputs, so ci_role rebuilds the
+    # names from the same patterns; a rename on one side only would surface
+    # as AccessDenied in the first scheduled build.
+    ci_role = (INFRA / "modules" / "ci_role" / "main.tf").read_text()
+    prod = (INFRA / "envs" / "prod" / "main.tf").read_text()
+    for pattern in (
+        "-athena-results-${local.account_id}",
+        "-curated-${local.account_id}",
+        "-raw-${local.account_id}",
+    ):
+        assert pattern in ci_role and pattern in prod, pattern
+    assert '"${local.glue_prefix}_raw"' in prod and "${local.glue_p}_raw" in ci_role
+    assert (
+        '"${local.prefix}-${target}"' in prod
+        and "workgroup/${local.p}-${var.transform_target}" in ci_role
+    )
+
+
+def test_transform_role_cannot_write_raw() -> None:
+    text = (INFRA / "modules" / "ci_role" / "main.tf").read_text()
+    policies = blocks(text, "data", "aws_iam_policy_document")
+    transform = next(b for b in policies if "GlueTargetWrite" in b)
+    for statement in transform.split("statement {")[1:]:
+        if re.search(r'"(s3:(Put|Delete)|glue:(Create|Update|Delete|Batch))', statement):
+            assert "raw" not in statement, statement
+
+
+def test_ci_role_trust_uses_the_immutable_subject() -> None:
+    # ADR-009: a subject built from the repository name would follow a rename
+    # or transfer; every trust policy must use the id-qualified prefix.
+    text = (INFRA / "modules" / "ci_role" / "main.tf").read_text()
+    trusts = [b for b in blocks(text, "data", "aws_iam_policy_document") if ":sub" in b]
+    assert len(trusts) == 3, "expected plan, apply and transform trust policies"
+    for trust in trusts:
+        subjects = re.findall(r':sub"\s+values\s+=\s+\["([^"]+)"\]', trust)
+        assert subjects, trust
+        for subject in subjects:
+            assert subject.startswith("${var.github_subject_prefix}:"), subject
+    assert "github_repository" not in text

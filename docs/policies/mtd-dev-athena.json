@@ -1,0 +1,100 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AthenaDevWorkgroup",
+      "Effect": "Allow",
+      "Action": [
+        "athena:StartQueryExecution",
+        "athena:GetQueryExecution",
+        "athena:GetQueryResults",
+        "athena:StopQueryExecution",
+        "athena:GetWorkGroup"
+      ],
+      "Resource": "arn:aws:athena:eu-west-2:ACCOUNT_ID:workgroup/mind-the-data-dev"
+    },
+    {
+      "Sid": "GlueRead",
+      "Effect": "Allow",
+      "Action": [
+        "glue:GetDatabase",
+        "glue:GetDatabases",
+        "glue:GetTable",
+        "glue:GetTables",
+        "glue:GetTableVersion",
+        "glue:GetTableVersions",
+        "glue:GetPartition",
+        "glue:GetPartitions",
+        "glue:GetPartitionIndexes",
+        "glue:GetTags"
+      ],
+      "Resource": [
+        "arn:aws:glue:eu-west-2:ACCOUNT_ID:catalog",
+        "arn:aws:glue:eu-west-2:ACCOUNT_ID:database/default",
+        "arn:aws:glue:eu-west-2:ACCOUNT_ID:database/mind_the_data_raw",
+        "arn:aws:glue:eu-west-2:ACCOUNT_ID:table/mind_the_data_raw/*",
+        "arn:aws:glue:eu-west-2:ACCOUNT_ID:database/mind_the_data_dev",
+        "arn:aws:glue:eu-west-2:ACCOUNT_ID:table/mind_the_data_dev/*"
+      ]
+    },
+    {
+      "Sid": "GlueDevWrite",
+      "Effect": "Allow",
+      "Action": [
+        "glue:CreateDatabase",
+        "glue:UpdateDatabase",
+        "glue:CreateTable",
+        "glue:UpdateTable",
+        "glue:DeleteTable",
+        "glue:DeleteTableVersion",
+        "glue:BatchDeleteTableVersion",
+        "glue:CreatePartition",
+        "glue:BatchCreatePartition",
+        "glue:UpdatePartition",
+        "glue:BatchUpdatePartition",
+        "glue:DeletePartition",
+        "glue:BatchDeletePartition"
+      ],
+      "Resource": [
+        "arn:aws:glue:eu-west-2:ACCOUNT_ID:catalog",
+        "arn:aws:glue:eu-west-2:ACCOUNT_ID:database/mind_the_data_dev",
+        "arn:aws:glue:eu-west-2:ACCOUNT_ID:table/mind_the_data_dev/*"
+      ]
+    },
+    {
+      "Sid": "Buckets",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+        "s3:ListBucketMultipartUploads"
+      ],
+      "Resource": [
+        "arn:aws:s3:::mind-the-data-raw-ACCOUNT_ID",
+        "arn:aws:s3:::mind-the-data-curated-ACCOUNT_ID",
+        "arn:aws:s3:::mind-the-data-athena-results-ACCOUNT_ID"
+      ]
+    },
+    {
+      "Sid": "RawRead",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::mind-the-data-raw-ACCOUNT_ID/raw/*"
+    },
+    {
+      "Sid": "DevObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:AbortMultipartUpload",
+        "s3:ListMultipartUploadParts"
+      ],
+      "Resource": [
+        "arn:aws:s3:::mind-the-data-curated-ACCOUNT_ID/dev/*",
+        "arn:aws:s3:::mind-the-data-athena-results-ACCOUNT_ID/dev/*"
+      ]
+    }
+  ]
+}

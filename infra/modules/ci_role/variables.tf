@@ -24,6 +24,18 @@ variable "apply_branch" {
   default     = "main"
 }
 
+variable "transform_branch" {
+  type        = string
+  description = "Branch whose workflow runs may assume the transform role (the scheduled dbt build)."
+  default     = "main"
+}
+
+variable "transform_target" {
+  type        = string
+  description = "dbt target the transform role builds: its workgroup is <resource_prefix>-<target>, its Glue database <resource_prefix>_<target>, its bucket prefixes <target>/."
+  default     = "prod"
+}
+
 variable "state_bucket_arn" {
   type        = string
   description = "ARN of the Terraform remote state bucket."
