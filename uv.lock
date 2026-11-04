@@ -844,7 +844,7 @@ dev = [
     { name = "dbt-athena-community", specifier = ">=1.9,<2" },
     { name = "dbt-core", specifier = ">=1.10,<2" },
     { name = "moto", extras = ["cloudwatch", "s3", "ssm"], specifier = ">=5.1" },
-    { name = "mypy", specifier = ">=1.15" },
+    { name = "mypy", specifier = ">=2.0" },
     { name = "pre-commit", specifier = ">=4.0" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "respx", specifier = ">=0.22" },

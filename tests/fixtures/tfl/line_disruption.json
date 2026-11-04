@@ -1,0 +1,190 @@
+{
+  "request": {
+    "path": "/Line/Mode/tube,elizabeth-line,dlr,overground,tram/Disruption"
+  },
+  "http_status": 200,
+  "recorded_at": "2026-11-03T01:35:45Z",
+  "trimmed": [],
+  "payload": [
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Waterloo and City Line: Service will resume at 06:00.\r\n ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Mildmay Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Weaver Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Windrush Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Piccadilly Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "London Tramlink: Service will resume later this morning. No service between East Croydon and Beckenham Junction / Elmers End / New Addington due to planned engineering work. GOOD SERVICE on all other routes. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Victoria Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Central Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Circle Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "District Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Docklands Light Railway: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Hammersmith and City Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Jubilee Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Metropolitan Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Northern Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Suffragette Line: Service will resume later this morning. However, there will be no service between South Tottenham and Barking Riverside, until the end of service on Tuesday 10 November, due to an operational incident. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Lioness Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Bakerloo Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    },
+    {
+      "$type": "Tfl.Api.Presentation.Entities.Disruption, Tfl.Api.Presentation.Entities",
+      "category": "RealTime",
+      "type": "lineInfo",
+      "categoryDescription": "RealTime",
+      "description": "Liberty Line: Service will resume later this morning. ",
+      "affectedRoutes": [],
+      "affectedStops": []
+    }
+  ]
+}

@@ -26,7 +26,7 @@ install: ## Install the locked Python environment and git pre-commit hook
 # ---- Full gate ---------------------------------------------------------------
 
 .PHONY: check
-check: lint typecheck test sql-lint dbt-parse tf-fmt-check tf-validate tf-lint ## Everything CI runs
+check: lint typecheck test-all sql-lint dbt-parse tf-fmt-check tf-validate tf-lint ## Everything CI runs
 
 .PHONY: check-fast
 check-fast: lint typecheck test ## ruff, mypy, unit tests
