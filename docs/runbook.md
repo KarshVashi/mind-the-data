@@ -305,3 +305,20 @@ make plan
 ```
 
 `make plan` runs without a state lock, because the dev profile is read-only.
+
+## Rebuilding staging days
+
+Staging models merge whole UTC days on a row key (ADR-008), so rerunning any range of days is safe and gives the same rows.
+
+```sh
+cd transform
+# Default daily run: reprocesses the last 2 UTC days (var lookback_days).
+uv run --locked dbt build --target dev --profiles-dir . --select staging
+# Backfill or repair specific days (inclusive, UTC):
+uv run --locked dbt build --target dev --profiles-dir . --select staging \
+  --vars '{start_date: "2026-11-03", end_date: "2026-11-05"}'
+# After changing a staging model's logic, rebuild it from raw_start_date:
+uv run --locked dbt build --target dev --profiles-dir . --select stg_arrivals --full-refresh
+```
+
+A merge never deletes rows, so a logic change that drops rows needs `--full-refresh`. Never combine `--full-refresh` with `start_date`/`end_date`: the table would keep only that window, so dbt refuses to compile it.
