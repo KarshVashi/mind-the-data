@@ -4,8 +4,13 @@
 # no partition to register when a new hour starts.
 #
 # The OpenX JSON SerDe returns a nested JSON value as its JSON text when the
-# column is declared as string, which is how `payload` stays lossless: the
-# TfL response is parsed in dbt staging, not here. `ignore.malformed.json` is
+# column is declared as string. It re-prints that value, so `payload` holds
+# the same JSON value as the raw object but not necessarily the same text
+# (key order, number formatting, escaping); the raw objects stay unchanged. The
+# TfL response is parsed in dbt staging, not here. `case.insensitive` is off
+# because the SerDe otherwise lower-cases every key inside that text as well
+# (`modeName` becomes `modename`), and staging reads TfL's camelCase keys.
+# The envelope's own keys are already lower case. `ignore.malformed.json` is
 # left unset (false) on purpose: a malformed line fails the query instead of
 # silently becoming a null row, because missing data must never pass as a
 # quiet period.
@@ -20,7 +25,7 @@ locals {
     { name = "http_status", type = "int", comment = "HTTP status; null when no response was received." },
     { name = "latency_ms", type = "int", comment = "Request latency in milliseconds." },
     { name = "error", type = "string", comment = "Failure type when no response was received; null on success." },
-    { name = "payload", type = "string", comment = "TfL response unchanged, as JSON text." },
+    { name = "payload", type = "string", comment = "TfL response as JSON text: the same value as in raw, formatting may differ." },
   ]
 }
 
@@ -73,6 +78,9 @@ resource "aws_glue_catalog_table" "raw" {
     ser_de_info {
       name                  = "openx-json"
       serialization_library = "org.openx.data.jsonserde.JsonSerDe"
+      parameters = {
+        "case.insensitive" = "false"
+      }
     }
 
     dynamic "columns" {

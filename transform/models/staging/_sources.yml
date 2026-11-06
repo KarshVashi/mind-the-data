@@ -57,7 +57,7 @@ sources:
             description: Failure type when no usable response came back; null on success.
             data_type: string
           - name: payload
-            description: TfL's response body as JSON text, unchanged; null on failure.
+            description: TfL's response body as JSON text, the same JSON value as the raw object (formatting may differ); null on failure.
             data_type: string
           - name: dt
             description: UTC date partition, 'YYYY-MM-DD'.

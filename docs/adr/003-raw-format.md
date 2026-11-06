@@ -36,6 +36,7 @@ The raw layer must:
 - **Raw is written first.** The raw object is written before, and regardless of, Pydantic validation. A payload that fails validation is still written unchanged, and the failure is logged. Validation never blocks or skips the raw write.
 - **Retention:** raw objects are kept indefinitely. Bucket versioning is off, because objects are write-once.
 - **Querying:** Glue external tables read `payload` as a JSON string, with partition projection on `dt` and `hour`.
+  The OpenX SerDe sets `case.insensitive` to `false`. By default it lower-cases every key inside the payload text too (`modeName` becomes `modename`), and staging reads TfL's camelCase keys. The SerDe re-prints the payload, so Athena returns the same JSON value as the raw object, not the same bytes.
 
 ## Alternatives considered
 
