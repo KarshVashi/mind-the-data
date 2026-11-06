@@ -12,6 +12,15 @@ unit_tests:
       not. Bakerloo's Good Service has no validity periods and keeps one row
       with null period columns. A 503 and a timed-out request add no rows.
     model: stg_line_status
+    # Fixtures sit on 2026-11-03. Pinning the window keeps these tests
+    # independent of a backfill's --vars or a later raw_start_date.
+    overrides: &full_history_window
+      macros:
+        is_incremental: false
+      vars:
+        start_date: null
+        end_date: null
+        raw_start_date: "2026-11-01"
     given:
       - input: source('raw', 'line_status')
         format: sql
@@ -107,6 +116,7 @@ unit_tests:
       seven-digit fraction on TfL's timestamp is read to the millisecond, and
       the 0001-01-01 placeholder in timeToLive becomes null.
     model: stg_arrivals
+    overrides: *full_history_window
     given:
       - input: source('raw', 'arrivals')
         format: sql
@@ -161,6 +171,7 @@ unit_tests:
       line with no status entries yields no rows (it is missing, not Good
       Service).
     model: stg_line_status
+    overrides: *full_history_window
     given:
       - input: source('raw', 'line_status')
         format: sql
@@ -198,6 +209,7 @@ unit_tests:
       envelope written twice (failed copy, then successful copy) keeps one
       row, the successful one. Other feeds are empty.
     model: stg_polls
+    overrides: *full_history_window
     given:
       - input: source('raw', 'line_status')
         format: sql
@@ -281,6 +293,7 @@ unit_tests:
       Most recorded points have no concernedLines key; each keeps one row
       with null line columns. A point with two lines gives two rows.
     model: stg_stop_disruption
+    overrides: *full_history_window
     given:
       - input: source('raw', 'stop_disruption')
         format: sql
@@ -314,6 +327,7 @@ unit_tests:
       Two disruptions keep their response positions; the planned one is
       flagged. TfL gives most entries no affected routes.
     model: stg_line_disruption
+    overrides: *full_history_window
     given:
       - input: source('raw', 'line_disruption')
         format: sql
@@ -344,6 +358,7 @@ unit_tests:
       Hour 27 is 03:xx the next morning, so 27:09 is minute 1629 of the
       service day. A disambiguation response has no timetable and gives no rows.
     model: stg_timetable
+    overrides: *full_history_window
     given:
       - input: source('raw', 'ref_timetable')
         format: sql
@@ -379,6 +394,7 @@ unit_tests:
   - name: stg_route_sequence_numbers_stops_along_each_route
     description: Each stop of an ordered route gets its 1-based position along it.
     model: stg_route_sequence
+    overrides: *full_history_window
     given:
       - input: source('raw', 'ref_route_sequence')
         format: sql
@@ -404,6 +420,7 @@ unit_tests:
   - name: stg_severity_parses_codes_per_mode
     description: Severity codes are read per mode.
     model: stg_severity
+    overrides: *full_history_window
     given:
       - input: source('raw', 'ref_severity')
         format: sql

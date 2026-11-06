@@ -16,6 +16,13 @@ macros:
       `start_date` when set, otherwise from current_date minus
       (lookback_days + 1) days. The extra day covers a run that crosses
       midnight UTC (ADR-008).
+  - name: resolve_table_type
+    description: >
+      Overrides dbt_athena.resolve_table_type (checked against dbt-athena
+      1.11.1). For a unit test it returns iceberg, the table type of every
+      model here, because dbt drops the model's config for the test's
+      temporary table and dbt-athena would build it as Hive, which rejects
+      timestamp(6). Everything else defers to dbt-athena.
   - name: raw_feeds
     description: Names of the raw feed tables in the `raw` source.
   - name: envelope_is_ok
