@@ -1,14 +1,14 @@
 # Status
 
-Updated: 2026-11-07. Every PR updates this page. Pending decisions live in [DECISIONS.md](DECISIONS.md).
+Updated: 2026-11-07. Every PR updates this page. Pending decisions are listed in [DECISIONS.md](DECISIONS.md).
 
 ## Milestones
 
 | Milestone | State | Notes |
 | --- | --- | --- |
 | M0 Foundations | Done | |
-| M1 Collector live | Done | Polling since 2026-11-04. Poller runs unreserved until the quota rises (ADR-006). |
-| M2 Raw catalog, week-one review | In progress | Catalog, dbt sources, staging, `athena_query.py` and `transform-daily` merged (#13 to #15, #17, #18). Left: dev rebuild, `dbt build`/`source freshness` acceptance, week-one review. |
+| M1 Collector live | Done, with one gap | Polling since 2026-11-04. The poller is unreserved until the quota rises (ADR-006). The deployed acceptance output (`completeness.py --hours 24`, alarm test) is not recorded in the repo yet. |
+| M2 Raw catalog, week-one review | In progress | Merged: the catalog, dbt sources, staging, `athena_query.py` and `transform-daily` (#13 to #15, #17, #18). Left: the dev rebuild, the `dbt build` / `source freshness` acceptance, and the week-one review. |
 | M3 Disruption Index | Not started | |
 | M4 Experienced Reliability | Not started | |
 | M5 Publish pipeline | Not started | Needs H12 (Cloudflare). |
@@ -17,44 +17,29 @@ Updated: 2026-11-07. Every PR updates this page. Pending decisions live in [DECI
 
 ## Open PRs and merge order
 
-No other PRs are open. #17 then #18 merged on 2026-11-06, the `infra` deploy for #17 passed, and `transform-daily` has passed since.
-
-In progress, no PR yet. Each branches from `main`, so none depends on another:
-
-1. `feat/bootstrap-hardening`
-2. `chore/deploy-safety`
-3. `feat/ops-workflows`
-4. `docs/working-agreement`: this page and DECISIONS.md. Docs only, merge in any order.
-
-Add each PR number here when it opens.
+- This PR (`docs/working-agreement`): docs only, so it can merge in any order.
+- `feat/bootstrap-hardening`, `chore/deploy-safety` and `feat/ops-workflows` are in progress with no PR yet. Each branches from `main`. Their merge order goes here when they open.
+- Merged on 2026-11-06: #17, then #18. The `infra` deploy for #17 passed, and `transform-daily` has passed since.
 
 ## Blockers
 
-- **Poller reserved concurrency of 1**: waits on the Lambda quota increase (ADR-006).
-- **M2 acceptance**: waits on the dev rebuild below, then about 7 days of data for the week-one review.
-- **ADR-009 and ADR-010**: need explicit approval (see DECISIONS.md). Nothing applies them by default.
+- **Poller reserved concurrency of 1:** waits on the Lambda quota increase (ADR-006).
+- **M2 acceptance:** waits on the dev rebuild below, then on about 7 days of data for the week-one review.
+- **Prod staging may still hold null-keyed rows** from runs before #17. See decision D8 in DECISIONS.md.
+- **ADR-006 to ADR-010:** each needs an explicit answer (DECISIONS.md).
 
 ## Owner steps outstanding
 
-1. **AWS SSO session.** The `mtd-dev` token has expired, which blocks the dev rebuild and every AWS read:
+1. **AWS SSO session.** The `mtd-dev` token has expired, which blocks the dev rebuild and every AWS read.
 
    ```sh
    aws sso login --sso-session mtd
    ```
 
-2. **Lambda quota.** The request for 1,000 shows `CASE_OPENED` (2026-11-06 02:54 UTC). Check it; if it shows `DENIED` or `CASE_CLOSED` below 1,000, request it again:
+2. **Lambda quota.** The request for 1,000 is `CASE_OPENED` (2026-11-06 02:54 UTC). To check it, or to request again if it is denied, see the runbook section "Lambda concurrency quota".
+3. **Decisions.** Answer the items in DECISIONS.md. The `never-default` items wait for you.
 
-   ```sh
-   aws service-quotas list-requested-service-quota-change-history-by-quota --profile mtd-dev --region eu-west-2 \
-     --service-code lambda --quota-code L-B99A9384 --query 'RequestedQuotas[].[Status,DesiredValue]'
-   aws service-quotas request-service-quota-increase --profile mtd-admin --region eu-west-2 \
-     --service-code lambda --quota-code L-B99A9384 --desired-value 1000
-   ```
-
-3. **Local working config.** Install the proposed untracked project rules, hooks and `local-setup/overnight.sh`, following the install notes delivered with them. They hold the working agreement, the branch-from-`origin/main` rule and a session pre-flight check.
-4. **Decisions.** Answer the items in DECISIONS.md before their deadlines. The `never-default` items wait for you.
-
-Engineer step, waiting only on the SSO login now that #17 has deployed: rebuild dev staging.
+Engineer step, which only needs the SSO login now that #17 has deployed: rebuild dev staging.
 
 ```sh
 make dbt-build-dev DBT_FLAGS="--profiles-dir . --full-refresh"
@@ -64,5 +49,5 @@ make dbt-build-dev DBT_FLAGS="--profiles-dir . --full-refresh"
 
 | Date | Check |
 | --- | --- |
-| around 2026-11-11 | Week-one data-quality review (M2), including the ADR-002 decision on 60 s vs 30 s polling. |
-| after 2026-11-10 | Re-run the station "arrivals strict" check during service hours. Suffragette line and tram closures leave some boards empty until then. |
+| After 2026-11-10 | Re-run the station check during service hours: `uv run python scripts/discover_lines.py --check-arrivals --strict`. Suffragette line and tram closures leave some boards empty until then. |
+| Around 2026-11-11 | Week-one data-quality review (M2), including the ADR-002 decision: keep 60 s polling or move to 30 s. |
