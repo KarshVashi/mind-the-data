@@ -2,12 +2,19 @@ variable "workgroups" {
   type = map(object({
     description    = string
     results_prefix = string
+    # Overrides bytes_scanned_cutoff_per_query for this workgroup.
+    bytes_scanned_cutoff_per_query = optional(number)
   }))
-  description = "Workgroups keyed by name (mind-the-data-*, so CI can manage them), each with the results-bucket prefix its query results go to."
+  description = "Workgroups keyed by name (mind-the-data-*, so CI can manage them), each with the results-bucket prefix its query results go to and an optional per-query scan limit of its own."
 
   validation {
     condition     = alltrue([for name, wg in var.workgroups : startswith(name, "mind-the-data-") && can(regex("^[a-z0-9-]+$", wg.results_prefix))])
     error_message = "Workgroup names must start with mind-the-data-; results prefixes are lower-case with no slashes."
+  }
+
+  validation {
+    condition     = alltrue([for wg in values(var.workgroups) : wg.bytes_scanned_cutoff_per_query == null || try(wg.bytes_scanned_cutoff_per_query >= 10485760, false)])
+    error_message = "Athena's minimum scan limit is 10 MiB (10485760 bytes)."
   }
 }
 

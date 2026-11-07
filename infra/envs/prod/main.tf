@@ -231,10 +231,22 @@ module "athena" {
   expected_bucket_owner          = local.account_id
   bytes_scanned_cutoff_per_query = var.athena_bytes_scanned_cutoff_per_query
 
-  workgroups = {
-    for target in local.dbt_targets : "${local.prefix}-${target}" => {
-      description    = "dbt ${target} target and ad hoc ${target} queries."
-      results_prefix = target
-    }
-  }
+  # The ops workgroup is for the scheduled health checks (mtd-ci-observer).
+  # Its name and results prefix are fixed by infra/modules/ci_role
+  # (observer_workgroup), and its lower cap bounds what a check can cost.
+  workgroups = merge(
+    {
+      for target in local.dbt_targets : "${local.prefix}-${target}" => {
+        description    = "dbt ${target} target and ad hoc ${target} queries."
+        results_prefix = target
+      }
+    },
+    {
+      "${local.prefix}-ops" = {
+        description                    = "Scheduled health checks (read-only)."
+        results_prefix                 = "ops"
+        bytes_scanned_cutoff_per_query = var.athena_ops_bytes_scanned_cutoff_per_query
+      }
+    },
+  )
 }

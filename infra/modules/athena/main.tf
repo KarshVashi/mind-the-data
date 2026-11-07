@@ -1,4 +1,5 @@
-# One Athena workgroup per dbt target. The workgroup settings are enforced,
+# One Athena workgroup per dbt target, plus one for the scheduled health
+# checks. The workgroup settings are enforced,
 # so a client cannot lift the per-query scan cap or send results elsewhere
 # (plan section 11 cost guards). Each target's results go under its own
 # prefix of the results bucket, which expires them.
@@ -14,7 +15,7 @@ resource "aws_athena_workgroup" "this" {
   configuration {
     enforce_workgroup_configuration    = true
     publish_cloudwatch_metrics_enabled = true
-    bytes_scanned_cutoff_per_query     = var.bytes_scanned_cutoff_per_query
+    bytes_scanned_cutoff_per_query     = coalesce(each.value.bytes_scanned_cutoff_per_query, var.bytes_scanned_cutoff_per_query)
 
     engine_version {
       selected_engine_version = "Athena engine version 3"
