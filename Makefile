@@ -124,6 +124,16 @@ dbt-build-dev: ## dbt build against the dev target (needs AWS read access)
 	if [ -n "$$missing" ]; then echo "dbt-build-dev: set$$missing (see env.example)" >&2; exit 1; fi
 	$(DBT) build --target dev $(DBT_FLAGS)
 
+# ---- Ops ---------------------------------------------------------------------
+
+.PHONY: status
+status: ## PRs, workflow runs, alarms, raw freshness, ops issues (read-only, profile mtd-dev)
+	@$(UV_RUN) python scripts/status.py
+
+.PHONY: prune-worktrees
+prune-worktrees: ## Remove finished .claude/worktrees (DRY_RUN=1 to preview)
+	scripts/prune_worktrees.sh $(if $(DRY_RUN),--dry-run,)
+
 .PHONY: plan
 plan: package ## terraform plan for infra/envs/prod (needs AWS read access and TF_STATE_BUCKET)
 	@[ -n "$${TF_STATE_BUCKET:-}" ] || { echo "plan: set TF_STATE_BUCKET (bootstrap output state_bucket)" >&2; exit 1; }
