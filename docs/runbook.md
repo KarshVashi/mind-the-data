@@ -164,13 +164,13 @@ From now on:
 - Pull requests that touch `infra/bootstrap/` or `infra/modules/ci_role/` also get a bootstrap plan (`bootstrap-plan.yml`).
 - **Merging** such a pull request deploys `infra/envs/prod` (see H10). The bootstrap is never deployed by a merge.
 
-**Drift check.** Every Monday `bootstrap-plan.yml` plans the bootstrap on `main`. If the plan is not empty, it opens an issue titled "Bootstrap drift: plan is not empty", or comments on the open one. Expect one known diff while the Lambda quota request is still open: an in-place update of `aws_servicequotas_service_quota.lambda_concurrency` from 10 to 1000. Applying it only logs a warning that a request already exists. The diff goes away once AWS approves the request.
+**Drift check.** Every Monday `bootstrap-plan.yml` plans the bootstrap on `main`. If the plan is not empty, it opens an issue titled "Bootstrap drift: plan is not empty", or comments on the open one. A change made by hand in the console, such as to a CI role or the budget, shows up here.
 
 **Money and quota.** All three are set by the bootstrap:
 
 - **Budget.** `mind-the-data-monthly` is 6.50 USD a month, about the £5 in plan H5; Budgets works in USD. It emails `ALERT_EMAIL` at 50%, 80% and 100% of actual spend, and when forecast spend passes 100%. It counts only costs tagged `project = mind-the-data`, from the day that tag was activated.
 - **Cost allocation tag.** `project` is activated by `aws_ce_cost_allocation_tag`. This only works once the key has appeared in billing data, which it has. Costs are attributed from activation onwards, and it can take up to 24 hours to show.
-- **Lambda concurrency quota.** `aws_servicequotas_service_quota.lambda_concurrency` asks for 1,000 (see "Lambda concurrency quota" below). It is adopted with an `import` block so that a second request is not sent while one is open.
+- **Lambda concurrency quota.** `aws_servicequotas_service_quota.lambda_concurrency` holds the quota at 1,000 (see "Lambda concurrency quota" below). It is adopted with an `import` block, so the first apply sends no request.
 
 **Re-applying.** When a later milestone needs the CI roles to manage a new kind of resource, the change lands in `infra/modules/ci_role`. Merge it, then run `make bootstrap-plan` and `make bootstrap-apply`. CI cannot change its own permissions. These are already granted for M3 to M7, so those milestones should not need a re-apply for them:
 
@@ -380,11 +380,11 @@ aws sns list-subscriptions-by-topic --profile mtd-dev --region eu-west-2 \
 
 ## Lambda concurrency quota
 
-The account's Lambda concurrency quota is 10. Lambda won't reserve concurrency for any function until the quota is higher, so the poller runs unreserved for now (ADR-006).
+The account started with a Lambda concurrency quota of 10, too low for Lambda to reserve concurrency for any function (ADR-006). A request for 1,000 made on 2026-11-06 was approved on 2026-11-07.
 
-A request for 1,000 was opened on 2026-11-06. The bootstrap now holds the quota (`aws_servicequotas_service_quota.lambda_concurrency`, see H6). A bootstrap apply asks for the increase if no request is open, and logs a warning without sending anything if one is. Don't request it by hand as well.
+The bootstrap now holds the quota (`aws_servicequotas_service_quota.lambda_concurrency`, see H6). If the value ever drops below 1,000, a bootstrap apply asks for the increase. If a request is already open, the apply logs a warning and sends nothing. Don't also request it by hand.
 
-Check the open request:
+Check requests:
 
 ```sh
 aws service-quotas list-requested-service-quota-change-history-by-quota --profile mtd-dev --region eu-west-2 \

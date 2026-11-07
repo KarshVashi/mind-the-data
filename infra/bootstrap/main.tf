@@ -177,14 +177,14 @@ resource "aws_ce_cost_allocation_tag" "project" {
   status  = "Active"
 }
 
-# The account default is 10, which leaves nothing to reserve for the poller
-# (ADR-006). A request for 1,000 was opened by hand on 2026-11-06. Importing
-# adopts the quota instead of creating it: creating would send a second
-# request, which Service Quotas refuses while one is open and which would
-# fail the apply. After the import the plan shows an in-place update from
-# the current value to 1,000; while a request is open, that update ends with
-# a warning ("already exists") and no new request. The diff disappears once
-# AWS approves.
+# This account started at 10, which left nothing to reserve for the poller
+# (ADR-006). A request for 1,000 made by hand on 2026-11-06 was approved on
+# 2026-11-07. Importing adopts the quota rather than creating it, so the
+# apply sends no request. Creating it while a request was still open would
+# have sent a second request, which Service Quotas refuses, and the apply
+# would have failed. If the value is ever below the configured one, the plan
+# shows an in-place update that requests the increase. While a request is
+# open, applying that update logs a warning and sends nothing.
 import {
   to = aws_servicequotas_service_quota.lambda_concurrency
   id = "lambda/L-B99A9384"
