@@ -4,6 +4,9 @@ London rail reliability data products. The first is the **Tube League Table**: a
 
 Design decisions are recorded in [docs/adr/](docs/adr/).
 
+- [docs/STATUS.md](docs/STATUS.md): milestone status, open PRs and merge order, blockers and outstanding owner steps.
+- [docs/DECISIONS.md](docs/DECISIONS.md): decisions waiting on the owner, each with a default and a deadline.
+
 ## Getting started
 
 Requirements: [uv](https://docs.astral.sh/uv/), Terraform 1.10 or later, tflint.
