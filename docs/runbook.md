@@ -123,16 +123,13 @@ aws s3 cp --profile mtd-admin infra/bootstrap/terraform.tfstate "s3://$BUCKET/bo
 
 CI can read and write only `envs/` in that bucket, so it cannot touch this copy. Repeat the copy after every bootstrap apply.
 
-**5. Set the repository variables.** These are identifiers, not secrets.
+**5. Set the repository variable.** The account id is an identifier, not a secret. Every other setting the workflows need is derived from it (see "Repository variables" below).
 
 ```sh
-gh variable set TF_STATE_BUCKET   --body "$(terraform -chdir=infra/bootstrap output -raw state_bucket)"
-gh variable set AWS_PLAN_ROLE_ARN --body "$(terraform -chdir=infra/bootstrap output -raw plan_role_arn)"
-gh variable set AWS_ROLE_ARN      --body "$(terraform -chdir=infra/bootstrap output -raw apply_role_arn)"
-gh variable set AWS_TRANSFORM_ROLE_ARN --body "$(terraform -chdir=infra/bootstrap output -raw transform_role_arn)"
+gh variable set AWS_ACCOUNT_ID --body "$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)"
 ```
 
-`AWS_TRANSFORM_ROLE_ARN` is used by the daily dbt build (see "Daily transform" below). Until it is set, that workflow skips with a notice.
+Until it is set, the `infra` and `transform-daily` workflows skip with a notice.
 
 From now on:
 
@@ -140,6 +137,39 @@ From now on:
 - **Merging** such a pull request deploys it (see H10).
 
 **Re-applying.** When a later milestone needs the CI roles to manage a new kind of resource, the change lands in `infra/modules/ci_role` and you re-run steps 3 and 4. CI cannot change its own permissions.
+
+---
+
+## Repository variables
+
+`AWS_ACCOUNT_ID` is the only variable the workflows need. Everything else follows the naming convention in `infra/`:
+
+| Variable | Derived from `AWS_ACCOUNT_ID` | Used by |
+| --- | --- | --- |
+| `TF_STATE_BUCKET` | `mtd-tfstate-<id>` | infra |
+| `AWS_PLAN_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-plan` | infra (pull requests) |
+| `AWS_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-apply` | infra (main) |
+| `AWS_TRANSFORM_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-transform` | transform-daily |
+| `DBT_ATHENA_S3_STAGING_DIR_PROD` | `s3://mind-the-data-athena-results-<id>/prod/` | transform-daily |
+| `DBT_ATHENA_S3_DATA_DIR_PROD` | `s3://mind-the-data-curated-<id>/prod/` | transform-daily |
+| `DBT_ATHENA_WORKGROUP_PROD` | `mind-the-data-prod` | transform-daily |
+| `DBT_ATHENA_SCHEMA_PROD` | `mind_the_data_prod` | transform-daily |
+
+A variable that is set wins over the derived value, so the explicit variables still work. Set one only when a name really differs, for example after renaming a bucket. `ALERT_EMAIL` is separate and optional (see "Alert email").
+
+To move to `AWS_ACCOUNT_ID` from the explicit variables, set it, then delete each explicit variable whose value equals its derived value:
+
+```sh
+gh variable set AWS_ACCOUNT_ID --body "$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)"
+gh variable list   # compare with the table above
+for v in TF_STATE_BUCKET AWS_PLAN_ROLE_ARN AWS_ROLE_ARN AWS_TRANSFORM_ROLE_ARN \
+         DBT_ATHENA_S3_STAGING_DIR_PROD DBT_ATHENA_S3_DATA_DIR_PROD \
+         DBT_ATHENA_WORKGROUP_PROD DBT_ATHENA_SCHEMA_PROD; do
+  gh variable delete "$v"
+done
+```
+
+Locally, `make plan` and `make dbt-build-dev` derive `TF_STATE_BUCKET` and the `DBT_ATHENA_*_DEV` values the same way when `AWS_ACCOUNT_ID` is set (env.example).
 
 ---
 
@@ -215,6 +245,16 @@ Merging is the approval.
 1. **Review the plan.** On the pull request, the `infra` workflow's `plan` job writes the plan to its run summary. Read it there.
 2. **Merge.** Merge only if the plan shows the changes the pull request says it makes, and nothing else.
 3. **Watch the deploy.** The merge starts the `deploy` job on `main`. It plans again from `main` and applies that plan. It also writes the plan it applied to its run summary, so you can check it matches what you reviewed.
+
+**Before plan and apply**, both jobs build the Lambda package and import every handler Terraform names (`make handlers`) from it in a clean interpreter. A pull request that points a function or schedule at code that is not on its branch fails here, so the order pull requests merge in cannot put a schedule live before its code.
+
+**After apply**, the deploy runs a smoke test (`.github/scripts/smoke-test.sh`):
+
+- It invokes the poller once, synchronously, with the event its schedule sends (`{"scheduled_time": "<this minute>"}`), and fails the deploy if the function errors, writes nothing, or its object is not in the raw bucket.
+- If raw has no `raw/ref_*` objects yet, it invokes the reference function once the same way.
+- If the deploy role cannot invoke functions (`AccessDenied`), or the poller is busy (throttled), it prints a warning and passes.
+
+The smoke poll is an extra poll, never a replacement: its objects carry their own `poll_id` in the key and are written with `IfNoneMatch`, so nothing scheduled is overwritten. It starts at second 20 to 40 of a minute, after that minute's scheduled poll has normally finished (they average about 3 s). Downstream counts covered minutes, so the extra objects in one minute change nothing.
 
 If `main` moved after the pull request's plan ran, the deploy includes those changes too. Merging soon after the pull request's plan keeps the two the same.
 
@@ -296,19 +336,18 @@ terraform -chdir=infra/envs/prod output -json dbt_athena_env
 
 The workgroups enforce their own results location and a 10 GiB scan limit per query, so a client setting cannot override either. Query results expire after 7 days.
 
-Set the prod values once, after the first deploy of M2:
+The prod values are derived from `AWS_ACCOUNT_ID` in CI (see "Repository variables"), so nothing needs setting. To override one, set it as a repository variable. To check the derived values still match the stack:
 
 ```sh
 terraform -chdir=infra/envs/prod output -json dbt_athena_env \
-  | jq -r 'to_entries[] | select(.key | endswith("_PROD")) | "\(.key) \(.value)"' \
-  | while read -r name value; do gh variable set "$name" --body "$value"; done
+  | jq -r 'to_entries[] | select(.key | endswith("_PROD")) | "\(.key) \(.value)"'
 ```
 
 ---
 
 ## Daily transform
 
-`.github/workflows/transform-daily.yml` runs `dbt build --target prod` at 03:30 London time every day, as the `mtd-ci-transform` role. It needs `AWS_TRANSFORM_ROLE_ARN` (H6 step 5) and the four `DBT_ATHENA_*_PROD` repository variables (above); without the role variable it skips with a notice.
+`.github/workflows/transform-daily.yml` runs `dbt build --target prod` at 03:30 London time every day, as the `mtd-ci-transform` role. It needs `AWS_ACCOUNT_ID` (H6 step 5), from which the role ARN and the dbt settings are derived; without it, or an explicit `AWS_TRANSFORM_ROLE_ARN`, it skips with a notice.
 
 **Why two cron lines.** GitHub's cron runs in UTC only. 03:30 London is 02:30 UTC in summer (BST) and 03:30 UTC in winter (GMT), so the workflow is scheduled at both. Its first step ends the run early unless the slot that fired matches London's current UTC offset: the 02:30 UTC slot builds only while London is on BST, the 03:30 UTC slot only while it is on GMT. Exactly one of the two builds each day. The check uses the slot that fired, not the time the job starts, so a run GitHub starts late under load still builds. The clocks change at 01:00 UTC, before either slot.
 

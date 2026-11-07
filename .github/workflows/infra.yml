@@ -5,6 +5,10 @@ name: infra
 # decided by AWS from the job's branch, so a pull request cannot deploy even
 # if it edits this file. Jobs skip with a notice until the repository
 # variables exist (runbook H6).
+#
+# Settings come from repository variables. AWS_ACCOUNT_ID alone is enough:
+# the state bucket and role ARNs follow the bootstrap's naming convention,
+# and an explicitly set variable wins (runbook, Repository variables).
 
 on:
   pull_request:
@@ -16,6 +20,7 @@ on:
       - "src/**"
       - "config/**"
       - "scripts/zip_lambda.py"
+      - "scripts/check_handlers.py"
       - "pyproject.toml"
       - "uv.lock"
       - "Makefile"
@@ -29,6 +34,7 @@ on:
       - "src/**"
       - "config/**"
       - "scripts/zip_lambda.py"
+      - "scripts/check_handlers.py"
       - "pyproject.toml"
       - "uv.lock"
       - "Makefile"
@@ -52,21 +58,29 @@ env:
   TF_DIR: infra/envs/prod
   TF_IN_AUTOMATION: "true"
   AWS_REGION: eu-west-2
-  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET || (vars.AWS_ACCOUNT_ID && format('mtd-tfstate-{0}', vars.AWS_ACCOUNT_ID)) }}
+  PLAN_ROLE_ARN: ${{ vars.AWS_PLAN_ROLE_ARN || (vars.AWS_ACCOUNT_ID && format('arn:aws:iam::{0}:role/mtd-ci-plan', vars.AWS_ACCOUNT_ID)) }}
+  APPLY_ROLE_ARN: ${{ vars.AWS_ROLE_ARN || (vars.AWS_ACCOUNT_ID && format('arn:aws:iam::{0}:role/mtd-ci-apply', vars.AWS_ACCOUNT_ID)) }}
   # Optional: without it the alerts topic has no email subscription.
   TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
 
 jobs:
   not-configured:
+    # Job conditions cannot read env, so the fallbacks are spelled out:
+    # each setting is configured when its own variable or AWS_ACCOUNT_ID is.
     if: >-
-      (github.event_name == 'pull_request' && (vars.TF_STATE_BUCKET == '' || vars.AWS_PLAN_ROLE_ARN == ''))
-      || (github.event_name != 'pull_request' && (vars.TF_STATE_BUCKET == '' || vars.AWS_ROLE_ARN == ''))
+      vars.AWS_ACCOUNT_ID == '' && (vars.TF_STATE_BUCKET == ''
+      || (github.event_name == 'pull_request' && vars.AWS_PLAN_ROLE_ARN == '')
+      || (github.event_name != 'pull_request' && vars.AWS_ROLE_ARN == ''))
     runs-on: ubuntu-24.04
     steps:
-      - run: echo "::notice title=infra skipped::Set the TF_STATE_BUCKET, AWS_PLAN_ROLE_ARN and AWS_ROLE_ARN repository variables after the bootstrap apply (docs/runbook.md, H6)."
+      - run: echo "::notice title=infra skipped::Set the AWS_ACCOUNT_ID repository variable after the bootstrap apply (docs/runbook.md, H6)."
 
   plan:
-    if: github.event_name == 'pull_request' && vars.TF_STATE_BUCKET != '' && vars.AWS_PLAN_ROLE_ARN != ''
+    if: >-
+      github.event_name == 'pull_request'
+      && (vars.AWS_ACCOUNT_ID != '' || (vars.TF_STATE_BUCKET != '' && vars.AWS_PLAN_ROLE_ARN != ''))
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -77,14 +91,24 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: check settings
+        run: |
+          if [ -n "$AWS_ACCOUNT_ID" ] && ! [[ "$AWS_ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
+            echo "::error title=Bad AWS_ACCOUNT_ID::AWS_ACCOUNT_ID must be the 12-digit account id."
+            exit 1
+          fi
+          echo "state bucket: $TF_STATE_BUCKET"
+
       # Terraform hashes dist/lambda.zip, so it must exist before plan. Built
       # before AWS credentials exist in the job, since it downloads packages.
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.11.16"
 
-      - name: build Lambda package
-        run: make package
+      # Imports every handler Terraform names from the built zip, so a
+      # schedule or function cannot deploy ahead of the code it calls.
+      - name: build Lambda package and check handlers
+        run: make handlers
 
       - name: alert email check
         if: vars.ALERT_EMAIL == ''
@@ -92,7 +116,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          role-to-assume: ${{ env.PLAN_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: infra-plan-${{ github.run_id }}
 
@@ -119,7 +143,9 @@ jobs:
           ./.github/scripts/destroy-guard.sh plan.json true
 
   deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.TF_STATE_BUCKET != '' && vars.AWS_ROLE_ARN != ''
+    if: >-
+      github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      && (vars.AWS_ACCOUNT_ID != '' || (vars.TF_STATE_BUCKET != '' && vars.AWS_ROLE_ARN != ''))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -130,14 +156,24 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: check settings
+        run: |
+          if [ -n "$AWS_ACCOUNT_ID" ] && ! [[ "$AWS_ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
+            echo "::error title=Bad AWS_ACCOUNT_ID::AWS_ACCOUNT_ID must be the 12-digit account id."
+            exit 1
+          fi
+          echo "state bucket: $TF_STATE_BUCKET"
+
       # Terraform hashes dist/lambda.zip, so it must exist before plan. Built
       # before AWS credentials exist in the job, since it downloads packages.
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.11.16"
 
-      - name: build Lambda package
-        run: make package
+      # Imports every handler Terraform names from the built zip, so a
+      # schedule or function cannot deploy ahead of the code it calls.
+      - name: build Lambda package and check handlers
+        run: make handlers
 
       - name: alert email check
         if: vars.ALERT_EMAIL == ''
@@ -145,7 +181,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-to-assume: ${{ env.APPLY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: infra-deploy-${{ github.run_id }}
 
@@ -178,3 +214,15 @@ jobs:
 
       - name: terraform apply
         run: terraform -chdir="$TF_DIR" apply -input=false -no-color tfplan
+
+      # One synchronous poll with the schedule's event, then a check that its
+      # raw object landed; the reference function too if raw has none of its
+      # data. Collision and double-write safety is explained in the script.
+      # Warns and passes while the role cannot invoke functions.
+      - name: smoke test
+        timeout-minutes: 10
+        run: |
+          poller=$(terraform -chdir="$TF_DIR" output -raw poller_function_name)
+          reference=$(terraform -chdir="$TF_DIR" output -raw reference_function_name)
+          bucket=$(terraform -chdir="$TF_DIR" output -raw raw_bucket_name)
+          ./.github/scripts/smoke-test.sh "$poller" "$reference" "$bucket"

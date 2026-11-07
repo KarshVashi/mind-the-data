@@ -4,6 +4,10 @@ name: transform-daily
 # role (never the apply role, ADR-005). GitHub cron is UTC only, so both
 # 02:30 and 03:30 UTC are scheduled and the gate job keeps the one that is
 # 03:30 in London today (docs/runbook.md, Daily transform).
+#
+# AWS_ACCOUNT_ID alone is enough: the role ARN and dbt settings follow the
+# naming convention in infra/, and an explicitly set variable wins
+# (docs/runbook.md, Repository variables).
 
 on:
   schedule:
@@ -16,6 +20,8 @@ permissions:
 
 env:
   AWS_REGION: eu-west-2
+  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+  TRANSFORM_ROLE_ARN: ${{ vars.AWS_TRANSFORM_ROLE_ARN || (vars.AWS_ACCOUNT_ID && format('arn:aws:iam::{0}:role/mtd-ci-transform', vars.AWS_ACCOUNT_ID)) }}
 
 jobs:
   gate:
@@ -45,14 +51,14 @@ jobs:
 
   not-configured:
     needs: gate
-    if: needs.gate.outputs.run == 'true' && vars.AWS_TRANSFORM_ROLE_ARN == ''
+    if: needs.gate.outputs.run == 'true' && vars.AWS_ACCOUNT_ID == '' && vars.AWS_TRANSFORM_ROLE_ARN == ''
     runs-on: ubuntu-24.04
     steps:
-      - run: echo "::notice title=transform skipped::Set the AWS_TRANSFORM_ROLE_ARN repository variable after the bootstrap re-apply (docs/runbook.md, H6)."
+      - run: echo "::notice title=transform skipped::Set the AWS_ACCOUNT_ID repository variable after the bootstrap apply (docs/runbook.md, H6)."
 
   build:
     needs: gate
-    if: needs.gate.outputs.run == 'true' && vars.AWS_TRANSFORM_ROLE_ARN != ''
+    if: needs.gate.outputs.run == 'true' && (vars.AWS_ACCOUNT_ID != '' || vars.AWS_TRANSFORM_ROLE_ARN != '')
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     # One prod build at a time, and never cancel one half way through
@@ -66,22 +72,27 @@ jobs:
       contents: read
       id-token: write
     env:
-      DBT_ATHENA_S3_STAGING_DIR_PROD: ${{ vars.DBT_ATHENA_S3_STAGING_DIR_PROD }}
-      DBT_ATHENA_S3_DATA_DIR_PROD: ${{ vars.DBT_ATHENA_S3_DATA_DIR_PROD }}
-      DBT_ATHENA_WORKGROUP_PROD: ${{ vars.DBT_ATHENA_WORKGROUP_PROD }}
-      DBT_ATHENA_SCHEMA_PROD: ${{ vars.DBT_ATHENA_SCHEMA_PROD }}
+      # Derived names match the dbt_athena_env output of infra/envs/prod.
+      DBT_ATHENA_S3_STAGING_DIR_PROD: ${{ vars.DBT_ATHENA_S3_STAGING_DIR_PROD || (vars.AWS_ACCOUNT_ID && format('s3://mind-the-data-athena-results-{0}/prod/', vars.AWS_ACCOUNT_ID)) }}
+      DBT_ATHENA_S3_DATA_DIR_PROD: ${{ vars.DBT_ATHENA_S3_DATA_DIR_PROD || (vars.AWS_ACCOUNT_ID && format('s3://mind-the-data-curated-{0}/prod/', vars.AWS_ACCOUNT_ID)) }}
+      DBT_ATHENA_WORKGROUP_PROD: ${{ vars.DBT_ATHENA_WORKGROUP_PROD || (vars.AWS_ACCOUNT_ID && 'mind-the-data-prod') }}
+      DBT_ATHENA_SCHEMA_PROD: ${{ vars.DBT_ATHENA_SCHEMA_PROD || (vars.AWS_ACCOUNT_ID && 'mind_the_data_prod') }}
       DBT_SEND_ANONYMOUS_USAGE_STATS: "false"
     steps:
       # profiles.yml falls back to unusable values when these are missing;
       # failing here says which one.
       - name: check dbt settings
         run: |
+          if [ -n "$AWS_ACCOUNT_ID" ] && ! [[ "$AWS_ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
+            echo "::error title=Bad AWS_ACCOUNT_ID::AWS_ACCOUNT_ID must be the 12-digit account id."
+            exit 1
+          fi
           missing=""
           for v in DBT_ATHENA_S3_STAGING_DIR_PROD DBT_ATHENA_S3_DATA_DIR_PROD DBT_ATHENA_WORKGROUP_PROD DBT_ATHENA_SCHEMA_PROD; do
             [ -n "${!v}" ] || missing="$missing $v"
           done
           if [ -n "$missing" ]; then
-            echo "::error title=dbt settings missing::Set repository variables:$missing (docs/runbook.md, dbt connection settings)."
+            echo "::error title=dbt settings missing::Set AWS_ACCOUNT_ID, or these repository variables:$missing (docs/runbook.md, dbt connection settings)."
             exit 1
           fi
 
@@ -109,7 +120,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ vars.AWS_TRANSFORM_ROLE_ARN }}
+          role-to-assume: ${{ env.TRANSFORM_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: transform-${{ github.run_id }}
 
