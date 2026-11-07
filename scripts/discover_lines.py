@@ -19,6 +19,7 @@ from typing import Any
 import httpx
 
 from mind_the_data.common.config import load_config
+from mind_the_data.ops.arrivals_check import expected_lines, lines_seen
 
 BASE_URL = "https://api.tfl.gov.uk"
 MODES = "tube,elizabeth-line,dlr,overground,tram"
@@ -72,7 +73,7 @@ def check_arrivals(client: httpx.Client, expected: dict[str, set[str]], *, stric
             failures += 1
             print(f"{naptan_id:<14} HTTP {response.status_code}  FAIL")
             continue
-        seen = {p["lineId"] for p in response.json() if p.get("naptanId") == naptan_id}
+        seen = lines_seen(response.json(), naptan_id)
         missing = sorted(lines - seen)
         note = f"  no predictions now for {missing}" if missing else ""
         if missing and strict:
@@ -101,9 +102,7 @@ def main() -> None:
     with httpx.Client(base_url=BASE_URL, timeout=30.0) as client:
         if args.check_arrivals:
             _, stations = load_config()
-            expected: dict[str, set[str]] = {}
-            for station in stations:
-                expected.setdefault(station.naptan_id, set()).add(station.line_id)
+            expected = expected_lines(stations)
             raise SystemExit(1 if check_arrivals(client, expected, strict=args.strict) else 0)
 
         lines: list[dict[str, Any]] = get_json(client, f"/Line/Mode/{MODES}")
