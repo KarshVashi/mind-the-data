@@ -12,6 +12,7 @@ the rule that missing data is never treated as a good minute.
 
 import re
 from collections.abc import Iterable, Iterator, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
@@ -117,15 +118,31 @@ def _keys(s3: "S3Client", bucket: str, prefixes: Iterable[str]) -> Iterator[str]
 
 
 def load_feed(
-    s3: "S3Client", bucket: str, feed: Feed, minutes: Sequence[datetime]
+    s3: "S3Client",
+    bucket: str,
+    feed: Feed,
+    minutes: Sequence[datetime],
+    workers: int = 1,
 ) -> dict[datetime, list[list[Envelope]]]:
-    """Read every object for ``feed`` whose poll minute falls in the window."""
+    """Read every object for ``feed`` whose poll minute falls in the window.
+
+    A day is about 1,440 objects per feed, and one GET at a time takes several
+    minutes from outside the region, so ``workers`` fetches them concurrently
+    (boto3 clients are thread-safe).
+    """
     wanted = set(minutes)
-    found: dict[datetime, list[list[Envelope]]] = {}
+    keyed: list[tuple[datetime, str]] = []
     for key in _keys(s3, bucket, hour_prefixes(feed, minutes)):
         minute = minute_of_key(key)
-        if minute is None or minute not in wanted:
-            continue
-        data = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
-        found.setdefault(minute, []).append(decode_ndjson_gz(data))
+        if minute is not None and minute in wanted:
+            keyed.append((minute, key))
+
+    def fetch(key: str) -> list[Envelope]:
+        return decode_ndjson_gz(s3.get_object(Bucket=bucket, Key=key)["Body"].read())
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        decoded = list(pool.map(fetch, [key for _, key in keyed]))
+    found: dict[datetime, list[list[Envelope]]] = {}
+    for (minute, _), envelopes in zip(keyed, decoded, strict=True):
+        found.setdefault(minute, []).append(envelopes)
     return found

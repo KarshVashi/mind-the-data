@@ -56,6 +56,9 @@ def main(argv: list[str] | None = None) -> int:
         default=0.9,
         help="share of station requests that must succeed for an arrivals minute to count",
     )
+    parser.add_argument(
+        "--workers", type=int, default=16, help="concurrent object reads (default 16)"
+    )
     parser.add_argument("--json", action="store_true", help="print a JSON summary")
     args = parser.parse_args(argv)
 
@@ -71,7 +74,9 @@ def main(argv: list[str] | None = None) -> int:
     results = []
     passed = True
     for feed, min_ok_share, target in checks:
-        result = assess(feed, minutes, load_feed(s3, bucket, feed, minutes), min_ok_share)
+        result = assess(
+            feed, minutes, load_feed(s3, bucket, feed, minutes, args.workers), min_ok_share
+        )
         results.append((result, target))
         passed &= result.coverage >= target
 
