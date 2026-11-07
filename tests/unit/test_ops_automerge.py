@@ -1,5 +1,5 @@
-import io
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -7,6 +7,10 @@ import pytest
 from mind_the_data.ops.automerge import main, path_allowed, reasons_not_to_merge
 
 SHA = "a" * 40
+FILES = [
+    {"filename": "transform/models/staging/stg_x.sql", "status": "modified"},
+    {"filename": "tests/unit/t.py", "status": "added"},
+]
 
 
 def _pr(**overrides: Any) -> dict[str, Any]:
@@ -15,7 +19,6 @@ def _pr(**overrides: Any) -> dict[str, Any]:
         "isCrossRepository": False,
         "isDraft": False,
         "headRefOid": SHA,
-        "files": [{"path": "transform/models/staging/stg_x.sql"}, {"path": "tests/unit/t.py"}],
         "statusCheckRollup": [{"name": "ci", "status": "COMPLETED", "conclusion": "SUCCESS"}],
     }
     pr.update(overrides)
@@ -43,7 +46,32 @@ def test_path_allow_list(path: str, allowed: bool) -> None:
 
 
 def test_an_eligible_pr_has_no_reasons() -> None:
-    assert reasons_not_to_merge(_pr(), "karshvashi", SHA) == []
+    assert reasons_not_to_merge(_pr(), FILES, "karshvashi", SHA) == []
+
+
+def test_a_rename_is_judged_on_both_ends() -> None:
+    moved = [
+        {
+            "filename": "docs/infra.yml",
+            "previous_filename": ".github/workflows/infra.yml",
+            "status": "renamed",
+        }
+    ]
+    reasons = reasons_not_to_merge(_pr(), moved, "KarshVashi", SHA)
+    assert reasons == ["paths outside the allow-list: .github/workflows/infra.yml"]
+
+
+@pytest.mark.parametrize(
+    ("files", "reason"),
+    [
+        ([], "no changed files"),
+        ([{"filename": "docs/adr/x.md"}], "docs/adr/x.md"),
+        ([{"filename": "docs/x.md"}] * 301, "too many files"),
+    ],
+)
+def test_file_rules_block(files: list[dict[str, Any]], reason: str) -> None:
+    reasons = reasons_not_to_merge(_pr(), files, "KarshVashi", SHA)
+    assert any(reason in r for r in reasons), reasons
 
 
 @pytest.mark.parametrize(
@@ -53,9 +81,6 @@ def test_an_eligible_pr_has_no_reasons() -> None:
         ({"isCrossRepository": True}, "another repository"),
         ({"isDraft": True}, "draft"),
         ({"headRefOid": "b" * 40}, "moved after ci ran"),
-        ({"files": []}, "no changed files"),
-        ({"files": [{"path": "docs/adr/x.md"}]}, "docs/adr/x.md"),
-        ({"files": [{"path": "docs/x.md"}] * 100}, "too many files"),
         (
             {"statusCheckRollup": [{"name": "plan", "status": "IN_PROGRESS", "conclusion": ""}]},
             "check plan is pending",
@@ -64,19 +89,21 @@ def test_an_eligible_pr_has_no_reasons() -> None:
     ],
 )
 def test_each_rule_blocks(overrides: dict[str, Any], reason: str) -> None:
-    reasons = reasons_not_to_merge(_pr(**overrides), "KarshVashi", SHA)
+    reasons = reasons_not_to_merge(_pr(**overrides), FILES, "KarshVashi", SHA)
     assert any(reason in r for r in reasons), reasons
 
 
 def test_missing_fields_fail_closed() -> None:
-    assert len(reasons_not_to_merge({}, "KarshVashi", SHA)) >= 4
+    assert len(reasons_not_to_merge({}, [], "KarshVashi", SHA)) >= 5
 
 
-def test_main_exit_codes(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(_pr())))
-    assert main(["--owner", "KarshVashi", "--sha", SHA]) == 0
-    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(_pr(isDraft=True))))
-    assert main(["--owner", "KarshVashi", "--sha", SHA]) == 1
+def test_main_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    files = tmp_path / "files.jsonl"
+    files.write_text("".join(json.dumps(f) + "\n" for f in FILES))
+    pr = tmp_path / "pr.json"
+    args = ["--owner", "KarshVashi", "--sha", SHA, "--pr", str(pr), "--files", str(files)]
+    pr.write_text(json.dumps(_pr()))
+    assert main(args) == 0
+    pr.write_text(json.dumps(_pr(isDraft=True)))
+    assert main(args) == 1
     assert "not merging: pull request is a draft" in capsys.readouterr().out

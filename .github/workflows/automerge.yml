@@ -55,7 +55,7 @@ jobs:
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           number=$(gh pr list --state open --head "$BRANCH" --json number,headRefOid \
-            --jq ".[] | select(.headRefOid == \"$SHA\") | .number" | head -n 1)
+            --jq '.[] | select(.headRefOid == env.SHA) | .number' | head -n 1)
           if [ -z "$number" ]; then
             echo "No open pull request at $SHA on $BRANCH; nothing to do."
           fi
@@ -72,9 +72,11 @@ jobs:
           PYTHONPATH: src
         run: |
           gh pr view "$NUMBER" \
-            --json author,isDraft,isCrossRepository,files,headRefOid,statusCheckRollup \
-            > pr.json
-          if ! python3 -m mind_the_data.ops.automerge --owner "$OWNER" --sha "$SHA" < pr.json; then
+            --json author,isDraft,isCrossRepository,headRefOid,statusCheckRollup > pr.json
+          # The REST list carries previous_filename, so renames are judged on both ends.
+          gh api --paginate "repos/$GH_REPO/pulls/$NUMBER/files" --jq '.[]' > files.jsonl
+          if ! python3 -m mind_the_data.ops.automerge --owner "$OWNER" --sha "$SHA" \
+            --pr pr.json --files files.jsonl; then
             echo "Pull request #$NUMBER left for a person to merge."
             exit 0
           fi

@@ -107,3 +107,23 @@ def test_recent_polls_reads_only_the_window() -> None:
         )
     polls = recent_polls(s3, BUCKET, now)
     assert len(polls) == 3
+
+
+@mock_aws
+def test_recent_polls_spans_an_hour_boundary() -> None:
+    s3: Any = boto3.client("s3")
+    s3.create_bucket(Bucket=BUCKET, CreateBucketConfiguration={"LocationConstraint": "eu-west-2"})
+    now = datetime(2026, 11, 5, 12, 5, 30, tzinfo=UTC)
+    # 11:52 (the previous hour's partition) and 12:03 are both in the window.
+    for at in (
+        datetime(2026, 11, 5, 11, 52, 3, tzinfo=UTC),
+        datetime(2026, 11, 5, 12, 3, 3, tzinfo=UTC),
+    ):
+        poll_id = uuid4()
+        env = _env(OXC, ["central"]).model_copy(update={"poll_id": poll_id, "polled_at": at})
+        s3.put_object(
+            Bucket=BUCKET,
+            Key=object_key(Feed.ARRIVALS, at, poll_id),
+            Body=encode_ndjson_gz([env]),
+        )
+    assert len(recent_polls(s3, BUCKET, now)) == 2

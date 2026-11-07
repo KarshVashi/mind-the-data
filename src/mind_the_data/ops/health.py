@@ -32,6 +32,8 @@ MAX_AGE = {
     "ref_severity": timedelta(days=8),
 }
 AWS_ERRORS = (BotoCoreError, ClientError)
+ALWAYS_RUNNING = frozenset({"mind-the-data-poller"})
+STUCK_INSUFFICIENT = timedelta(hours=1)
 
 
 @dataclass
@@ -139,7 +141,9 @@ def _went_to_alarm(history_data: str) -> bool:
     return bool(data.get("newState", {}).get("stateValue") == "ALARM")
 
 
-def alarm_section(alarms: Sequence[Alarm], fired: dict[str, int] | None = None) -> Section:
+def alarm_section(
+    alarms: Sequence[Alarm], fired: dict[str, int] | None = None, now: datetime | None = None
+) -> Section:
     section = Section("Alarms")
     if not alarms:
         section.lines.append(f"No alarms named `{ALARM_PREFIX}*` were found.")
@@ -155,6 +159,17 @@ def alarm_section(alarms: Sequence[Alarm], fired: dict[str, int] | None = None) 
             section.problems.append(f"alarms: {alarm.name} is in ALARM")
         elif count:
             section.problems.append(f"alarms: {alarm.name} went into ALARM {count}x")
+        # Every project alarm treats missing data explicitly, so one that stays
+        # in INSUFFICIENT_DATA is evaluating a metric that no longer exists.
+        if (
+            alarm.state == "INSUFFICIENT_DATA"
+            and now is not None
+            and alarm.since is not None
+            and now - alarm.since > STUCK_INSUFFICIENT
+        ):
+            section.problems.append(
+                f"alarms: {alarm.name} has had insufficient data since {alarm.since:%Y-%m-%d %H:%M}"
+            )
     return section
 
 
@@ -195,6 +210,9 @@ def lambda_section(
             section.problems.append(f"lambda: {function} had {counts[1]} errors")
         if counts[2]:
             section.problems.append(f"lambda: {function} was throttled {counts[2]}x")
+        # The poller runs every minute; no invocations means its schedule stopped.
+        if function in ALWAYS_RUNNING and not counts[0]:
+            section.problems.append(f"lambda: {function} was never invoked")
     return section
 
 

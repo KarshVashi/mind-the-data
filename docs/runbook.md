@@ -455,7 +455,15 @@ make prune-worktrees             # remove them
 
 `make status` uses the read-only `mtd-dev` profile (override with `MTD_PROFILE`). Any part it can't reach is shown as unavailable, and the rest still prints.
 
-`make prune-worktrees` removes a worktree only when it has no uncommitted or untracked changes, isn't locked, and its work is safe elsewhere. Safe means it is already in `origin/main`, or a merged or closed pull request's head is exactly its HEAD. Remote branches are never touched.
+`make prune-worktrees` removes a worktree only when all of these hold:
+
+- it has no uncommitted or untracked changes and isn't locked;
+- nothing in it changed in the last 24 hours (`IDLE_HOURS` overrides this), so a session still working there is left alone;
+- its work is safe elsewhere: it is already in `origin/main`, or a merged pull request's head is exactly its HEAD.
+
+Ignored files in a removed worktree (`.venv`, `.terraform`, dbt `target/`, local `.env` copies) go with it. Its local branch is deleted. Remote branches are never touched.
+
+**Data transfer.** `ops-daily` reads about 55 MB of raw objects from eu-west-2 a day. That is S3 egress to the internet, about 1.7 GB a month, well inside the 100 GB monthly free allowance.
 
 ### Automerge (off)
 

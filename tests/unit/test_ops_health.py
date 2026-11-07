@@ -228,3 +228,21 @@ def test_render_lists_every_problem_up_front() -> None:
     assert "**Missed:**\n\n- a broke" in report
     assert report.rstrip().endswith("run link")
     assert "**All targets met.**" in render("T", [Section("A", ["x"])])
+
+
+def test_insufficient_data_for_over_an_hour_is_a_problem() -> None:
+    now = datetime(2026, 11, 6, 2, 10, tzinfo=UTC)
+    fresh = Alarm("mind-the-data-r", "INSUFFICIENT_DATA", now - timedelta(minutes=30))
+    stuck = Alarm("mind-the-data-s", "INSUFFICIENT_DATA", now - timedelta(hours=3))
+    section = alarm_section([fresh, stuck], {}, now)
+    assert section.problems == [
+        "alarms: mind-the-data-s has had insufficient data since 2026-11-05 23:10"
+    ]
+
+
+def test_a_poller_that_never_ran_is_a_problem_but_a_quiet_reference_is_not() -> None:
+    fake = FakeMetrics({})
+    start, end = day_bounds(date(2026, 11, 5))
+    functions = ["mind-the-data-poller", "mind-the-data-reference"]
+    section = lambda_section(fake, start, end, functions)  # type: ignore[arg-type]
+    assert section.problems == ["lambda: mind-the-data-poller was never invoked"]

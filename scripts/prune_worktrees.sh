@@ -7,15 +7,18 @@
 # A worktree is removed only when all of these hold:
 #   - it has no uncommitted changes and no untracked files (ignored files such
 #     as .venv and .terraform go with it);
-#   - it is not locked, and it is not the worktree this script runs from;
+#   - it is not locked, not the worktree this script runs from, and nothing
+#     in it (the directory, index or HEAD) changed in the last IDLE_HOURS
+#     hours (default 24), so a session still working there is left alone;
 #   - its work is safe elsewhere: HEAD is already in origin/main, or a merged
-#     or closed pull request's head is exactly HEAD (squash merges leave no
-#     ancestry, so the PR is the proof that nothing is unpushed).
+#     pull request's head is exactly HEAD (squash merges leave no ancestry,
+#     so the PR is the proof that nothing is unpushed).
 # Anything else is kept and the reason printed. Remote branches are never
 # touched; the local branch of a removed worktree is deleted.
 
 set -euo pipefail
 
+idle_hours=${IDLE_HOURS:-24}
 dry_run=false
 case "${1:-}" in
   --dry-run | -n) dry_run=true ;;
@@ -45,9 +48,19 @@ fi
 keep_reason() {
   local path=$1 branch=$2 head=$3 locked=$4
   if [ "$path" = "$here" ]; then echo "this is the current worktree"; return; fi
-  if [ "$locked" = true ]; then echo "locked (an agent may be using it)"; return; fi
-  if [ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ]; then
-    echo "uncommitted or untracked changes"; return
+  if [ "$locked" = true ]; then echo "locked"; return; fi
+  # Fail closed: if git cannot read the worktree, keep it.
+  local changes git_dir
+  if ! changes=$(git -C "$path" status --porcelain 2>&1); then
+    echo "git status failed: ${changes%%$'\n'*}"; return
+  fi
+  if [ -n "$changes" ]; then echo "uncommitted or untracked changes"; return; fi
+  if ! git_dir=$(git -C "$path" rev-parse --absolute-git-dir 2>/dev/null); then
+    echo "cannot find its git directory"; return
+  fi
+  if [ -n "$(find "$path" "$git_dir/index" "$git_dir/HEAD" "$git_dir/logs/HEAD" \
+    -maxdepth 0 -mmin "-$((idle_hours * 60))" 2>/dev/null)" ]; then
+    echo "used in the last ${idle_hours}h (IDLE_HOURS=0 to ignore)"; return
   fi
   if git -C "$repo_root" merge-base --is-ancestor "$head" origin/main 2>/dev/null; then
     return
@@ -56,10 +69,10 @@ keep_reason() {
   if [ "$have_gh" = true ]; then
     local pr
     pr=$(gh pr list --state all --head "$branch" --json number,state,headRefOid \
-      --jq ".[] | select(.headRefOid == \"$head\" and .state != \"OPEN\") | .number" \
+      --jq ".[] | select(.headRefOid == \"$head\" and .state == \"MERGED\") | .number" \
       2>/dev/null | head -n 1)
     if [ -n "$pr" ]; then return; fi
-    echo "no merged or closed PR whose head is $head"
+    echo "no merged PR whose head is $head"
     return
   fi
   echo "not in origin/main, and gh is unavailable to check for a merged PR"

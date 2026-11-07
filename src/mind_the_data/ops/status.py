@@ -148,7 +148,7 @@ def collect(
     return [
         gh_part("Open pull requests", lambda: pr_section(gh)),
         gh_part("Last run of each workflow", lambda: runs_section(gh)),
-        aws_part("Alarms", lambda: alarm_section(current_alarms(cloudwatch()))),
+        aws_part("Alarms", lambda: alarm_section(current_alarms(cloudwatch()), now=now)),
         aws_part("Newest raw object per feed", lambda: freshness_section(s3(), bucket(), now)),
         gh_part("Open ops issues", lambda: issues_section(gh)),
     ]

@@ -57,7 +57,9 @@ def daily(day: date, completeness_file: Path, now: datetime) -> list[Section]:
         completeness_section(text),
         guarded(
             "Alarms",
-            lambda: alarm_section(current_alarms(cloudwatch), alarms_fired(cloudwatch, start, end)),
+            lambda: alarm_section(
+                current_alarms(cloudwatch), alarms_fired(cloudwatch, start, end), now
+            ),
         ),
         guarded("Lambda errors", lambda: lambda_section(cloudwatch, start, end)),
         guarded(

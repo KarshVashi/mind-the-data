@@ -107,5 +107,5 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           uv run --locked --no-dev python scripts/ops_issue.py --label ops-health \
-            --title "Collector health: targets missed ($DAY)" \
+            --title "Collector health: targets missed (since $DAY)" \
             --body-file report.md --status "$STATUS" --run-url "$RUN_URL"

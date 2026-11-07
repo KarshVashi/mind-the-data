@@ -13,6 +13,7 @@ import sys
 from datetime import datetime
 
 import boto3
+from botocore.config import Config
 
 from mind_the_data.common.clock import ensure_utc, utc_now
 from mind_the_data.common.raw import Feed
@@ -65,7 +66,8 @@ def main(argv: list[str] | None = None) -> int:
     end: datetime = ensure_utc(datetime.fromisoformat(args.end)) if args.end else utc_now()
     minutes = window_minutes(end, args.hours)
     bucket = _bucket(args.bucket)
-    s3 = boto3.client("s3")
+    # One pooled connection per worker, or botocore discards the extras.
+    s3 = boto3.client("s3", config=Config(max_pool_connections=max(10, args.workers)))
 
     checks = [
         (Feed.LINE_STATUS, 1.0, args.status_target),
