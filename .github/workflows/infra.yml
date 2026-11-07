@@ -58,7 +58,8 @@ env:
   TF_DIR: infra/envs/prod
   TF_IN_AUTOMATION: "true"
   AWS_REGION: eu-west-2
-  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+  # Not AWS_ACCOUNT_ID: AWS SDKs read that name for account-based endpoints.
+  ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
   TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET || (vars.AWS_ACCOUNT_ID && format('mtd-tfstate-{0}', vars.AWS_ACCOUNT_ID)) }}
   PLAN_ROLE_ARN: ${{ vars.AWS_PLAN_ROLE_ARN || (vars.AWS_ACCOUNT_ID && format('arn:aws:iam::{0}:role/mtd-ci-plan', vars.AWS_ACCOUNT_ID)) }}
   APPLY_ROLE_ARN: ${{ vars.AWS_ROLE_ARN || (vars.AWS_ACCOUNT_ID && format('arn:aws:iam::{0}:role/mtd-ci-apply', vars.AWS_ACCOUNT_ID)) }}
@@ -93,7 +94,7 @@ jobs:
 
       - name: check settings
         run: |
-          if [ -n "$AWS_ACCOUNT_ID" ] && ! [[ "$AWS_ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
+          if [ -n "$ACCOUNT_ID" ] && ! [[ "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
             echo "::error title=Bad AWS_ACCOUNT_ID::AWS_ACCOUNT_ID must be the 12-digit account id."
             exit 1
           fi
@@ -158,7 +159,7 @@ jobs:
 
       - name: check settings
         run: |
-          if [ -n "$AWS_ACCOUNT_ID" ] && ! [[ "$AWS_ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
+          if [ -n "$ACCOUNT_ID" ] && ! [[ "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
             echo "::error title=Bad AWS_ACCOUNT_ID::AWS_ACCOUNT_ID must be the 12-digit account id."
             exit 1
           fi

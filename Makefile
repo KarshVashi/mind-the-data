@@ -16,7 +16,10 @@ SQL_DIRS  := $(DBT_DIR)/models $(DBT_DIR)/tests $(DBT_DIR)/analyses
 
 # One provider download shared by every checkout and worktree, instead of
 # each .terraform/ holding its own copy (the AWS provider alone is ~700 MB).
-# Terraform refuses to start if the directory is missing.
+# Terraform refuses to start if the directory is missing. Terraform does not
+# promise the cache is safe for concurrent `terraform init`, so avoid running
+# make check in several checkouts at once, or set TF_PLUGIN_CACHE_DIR= (empty)
+# to turn the cache off.
 export TF_PLUGIN_CACHE_DIR ?= $(HOME)/.terraform.d/plugin-cache
 $(if $(TF_PLUGIN_CACHE_DIR),$(shell mkdir -p "$(TF_PLUGIN_CACHE_DIR)"))
 
@@ -140,8 +143,13 @@ package: ## Build dist/lambda.zip for the arm64 python3.12 Lambdas
 # builds, so a schedule cannot go live before the code it calls. The infra
 # workflow runs this before plan and apply.
 .PHONY: handlers
+# Like package and tflint --init, it downloads (wheels), so make check needs
+# the network. Host builds of compiled wheels are checked against uv.lock's hashes.
+LOCK_REQS := build/lock-requirements.txt
 handlers: package ## Check every Terraform Lambda handler imports from dist/lambda.zip
-	$(UV) run --no-project --python 3.12 python scripts/check_handlers.py $(LAMBDA_ZIP) infra/envs/prod
+	$(UV) export --no-dev --no-emit-project --frozen --quiet -o $(LOCK_REQS)
+	$(UV) run --no-project --python 3.12 python scripts/check_handlers.py \
+		$(LAMBDA_ZIP) $(LOCK_REQS) infra/envs/prod
 
 # ---- Needs AWS access -------------------------------------------------------
 

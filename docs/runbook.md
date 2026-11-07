@@ -155,18 +155,30 @@ From now on:
 | `DBT_ATHENA_WORKGROUP_PROD` | `mind-the-data-prod` | transform-daily |
 | `DBT_ATHENA_SCHEMA_PROD` | `mind_the_data_prod` | transform-daily |
 
-A variable that is set wins over the derived value, so the explicit variables still work. Set one only when a name really differs, for example after renaming a bucket. `ALERT_EMAIL` is separate and optional (see "Alert email").
+A variable that is set wins over the derived value, so the explicit variables still work. Set one only when a name really differs, for example after renaming a bucket or changing the `ci_name_prefix` or `resource_prefix` defaults in Terraform. `ALERT_EMAIL` is separate and optional (see "Alert email").
 
-To move to `AWS_ACCOUNT_ID` from the explicit variables, set it, then delete each explicit variable whose value equals its derived value:
+To move to `AWS_ACCOUNT_ID` from the explicit variables, set it, then delete each explicit variable whose value equals its derived value. This deletes only exact matches and prints any that differ:
 
 ```sh
-gh variable set AWS_ACCOUNT_ID --body "$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)"
-gh variable list   # compare with the table above
-for v in TF_STATE_BUCKET AWS_PLAN_ROLE_ARN AWS_ROLE_ARN AWS_TRANSFORM_ROLE_ARN \
-         DBT_ATHENA_S3_STAGING_DIR_PROD DBT_ATHENA_S3_DATA_DIR_PROD \
-         DBT_ATHENA_WORKGROUP_PROD DBT_ATHENA_SCHEMA_PROD; do
-  gh variable delete "$v"
-done
+id=$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)
+gh variable set AWS_ACCOUNT_ID --body "$id"
+while read -r name derived; do
+  current=$(gh variable get "$name" 2>/dev/null || true)
+  if [ "$current" = "$derived" ]; then
+    gh variable delete "$name" && echo "deleted $name"
+  elif [ -n "$current" ]; then
+    echo "kept $name: '$current' differs from '$derived'"
+  fi
+done <<EOF
+TF_STATE_BUCKET mtd-tfstate-$id
+AWS_PLAN_ROLE_ARN arn:aws:iam::$id:role/mtd-ci-plan
+AWS_ROLE_ARN arn:aws:iam::$id:role/mtd-ci-apply
+AWS_TRANSFORM_ROLE_ARN arn:aws:iam::$id:role/mtd-ci-transform
+DBT_ATHENA_S3_STAGING_DIR_PROD s3://mind-the-data-athena-results-$id/prod/
+DBT_ATHENA_S3_DATA_DIR_PROD s3://mind-the-data-curated-$id/prod/
+DBT_ATHENA_WORKGROUP_PROD mind-the-data-prod
+DBT_ATHENA_SCHEMA_PROD mind_the_data_prod
+EOF
 ```
 
 Locally, `make plan` and `make dbt-build-dev` derive `TF_STATE_BUCKET` and the `DBT_ATHENA_*_DEV` values the same way when `AWS_ACCOUNT_ID` is set (env.example).
@@ -252,9 +264,10 @@ Merging is the approval.
 
 - It invokes the poller once, synchronously, with the event its schedule sends (`{"scheduled_time": "<this minute>"}`), and fails the deploy if the function errors, writes nothing, or its object is not in the raw bucket.
 - If raw has no `raw/ref_*` objects yet, it invokes the reference function once the same way.
-- If the deploy role cannot invoke functions (`AccessDenied`), or the poller is busy (throttled), it prints a warning and passes.
+- If the invoke is throttled (the poller busy with its scheduled run), it retries once a minute later and fails if throttled again.
+- Only if the deploy role is not allowed `lambda:InvokeFunction` does it print a warning and pass. Today the apply role has it (through `lambda:*` on `mind-the-data-*`); the escape keeps deploys green if the bootstrap narrows that before granting invoke explicitly. Any other error fails the deploy. There is no rollback: a failed smoke test means the change is live and broken, so fix forward or revert the pull request.
 
-The smoke poll is an extra poll, never a replacement: its objects carry their own `poll_id` in the key and are written with `IfNoneMatch`, so nothing scheduled is overwritten. It starts at second 20 to 40 of a minute, after that minute's scheduled poll has normally finished (they average about 3 s). Downstream counts covered minutes, so the extra objects in one minute change nothing.
+The smoke poll is an extra poll, never a replacement: its objects carry their own `poll_id` in the key and are written with `IfNoneMatch`, so nothing scheduled is overwritten, and the CLI makes one attempt only, so a slow invoke is never sent twice. It starts at second 20 to 40 of a minute, after that minute's scheduled poll has normally finished (they average about 3 s). Each deploy therefore leaves one minute with two polls about 20 to 40 s apart, the same as an overlap without reserved concurrency (ADR-006). Models built on raw must treat polls per minute as one or more, not exactly one.
 
 If `main` moved after the pull request's plan ran, the deploy includes those changes too. Merging soon after the pull request's plan keeps the two the same.
 

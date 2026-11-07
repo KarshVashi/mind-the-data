@@ -10,9 +10,11 @@ The zip is extracted and each handler is imported in a fresh interpreter
 the extracted package as the only source of first-party and pure-Python code.
 Compiled wheels in the zip are built for the Lambda platform (arm64 Linux),
 so those few are installed again for this machine at the exact versions the
-zip holds and put ahead of it on sys.path.
+zip holds, checked against the hashes in a `uv export` of uv.lock, and put
+ahead of it on sys.path.
 
-Usage: python scripts/check_handlers.py <zip_path> <terraform_dir> [...]
+Usage: python scripts/check_handlers.py <zip_path> <requirements> <terraform_dir> [...]
+  requirements: `uv export` output with hashes (make handlers writes it)
 """
 
 from __future__ import annotations
@@ -28,8 +30,10 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-# A handler argument in a module call or resource, e.g.
+# A literal handler argument in a module call or resource, e.g.
 #   handler = "mind_the_data.ingest.poller.handler"
+# A handler passed through a variable or local would not be seen; the unit
+# test that lists the prod stack's handlers catches that change.
 HANDLER_RE = re.compile(r'^\s*handler\s*=\s*"([^"]+)"', re.MULTILINE)
 DOTTED_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$")
 
@@ -102,8 +106,38 @@ def wheels_in(package_dir: Path) -> list[Wheel]:
     return wheels
 
 
-def install_host_wheels(wheels: list[Wheel], target: Path) -> None:
-    """Install the compiled wheels for this machine, at the zip's versions."""
+def normalise(name: str) -> str:
+    """PEP 503 name, so pydantic_core matches pydantic-core."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def hashed_pins(requirements: str, wheels: list[Wheel]) -> str:
+    """The requirement entries, hashes included, for exactly these wheels.
+
+    Each entry must pin the same version the zip holds, so the host build is
+    the locked release and nothing outside uv.lock is installed.
+    """
+    wanted = {normalise(w.name): w.version for w in wheels}
+    entries: dict[str, str] = {}
+    current: list[str] = []
+    for line in requirements.splitlines() + [""]:
+        if line and line[0].isspace():
+            current.append(line)
+            continue
+        if current:
+            head = current[0].split(";")[0].strip().rstrip("\\").strip()
+            name, sep, version = head.partition("==")
+            if sep and wanted.get(normalise(name)) == version.strip():
+                entries[normalise(name)] = "\n".join(current)
+        current = [line] if line and not line.startswith("#") else []
+    missing = sorted(set(wanted) - set(entries))
+    if missing:
+        raise RuntimeError(f"no hashed pin at the zip's version for: {', '.join(missing)}")
+    return "\n".join(entries[name] for name in sorted(entries)) + "\n"
+
+
+def install_host_wheels(wheels: list[Wheel], requirements: str, target: Path) -> None:
+    """Install the compiled wheels for this machine, at the zip's locked versions."""
     compiled = [w for w in wheels if not w.pure]
     target.mkdir(parents=True, exist_ok=True)
     if not compiled:
@@ -111,10 +145,11 @@ def install_host_wheels(wheels: list[Wheel], target: Path) -> None:
     uv = shutil.which("uv")
     if uv is None:
         raise RuntimeError("uv is needed to install host builds of compiled wheels")
-    pins = [f"{w.name}=={w.version}" for w in compiled]
+    pins = target.parent / "host-requirements.txt"
+    pins.write_text(hashed_pins(requirements, compiled))
     subprocess.run(
-        [uv, "pip", "install", "--quiet", "--no-deps", "--only-binary", ":all:"]
-        + ["--python", sys.executable, "--target", str(target), *pins],
+        [uv, "pip", "install", "--quiet", "--no-deps", "--only-binary", ":all:", "--require-hashes"]
+        + ["--python", sys.executable, "--target", str(target), "-r", str(pins)],
         check=True,
     )
 
@@ -136,15 +171,19 @@ def probe(package_dir: Path, host_dir: Path, handlers: list[str]) -> dict[str, s
     )
     if result.returncode != 0:
         raise RuntimeError(f"probe interpreter failed:\n{result.stderr}")
-    parsed: dict[str, str | None] = json.loads(result.stdout.strip().splitlines()[-1])
+    lines = result.stdout.strip().splitlines()
+    if not lines:
+        raise RuntimeError(f"probe interpreter printed nothing:\n{result.stderr}")
+    parsed: dict[str, str | None] = json.loads(lines[-1])
     return parsed
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 3:
+    if len(argv) < 4:
         print(__doc__, file=sys.stderr)
         return 2
-    zip_path, tf_dirs = Path(argv[1]), [Path(d) for d in argv[2:]]
+    zip_path, requirements = Path(argv[1]), Path(argv[2])
+    tf_dirs = [Path(d) for d in argv[3:]]
     if not zip_path.is_file():
         print(f"check_handlers: {zip_path} not found (run make package)", file=sys.stderr)
         return 1
@@ -162,7 +201,7 @@ def main(argv: list[str]) -> int:
         package_dir, host_dir = Path(tmp) / "package", Path(tmp) / "host"
         with zipfile.ZipFile(zip_path) as zf:
             zf.extractall(package_dir)
-        install_host_wheels(wheels_in(package_dir), host_dir)
+        install_host_wheels(wheels_in(package_dir), requirements.read_text(), host_dir)
         results = probe(package_dir.resolve(), host_dir.resolve(), handlers)
 
     failed = 0
