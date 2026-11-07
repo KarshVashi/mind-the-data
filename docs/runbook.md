@@ -416,3 +416,64 @@ uv run --locked dbt build --target dev --profiles-dir . --select stg_arrivals --
 ```
 
 A merge never deletes rows, so a logic change that drops rows needs `--full-refresh`. Never combine `--full-refresh` with `start_date`/`end_date`: the table would keep only that window, so dbt refuses to compile it.
+
+---
+
+## Ops workflows
+
+Scheduled checks that answer "is the collector healthy?" without anyone asking. Both run read-only as the `mtd-ci-observer` role, created by the bootstrap. The role trusts these two workflow files by name, so don't rename them.
+
+| Workflow | When | What it checks | Issue label |
+| --- | --- | --- | --- |
+| `ops-daily` | Every day at 02:10 UTC | The previous UTC day: completeness (`scripts/completeness.py`), alarm state and any alarm that fired, poller and reference Lambda errors and throttles, and the newest raw object per feed | `ops-health` |
+| `ops-daytime` | Weekdays at 12:00 UTC | The strict arrivals check: every configured line shows predictions at its station in the last 15 minutes of raw arrivals | `ops-daytime` |
+
+Each run writes its report to the run summary. When something misses its target, it opens one issue with that label, or comments on the open one. The first run that meets every target closes it. So an open `ops-health` or `ops-daytime` issue means something is wrong now.
+
+The daytime check reads what the collector stored rather than calling TfL. CI never needs the TfL key, and the check tests the data the league table is built from.
+
+**Turning them on.** After the bootstrap apply that creates `mtd-ci-observer`, set one of these:
+
+```sh
+gh variable set AWS_OBSERVER_ROLE_ARN --body "$(terraform -chdir=infra/bootstrap output -raw observer_role_arn)"
+# or, if the role is named mtd-ci-observer:
+gh variable set AWS_ACCOUNT_ID --body "$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)"
+```
+
+Until then, and whenever the role can't be assumed, both workflows skip with a warning and leave issues alone. To try one at once: Actions → ops-daily → Run workflow. `ops-daily` takes an optional `day` (YYYY-MM-DD).
+
+**Re-recording test fixtures.** Run `ops-daytime` by hand during service hours with `record_fixtures` ticked. It calls TfL anonymously, with no key and no AWS credentials in the job, and runs the unit tests against the new recording. The fixtures come back as the `tfl-fixtures` artifact. To use them, copy them over `tests/fixtures/tfl/` on a branch and open a pull request. Nothing is committed automatically.
+
+**Locally.**
+
+```sh
+aws sso login --sso-session mtd
+make status                      # PRs and checks, last workflow runs, alarms, raw age per feed, open ops issues
+make prune-worktrees DRY_RUN=1   # which .claude/worktrees are finished, and the space they hold
+make prune-worktrees             # remove them
+```
+
+`make status` uses the read-only `mtd-dev` profile (override with `MTD_PROFILE`). Any part it can't reach is shown as unavailable, and the rest still prints.
+
+`make prune-worktrees` removes a worktree only when it has no uncommitted or untracked changes, isn't locked, and its work is safe elsewhere. Safe means it is already in `origin/main`, or a merged or closed pull request's head is exactly its HEAD. Remote branches are never touched.
+
+### Automerge (off)
+
+`.github/workflows/automerge.yml` squash-merges a pull request after `ci` passes, if all of these hold:
+
+- you opened it, from a branch in this repository, and it isn't a draft;
+- nothing was pushed after `ci` ran, and every check passed;
+- every changed file is under `transform/models/`, `tests/` or `docs/`, but not `docs/adr/`.
+
+It runs only when the repository variable `AUTOMERGE_ENABLED` is `true`.
+
+Notes:
+
+- GitHub Free doesn't offer auto-merge (`gh pr merge --auto`) on private repositories. ci has already passed when this runs, so it merges directly, pinned to the commit ci checked.
+- A merge made with `GITHUB_TOKEN` starts no other workflow, so neither `ci` nor `infra` runs on `main` for it. Nothing in the allowed paths is deployed by `infra`. The daily transform picks up model changes at its next run.
+
+**Keep it off until the CI roles' trust is pinned to `job_workflow_ref`.** Today the apply and transform roles trust any job running on `main`. Automerge puts changes on `main` without a person reading them first. A dbt model is SQL plus Jinja, and it runs on `main` as the transform role. Once each role trusts only its own workflow file, an unreviewed change can't reach any role except through the workflows already reviewed. Then turn it on:
+
+```sh
+gh variable set AUTOMERGE_ENABLED --body true    # off again: gh variable delete AUTOMERGE_ENABLED
+```

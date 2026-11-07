@@ -1,0 +1,169 @@
+name: ops-daytime
+
+# The strict arrivals check, which only means something in service hours:
+# every configured line must show predictions at its station in the last
+# 15 minutes of raw arrivals. Reads what the collector stored, as
+# mtd-ci-observer, so no TfL call and no TfL key are involved. One open issue
+# labelled ops-daytime while it fails (docs/runbook.md, Ops workflows).
+#
+# A manual run can also re-record the TfL test fixtures anonymously and
+# upload them as an artifact for review; it never commits or opens a PR.
+#
+# The observer role trusts this file by name, so do not rename it.
+
+on:
+  schedule:
+    - cron: "0 12 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      record_fixtures:
+        description: "Also re-record tests/fixtures/tfl anonymously (run in service hours)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ops-daytime
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-2
+  ROLE_ARN: ${{ vars.AWS_OBSERVER_ROLE_ARN || (vars.AWS_ACCOUNT_ID && format('arn:aws:iam::{0}:role/mtd-ci-observer', vars.AWS_ACCOUNT_ID)) || '' }}
+
+jobs:
+  arrivals:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+    steps:
+      - name: check configuration
+        id: config
+        run: |
+          if [ -z "$ROLE_ARN" ]; then
+            echo "::warning title=ops-daytime skipped::Set AWS_OBSERVER_ROLE_ARN or AWS_ACCOUNT_ID once mtd-ci-observer exists (docs/runbook.md, Ops workflows)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.config.outputs.ready == 'true'
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        if: steps.config.outputs.ready == 'true'
+        with:
+          version: "0.11.16"
+          enable-cache: true
+
+      - name: install
+        if: steps.config.outputs.ready == 'true'
+        run: uv sync --locked --no-dev
+
+      - id: aws
+        if: steps.config.outputs.ready == 'true'
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: ops-daytime-${{ github.run_id }}
+
+      - name: role not assumable
+        if: steps.config.outputs.ready == 'true' && steps.aws.outcome != 'success'
+        run: echo "::warning title=ops-daytime skipped::Could not assume $ROLE_ARN. Has the bootstrap that creates mtd-ci-observer been applied?"
+
+      - name: report
+        id: report
+        if: steps.aws.outcome == 'success'
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # 0: on target, 3: something missed it, anything else: the report broke.
+          rc=0
+          uv run --locked --no-dev python scripts/ops_report.py daytime \
+            --out report.md --footer "Run: $RUN_URL" || rc=$?
+          case $rc in 0) status=passing ;; 3) status=failing ;; *) exit "$rc" ;; esac
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: issue
+        if: steps.report.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STATUS: ${{ steps.report.outputs.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          uv run --locked --no-dev python scripts/ops_issue.py --label ops-daytime \
+            --title "Daytime arrivals check failing" \
+            --body-file report.md --status "$STATUS" --run-url "$RUN_URL"
+
+  # Anonymous TfL calls only: no AWS credentials and no key exist in this job,
+  # so none can reach the fixtures or the log. The result is an artifact for a
+  # person to review and commit, because a new recording can change what the
+  # unit tests see.
+  fixtures:
+    if: github.event_name == 'workflow_dispatch' && inputs.record_fixtures
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.16"
+          enable-cache: true
+
+      - name: install
+        run: uv sync --locked
+
+      - name: record
+        env:
+          TFL_APP_KEY: ""
+        run: uv run --locked python scripts/record_fixtures.py
+
+      # The same pattern as the no-tfl-app-key pre-commit hook.
+      - name: no key in fixtures
+        run: |
+          if grep -rEiq 'app_?key["'"'"']?\s*([:=]|%3d)\s*["'"'"']?[0-9a-f]{16,}' tests/fixtures/tfl; then
+            echo "::error::a TfL key pattern was found in the recorded fixtures"
+            exit 1
+          fi
+
+      - name: unit tests against the new recording
+        id: tests
+        continue-on-error: true
+        run: uv run --locked pytest tests/unit -q
+
+      - name: summary
+        env:
+          TESTS: ${{ steps.tests.outcome }}
+        run: |
+          {
+            echo "## Fixtures re-recorded"
+            echo
+            echo "Unit tests against the new recording: **$TESTS**."
+            echo
+            echo '```'
+            git diff --stat -- tests/fixtures/tfl
+            echo '```'
+            echo
+            echo "Download the \`tfl-fixtures\` artifact, copy it over tests/fixtures/tfl on a branch and open a PR."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tfl-fixtures
+          path: tests/fixtures/tfl/
+          retention-days: 7
