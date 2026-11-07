@@ -41,13 +41,37 @@ fi
 account="$(aws sts get-caller-identity --profile "$profile" --query Account --output text)"
 bucket="mtd-tfstate-${account}"
 
-alert_email="${ALERT_EMAIL:-}"
-if [ -z "$alert_email" ]; then
-  alert_email="$(cd "$repo_root" && gh variable get ALERT_EMAIL 2>/dev/null || true)"
-fi
-if [ -z "$alert_email" ]; then
-  echo "Set ALERT_EMAIL, or the ALERT_EMAIL repository variable (docs/runbook.md, Alert email)." >&2
-  exit 1
+# Prints "present" or "absent"; any other failure (expired session, wrong
+# profile, throttling) stops the script rather than looking like "absent".
+remote_state() {
+  local err
+  if err="$(aws s3api head-object --profile "$profile" --bucket "$bucket" --key "$state_key" 2>&1 >/dev/null)"; then
+    echo present
+  elif printf '%s' "$err" | grep -qE '\((404|NoSuchKey|NotFound)\)|Not Found'; then
+    echo absent
+  else
+    echo "Could not check s3://$bucket/$state_key: $err" >&2
+    return 1
+  fi
+}
+remote="$(remote_state)"
+
+if [ "$action" != "migrate-state" ]; then
+  # Without the state, a plan would propose rebuilding everything, and an
+  # apply would half-create it into a second state.
+  if [ "$remote" != "present" ]; then
+    echo "No bootstrap state at s3://$bucket/$state_key. Run make bootstrap-migrate-state first (docs/runbook.md, H6)." >&2
+    exit 1
+  fi
+  alert_email="${ALERT_EMAIL:-}"
+  if [ -z "$alert_email" ]; then
+    alert_email="$(cd "$repo_root" && gh variable get ALERT_EMAIL 2>/dev/null || true)"
+  fi
+  if [ -z "$alert_email" ]; then
+    echo "Set ALERT_EMAIL, or the ALERT_EMAIL repository variable (docs/runbook.md, Alert email)." >&2
+    exit 1
+  fi
+  export TF_VAR_alert_email="$alert_email"
 fi
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/mtd-bootstrap.XXXXXX")"
@@ -63,7 +87,6 @@ echo "bootstrap $action at $ref ($(git -C "$work" rev-parse --short HEAD)), prof
 
 tf_dir="$work/infra/bootstrap"
 export AWS_PROFILE="$profile"
-export TF_VAR_alert_email="$alert_email"
 export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
 mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
@@ -75,13 +98,25 @@ if [ "$action" = "migrate-state" ]; then
     echo "No local state at $local_state (set LOCAL_STATE)." >&2
     exit 1
   fi
-  # Never replace a newer remote state with an older local one.
-  local_serial="$(jq -r .serial "$local_state")"
-  remote_serial="$(aws s3 cp "s3://$bucket/$state_key" - 2>/dev/null | jq -r .serial || true)"
-  echo "local serial $local_serial, remote serial ${remote_serial:-none}"
-  if [ -n "$remote_serial" ] && [ "$remote_serial" -gt "$local_serial" ]; then
-    echo "The state in s3://$bucket/$state_key is newer than $local_state. Stopping." >&2
-    exit 1
+  # Overwrite the remote copy only if it is the same state (same lineage)
+  # and not newer. Older copies stay as object versions in the bucket.
+  local_serial="$(jq -er .serial "$local_state")"
+  local_lineage="$(jq -er .lineage "$local_state")"
+  if [ "$remote" = "present" ]; then
+    remote_json="$(aws s3 cp --profile "$profile" "s3://$bucket/$state_key" -)"
+    remote_serial="$(printf '%s' "$remote_json" | jq -er .serial)"
+    remote_lineage="$(printf '%s' "$remote_json" | jq -er .lineage)"
+    echo "local serial $local_serial, remote serial $remote_serial"
+    if [ "$remote_lineage" != "$local_lineage" ]; then
+      echo "s3://$bucket/$state_key is a different state (lineage $remote_lineage, local $local_lineage). Stopping." >&2
+      exit 1
+    fi
+    if [ "$remote_serial" -gt "$local_serial" ]; then
+      echo "s3://$bucket/$state_key is newer than $local_state. Stopping." >&2
+      exit 1
+    fi
+  else
+    echo "local serial $local_serial, no remote state yet"
   fi
   cp "$local_state" "$tf_dir/terraform.tfstate"
   tf init -input=false -migrate-state -force-copy -backend-config="bucket=$bucket"

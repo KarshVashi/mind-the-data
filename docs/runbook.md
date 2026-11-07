@@ -149,14 +149,15 @@ make bootstrap-migrate-state
    ```
 
    All of its jobs must pass:
-   - `plan` shows the plan role accepts `bootstrap-plan.yml` on `main`.
-   - `trust-probe` shows the observer and publish roles refuse it.
+   - `plan` and `trust-probe` show that the plan role accepts `bootstrap-plan.yml` on `main`, and that the observer and publish roles refuse it.
    - `oidc-claims` writes the claims into the run summary.
-2. Merge the follow-up change that sets `enforce_workflow_binding` to `true` in `infra/bootstrap/variables.tf`.
-3. Run `make bootstrap-apply` again.
-4. Run the probe again, this time with `-f trust_probe=all-roles`.
+2. Check the pull request form. Open the follow-up pull request from step 3 and look at the summary of its `bootstrap-plan / oidc-claims` job. `job_workflow_ref` must read `KarshVashi/mind-the-data/.github/workflows/bootstrap-plan.yml@refs/pull/<number>/merge`, which is the form the plan role will match on pull requests. If it reads differently, stop and fix `plan_pull_request` in `infra/modules/ci_role/main.tf` first.
+3. Merge the follow-up change that sets `enforce_workflow_binding` to `true` in `infra/bootstrap/variables.tf`.
+4. Run `make bootstrap-apply` again.
+5. Run the probe again with `-f trust_probe=all-roles`.
+6. Open or update any pull request that touches `infra/`. Its `infra / plan` job must still assume the plan role.
 
-If step 1 fails, stop: leave `enforce_workflow_binding` off and read ADR-010's fallback.
+If step 1 or 2 fails, stop. Leave `enforce_workflow_binding` off and read ADR-010's fallback.
 
 From now on:
 

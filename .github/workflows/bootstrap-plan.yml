@@ -15,6 +15,7 @@ on:
       - "infra/bootstrap/**"
       - "infra/modules/ci_role/**"
       - ".github/workflows/bootstrap-plan.yml"
+      - ".github/scripts/plan-summary.sh"
   schedule:
     - cron: "17 5 * * 1" # Mondays, 05:17 UTC
   workflow_dispatch:
@@ -61,11 +62,16 @@ jobs:
   not-configured:
     if: vars.BOOTSTRAP_PLAN_ENABLED != 'true' || vars.TF_STATE_BUCKET == '' || vars.AWS_PLAN_ROLE_ARN == '' || vars.ALERT_EMAIL == ''
     runs-on: ubuntu-24.04
+    timeout-minutes: 2
     steps:
       - run: echo "::notice title=bootstrap plan skipped::Runs once the bootstrap state is in S3 and re-applied (docs/runbook.md, H6). Needs BOOTSTRAP_PLAN_ENABLED, TF_STATE_BUCKET, AWS_PLAN_ROLE_ARN and ALERT_EMAIL."
 
+  # Outside pull requests the plan role trusts main only, so a manual run
+  # from another branch skips rather than failing with AccessDenied.
   plan:
-    if: vars.BOOTSTRAP_PLAN_ENABLED == 'true' && vars.TF_STATE_BUCKET != '' && vars.AWS_PLAN_ROLE_ARN != '' && vars.ALERT_EMAIL != ''
+    if: >-
+      vars.BOOTSTRAP_PLAN_ENABLED == 'true' && vars.TF_STATE_BUCKET != '' && vars.AWS_PLAN_ROLE_ARN != '' && vars.ALERT_EMAIL != ''
+      && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -131,32 +137,54 @@ jobs:
             gh issue create --title "$title" --body "$body"
           fi
 
-  # The plan job above proves the plan role accepts this workflow on main.
-  # This proves the other roles refuse it, i.e. AWS really evaluates
-  # job_workflow_ref. Any credentials returned are discarded unread.
+  # Self-contained check that AWS evaluates job_workflow_ref (ADR-010). The
+  # plan role, which trusts this workflow on main, must accept the token: it
+  # is the positive control, so a refusal below means "wrong workflow", not
+  # "key unsupported" or "token unusable". Every other role must refuse it.
+  # STS cannot tell a missing role from an untrusted one, so all expected
+  # role variables must be set. Credentials returned are discarded unread.
   trust-probe:
+    needs: plan
     if: github.event_name == 'workflow_dispatch' && inputs.trust_probe != 'none' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     permissions:
       id-token: write
     env:
-      NEW_ROLES: ${{ vars.AWS_OBSERVER_ROLE_ARN }} ${{ vars.AWS_PUBLISH_ROLE_ARN }}
-      EXISTING_ROLES: ${{ vars.AWS_TRANSFORM_ROLE_ARN }} ${{ vars.AWS_ROLE_ARN }}
       SCOPE: ${{ inputs.trust_probe }}
+      PLAN_ROLE: ${{ vars.AWS_PLAN_ROLE_ARN }}
+      OBSERVER_ROLE: ${{ vars.AWS_OBSERVER_ROLE_ARN }}
+      PUBLISH_ROLE: ${{ vars.AWS_PUBLISH_ROLE_ARN }}
+      TRANSFORM_ROLE: ${{ vars.AWS_TRANSFORM_ROLE_ARN }}
+      APPLY_ROLE: ${{ vars.AWS_ROLE_ARN }}
     steps:
-      - name: other roles refuse bootstrap-plan.yml
+      - name: only the plan role accepts bootstrap-plan.yml
         run: |
-          ROLES="$NEW_ROLES"
-          if [ "$SCOPE" = "all-roles" ]; then ROLES="$ROLES $EXISTING_ROLES"; fi
-          if [ -z "${ROLES// /}" ]; then echo "::error::No role ARNs set to probe."; exit 1; fi
+          names="OBSERVER_ROLE PUBLISH_ROLE"
+          if [ "$SCOPE" = "all-roles" ]; then names="$names TRANSFORM_ROLE APPLY_ROLE"; fi
+          for name in PLAN_ROLE $names; do
+            if [ -z "${!name}" ]; then echo "::error title=trust probe::$name is not set (repository variable)."; exit 1; fi
+          done
+
           token=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
+          assume() {
+            aws sts assume-role-with-web-identity --region "$AWS_REGION" --role-arn "$1" \
+              --role-session-name trust-probe --web-identity-token "$token" \
+              --query AssumedRoleUser.Arn --output text >/dev/null 2>err.txt
+          }
+
+          if ! assume "$PLAN_ROLE"; then
+            echo "::error title=trust probe::the plan role refused bootstrap-plan.yml on main; the probe proves nothing."
+            cat err.txt
+            exit 1
+          fi
+          echo "accepted as expected: plan role"
+
           failed=0
-          for role in $ROLES; do
-            if aws sts assume-role-with-web-identity --region "$AWS_REGION" --role-arn "$role" \
-                 --role-session-name trust-probe --web-identity-token "$token" \
-                 --query AssumedRoleUser.Arn --output text >/dev/null 2>err.txt; then
+          for name in $names; do
+            role="${!name}"
+            if assume "$role"; then
               echo "::error title=trust probe::$role accepted bootstrap-plan.yml; it is not bound to its workflow."
               failed=1
             elif grep -q AccessDenied err.txt; then

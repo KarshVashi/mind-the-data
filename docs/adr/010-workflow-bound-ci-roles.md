@@ -34,9 +34,15 @@ The claim's form is checked before any existing role depends on it.
 1. **First apply** (this change). Trust that is new is bound from the start: the observer and publish roles, and the plan role on `main`. If the claim did not match, only those new paths would fail. The roles already in use (plan on pull requests, apply, transform) keep their current trust until `enforce_workflow_binding` is turned on.
 2. **Probe.** Run `bootstrap-plan.yml` by hand on `main` with `trust_probe=new-roles`.
    - Its `plan` job succeeding proves AWS reads the claim and that its value is exactly `…/bootstrap-plan.yml@refs/heads/main`. With the condition key missing or different, `StringEquals` would refuse.
-   - The `trust-probe` job proves the observer and publish roles refuse that workflow.
-   - The `oidc-claims` job prints `sub` and `job_workflow_ref` for each kind of run, including pull requests, so the `refs/pull/<n>/merge` form is on record too.
-3. **Second apply** (a one-line follow-up change). Set `enforce_workflow_binding` to `true`, re-apply, then run the probe with `trust_probe=all-roles`.
+   - The `trust-probe` job runs in one place.
+     - It is the positive control: the plan role must accept the token.
+     - It is also the negative check: the observer and publish roles must refuse the same token.
+     - STS reports a missing role the same way as an untrusted one, so the job fails if any expected role variable is unset.
+   - The `oidc-claims` job prints `sub` and `job_workflow_ref` for each kind of run. On the follow-up pull request it shows the `refs/pull/<n>/merge` form, which has to be checked by eye before step 3: a run on `main` cannot exercise the plan role's pull request binding.
+3. **Second apply** (a one-line follow-up change).
+   1. Set `enforce_workflow_binding` to `true` and re-apply.
+   2. Run the probe with `trust_probe=all-roles`.
+   3. Confirm that an `infra.yml` plan on a pull request still assumes the plan role.
 
 If step 2 fails, leave `enforce_workflow_binding` off and use the subject-template route below. The new roles would need the template's `sub` form, which is a bootstrap change. Nothing in use breaks in the meantime.
 

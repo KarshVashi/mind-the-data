@@ -234,6 +234,7 @@ module "athena" {
   # The ops workgroup is for the scheduled health checks (mtd-ci-observer).
   # Its name and results prefix are fixed by infra/modules/ci_role
   # (observer_workgroup), and its lower cap bounds what a check can cost.
+  # It would take the place of a dbt target named "ops", so never add one.
   workgroups = merge(
     {
       for target in local.dbt_targets : "${local.prefix}-${target}" => {

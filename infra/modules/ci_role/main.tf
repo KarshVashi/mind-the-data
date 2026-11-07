@@ -289,6 +289,8 @@ data "aws_iam_policy_document" "bootstrap_read" {
     actions   = ["s3:GetObject"]
     resources = ["${var.state_bucket_arn}/${var.bootstrap_state_key}"]
   }
+  # The four named actions are needed alongside s3:GetBucket*: their IAM
+  # names do not start with GetBucket, though the provider reads them.
   statement {
     sid = "StateBucketSettingsRead"
     actions = [
@@ -811,6 +813,9 @@ resource "aws_iam_role_policy" "apply_read" {
   policy = data.aws_iam_policy_document.read.json
 }
 
+# IAM limits a role's inline policies to 10,240 characters in total
+# (whitespace excluded). read + write is an estimated 7,400 after this change; check
+# the total when adding to either, or split write into a managed policy.
 resource "aws_iam_role_policy" "apply_write" {
   name   = "write"
   role   = aws_iam_role.apply.id

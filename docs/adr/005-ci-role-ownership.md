@@ -93,3 +93,4 @@ GitHub Actions deploys `infra/envs/prod` through an OIDC role. Two questions:
 - **Two more roles live in `infra/modules/ci_role`, as the invariants above require:**
   - `mtd-ci-observer`, for scheduled health checks.
   - `mtd-ci-publish`, for the M5 weekly publish.
+- **New invariant: nothing sensitive under `/mind-the-data/config/`.** CI can read and write that path, and the plan role, which any pull request from this repository can assume, can read it. Secrets stay outside it, as the TfL key does at `/mind-the-data/tfl/app_key`.

@@ -19,6 +19,8 @@ variable "enforce_workflow_binding" {
 variable "alert_email" {
   type        = string
   description = "Address for budget alerts; the same as the ALERT_EMAIL repository variable. scripts/bootstrap.sh reads it from there."
+  # Keeps the address out of plan output in job logs and run summaries.
+  sensitive = true
 
   validation {
     condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", var.alert_email))
