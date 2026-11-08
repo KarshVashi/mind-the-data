@@ -13,6 +13,7 @@ import sys
 from datetime import datetime
 
 import boto3
+from botocore.config import Config
 
 from mind_the_data.common.clock import ensure_utc, utc_now
 from mind_the_data.common.raw import Feed
@@ -56,13 +57,17 @@ def main(argv: list[str] | None = None) -> int:
         default=0.9,
         help="share of station requests that must succeed for an arrivals minute to count",
     )
+    parser.add_argument(
+        "--workers", type=int, default=16, help="concurrent object reads (default 16)"
+    )
     parser.add_argument("--json", action="store_true", help="print a JSON summary")
     args = parser.parse_args(argv)
 
     end: datetime = ensure_utc(datetime.fromisoformat(args.end)) if args.end else utc_now()
     minutes = window_minutes(end, args.hours)
     bucket = _bucket(args.bucket)
-    s3 = boto3.client("s3")
+    # One pooled connection per worker, or botocore discards the extras.
+    s3 = boto3.client("s3", config=Config(max_pool_connections=max(10, args.workers)))
 
     checks = [
         (Feed.LINE_STATUS, 1.0, args.status_target),
@@ -71,7 +76,9 @@ def main(argv: list[str] | None = None) -> int:
     results = []
     passed = True
     for feed, min_ok_share, target in checks:
-        result = assess(feed, minutes, load_feed(s3, bucket, feed, minutes), min_ok_share)
+        result = assess(
+            feed, minutes, load_feed(s3, bucket, feed, minutes, args.workers), min_ok_share
+        )
         results.append((result, target))
         passed &= result.coverage >= target
 

@@ -1,0 +1,111 @@
+name: ops-daily
+
+# Daily collector health for the previous UTC day: completeness, alarm state
+# and history, Lambda errors and raw freshness. Read-only, as mtd-ci-observer.
+# One open issue labelled ops-health while anything misses its target; the
+# next green run closes it (docs/runbook.md, Ops workflows).
+#
+# The observer role trusts this file by name, so do not rename it.
+
+on:
+  schedule:
+    - cron: "10 2 * * *"
+  workflow_dispatch:
+    inputs:
+      day:
+        description: "UTC day to report on, YYYY-MM-DD (default: yesterday)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ops-daily
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-2
+  ROLE_ARN: ${{ vars.AWS_OBSERVER_ROLE_ARN }}
+
+jobs:
+  health:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+    steps:
+      - name: check configuration
+        id: config
+        run: |
+          if [ -z "$ROLE_ARN" ]; then
+            echo "::warning title=ops-daily skipped::Set AWS_OBSERVER_ROLE_ARN; make bootstrap-apply sets it (docs/runbook.md, H6)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.config.outputs.ready == 'true'
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        if: steps.config.outputs.ready == 'true'
+        with:
+          version: "0.11.16"
+          enable-cache: true
+
+      # Runtime dependencies only: the report needs boto3 and pydantic, not dbt.
+      - name: install
+        if: steps.config.outputs.ready == 'true'
+        run: uv sync --locked --no-dev
+
+      - id: aws
+        if: steps.config.outputs.ready == 'true'
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: ops-daily-${{ github.run_id }}
+
+      - name: role not assumable
+        if: steps.config.outputs.ready == 'true' && steps.aws.outcome != 'success'
+        run: echo "::warning title=ops-daily skipped::Could not assume $ROLE_ARN. Check its trust in infra/modules/ci_role and that the run is on main (docs/runbook.md, Ops workflows)."
+
+      - name: report
+        id: report
+        if: steps.aws.outcome == 'success'
+        env:
+          DAY_INPUT: ${{ inputs.day }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          day="${DAY_INPUT:-$(date -u -d yesterday +%F)}"
+          end="$(date -u -d "$day + 1 day" +%FT00:00:00Z)"
+          echo "day=$day" >> "$GITHUB_OUTPUT"
+          # Exits 1 when a feed is below target; the report reads that from the JSON.
+          uv run --locked --no-dev python scripts/completeness.py \
+            --hours 24 --end "$end" --workers 32 --json > completeness.json || true
+          # 0: on target, 3: something missed it, anything else: the report broke.
+          rc=0
+          uv run --locked --no-dev python scripts/ops_report.py daily --day "$day" \
+            --completeness completeness.json --out report.md --footer "Run: $RUN_URL" || rc=$?
+          case $rc in 0) status=passing ;; 3) status=failing ;; *) exit "$rc" ;; esac
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: issue
+        if: steps.report.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STATUS: ${{ steps.report.outputs.status }}
+          DAY: ${{ steps.report.outputs.day }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          uv run --locked --no-dev python scripts/ops_issue.py --label ops-health \
+            --title "Collector health: targets missed (since $DAY)" \
+            --body-file report.md --status "$STATUS" --run-url "$RUN_URL"

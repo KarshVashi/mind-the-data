@@ -177,6 +177,16 @@ bootstrap-apply: ## Owner only: apply infra/bootstrap at origin/main as mtd-admi
 bootstrap-migrate-state: ## Owner only, once: move local bootstrap state into the state bucket
 	scripts/bootstrap.sh migrate-state
 
+# ---- Ops ---------------------------------------------------------------------
+
+.PHONY: status
+status: ## PRs, workflow runs, alarms, raw freshness, ops issues (read-only, profile mtd-dev)
+	@$(UV_RUN) python scripts/status.py
+
+.PHONY: prune-worktrees
+prune-worktrees: ## Remove finished .claude/worktrees (DRY_RUN=1 to preview)
+	scripts/prune_worktrees.sh $(if $(DRY_RUN),--dry-run,)
+
 .PHONY: plan
 plan: package ## terraform plan for infra/envs/prod (needs AWS read access and TF_STATE_BUCKET)
 	@[ -n "$${TF_STATE_BUCKET:-}" ] || { echo "plan: set AWS_ACCOUNT_ID or TF_STATE_BUCKET (see env.example)" >&2; exit 1; }
