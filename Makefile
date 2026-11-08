@@ -16,7 +16,7 @@ SQL_DIRS  := $(DBT_DIR)/models $(DBT_DIR)/tests $(DBT_DIR)/analyses
 
 .PHONY: help
 help: ## List targets
-	@grep -E '^[a-z][a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
+	@grep -E '^[a-z][a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-24s %s\n", $$1, $$2}'
 
 .PHONY: install
 install: ## Install the locked Python environment and git pre-commit hook
@@ -123,6 +123,22 @@ dbt-build-dev: ## dbt build against the dev target (needs AWS read access)
 	@missing=""; for v in $(DBT_DEV_VARS); do [ -n "$${!v:-}" ] || missing="$$missing $$v"; done; \
 	if [ -n "$$missing" ]; then echo "dbt-build-dev: set$$missing (see env.example)" >&2; exit 1; fi
 	$(DBT) build --target dev $(DBT_FLAGS)
+
+# The bootstrap runs from a temporary worktree of origin/main as mtd-admin,
+# so the working checkout never switches branch (scripts/bootstrap.sh).
+# bootstrap-apply and bootstrap-migrate-state are for the owner only.
+
+.PHONY: bootstrap-plan
+bootstrap-plan: ## Plan infra/bootstrap at origin/main as mtd-admin (read-only)
+	scripts/bootstrap.sh plan
+
+.PHONY: bootstrap-apply
+bootstrap-apply: ## Owner only: apply infra/bootstrap at origin/main as mtd-admin, after a yes
+	scripts/bootstrap.sh apply
+
+.PHONY: bootstrap-migrate-state
+bootstrap-migrate-state: ## Owner only, once: move local bootstrap state into the state bucket
+	scripts/bootstrap.sh migrate-state
 
 # ---- Ops ---------------------------------------------------------------------
 

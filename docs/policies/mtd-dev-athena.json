@@ -95,6 +95,25 @@
         "arn:aws:s3:::mind-the-data-curated-ACCOUNT_ID/dev/*",
         "arn:aws:s3:::mind-the-data-athena-results-ACCOUNT_ID/dev/*"
       ]
+    },
+    {
+      "Sid": "DenyProjectParameters",
+      "Effect": "Deny",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ],
+      "Resource": [
+        "arn:aws:ssm:eu-west-2:ACCOUNT_ID:parameter/mind-the-data",
+        "arn:aws:ssm:eu-west-2:ACCOUNT_ID:parameter/mind-the-data/*"
+      ]
+    },
+    {
+      "Sid": "DenyParameterPathReads",
+      "Effect": "Deny",
+      "Action": "ssm:GetParametersByPath",
+      "Resource": "*"
     }
   ]
 }

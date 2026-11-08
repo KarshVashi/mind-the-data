@@ -1,8 +1,18 @@
 terraform {
-  required_version = ">= 1.10"
+  # use_lockfile (S3-native locking) is generally available from 1.11.
+  required_version = ">= 1.11"
 
-  # Local state on purpose: this root creates the remote state bucket.
-  # Keep terraform.tfstate safe after applying (see docs/runbook.md).
+  # State lives in the bucket this root creates, under bootstrap/, which CI
+  # can read (plan role, for the drift check) but never write. Partial
+  # configuration: the bucket name carries the account id, so it is passed at
+  # init time. scripts/bootstrap.sh does that; see docs/runbook.md (H6) for
+  # the one-time move from local state, and for rebuilding from nothing.
+  backend "s3" {
+    key          = "bootstrap/terraform.tfstate"
+    region       = "eu-west-2"
+    encrypt      = true
+    use_lockfile = true
+  }
 
   required_providers {
     aws = {

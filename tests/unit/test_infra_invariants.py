@@ -111,15 +111,81 @@ def test_transform_role_cannot_write_raw() -> None:
             assert "raw" not in statement, statement
 
 
+CI_ROLE = INFRA / "modules" / "ci_role" / "main.tf"
+CI_ROLES = ("plan", "apply", "transform", "observer", "publish")
+
+
+def trust_entries(text: str) -> dict[str, str]:
+    """Body of each role's list in `trust = { <role> = [ ... ] }`."""
+    start = text.index("  trust = {")
+    bodies = {}
+    for role in CI_ROLES:
+        match = re.compile(rf"^    {role} = \[", re.MULTILINE).search(text, start)
+        assert match, f"no trust entry for {role}"
+        depth, i = 1, match.end()
+        while depth:
+            depth += {"[": 1, "]": -1}.get(text[i], 0)
+            i += 1
+        bodies[role] = text[match.end() : i - 1]
+    return bodies
+
+
 def test_ci_role_trust_uses_the_immutable_subject() -> None:
     # ADR-009: a subject built from the repository name would follow a rename
     # or transfer; every trust policy must use the id-qualified prefix.
-    text = (INFRA / "modules" / "ci_role" / "main.tf").read_text()
-    trusts = [b for b in blocks(text, "data", "aws_iam_policy_document") if ":sub" in b]
-    assert len(trusts) == 3, "expected plan, apply and transform trust policies"
-    for trust in trusts:
-        subjects = re.findall(r':sub"\s+values\s+=\s+\["([^"]+)"\]', trust)
-        assert subjects, trust
+    text = CI_ROLE.read_text()
+    main_subs = re.findall(
+        r"^\s+\w+\s+=\s+\"(\$\{[^\"]+)\"$",
+        text.split("main_sub = {")[1].split("}\n")[0],
+        re.MULTILINE,
+    )
+    assert len(main_subs) == 3, main_subs
+    for subject in main_subs:
+        assert subject.startswith("${var.github_subject_prefix}:ref:refs/heads/"), subject
+    for role, body in trust_entries(text).items():
+        subjects = re.findall(r"^\s+sub\s+=\s+(.+)$", body, re.MULTILINE)
+        assert subjects, role
         for subject in subjects:
-            assert subject.startswith("${var.github_subject_prefix}:"), subject
-    assert "github_repository" not in text
+            assert subject.startswith(('"${var.github_subject_prefix}:', "local.main_sub.")), (
+                role,
+                subject,
+            )
+    # The single trust document carries every entry's sub condition.
+    assert 'variable = "${local.oidc_host}:sub"' in text
+    assert "var.github_repository" not in text
+
+
+def test_new_trust_is_always_bound_to_workflows() -> None:
+    # ADR-010: roles added after the binding exist only for named workflows.
+    # Only the roles in use before ADR-010 may wait for enforce_workflow_binding.
+    entries = trust_entries(CI_ROLE.read_text())
+    for role in ("observer", "publish"):
+        assert "enforce_workflow_binding" not in entries[role], role
+        assert "local.workflow_files." in entries[role], role
+    plan_main = entries["plan"].split("},")[1]
+    assert "enforce_workflow_binding" not in plan_main
+    assert "workflow_files.plan_main" in plan_main
+    for role in ("apply", "transform"):
+        assert f"local.workflow_files.{role}" in entries[role], role
+
+
+def test_bound_workflow_files_exist_or_are_contracted() -> None:
+    # The names are a contract with .github/workflows. Files that other work
+    # adds later (health checks, weekly publish) are listed here explicitly.
+    text = CI_ROLE.read_text()
+    files = set(
+        re.findall(r'"([a-z0-9-]+\.yml)"', text.split("workflow_files = {")[1].split("}")[0])
+    )
+    pending = {"ops-daily.yml", "ops-daytime.yml", "publish-weekly.yml"}
+    workflows = INFRA.parent / ".github" / "workflows"
+    assert pending <= files, files
+    for name in files - pending:
+        assert (workflows / name).is_file(), name
+
+
+def test_job_workflow_ref_is_matched() -> None:
+    text = CI_ROLE.read_text()
+    assert 'variable = "${local.oidc_host}:job_workflow_ref"' in text
+    # Only pull request refs vary (refs/pull/<n>/merge); everything else is exact.
+    assert text.count('test      = "StringLike"') == 1
+    assert "@refs/pull/*/merge" in text

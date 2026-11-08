@@ -33,6 +33,8 @@ logs/
 *.tfplan
 crash.log
 .terraform.tfstate.lock.info
+# Local-state override for rebuilding the bootstrap in a new account (runbook H6).
+infra/bootstrap/backend_override.tf
 
 # OS and editors
 .DS_Store

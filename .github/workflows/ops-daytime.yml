@@ -30,7 +30,7 @@ concurrency:
 
 env:
   AWS_REGION: eu-west-2
-  ROLE_ARN: ${{ vars.AWS_OBSERVER_ROLE_ARN || (vars.AWS_ACCOUNT_ID && format('arn:aws:iam::{0}:role/mtd-ci-observer', vars.AWS_ACCOUNT_ID)) || '' }}
+  ROLE_ARN: ${{ vars.AWS_OBSERVER_ROLE_ARN }}
 
 jobs:
   arrivals:
@@ -45,7 +45,7 @@ jobs:
         id: config
         run: |
           if [ -z "$ROLE_ARN" ]; then
-            echo "::warning title=ops-daytime skipped::Set AWS_OBSERVER_ROLE_ARN or AWS_ACCOUNT_ID once mtd-ci-observer exists (docs/runbook.md, Ops workflows)."
+            echo "::warning title=ops-daytime skipped::Set AWS_OBSERVER_ROLE_ARN; make bootstrap-apply sets it (docs/runbook.md, H6)."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -77,7 +77,7 @@ jobs:
 
       - name: role not assumable
         if: steps.config.outputs.ready == 'true' && steps.aws.outcome != 'success'
-        run: echo "::warning title=ops-daytime skipped::Could not assume $ROLE_ARN. Has the bootstrap that creates mtd-ci-observer been applied?"
+        run: echo "::warning title=ops-daytime skipped::Could not assume $ROLE_ARN. Check its trust in infra/modules/ci_role and that the run is on main (docs/runbook.md, Ops workflows)."
 
       - name: report
         id: report

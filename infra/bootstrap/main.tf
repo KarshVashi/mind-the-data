@@ -1,7 +1,9 @@
-# One-off bootstrap, applied by a human as mtd-admin with local state
+# Bootstrap, applied only by a human as mtd-admin with `make bootstrap-apply`
 # (human step H6, docs/runbook.md). Creates what CI needs before it can run
 # Terraform itself: the remote state bucket, the GitHub OIDC provider (or
-# reuses the account's existing one) and the CI roles.
+# reuses the account's existing one) and the CI roles. It also holds the
+# account-level money and quota settings CI must not change: the budget, the
+# cost allocation tag and the Lambda concurrency quota.
 
 data "aws_caller_identity" "current" {}
 
@@ -122,8 +124,74 @@ locals {
 module "ci_role" {
   source = "../modules/ci_role"
 
-  aws_region            = var.aws_region
-  github_subject_prefix = var.github_subject_prefix
-  oidc_provider_arn     = local.oidc_provider_arn
-  state_bucket_arn      = aws_s3_bucket.state.arn
+  aws_region               = var.aws_region
+  github_subject_prefix    = var.github_subject_prefix
+  oidc_provider_arn        = local.oidc_provider_arn
+  state_bucket_arn         = aws_s3_bucket.state.arn
+  enforce_workflow_binding = var.enforce_workflow_binding
+}
+
+# ---- Money and quota ------------------------------------------------------
+
+# The project's own spend: the filter matches the `project` cost allocation
+# tag, so the budget only sees costs from the day that tag is active (below).
+# Budgets are priced in USD.
+resource "aws_budgets_budget" "monthly" {
+  name         = "mind-the-data-monthly"
+  budget_type  = "COST"
+  limit_amount = format("%.2f", var.monthly_budget_usd)
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+
+  cost_filter {
+    name   = "TagKeyValue"
+    values = ["user:project$mind-the-data"]
+  }
+
+  dynamic "notification" {
+    for_each = toset([50, 80, 100])
+    content {
+      comparison_operator        = "GREATER_THAN"
+      threshold                  = notification.value
+      threshold_type             = "PERCENTAGE"
+      notification_type          = "ACTUAL"
+      subscriber_email_addresses = [var.alert_email]
+    }
+  }
+
+  # Warns before the month ends rather than after.
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "FORECASTED"
+    subscriber_email_addresses = [var.alert_email]
+  }
+}
+
+# Activation only succeeds once the tag key has appeared in billing data
+# (it has: Cost Explorer lists `project` as Inactive). Costs are attributed
+# from activation onwards, not backdated.
+resource "aws_ce_cost_allocation_tag" "project" {
+  tag_key = "project"
+  status  = "Active"
+}
+
+# This account started at 10, which left nothing to reserve for the poller
+# (ADR-006). A request for 1,000 made by hand on 2026-11-06 was approved on
+# 2026-11-07. Importing adopts the quota rather than creating it, so the
+# apply sends no request. Creating it while a request was still open would
+# have sent a second request, which Service Quotas refuses, and the apply
+# would have failed. If the value is ever below the configured one, the plan
+# shows an in-place update that requests the increase. While a request is
+# open, applying that update logs a warning and sends nothing.
+import {
+  to = aws_servicequotas_service_quota.lambda_concurrency
+  id = "lambda/L-B99A9384"
+}
+
+resource "aws_servicequotas_service_quota" "lambda_concurrency" {
+  service_code = "lambda"
+  quota_code   = "L-B99A9384"
+  value        = var.lambda_concurrency_quota
 }
