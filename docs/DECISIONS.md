@@ -201,6 +201,47 @@ These come from the M3 bundle (`feat/m3-line-minute-metrics`). D16 to D23 are me
 - **Default:** none: it deviates from the plan. Accept ADR-012, or ask for a seed-free incremental layer under a table that applies the seeds.
 - **Class:** `never-default`.
 
+### M4 decisions (D25 onwards)
+
+These come from the M4 bundle (`feat/m4-measured-view`). They are readings of PLAN 7.2 and 7.3 where the plan is ambiguous. Each is implemented as the most conservative reading: an error should never make service look worse than it was, and missing data is never read as either good or bad service. They entered on 2026-11-08, so the reminder date is 2026-11-11 18:00 UTC. All are `never-default` (metric semantics). Several depend on the week-one data review (due from 2026-11-11). Those carry a recommendation to revisit once the review is in.
+
+### D25. What counts as a duplicate prediction
+
+- **Context:** PLAN 7.2 says to collapse duplicate predictions with different ids but "near-identical" `expected_arrival`, without a threshold.
+- **Implemented** (`analysis/arrivals.py`, `duplicate_tolerance_seconds = 15`): within one board (station request, platform, direction) in one poll, predictions are ordered by expected arrival, then id. A prediction within 15 s of the row before it is dropped, and the earliest is kept. The comparison is with the previous row, not the previous kept row, so SQL can do it with `lag`.
+- **Alternatives:** use the 45 s matching tolerance (two trains cannot share a platform 45 s apart, but that also merges real close pairs at platforms that serve two routes); keep the duplicate with the smallest `time_to_station`.
+- **Recommendation:** keep 15 s until the review measures how far apart real duplicates sit.
+
+### D26. The arrival rule reads a train's last sighting, and held trains split
+
+- **Context:** PLAN 7.2 rule 2 says a train has arrived when it is within 120 s in poll *t* and absent in *t+1*, "or shows `time_to_station` = 0". Rule 1 links sightings whose expected arrivals are within 45 s across consecutive polls.
+- **Implemented:**
+  - A train's last sighting (one with no link to the next poll) is an arrival if the station's next successful poll exists and the sighting is at most 120 s out. It is also an arrival if no later poll exists and it shows 0 s.
+  - Links are mutual nearest pairs within 45 s. That keeps them one to one and computable in SQL without recursion.
+  - The 45 s rule is applied literally. A train held at a signal keeps a constant `time_to_station`, so its expected arrival moves by about 60 s per poll. It then fails to link, and each sighting within 120 s becomes an arrival.
+- **Real data** (2026-11-05, Victoria line at Oxford Circus and King's Cross, both directions): the literal rule infers 2,225 arrivals. Linking by `vehicle_id` instead infers 1,874 (16% fewer), with about 32 trains an hour in the peaks and 24 at midday. The timetable has about 33 to 36 and 27.
+- **Effect:** the split adds arrivals, which shortens headways. So the literal rule errs towards making service look better, which is the conservative side. But it can push line-hours over the 120% quality gate.
+- **Alternatives:** link on order (trains cannot overtake on one platform) instead of a 45 s window; scale the window with the poll gap; link on `vehicle_id` where it is stable (D27).
+- **Recommendation:** decide after the review measures expected-arrival drift in the last 120 s.
+
+### D27. Which lines link sightings by vehicle id
+
+- **Context:** PLAN 7.2 rule 1 uses `vehicle_id` "where it is stable", which is a week-one review question.
+- **Implemented:** `InferenceParams.vehicle_id_lines` is empty, so every line uses the expected-arrival rule until the review names lines. On a listed line, two sightings with vehicle ids link only if the ids match. Sightings without an id fall back to expected arrival. DLR boards send no vehicle id at all.
+- **Alternatives:** trust vehicle ids on all Tube lines now, since the D26 figures suggest they are stable on the Victoria line.
+- **Recommendation:** fill the list from the review, line by line.
+
+### D28. A board is a platform, and absence needs a successful poll
+
+- **Context:** the plan says "for each platform and direction" and "absent in poll *t+1*", but not what a failed poll means.
+- **Implemented:**
+  - A board is (station request, NaPTAN id, line, platform name, direction). A null direction is its own board, which is common on Overground boards.
+  - "Next poll" is the station's next successful arrivals poll. A failed poll neither confirms nor denies an arrival.
+  - Each arrival carries `confirmed_at`, so a headway that spans a collection gap can be dropped in `int_headways` rather than read as a long gap.
+  - A train that moves platform mid-approach ends on the first platform. If it is within 120 s there, that counts as an arrival there. This adds arrivals, the conservative side.
+- **Alternatives:** follow trains per station and direction, across platforms.
+- **Recommendation:** keep it, and count platform changes in the review.
+
 ## Settled
 
 | Date | Decision | Outcome |
