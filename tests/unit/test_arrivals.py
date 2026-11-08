@@ -108,14 +108,39 @@ def test_zero_to_go_at_the_last_poll_is_an_arrival_without_confirmation() -> Non
     assert arrival.arrival_time == at(55)
 
 
-def test_train_dwelling_at_zero_is_one_arrival() -> None:
-    """At the platform (0 s) at 08:01 and 08:02, gone at 08:03: one arrival, at
-    the last expected time (08:01:20), rule at_platform."""
-    rows = [seen(0, "a", 70), seen(1, "a", 50), seen(2, "a", 80)]
+def test_train_standing_at_the_platform_is_one_arrival() -> None:
+    """TfL's expected arrival is its timestamp plus time to station, so a train
+    standing at 0 s shows the poll time: 08:01:00, then 08:02:00. 50 s out at
+    08:00 (due 08:00:50) then 08:01:00 moved 10 s: a moving link. 08:01:00 to
+    08:02:00 moved 60 s, outside 45 s, but both show 0 s and the move equals
+    the 60 s between polls: a standing link (D26). Gone at 08:03: one arrival,
+    at the last expected arrival seen, 08:02:00, rule at_platform."""
+    rows = [seen(0, "a", 50), seen(1, "a", 60), seen(2, "a", 120)]
     [arrival] = infer_arrivals(rows, polls(0, 1, 2, 3))
     assert arrival.observations == 3
     assert arrival.rule == "at_platform"
-    assert arrival.arrival_time == at(80)
+    assert arrival.arrival_time == at(120)
+
+
+def test_train_dropping_off_the_board_for_one_poll_is_one_arrival() -> None:
+    """Board flicker. Seen 100 s out at 08:00 (due 08:01:40), missing from the
+    08:01 poll, back at 08:02 at the platform with the same expected arrival,
+    gone at 08:03. The first sighting ends at 08:01 within 120 s, and the
+    second ends at 08:03: two arrivals at 08:01:40, 0 s apart, within 45 s,
+    so only the later one is kept (step 5)."""
+    rows = [seen(0, "a", 100), seen(2, "a", 100)]
+    [arrival] = infer_arrivals(rows, polls(0, 1, 2, 3))
+    assert arrival.arrival_time == at(100)
+    assert arrival.last_poll_id == "p2"
+
+
+def test_flicker_far_out_is_one_arrival() -> None:
+    """Seen 200 s out at 08:00, missing at 08:01, back at 08:02 85 s out (due
+    08:03:25), gone at 08:03. The first sighting ends more than 120 s out, so
+    it is not an arrival; the second is. One arrival at 08:03:25."""
+    rows = [seen(0, "a", 200), seen(2, "a", 205)]
+    [arrival] = infer_arrivals(rows, polls(0, 1, 2, 3))
+    assert arrival.arrival_time == at(205)
 
 
 def test_duplicate_listing_of_one_train_is_collapsed() -> None:
@@ -158,11 +183,12 @@ def test_empty_board_ends_every_train() -> None:
     assert [a.arrival_time for a in arrivals] == [at(60), at(110)]
 
 
-def test_held_train_drifting_more_than_tolerance_splits() -> None:
+def test_held_train_short_of_the_platform_splits() -> None:
     """A train held 90 s out: its expected arrival moves 60 s per poll, more
-    than the 45 s tolerance, so each sighting is a separate train and each
-    ends within 120 s. The literal rule infers three arrivals for one train
-    (DECISIONS.md D26). With a trusted vehicle id it is one arrival."""
+    than the 45 s window, and it is not at the platform, so the standing link
+    does not apply. Each sighting is a separate train ending within 120 s:
+    three arrivals for one train, 60 s apart, a known bias (DECISIONS.md
+    D26). With a trusted vehicle id it is one arrival at 08:03:30."""
     rows = [
         seen(0, "a", 90, vehicle_id="201"),
         seen(1, "a", 150, vehicle_id="201"),
@@ -178,13 +204,26 @@ def test_held_train_drifting_more_than_tolerance_splits() -> None:
     assert arrival.observations == 3
 
 
+def test_standing_link_ranks_after_a_moving_one() -> None:
+    """Earlier poll: A at the platform (0 s, 08:00:00) and B 60 s out (due
+    08:01:00). Later poll, 60 s on: one train at 0 s, 08:01:00. It is 60 s
+    from A with both at 0 s (a standing match, distance 45 + 0) and 0 s from
+    B (a moving match, distance 0). It links to B, and A ends."""
+    earlier = [seen(0, "A", 0), seen(0, "B", 60)]
+    later = [seen(1, "C", 60)]
+    assert link_polls(earlier, later, 60) == {1: 0}
+
+
 def test_trusted_vehicle_ids_keep_two_close_trains_apart() -> None:
     """On a trusted line, different vehicle ids never link, even 20 s apart.
-    Without a vehicle id the expected-arrival rule applies."""
+    Without a vehicle id the expected-arrival rule applies. A shared id whose
+    expected arrival moved 10 minutes in a minute is not the same train (a
+    placeholder id shared by several trains), so it does not link either."""
     trusted = InferenceParams(vehicle_id_lines=frozenset({"victoria"}))
     earlier = [seen(0, "a", 100, vehicle_id="201")]
-    assert link_polls(earlier, [seen(1, "b", 120, vehicle_id="202")], trusted) == {}
-    assert link_polls(earlier, [seen(1, "b", 120)], trusted) == {0: 0}
+    assert link_polls(earlier, [seen(1, "b", 120, vehicle_id="202")], 60, trusted) == {}
+    assert link_polls(earlier, [seen(1, "b", 120)], 60, trusted) == {0: 0}
+    assert link_polls(earlier, [seen(1, "b", 700, vehicle_id="201")], 60, trusted) == {}
 
 
 def test_links_are_mutual_nearest() -> None:
@@ -193,7 +232,7 @@ def test_links_are_mutual_nearest() -> None:
     C links to A and B ends."""
     earlier = [seen(0, "A", 100), seen(0, "B", 140)]
     later = [seen(1, "C", 120)]
-    assert link_polls(earlier, later) == {0: 0}
+    assert link_polls(earlier, later, 60) == {0: 0}
 
 
 def test_boards_are_separate() -> None:
@@ -214,6 +253,12 @@ def test_drop_duplicates_compares_with_the_previous_row() -> None:
 def test_prediction_from_an_unlisted_poll_is_an_error() -> None:
     with pytest.raises(ValueError, match="not a listed successful poll"):
         infer_arrivals([seen(2, "a", 150)], polls(0, 1))
+
+
+def test_one_poll_with_two_times_is_refused() -> None:
+    twice = [BoardPoll("p0", STATION, at(0)), BoardPoll("p0", STATION, at(5))]
+    with pytest.raises(ValueError, match="two poll times"):
+        infer_arrivals([], twice)
 
 
 def test_naive_timestamps_are_refused() -> None:

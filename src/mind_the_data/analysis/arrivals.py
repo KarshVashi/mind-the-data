@@ -3,8 +3,11 @@
 This is the reference implementation the SQL model ``int_inferred_arrivals``
 is checked against: both read the same rows (``stg_arrivals`` predictions and
 the successful arrivals polls from ``stg_polls``) and must return the same
-arrivals. Every step is defined so that it can be written set-based in SQL,
-without recursion:
+arrivals. The compared columns (``ARRIVAL_COLUMNS``) depend only on a
+sighting, the station's next successful poll and the arrivals beside it on
+the same board, so SQL can compute them set-based, without recursion. The
+chain-derived fields of ``InferredArrival`` (``first_seen_at``,
+``observations``, ``vehicle_id``) are diagnostics for Python only.
 
 1. **Boards.** A board is one platform of one station request in one poll:
    ``(request_path, naptan_id, line_id, platform_name, direction)``. A train
@@ -15,11 +18,21 @@ without recursion:
    is within ``duplicate_tolerance_seconds`` of the one before it is the same
    train listed twice and is dropped (DECISIONS.md D25).
 3. **Linking.** A prediction in poll *k* and one in the station's next
-   successful poll *k+1* are candidates when their expected arrivals are
-   within ``match_tolerance_seconds`` (PLAN 7.2 rule 1), or, on a line listed
-   in ``vehicle_id_lines``, when both carry the same ``vehicle_id``. Each
-   prediction picks its nearest candidate; a pair links only when the choice
-   is mutual, so links are one to one. A chain of links is one train.
+   successful poll *k+1* are candidates when
+   - their expected arrivals are within ``match_tolerance_seconds`` (PLAN 7.2
+     rule 1): a moving train; or
+   - the later shows ``time_to_station`` = 0, the earlier at most the
+     tolerance, and the expected arrival moved by the time between the polls,
+     give or take the tolerance: a train standing at the platform. TfL's expected arrival is its timestamp plus
+     ``time_to_station``, so a standing train pushes it on by a minute a
+     minute (D26). Standing matches rank after every moving match. A train
+     held short of the platform is not linked this way and can count more
+     than once (a known bias, D26); or
+   - on a line listed in ``vehicle_id_lines``, both carry the same
+     ``vehicle_id`` and the expected arrival moved by no more than the poll
+     gap plus the tolerance (D27).
+   Each prediction picks its nearest candidate; a pair links only when the
+   choice is mutual, so links are one to one. A chain of links is one train.
 4. **Arrival.** A train's last observation (one with no link to the next
    poll) is an arrival when the station's next successful poll exists and the
    observation's ``time_to_station`` is at most ``arrival_threshold_seconds``
@@ -28,11 +41,20 @@ without recursion:
    observation's ``expected_arrival``, the last one seen for the train
    (rule 3). A train seen once with more than the threshold to go is never an
    arrival (rule 4, phantoms) (DECISIONS.md D26).
+5. **Repeats.** A train that drops off one poll and comes back (board
+   flicker) ends twice. On one board, an arrival followed by another within
+   ``match_tolerance_seconds`` is the same train, and only the later one is
+   kept: two trains cannot use one platform that close together.
 
 "Next poll" means the station's next *successful* poll. When polls failed in
 between, the arrival is still inferred, and ``confirmed_at`` shows how long
 after ``last_seen_at`` the absence was seen, so a headway that spans a
 collection gap can be dropped downstream rather than read as a long gap.
+
+Arrivals at the end of the input are provisional: a train showing 0 s at
+the last poll is an arrival only until a later poll links it onward. An
+incremental SQL model must read at least one poll past the end of the window
+it writes, and the oracle comparison must give both sides the same input.
 
 All times are UTC. Nothing here knows about London time or schedules.
 """
@@ -41,6 +63,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Literal
 
 BoardKey = tuple[str, str, str, str | None, str | None]
@@ -166,28 +189,46 @@ def drop_duplicates(
     return kept
 
 
-def _distance(earlier: Prediction, later: Prediction, params: InferenceParams) -> float | None:
-    """How far apart two observations are as the same train; None if they cannot be."""
+def _distance(
+    earlier: Prediction, later: Prediction, poll_gap_seconds: float, params: InferenceParams
+) -> float | None:
+    """How far apart two sightings are as the same train; None if they cannot be."""
+    tolerance = params.match_tolerance_seconds
+    moved = (later.expected_arrival - earlier.expected_arrival).total_seconds()
     if (
         earlier.line_id in params.vehicle_id_lines
         and earlier.vehicle_id is not None
         and later.vehicle_id is not None
     ):
-        return 0.0 if earlier.vehicle_id == later.vehicle_id else None
-    gap = abs((later.expected_arrival - earlier.expected_arrival).total_seconds())
-    return gap if gap <= params.match_tolerance_seconds else None
+        # A shared id still needs a plausible time, so a placeholder id
+        # shared by several trains cannot chain them.
+        if earlier.vehicle_id == later.vehicle_id and abs(moved) <= poll_gap_seconds + tolerance:
+            return 0.0
+        return None
+    if abs(moved) <= tolerance:
+        return abs(moved)
+    # Only at the platform. A train held short of it is not linked this way:
+    # on real boards the next train often takes over the time to station the
+    # previous one showed a poll earlier, and would be merged into it (D26).
+    standing = later.time_to_station == 0 and earlier.time_to_station <= tolerance
+    clock_drift = abs(moved - poll_gap_seconds)
+    if standing and clock_drift <= tolerance:
+        return tolerance + clock_drift
+    return None
 
 
 def link_polls(
     earlier: Sequence[Prediction],
     later: Sequence[Prediction],
+    poll_gap_seconds: float,
     params: InferenceParams = DEFAULT_PARAMS,
 ) -> dict[int, int]:
     """Mutual nearest-candidate links between one board's two consecutive polls.
 
-    Returns {index in ``earlier``: index in ``later``}. Ties go to the earlier
-    expected arrival, then the lower prediction id, so the result does not
-    depend on input order.
+    ``poll_gap_seconds`` is the time between the two polls. Returns {index in
+    ``earlier``: index in ``later``}. Ties go to the earlier expected arrival,
+    then the lower prediction id, so the result does not depend on input
+    order.
     """
     best_later: dict[int, int] = {}
     best_earlier: dict[int, int] = {}
@@ -195,7 +236,7 @@ def link_polls(
         options = [
             (d, b.expected_arrival, b.prediction_id, j)
             for j, b in enumerate(later)
-            if (d := _distance(a, b, params)) is not None
+            if (d := _distance(a, b, poll_gap_seconds, params)) is not None
         ]
         if options:
             best_later[i] = min(options)[3]
@@ -203,7 +244,7 @@ def link_polls(
         options = [
             (d, a.expected_arrival, a.prediction_id, i)
             for i, a in enumerate(earlier)
-            if (d := _distance(a, b, params)) is not None
+            if (d := _distance(a, b, poll_gap_seconds, params)) is not None
         ]
         if options:
             best_earlier[j] = min(options)[3]
@@ -213,22 +254,34 @@ def link_polls(
 def _station_polls(polls: Iterable[BoardPoll]) -> dict[str, list[BoardPoll]]:
     by_station: dict[str, dict[str, BoardPoll]] = defaultdict(dict)
     for poll in polls:
-        by_station[poll.request_path][poll.poll_id] = BoardPoll(
-            poll.poll_id, poll.request_path, _utc(poll.polled_at)
-        )
+        normalised = BoardPoll(poll.poll_id, poll.request_path, _utc(poll.polled_at))
+        known = by_station[poll.request_path].setdefault(poll.poll_id, normalised)
+        if known.polled_at != normalised.polled_at:
+            raise ValueError(f"poll {poll.poll_id} at {poll.request_path} has two poll times")
     return {
         station: sorted(found.values(), key=lambda p: (p.polled_at, p.poll_id))
         for station, found in by_station.items()
     }
 
 
-def _trains_on_board(board_polls: list[list[Prediction]], params: InferenceParams) -> list[_Train]:
+def _trains_on_board(
+    board_polls: list[list[Prediction]], station_polls: list[BoardPoll], params: InferenceParams
+) -> list[_Train]:
     """Chain one board's observations, poll by poll, into trains."""
     trains: list[_Train] = []
     previous: list[tuple[Prediction, _Train]] = []
     for poll_index, board in enumerate(board_polls):
         current = drop_duplicates(board, params.duplicate_tolerance_seconds)
-        links = link_polls([p for p, _ in previous], current, params)
+        gap = (
+            (station_polls[poll_index].polled_at - station_polls[poll_index - 1].polled_at)
+            if poll_index > 0
+            else None
+        )
+        links = (
+            link_polls([p for p, _ in previous], current, gap.total_seconds(), params)
+            if gap is not None
+            else {}
+        )
         continued = {j: previous[i][1] for i, j in links.items()}
         now: list[tuple[Prediction, _Train]] = []
         for j, prediction in enumerate(current):
@@ -281,6 +334,27 @@ def _arrival(
     )
 
 
+def collapse_repeats(
+    arrivals: Sequence[InferredArrival], tolerance_seconds: float
+) -> list[InferredArrival]:
+    """One board's arrivals without the earlier of two within the tolerance.
+
+    Ordered by (arrival_time, last_poll time, last_prediction_id); an arrival
+    followed within ``tolerance_seconds`` by the next is dropped, so the
+    later sighting of a train that flickered off the board is kept. In SQL a
+    ``lead`` over the same order.
+    """
+    ordered = sorted(arrivals, key=lambda a: (a.arrival_time, a.last_seen_at, a.last_prediction_id))
+    kept: list[InferredArrival] = []
+    for index, arrival in enumerate(ordered):
+        if index + 1 < len(ordered):
+            gap = (ordered[index + 1].arrival_time - arrival.arrival_time).total_seconds()
+            if gap <= tolerance_seconds:
+                continue
+        kept.append(arrival)
+    return kept
+
+
 def _board_sort_key(board: BoardKey) -> tuple[str, str, str, str, str]:
     request_path, naptan_id, line_id, platform_name, direction = board
     return (request_path, naptan_id, line_id, platform_name or "", direction or "")
@@ -320,10 +394,12 @@ def infer_arrivals(
     for board in sorted(boards, key=_board_sort_key):
         polls_here = station_polls[board[0]]
         per_poll = [boards[board].get(index, []) for index in range(len(polls_here))]
-        for train in _trains_on_board(per_poll, params):
-            arrival = _arrival(train, polls_here, params)
-            if arrival is not None:
-                arrivals.append(arrival)
+        found = [
+            arrival
+            for train in _trains_on_board(per_poll, polls_here, params)
+            if (arrival := _arrival(train, polls_here, params)) is not None
+        ]
+        arrivals.extend(collapse_repeats(found, params.match_tolerance_seconds))
     arrivals.sort(
         key=lambda a: (
             _board_sort_key((a.request_path, a.naptan_id, a.line_id, a.platform_name, a.direction)),
@@ -370,6 +446,8 @@ def _timestamp(row: Mapping[str, object], name: str) -> datetime:
 
 def _integer(row: Mapping[str, object], name: str) -> int:
     value = row[name]
+    if isinstance(value, Decimal):
+        return int(value)
     if isinstance(value, bool) or not isinstance(value, int | str):
         raise TypeError(f"{name} must be an integer, got {value!r}")
     return int(value)

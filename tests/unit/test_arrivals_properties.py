@@ -2,9 +2,16 @@
 
 A synthetic board is built from known trains: each has a true arrival time,
 is listed from `HORIZON` seconds before it until it has dwelt at the
-platform, and is predicted with a small error. Polls come about once a
-minute. The properties say what inference must recover from such boards and
-what noise (duplicates, phantoms, failed polls, input order) must not change.
+platform, and is predicted with a small error. While a train stands at the
+platform it shows 0 s to go and its expected arrival is the poll time, as
+TfL's is (timestamp plus time to station). Polls come about once a minute.
+The properties say what inference must recover from such boards and what
+noise (duplicates, phantoms, failed polls, a train dropping off the board,
+input order) must not change.
+
+Two trains are never closer than `MIN_HEADWAY`, which is more than the
+longest dwell plus a poll gap: closer than that, a standing train and the
+next one at the platform cannot be told apart without vehicle ids (D26).
 """
 
 import itertools
@@ -28,7 +35,8 @@ T0 = datetime(2026, 11, 5, 7, 0, tzinfo=UTC)
 STATION = "/StopPoint/940GZZLUVIC/Arrivals"
 HORIZON = 600  # seconds a train is listed before it is due
 NOISE = 10  # largest prediction error, seconds
-MIN_HEADWAY = 120  # two trains never share a platform closer than this
+MAX_DWELL = 60  # longest stand at the platform, seconds
+MIN_HEADWAY = 150  # two trains never share a platform closer than this
 PARAMS = InferenceParams()
 
 
@@ -37,10 +45,12 @@ class Board:
     arrivals: list[datetime]
     polls: list[BoardPoll]
     predictions: list[Prediction]
+    # Each train's sightings, in poll order.
+    trains: list[list[Prediction]]
 
 
 @st.composite
-def boards(draw: st.DrawFn) -> Board:
+def boards(draw: st.DrawFn, max_dwell: int = MAX_DWELL) -> Board:
     headways = draw(st.lists(st.integers(MIN_HEADWAY, 900), min_size=1, max_size=8))
     first = draw(st.integers(0, 300))
     offsets = [first + sum(headways[:i]) for i in range(len(headways))]
@@ -55,9 +65,10 @@ def boards(draw: st.DrawFn) -> Board:
     polls = [BoardPoll(f"p{i:04d}", STATION, t) for i, t in enumerate(poll_times)]
 
     stable_ids = draw(st.booleans())
-    predictions: list[Prediction] = []
+    trains: list[list[Prediction]] = []
     for n, arrival in enumerate(true_arrivals):
-        dwell = draw(st.integers(0, 30))
+        dwell = draw(st.integers(0, max_dwell))
+        sightings: list[Prediction] = []
         for poll in polls:
             if (
                 not arrival - timedelta(seconds=HORIZON)
@@ -65,10 +76,15 @@ def boards(draw: st.DrawFn) -> Board:
                 < arrival + timedelta(seconds=dwell)
             ):
                 continue
-            eta = arrival + timedelta(seconds=draw(st.integers(-NOISE, NOISE)))
+            if poll.polled_at >= arrival:
+                eta = poll.polled_at
+            else:
+                eta = arrival + timedelta(seconds=draw(st.integers(-NOISE, NOISE)))
             prediction_id = f"t{n}" if stable_ids else f"t{n}-{poll.poll_id}"
-            predictions.append(_prediction(poll, "Platform 1", prediction_id, eta))
-    return Board(true_arrivals, polls, predictions)
+            sightings.append(_prediction(poll, "Platform 1", prediction_id, eta))
+        trains.append(sightings)
+    predictions = [p for sightings in trains for p in sightings]
+    return Board(true_arrivals, polls, predictions, trains)
 
 
 def _prediction(poll: BoardPoll, platform: str, prediction_id: str, eta: datetime) -> Prediction:
@@ -90,12 +106,18 @@ def _times(arrivals: list[InferredArrival]) -> list[datetime]:
     return [a.arrival_time for a in arrivals]
 
 
-def _within_noise(inferred: list[datetime], true: list[datetime]) -> bool:
-    """Each inferred arrival is within NOISE of a distinct true arrival, in order."""
+def _close(inferred: datetime, true: datetime) -> bool:
+    """The arrival time is the last expected arrival seen: up to NOISE early,
+    or as late as the last poll the train stood at the platform."""
+    return -NOISE <= (inferred - true).total_seconds() <= MAX_DWELL
+
+
+def _matches_distinct(inferred: list[datetime], true: list[datetime]) -> bool:
+    """Each inferred arrival is close to a distinct true arrival, in order."""
     remaining = iter(true)
     for time in inferred:
         for candidate in remaining:
-            if abs((time - candidate).total_seconds()) <= NOISE:
+            if _close(time, candidate):
                 break
         else:
             return False
@@ -103,11 +125,35 @@ def _within_noise(inferred: list[datetime], true: list[datetime]) -> bool:
 
 
 @given(boards())
-def test_every_train_is_found_once_within_the_prediction_error(board: Board) -> None:
+def test_every_train_is_found_once(board: Board) -> None:
     arrivals = infer_arrivals(board.predictions, board.polls)
     assert len(arrivals) == len(board.arrivals)
     for inferred, true in zip(_times(arrivals), board.arrivals, strict=True):
-        assert abs((inferred - true).total_seconds()) <= NOISE
+        assert _close(inferred, true)
+
+
+@given(boards(), st.data())
+def test_dropping_off_the_board_far_out_changes_nothing(board: Board, data: st.DataObject) -> None:
+    """A train missing from single polls while still more than 120 s out
+    (board flicker) is still one arrival. Flicker close to the platform is
+    covered by a hand-computed case."""
+    kept: list[Prediction] = []
+    for sightings in board.trains:
+        drops = data.draw(st.lists(st.booleans(), min_size=len(sightings), max_size=len(sightings)))
+        previous_kept = True
+        for i, sighting in enumerate(sightings):
+            drop = (
+                drops[i]
+                and 0 < i < len(sightings) - 1
+                and previous_kept
+                and sightings[i - 1].time_to_station > PARAMS.arrival_threshold_seconds
+            )
+            if not drop:
+                kept.append(sighting)
+            previous_kept = not drop
+    assert _times(infer_arrivals(kept, board.polls)) == _times(
+        infer_arrivals(board.predictions, board.polls)
+    )
 
 
 @given(boards())
@@ -156,7 +202,9 @@ def test_phantoms_change_nothing(board: Board, data: st.DataObject) -> None:
     poll = data.draw(st.sampled_from(board.polls))
     lead = data.draw(st.integers(PARAMS.arrival_threshold_seconds + 1, 3600))
     eta = poll.polled_at + timedelta(seconds=lead)
-    clear = PARAMS.match_tolerance_seconds + NOISE + PARAMS.duplicate_tolerance_seconds
+    # Far enough from every real sighting that no link, moving or standing,
+    # can reach it.
+    clear = 2 * PARAMS.match_tolerance_seconds + 65 + NOISE + MAX_DWELL
     if any(abs((eta - t).total_seconds()) <= clear for t in board.arrivals):
         return
     phantom = _prediction(poll, "Platform 1", "phantom", eta)
@@ -164,18 +212,21 @@ def test_phantoms_change_nothing(board: Board, data: st.DataObject) -> None:
     assert infer_arrivals([*board.predictions, phantom], board.polls) == before
 
 
-@given(boards(), st.data())
+@given(boards(max_dwell=30), st.data())
 @settings(max_examples=200)
 def test_failed_polls_never_invent_arrivals(board: Board, data: st.DataObject) -> None:
     """With polls lost, fewer trains may be seen to arrive, but every arrival
-    still matches a real train: a gap is never filled with a made-up one."""
+    still matches a real train: a gap is never filled with a made-up one.
+    Dwells are kept to 30 s here: a train last seen 45 to 120 s out and next
+    seen still standing at the platform after a lost poll is two sightings
+    neither rule links, and counts twice (D28)."""
     kept = data.draw(st.lists(st.booleans(), min_size=len(board.polls), max_size=len(board.polls)))
     polls = [p for p, keep in zip(board.polls, kept, strict=True) if keep]
     listed = {p.poll_id for p in polls}
     predictions = [p for p in board.predictions if p.poll_id in listed]
     inferred = _times(infer_arrivals(predictions, polls))
     assert len(inferred) <= len(board.arrivals)
-    assert _within_noise(inferred, board.arrivals)
+    assert _matches_distinct(inferred, board.arrivals)
 
 
 @given(boards())
