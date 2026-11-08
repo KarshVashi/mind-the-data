@@ -125,9 +125,9 @@ The deadline is 72 hours after the item enters this inbox. Every item below ente
 - **Default:** none. Accept, reject, or accept with `transform/**` protected too.
 - **Deadline:** 2026-11-11 12:00 UTC. **Class:** `never-default`.
 
-### M3 metric definitions (D16 to D23)
+### M3 decisions (D16 to D24)
 
-These come from the M3 bundle (`feat/m3-line-minute-metrics`). Each is implemented behind a named seed or variable, so changing the answer is a seed edit and a rebuild, not a rewrite. They entered on 2026-11-08, so the reminder date is 2026-11-11 15:00 UTC. All are `never-default` (metric semantics) except D24.
+These come from the M3 bundle (`feat/m3-line-minute-metrics`). D16 to D23 are metric definitions, each implemented behind a named seed or variable, so changing the answer is a seed edit and the next build (ADR-012 rebuilds every minute from the seeds). D23 and D24 also deviate from the plan, through ADR-013 and ADR-012. They entered on 2026-11-08, so the reminder date is 2026-11-11 15:00 UTC. All are `never-default`.
 
 ### D16. Service Closed (code 20) is weighted 0 and left out of the score
 
@@ -183,22 +183,23 @@ These come from the M3 bundle (`feat/m3-line-minute-metrics`). Each is implement
 
 - **Context:** the plan exempts only closures (and planned Bus Service) from the score. On 2026-11-06, Suffragette had a planned Part Closure for 1,036 minutes, which left the score, and a planned Reduced Service for the other 74, which counted. Its index that day was 9,000 from 74 scored minutes.
 - **Implemented:** the plan as written: planned Reduced Service and Special Service carry their weights.
-- **Alternatives:** weight planned Reduced Service at 0, or treat it as engineering works; require a minimum of scored hours before a line-day or line-week gets an index or rank.
+- **The same mechanism:** under ADR-004 rule 3, a branch Part Closure takes every minute out of the score unless a weighted status sits on top of it. Delay minutes stay in while the Good Service minutes around them drop out, which inflates indexes for lines with long part closures.
+- **Alternatives:** weight planned Reduced Service at 0, or treat it as engineering works; score part-closure minutes on the worst non-closure entry (Good Service included) instead of dropping them; require a minimum of scored hours before a line-day or line-week gets an index or rank.
 - **Default:** none. **Class:** `never-default`.
 
 ### D23. Which entries describe a minute
 
-- **Context:** ADR-004 reads the latest successful poll in the minute. Polls per minute can be more than one (post-deploy smoke test, ADR-006).
+- **Context:** ADR-004 reads the latest successful poll in the minute. Polls per minute can be more than one (post-deploy smoke test, ADR-006). ADR-013 (proposed) amends ADR-004's rules 1 and 4.
 - **Implemented:** the latest successful poll in the minute that lists the line. An entry counts if it has no validity period or one overlapping the minute. TfL sometimes keeps listing a planned status a minute after its period ends, with no other entry for the line; that minute is missing (`missing_reason = no_current_entry`, 1 to 5 line-minutes a day).
 - **Alternatives:** read only the very latest poll, so a later poll that omits a line makes the minute missing; keep a just-expired entry as current.
-- **Default:** none. **Class:** `never-default`.
+- **Default:** none. Accept or reject ADR-013. **Class:** `never-default`.
 
-### D24. Intervals and incidents rebuild in full
+### D24. Declared-view intermediate models rebuild in full
 
-- **Context:** PLAN 6.1 lists intermediate models as incremental merges. A status run or an incident can start before any incremental window, so a windowed merge would split or duplicate it.
-- **Implemented:** `int_line_minute_status` is an incremental merge on (line, minute). `int_status_intervals`, `int_incidents`, `dim_service_hours` and the marts are tables rebuilt from it each run. The scan is a few MB per week of data. See ADR-012 (proposed).
-- **Default:** keep full rebuilds; revisit if the daily build passes a few minutes or 1 GB scanned.
-- **Deadline:** 2026-11-11 15:00 UTC. **Class:** `auto-apply`.
+- **Context:** PLAN 6.1 lists intermediate models as incremental merges. A status run or an incident can start before any incremental window, and the minute model applies seeds that D16 to D22 expect to change. A windowed merge would split runs and leave older weeks on old definitions, silently.
+- **Implemented:** `int_line_minute_status`, `int_status_intervals`, `int_incidents`, `dim_service_hours` and the marts are Iceberg tables rebuilt from `raw_start_date` each run. Staging stays incremental. The cost is a few hundred MB scanned a year at most. See ADR-012 (proposed).
+- **Default:** none: it deviates from the plan. Accept ADR-012, or ask for a seed-free incremental layer under a table that applies the seeds.
+- **Class:** `never-default`.
 
 ## Settled
 
