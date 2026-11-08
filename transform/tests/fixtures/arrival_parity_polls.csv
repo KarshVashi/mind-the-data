@@ -1,0 +1,21 @@
+poll_id,request_path,polled_at,feed,is_ok,dt
+poll-001,/StopPoint/940GZZDLCGT/Arrivals,2026-11-06 08:00:25.000000,arrivals,true,2026-11-06
+poll-002,/StopPoint/940GZZDLCGT/Arrivals,2026-11-06 08:01:25.003000,arrivals,true,2026-11-06
+poll-003,/StopPoint/940GZZDLCGT/Arrivals,2026-11-06 08:02:24.988000,arrivals,true,2026-11-06
+poll-004,/StopPoint/940GZZDLCGT/Arrivals,2026-11-06 08:03:25.005000,arrivals,true,2026-11-06
+poll-005,/StopPoint/940GZZDLCGT/Arrivals,2026-11-06 08:04:24.988000,arrivals,true,2026-11-06
+poll-006,/StopPoint/940GZZDLCGT/Arrivals,2026-11-06 08:05:25.023000,arrivals,true,2026-11-06
+poll-007,/StopPoint/940GZZDLCGT/Arrivals,2026-11-06 08:06:25.022000,arrivals,true,2026-11-06
+poll-008,/StopPoint/940GZZDLCGT/Arrivals,2026-11-06 08:07:25.006000,arrivals,true,2026-11-06
+poll-009,/StopPoint/940GZZDLCGT/Arrivals,2026-11-06 08:08:24.987000,arrivals,true,2026-11-06
+poll-010,/StopPoint/940GZZDLCGT/Arrivals,2026-11-06 08:09:24.989000,arrivals,true,2026-11-06
+poll-001,/StopPoint/940GZZLUOXC/Arrivals,2026-11-06 08:00:25.000000,arrivals,true,2026-11-06
+poll-002,/StopPoint/940GZZLUOXC/Arrivals,2026-11-06 08:01:25.003000,arrivals,true,2026-11-06
+poll-003,/StopPoint/940GZZLUOXC/Arrivals,2026-11-06 08:02:24.988000,arrivals,true,2026-11-06
+poll-004,/StopPoint/940GZZLUOXC/Arrivals,2026-11-06 08:03:25.005000,arrivals,true,2026-11-06
+poll-005,/StopPoint/940GZZLUOXC/Arrivals,2026-11-06 08:04:24.988000,arrivals,true,2026-11-06
+poll-006,/StopPoint/940GZZLUOXC/Arrivals,2026-11-06 08:05:25.023000,arrivals,true,2026-11-06
+poll-007,/StopPoint/940GZZLUOXC/Arrivals,2026-11-06 08:06:25.022000,arrivals,true,2026-11-06
+poll-008,/StopPoint/940GZZLUOXC/Arrivals,2026-11-06 08:07:25.006000,arrivals,true,2026-11-06
+poll-009,/StopPoint/940GZZLUOXC/Arrivals,2026-11-06 08:08:24.987000,arrivals,true,2026-11-06
+poll-010,/StopPoint/940GZZLUOXC/Arrivals,2026-11-06 08:09:24.989000,arrivals,true,2026-11-06

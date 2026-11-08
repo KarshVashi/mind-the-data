@@ -328,3 +328,80 @@ models:
         data_tests: [not_null]
       - name: timetable_fetched_at
         description: When the timetable version was fetched, UTC; null for fallback rows.
+
+  - name: int_inferred_arrivals
+    description: >
+      One row per train arrival inferred at a board (PLAN 6.2, 7.2). A board
+      is one platform and direction of one station request (D28). The SQL
+      twin of src/mind_the_data/analysis/arrivals.py: duplicates within 15 s
+      on a board are one train (D25); sightings in a station's consecutive
+      successful polls link as mutual nearest pairs, by vehicle id on the
+      lines seed_vehicle_id_lines switches on and by expected arrival within
+      45 s elsewhere, with a standing link at the platform (D26, D27); a
+      train's last sighting is an arrival when it was at most 120 s to go and
+      the next successful poll does not carry it on, or when it is due at the
+      end of the input; two arrivals on a board within 45 s are one (board
+      flicker). Time to go is `expected_arrival - polled_at`, not TfL's
+      stale `time_to_station` (D39). Placeholder vehicle ids (var
+      `placeholder_vehicle_ids`) count as no id. Arrivals at the end of the
+      data are provisional until the next build. Rebuilt in full each run
+      (ADR-012, D24, D40).
+    columns:
+      - name: arrival_key
+        description: Row key, a hash of (board_key, last_poll_id, arrival_time).
+        data_tests: [unique, not_null]
+      - name: board_key
+        description: Hash of (request_path, naptan_id, line_id, platform_name, direction), nulls included.
+        data_tests: [not_null]
+      - name: request_path
+        description: TfL path requested, which names the measurement station.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: NaPTAN id of the stop point the board is for.
+        data_tests: [not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: platform_name
+        description: Platform as TfL names it.
+      - name: direction
+        description: "`inbound` or `outbound`; null on boards that list trains arriving to terminate."
+      - name: arrival_time
+        description: The train's last expected arrival, UTC (PLAN 7.2 rule 3).
+        data_tests: [not_null]
+      - name: rule
+        description: "`at_platform` when the last sighting was 0 s to go, else `left_board`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [at_platform, left_board]
+      - name: last_poll_id
+        description: Poll of the train's last sighting.
+        data_tests: [not_null]
+      - name: last_prediction_id
+        description: TfL prediction id of the last sighting.
+        data_tests: [not_null]
+      - name: last_seconds_to_arrival
+        description: Whole seconds from the last sighting's poll to its expected arrival, floored at 0; what the 120 s rule reads.
+        data_tests: [not_null]
+      - name: last_time_to_station
+        description: TfL's time_to_station at the last sighting, about 40 s stale; diagnostic only.
+        data_tests: [not_null]
+      - name: last_vehicle_id
+        description: Vehicle id at the last sighting, placeholders as null. Diagnostic.
+      - name: links_by_vehicle_id
+        description: The line linked sightings by vehicle id in this build (seed_vehicle_id_lines).
+        data_tests: [not_null]
+      - name: last_seen_at
+        description: Poll time of the last sighting, UTC.
+        data_tests: [not_null]
+      - name: confirmed_at
+        description: >
+          Poll time of the station's next successful poll, in which the train
+          was absent, UTC. Null for an at-platform arrival at the end of the
+          data. A long wait after last_seen_at is a collection gap, not a
+          long headway (D28).
+      - name: dt
+        description: UTC date of arrival_time.
+        data_tests: [not_null]

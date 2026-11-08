@@ -160,3 +160,13 @@ def test_fallback_frequencies_are_measurement_stations_inside_service_hours() ->
         span = set(range(first, last))
         assert not seen.intersection(span), row
         seen.update(span)
+
+
+def test_vehicle_id_lines_cover_every_line_once() -> None:
+    """Every line has an explicit setting, so a line added to the config
+    cannot fall silently to either linking rule (DECISIONS.md D27)."""
+    rows = read_seed("seed_vehicle_id_lines")
+    line_ids = [line.id for line in load_lines(ROOT / "config" / "lines.yaml")]
+    assert sorted(row["line_id"] for row in rows) == sorted(line_ids)
+    assert {row["link_by_vehicle_id"] for row in rows} <= {"true", "false"}
+    assert all(row["decision_status"] for row in rows)

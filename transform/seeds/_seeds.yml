@@ -211,3 +211,31 @@ seeds:
       - name: source
         description: Where the frequency comes from (see the seed description).
         data_tests: [not_null]
+
+  - name: seed_vehicle_id_lines
+    description: >
+      Which lines link a train's sightings by vehicle id in
+      int_inferred_arrivals (PLAN 7.2 rule 1, "where it is stable";
+      DECISIONS.md D26, D27). Flip `link_by_vehicle_id` and rebuild to change
+      a line. The current setting is the week-one review's recommendation
+      for now (docs/data-quality/2026-11-08-week-one.md): Victoria only. It
+      waits for the owner, which `decision_status` shows; the review's
+      advice per line is in `review_recommendation`.
+    columns:
+      - name: line_id
+        description: TfL line id.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('lines')
+                field: line_id
+      - name: link_by_vehicle_id
+        description: True to link sightings by vehicle id on this line; false to use expected arrival only.
+        data_tests: [not_null]
+      - name: decision_status
+        description: "`pending_owner_d26_d27` until the owner settles D26 and D27; then the date and outcome."
+        data_tests: [not_null]
+      - name: review_recommendation
+        description: The week-one review's advice for the line.
