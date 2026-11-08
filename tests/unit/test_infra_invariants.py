@@ -189,3 +189,16 @@ def test_job_workflow_ref_is_matched() -> None:
     # Only pull request refs vary (refs/pull/<n>/merge); everything else is exact.
     assert text.count('test      = "StringLike"') == 1
     assert "@refs/pull/*/merge" in text
+
+
+def test_bootstrap_binds_the_pre_adr_010_roles() -> None:
+    # ADR-010 step 3: the probe passed, so the plan (pull request), apply and
+    # transform roles are bound too. Turning this off is a recorded fallback,
+    # not a quiet default.
+    variables = (INFRA / "bootstrap" / "variables.tf").read_text()
+    block = variables.split('variable "enforce_workflow_binding" {')[1].split("\n}\n")[0]
+    assert re.search(r"^\s+default\s+=\s+true$", block, re.MULTILINE), block
+    main = (INFRA / "bootstrap" / "main.tf").read_text()
+    assert re.search(
+        r"^\s+enforce_workflow_binding\s+=\s+var\.enforce_workflow_binding$", main, re.MULTILINE
+    )

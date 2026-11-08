@@ -1,0 +1,122 @@
+{
+  "number": 20,
+  "headRefOid": "0328d849c9a57d3d66bc15cb60193aa7ebf9efcd",
+  "isDraft": false,
+  "author": {
+    "login": "KarshVashi"
+  },
+  "state": "OPEN",
+  "baseRefName": "main",
+  "title": "ci: handler import gate, post-deploy smoke test, one account variable",
+  "body": "Workflow and Makefile changes.",
+  "commits": [
+    {
+      "messageHeadline": "ci: check Terraform handlers import from the Lambda zip",
+      "messageBody": ""
+    },
+    {
+      "messageHeadline": "ci: fail make check on actions not pinned to a commit SHA",
+      "messageBody": ""
+    },
+    {
+      "messageHeadline": "ci: smoke test the poller after each deploy",
+      "messageBody": ""
+    },
+    {
+      "messageHeadline": "chore: add weekly grouped Dependabot updates",
+      "messageBody": ""
+    },
+    {
+      "messageHeadline": "ci: gate deploys on handlers, smoke test, one account variable",
+      "messageBody": ""
+    },
+    {
+      "messageHeadline": "fix(ci): tighten smoke test errors and hash-check host wheels",
+      "messageBody": ""
+    },
+    {
+      "messageHeadline": "Merge origin/main into chore/deploy-safety",
+      "messageBody": ""
+    }
+  ],
+  "files": [
+    {
+      "path": ".github/dependabot.yml"
+    },
+    {
+      "path": ".github/scripts/smoke-test.sh"
+    },
+    {
+      "path": ".github/workflows/infra.yml"
+    },
+    {
+      "path": ".github/workflows/transform-daily.yml"
+    },
+    {
+      "path": "Makefile"
+    },
+    {
+      "path": "docs/runbook.md"
+    },
+    {
+      "path": "env.example"
+    },
+    {
+      "path": "scripts/bootstrap.sh"
+    },
+    {
+      "path": "scripts/check_action_pins.py"
+    },
+    {
+      "path": "scripts/check_handlers.py"
+    },
+    {
+      "path": "tests/unit/test_check_action_pins.py"
+    },
+    {
+      "path": "tests/unit/test_check_handlers.py"
+    }
+  ],
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-08T01:53:09Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/KarshVashi/mind-the-data/actions/runs/42436158989/job/128595328162",
+      "name": "not-configured",
+      "startedAt": "2026-11-08T01:53:10Z",
+      "status": "COMPLETED",
+      "workflowName": "infra"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-08T01:54:35Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/KarshVashi/mind-the-data/actions/runs/42436159115/job/128595327386",
+      "name": "ci",
+      "startedAt": "2026-11-08T01:53:12Z",
+      "status": "COMPLETED",
+      "workflowName": "ci"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-08T01:54:02Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/KarshVashi/mind-the-data/actions/runs/42436158989/job/128595326917",
+      "name": "plan",
+      "startedAt": "2026-11-08T01:53:12Z",
+      "status": "COMPLETED",
+      "workflowName": "infra"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-08T01:53:09Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/KarshVashi/mind-the-data/actions/runs/42436158989/job/128595328081",
+      "name": "deploy",
+      "startedAt": "2026-11-08T01:53:10Z",
+      "status": "COMPLETED",
+      "workflowName": "infra"
+    }
+  ]
+}

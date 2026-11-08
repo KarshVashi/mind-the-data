@@ -42,7 +42,9 @@ The claim's form is checked before any existing role depends on it.
 3. **Second apply** (a one-line follow-up change).
    1. Set `enforce_workflow_binding` to `true` and re-apply.
    2. Run the probe with `trust_probe=all-roles`.
-   3. Confirm that an `infra.yml` plan on a pull request still assumes the plan role.
+   3. Confirm that an `infra.yml` plan on a pull request still assumes the plan role, and that `transform-daily.yml` and the next `infra.yml` run on `main` still assume theirs.
+
+**Progress.** Step 1 was applied on 2026-11-08. The step 2 probe passed on `main` the same day (run 42434755955: `plan`, `oidc-claims` and `trust-probe` green). The pull request form was read from #22's `oidc-claims` job: `KarshVashi/mind-the-data/.github/workflows/bootstrap-plan.yml@refs/pull/22/merge`, which matches `@refs/pull/*/merge`. Step 3 is the change that sets `enforce_workflow_binding` to `true` by default in `infra/bootstrap/variables.tf`; its apply, the `all-roles` probe and the role checks are owner steps (runbook H6, step 5).
 
 If step 2 fails, leave `enforce_workflow_binding` off and use the subject-template route below. The new roles would need the template's `sub` form, which is a bootstrap change. Nothing in use breaks in the meantime.
 

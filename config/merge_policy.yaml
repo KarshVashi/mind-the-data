@@ -1,0 +1,150 @@
+# Merge gate policy (ADR-011). Read by scripts/merge_gate.py, always from
+# origin/main, never from the branch being merged. This file is itself a
+# protected path, so only the owner can change it.
+#
+# The owner wants changes that cost well under $1 to deploy to merge without
+# them. Cost cannot be measured before a deploy, so these rules stand in for
+# it: which paths changed, which resource types the PR's own CI plan touches
+# and how, and whether CI passed. The AWS Budget (infra/bootstrap, protected)
+# is the backstop after a merge. Anything the gate cannot verify is refused.
+#
+# Globs: `**` crosses directories (`**/` may match none), `*` and `?` do not.
+# Matching ignores case.
+
+version: 1
+
+# Any change under these needs the owner.
+protected_paths:
+  # Owner-applied: OIDC provider, CI roles, permissions boundary, budget,
+  # quota, state bucket. ci_role is the module only the bootstrap calls.
+  - "infra/bootstrap/**"
+  - "infra/modules/ci_role/**"
+  # Workflows decide what CI may do and which credentials it gets.
+  - ".github/**"
+  # Decisions are the owner's.
+  - "docs/adr/**"
+  # The gate itself.
+  - "config/merge_policy.yaml"
+  - "scripts/merge_gate.py"
+  - "src/mind_the_data/ops/merge_gate*"
+  # Budgets and quotas are the cost guards behind this whole policy.
+  - "**/*budget*"
+  - "**/*budget*/**"
+  - "**/*quota*"
+  - "**/*quota*/**"
+  # GNU make reads these before Makefile, so either would replace the
+  # merge targets.
+  - "GNUmakefile"
+
+# Matched exactly and with case. `makefile` cannot go in the globs above,
+# which ignore case and would then protect all of Makefile.
+protected_exact_paths:
+  - "makefile"
+
+# The Makefile is protected only where it can change `make merge`: the
+# marked block holding the merge targets, and lines elsewhere that could
+# change how that recipe runs (a second `merge` rule, includes, the shell,
+# PATH, exported variables).
+makefile:
+  path: Makefile
+  block_start: "# >>> merge gate (protected: config/merge_policy.yaml)"
+  block_end: "# <<< merge gate"
+  risky_line_patterns:
+    - "merge"
+    - "^\\s*-?s?include\\b"
+    - "\\boverride\\b"
+    # Anywhere, so target- and pattern-specific exports count too.
+    - "\\b(un)?export\\b"
+    # Setting a git or uv variable changes which repo or environment the
+    # recipe uses; reading one, such as $(UV_RUN), does not.
+    - "\\b(GIT|UV)_[A-Z0-9_]*\\s*(::?|\\+|\\?|!)?="
+    - "\\$\\((eval|shell)\\b"
+    - "\\.RECIPEPREFIX"
+    # A stray conditional or define around the block would disable it.
+    - "^\\s*(define|endef|ifn?eq|ifn?def|else|endif)\\b"
+    - "\\bSHELL\\b"
+    - "SHELLFLAGS"
+    - "MAKEFLAGS"
+    - "MAKEFILES"
+    - "\\bPATH\\b"
+    - "^\\.(DEFAULT|ONESHELL|SUFFIXES|EXPORT_ALL_VARIABLES|NOTPARALLEL)\\b"
+    - "^%"
+
+# Changes here can deploy, so the PR's CI plan must exist and pass the type
+# rules below. Kept equal to infra.yml's pull_request paths (a unit test
+# compares them).
+plan_required_paths:
+  - "infra/**"
+  - ".github/workflows/infra.yml"
+  - ".github/scripts/**"
+  - "src/**"
+  - "config/**"
+  - "scripts/zip_lambda.py"
+  - "scripts/check_handlers.py"
+  - "pyproject.toml"
+  - "uv.lock"
+  - "Makefile"
+
+# Terraform resource types a merge may create or update. These are the
+# types infra/envs/prod already uses that carry no access control and no
+# cost guard; M3 to M7 add no Terraform types (they are dbt, GitHub Actions
+# and Cloudflare). Adding a type is an owner change to this file.
+allowed_resource_types:
+  # Code and settings of the poller and reference Lambdas. A memory or
+  # concurrency bump is the main cost risk here; the budget is the backstop.
+  - aws_lambda_function
+  # Async retry and event-age settings for those Lambdas. Free.
+  - aws_lambda_function_event_invoke_config
+  # The every-minute and weekly schedules. Free tier covers them.
+  - aws_scheduler_schedule
+  # Raw tables over S3 with partition projection. Catalog storage is free
+  # at this size.
+  - aws_glue_catalog_database
+  - aws_glue_catalog_table
+  # Collector alarms, their topic and the email subscription. Pennies.
+  - aws_cloudwatch_metric_alarm
+  - aws_sns_topic
+  - aws_sns_topic_subscription
+  # Lambda log retention. Logs are under the free 5 GB.
+  - aws_cloudwatch_log_group
+  # Left out on purpose, so they need the owner:
+  # - aws_s3_bucket_lifecycle_configuration: an update can add an expiry
+  #   that deletes irreplaceable raw data (the bucket is unversioned), and
+  #   tiering rules on small per-minute objects add transition fees.
+  # - aws_athena_workgroup: it holds the 10 GB per-query scan limit, a cost guard.
+  # - aws_s3_bucket, aws_s3_bucket_policy, aws_s3_bucket_public_access_block,
+  #   aws_s3_bucket_ownership_controls, aws_s3_bucket_server_side_encryption_configuration:
+  #   bucket lifecycle and access posture, not routine changes.
+  # - aws_lambda_permission, aws_lambda_layer_version, aws_scheduler_schedule_group,
+  #   aws_cloudwatch_composite_alarm, aws_cloudwatch_dashboard, aws_s3_object,
+  #   aws_ssm_parameter, null/terraform_data/random: nothing uses them yet and
+  #   the plan does not need them. Add them here when it does (aws_ssm_parameter
+  #   only for names under /mind-the-data/config/, which needs a name check first).
+
+forbid:
+  # IAM is access control. Never low risk, whatever the type list says.
+  type_prefixes: ["aws_iam_"]
+  # A replace is a delete plus a create, so this refuses both.
+  actions: ["delete"]
+  # A type not listed above is refused. Fixed: the loader rejects false.
+  unlisted_types: true
+
+require:
+  # Fixed at true; the loader rejects false.
+  checks_succeeded: true
+  not_draft: true
+  # The gate reads the head SHA once, checks everything against it and
+  # merges with --match-head-commit, so a push after the check is refused.
+  pin_head_sha: true
+  authors: ["KarshVashi"]
+  base_branch: main
+  # Every check on the head commit must have finished, and none failed.
+  # Skipped checks are fine (the infra workflow skips not-configured and
+  # deploy on pull requests) except these, which must succeed.
+  checks:
+    - {workflow: ci, name: ci, when: always}
+    - {workflow: infra, name: plan, when: plan_required}
+  # Artifact uploaded by the plan job: resource addresses, types and actions.
+  plan_artifact: plan-changes
+  # This opt-in in a squash commit lets the deploy delete resources.
+  refuse_markers: ["[allow-destroy]"]

@@ -113,7 +113,7 @@ make bootstrap-plan    # read-only plan; signs in with `aws sso login` if needed
 make bootstrap-apply   # plans again, shows it, applies after you type yes
 ```
 
-`make bootstrap-apply` applies exactly the plan it showed. It then sets the repository variables from the outputs: `TF_STATE_BUCKET`, `AWS_PLAN_ROLE_ARN`, `AWS_ROLE_ARN`, `AWS_TRANSFORM_ROLE_ARN`, `AWS_OBSERVER_ROLE_ARN`, `AWS_PUBLISH_ROLE_ARN` and `BOOTSTRAP_PLAN_ENABLED`. These are identifiers, not secrets.
+`make bootstrap-apply` applies exactly the plan it showed. It then sets the repository variables from the outputs: `AWS_ACCOUNT_ID`, `TF_STATE_BUCKET`, `AWS_PLAN_ROLE_ARN`, `AWS_ROLE_ARN`, `AWS_TRANSFORM_ROLE_ARN`, `AWS_OBSERVER_ROLE_ARN`, `AWS_PUBLISH_ROLE_ARN` and `BOOTSTRAP_PLAN_ENABLED`. These are identifiers, not secrets. Until `AWS_ACCOUNT_ID` or the explicit variables are set, the `infra` and `transform-daily` workflows skip with a notice (see "Repository variables" below).
 
 The budget alert address comes from the `ALERT_EMAIL` repository variable, read with `gh`. To use a different one, set `ALERT_EMAIL=you@example.com` before the command. Set `BOOTSTRAP_PROFILE` or `BOOTSTRAP_REF` to change the profile (default `mtd-admin`) or the ref (default `origin/main`).
 
@@ -139,7 +139,7 @@ rm infra/bootstrap/backend_override.tf
 make bootstrap-migrate-state
 ```
 
-**5. Bind the roles to their workflows (ADR-010).** Do this once, after the first apply that includes `mtd-ci-observer`.
+**5. Bind the roles to their workflows (ADR-010).** Do this once, after the first apply that includes `mtd-ci-observer`. Steps 1 and 2 were done on 2026-11-08: the `new-roles` probe passed, and the pull request form matched. Step 3 is the change that makes `enforce_workflow_binding` default to `true`; steps 4 to 7 follow its merge.
 
 1. Run the trust probe:
 
@@ -151,13 +151,21 @@ make bootstrap-migrate-state
    All of its jobs must pass:
    - `plan` and `trust-probe` show that the plan role accepts `bootstrap-plan.yml` on `main`, and that the observer and publish roles refuse it.
    - `oidc-claims` writes the claims into the run summary.
-2. Check the pull request form. Open the follow-up pull request from step 3 and look at the summary of its `bootstrap-plan / oidc-claims` job. `job_workflow_ref` must read `KarshVashi/mind-the-data/.github/workflows/bootstrap-plan.yml@refs/pull/<number>/merge`, which is the form the plan role will match on pull requests. If it reads differently, stop and fix `plan_pull_request` in `infra/modules/ci_role/main.tf` first.
+2. Check the pull request form. Open any pull request that runs `bootstrap-plan.yml` (the form does not depend on which one; #22's was used) and look at the summary of its `bootstrap-plan / oidc-claims` job. `job_workflow_ref` must read `KarshVashi/mind-the-data/.github/workflows/bootstrap-plan.yml@refs/pull/<number>/merge`, which is the form the plan role will match on pull requests. If it reads differently, stop and fix `plan_pull_request` in `infra/modules/ci_role/main.tf` first.
 3. Merge the follow-up change that sets `enforce_workflow_binding` to `true` in `infra/bootstrap/variables.tf`.
 4. Run `make bootstrap-apply` again.
 5. Run the probe again with `-f trust_probe=all-roles`.
 6. Open or update any pull request that touches `infra/`. Its `infra / plan` job must still assume the plan role.
+7. Check the two main-branch roles this rebinds. Run the transform and watch it get past "configure AWS credentials"; for the apply role, watch the next `infra` run on `main` do the same:
+
+   ```sh
+   gh workflow run transform-daily.yml --ref main
+   gh run watch "$(gh run list --workflow transform-daily.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
+   ```
 
 If step 1 or 2 fails, stop. Leave `enforce_workflow_binding` off and read ADR-010's fallback.
+
+If step 5, 6 or 7 fails after the apply, a pull request plan, a deploy or the transform can no longer assume its role. Recover from your machine: `TF_VAR_enforce_workflow_binding=false make bootstrap-apply` restores the unbound trust for the plan (pull request), apply and transform roles. Until a fix merges, every `make bootstrap-apply` needs that prefix, or it binds the roles again, and the Monday drift check opens a "Bootstrap drift" issue. Then open a change that sets the default back to `false`, removes `test_bootstrap_binds_the_pre_adr_010_roles` from `tests/unit/test_infra_invariants.py`, and says why in ADR-010.
 
 From now on:
 
@@ -178,6 +186,48 @@ From now on:
 - CloudWatch dashboards, composite alarms and Lambda layers named `mind-the-data-*`
 - configuration parameters under `/mind-the-data/config/`
 - the publish role
+
+---
+
+## Repository variables
+
+`AWS_ACCOUNT_ID` is the only variable the workflows need. Everything else follows the naming convention in `infra/`. `make bootstrap-apply` (H6, step 3) sets `AWS_ACCOUNT_ID` and the first five rows below from the bootstrap outputs; the `DBT_ATHENA_*_PROD` values are only derived:
+
+| Variable | Derived from `AWS_ACCOUNT_ID` | Used by |
+| --- | --- | --- |
+| `TF_STATE_BUCKET` | `mtd-tfstate-<id>` | infra |
+| `AWS_PLAN_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-plan` | infra (pull requests) |
+| `AWS_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-apply` | infra (main) |
+| `AWS_TRANSFORM_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-transform` | transform-daily |
+| `AWS_OBSERVER_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-observer` | ops-daily, ops-daytime |
+| `DBT_ATHENA_S3_STAGING_DIR_PROD` | `s3://mind-the-data-athena-results-<id>/prod/` | transform-daily |
+| `DBT_ATHENA_S3_DATA_DIR_PROD` | `s3://mind-the-data-curated-<id>/prod/` | transform-daily |
+| `DBT_ATHENA_WORKGROUP_PROD` | `mind-the-data-prod` | transform-daily |
+| `DBT_ATHENA_SCHEMA_PROD` | `mind_the_data_prod` | transform-daily |
+
+A variable that is set wins over the derived value, so the explicit variables still work. Set one only when a name really differs, for example after renaming a bucket or changing the `ci_name_prefix` or `resource_prefix` defaults in Terraform. `ALERT_EMAIL` is separate and optional (see "Alert email").
+
+The `DBT_ATHENA_*_PROD` variables were copied by hand before `AWS_ACCOUNT_ID` existed. To drop them, set `AWS_ACCOUNT_ID` (or run `make bootstrap-apply`), then delete each one whose value equals its derived value. This deletes only exact matches and prints any that differ. Leave the bootstrap-set variables alone: the next `make bootstrap-apply` sets them again anyway.
+
+```sh
+id=$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)
+gh variable set AWS_ACCOUNT_ID --body "$id"
+while read -r name derived; do
+  current=$(gh variable get "$name" 2>/dev/null || true)
+  if [ "$current" = "$derived" ]; then
+    gh variable delete "$name" && echo "deleted $name"
+  elif [ -n "$current" ]; then
+    echo "kept $name: '$current' differs from '$derived'"
+  fi
+done <<EOF
+DBT_ATHENA_S3_STAGING_DIR_PROD s3://mind-the-data-athena-results-$id/prod/
+DBT_ATHENA_S3_DATA_DIR_PROD s3://mind-the-data-curated-$id/prod/
+DBT_ATHENA_WORKGROUP_PROD mind-the-data-prod
+DBT_ATHENA_SCHEMA_PROD mind_the_data_prod
+EOF
+```
+
+Locally, `make plan` and `make dbt-build-dev` derive `TF_STATE_BUCKET` and the `DBT_ATHENA_*_DEV` values the same way when `AWS_ACCOUNT_ID` is set (env.example).
 
 ---
 
@@ -253,6 +303,17 @@ Merging is the approval.
 1. **Review the plan.** On the pull request, the `infra` workflow's `plan` job writes the plan to its run summary. Read it there.
 2. **Merge.** Merge only if the plan shows the changes the pull request says it makes, and nothing else.
 3. **Watch the deploy.** The merge starts the `deploy` job on `main`. It plans again from `main` and applies that plan. It also writes the plan it applied to its run summary, so you can check it matches what you reviewed.
+
+**Before plan and apply**, both jobs build the Lambda package and import every handler Terraform names (`make handlers`) from it in a clean interpreter. A pull request that points a function or schedule at code that is not on its branch fails here, so the order pull requests merge in cannot put a schedule live before its code.
+
+**After apply**, the deploy runs a smoke test (`.github/scripts/smoke-test.sh`):
+
+- It invokes the poller once, synchronously, with the event its schedule sends (`{"scheduled_time": "<this minute>"}`), and fails the deploy if the function errors, writes nothing, or its object is not in the raw bucket.
+- If raw has no `raw/ref_*` objects yet, it invokes the reference function once the same way.
+- If the invoke is throttled (the poller busy with its scheduled run), it retries once a minute later and fails if throttled again.
+- Only if the deploy role is not allowed `lambda:InvokeFunction` does it print a warning and pass. Today the apply role has it (through `lambda:*` on `mind-the-data-*`); the escape keeps deploys green if the bootstrap narrows that before granting invoke explicitly. Any other error fails the deploy. There is no rollback: a failed smoke test means the change is live and broken, so fix forward or revert the pull request.
+
+The smoke poll is an extra poll, never a replacement: its objects carry their own `poll_id` in the key and are written with `IfNoneMatch`, so nothing scheduled is overwritten, and the CLI makes one attempt only, so a slow invoke is never sent twice. It starts at second 20 to 40 of a minute, after that minute's scheduled poll has normally finished (they average about 3 s). Each deploy therefore leaves one minute with two polls about 20 to 40 s apart, the same as an overlap without reserved concurrency (ADR-006). Models built on raw must treat polls per minute as one or more, not exactly one.
 
 If `main` moved after the pull request's plan ran, the deploy includes those changes too. Merging soon after the pull request's plan keeps the two the same.
 
@@ -337,19 +398,18 @@ terraform -chdir=infra/envs/prod output -json dbt_athena_env
 
 The workgroups enforce their own results location and a 10 GiB scan limit per query, so a client setting cannot override either. Query results expire after 7 days.
 
-Set the prod values once, after the first deploy of M2:
+The prod values are derived from `AWS_ACCOUNT_ID` in CI (see "Repository variables"), so nothing needs setting. To override one, set it as a repository variable. To check the derived values still match the stack:
 
 ```sh
 terraform -chdir=infra/envs/prod output -json dbt_athena_env \
-  | jq -r 'to_entries[] | select(.key | endswith("_PROD")) | "\(.key) \(.value)"' \
-  | while read -r name value; do gh variable set "$name" --body "$value"; done
+  | jq -r 'to_entries[] | select(.key | endswith("_PROD")) | "\(.key) \(.value)"'
 ```
 
 ---
 
 ## Daily transform
 
-`.github/workflows/transform-daily.yml` runs `dbt build --target prod` at 03:30 London time every day, as the `mtd-ci-transform` role. It needs `AWS_TRANSFORM_ROLE_ARN` (H6 step 5) and the four `DBT_ATHENA_*_PROD` repository variables (above); without the role variable it skips with a notice.
+`.github/workflows/transform-daily.yml` runs `dbt build --target prod` at 03:30 London time every day, as the `mtd-ci-transform` role. It needs `AWS_ACCOUNT_ID` (H6 step 5), from which the role ARN and the dbt settings are derived; without it, or an explicit `AWS_TRANSFORM_ROLE_ARN`, it skips with a notice.
 
 **Why two cron lines.** GitHub's cron runs in UTC only. 03:30 London is 02:30 UTC in summer (BST) and 03:30 UTC in winter (GMT), so the workflow is scheduled at both. Its first step ends the run early unless the slot that fired matches London's current UTC offset: the 02:30 UTC slot builds only while London is on BST, the 03:30 UTC slot only while it is on GMT. Exactly one of the two builds each day. The check uses the slot that fired, not the time the job starts, so a run GitHub starts late under load still builds. The clocks change at 01:00 UTC, before either slot.
 
@@ -459,3 +519,106 @@ uv run --locked dbt build --target dev --profiles-dir . --select stg_arrivals --
 ```
 
 A merge never deletes rows, so a logic change that drops rows needs `--full-refresh`. Never combine `--full-refresh` with `start_date`/`end_date`: the table would keep only that window, so dbt refuses to compile it.
+
+---
+
+## Ops workflows
+
+Scheduled checks that answer "is the collector healthy?" without anyone asking. Both run read-only as the `mtd-ci-observer` role, created by the bootstrap. The role trusts these two workflow files by name, so don't rename them.
+
+| Workflow | When | What it checks | Issue label |
+| --- | --- | --- | --- |
+| `ops-daily` | Every day at 02:10 UTC | The previous UTC day: completeness (`scripts/completeness.py`), alarm state and any alarm that fired, poller and reference Lambda errors and throttles, and the newest raw object per feed | `ops-health` |
+| `ops-daytime` | Weekdays at 12:00 UTC | The strict arrivals check: every configured line shows predictions at its station in the last 15 minutes of raw arrivals | `ops-daytime` |
+
+Each run writes its report to the run summary. When something misses its target, it opens one issue with that label, or comments on the open one. The first run that meets every target closes it. So an open `ops-health` or `ops-daytime` issue means something is wrong now.
+
+The daytime check reads what the collector stored rather than calling TfL. CI never needs the TfL key, and the check tests the data the league table is built from.
+
+**Turning them on.** They run once the `AWS_OBSERVER_ROLE_ARN` or `AWS_ACCOUNT_ID` repository variable is set (see "Repository variables"). `make bootstrap-apply` sets it from the bootstrap outputs (H6, step 3), so after the apply that created `mtd-ci-observer` there is nothing more to do. To check:
+
+```sh
+gh variable get AWS_OBSERVER_ROLE_ARN   # arn:aws:iam::<account>:role/mtd-ci-observer
+```
+
+Without the variable, and whenever the role can't be assumed, both workflows skip with a warning and leave issues alone. The role trusts only runs on `main`, so a run started from another branch skips too. To try one at once: Actions → ops-daily → Run workflow. `ops-daily` takes an optional `day` (YYYY-MM-DD).
+
+**Re-recording test fixtures.** Run `ops-daytime` by hand during service hours with `record_fixtures` ticked. It calls TfL anonymously, with no key and no AWS credentials in the job, and runs the unit tests against the new recording. The fixtures come back as the `tfl-fixtures` artifact. To use them, copy them over `tests/fixtures/tfl/` on a branch and open a pull request. Nothing is committed automatically.
+
+**Locally.**
+
+```sh
+aws sso login --sso-session mtd
+make status                      # PRs and checks, last workflow runs, alarms, raw age per feed, open ops issues
+make prune-worktrees DRY_RUN=1   # which .claude/worktrees are finished, and the space they hold
+make prune-worktrees             # remove them
+```
+
+`make status` uses the read-only `mtd-dev` profile (override with `MTD_PROFILE`). Any part it can't reach is shown as unavailable, and the rest still prints.
+
+`make prune-worktrees` removes a worktree only when all of these hold:
+
+- it has no uncommitted or untracked changes and isn't locked;
+- nothing in it changed in the last 24 hours (`IDLE_HOURS` overrides this), so a session still working there is left alone;
+- its work is safe elsewhere: it is already in `origin/main`, or a merged pull request's head is exactly its HEAD.
+
+Ignored files in a removed worktree (`.venv`, `.terraform`, dbt `target/`, local `.env` copies) go with it. Its local branch is deleted. Remote branches are never touched.
+
+**Data transfer.** `ops-daily` reads about 55 MB of raw objects from eu-west-2 a day. That is S3 egress to the internet, about 1.7 GB a month, well inside the 100 GB monthly free allowance.
+
+### Automerge (off)
+
+The merge gate below (ADR-011) covers the same need with stricter checks. Decision D14 asks whether to remove automerge in its favour. Until then, leave `AUTOMERGE_ENABLED` unset.
+
+`.github/workflows/automerge.yml` squash-merges a pull request after `ci` passes, if all of these hold:
+
+- you opened it, from a branch in this repository, and it isn't a draft;
+- nothing was pushed after `ci` ran, and every check passed;
+- every changed file is under `transform/models/`, `tests/` or `docs/`, but not `docs/adr/`.
+
+It runs only when the repository variable `AUTOMERGE_ENABLED` is `true`.
+
+Notes:
+
+- GitHub Free doesn't offer auto-merge (`gh pr merge --auto`) on private repositories. ci has already passed when this runs, so it merges directly, pinned to the commit ci checked.
+- A merge made with `GITHUB_TOKEN` starts no other workflow, so neither `ci` nor `infra` runs on `main` for it. Nothing in the allowed paths is deployed by `infra`. The daily transform picks up model changes at its next run.
+
+**Keep it off until the CI roles' trust is pinned to `job_workflow_ref`** (`enforce_workflow_binding`, H6 step 5). Until that is applied, the apply and transform roles trust any job running on `main`. Automerge puts changes on `main` without a person reading them first. A dbt model is SQL plus Jinja, and it runs on `main` as the transform role. Once each role trusts only its own workflow file, an unreviewed change can't reach any role except through the workflows already reviewed. Then turn it on:
+
+```sh
+gh variable set AUTOMERGE_ENABLED --body true    # off again: gh variable delete AUTOMERGE_ENABLED
+```
+
+---
+
+## Merge gate
+
+Low-risk pull requests can be merged by the project's engineer without the owner, through a gate (ADR-011). Everything else waits for the owner, as before.
+
+```sh
+make merge-check PR=<n>   # dry run: prints the verdict and every reason
+make merge PR=<n>         # squash-merges the pinned head commit, only on ALLOW
+```
+
+**What it allows.** All of these must hold:
+
+- The pull request is open, targets `main`, is not a draft, and its author is in the allowlist (`KarshVashi`).
+- Every check on the head commit has finished, and none failed or was cancelled. `ci / ci` must succeed. `infra / plan` must also succeed when anything deployable changed (`infra/`, `src/`, `config/`, the Lambda build inputs, `Makefile`).
+- No protected path changed. Protected paths are `infra/bootstrap/**`, `infra/modules/ci_role/**`, `.github/**`, `docs/adr/**`, the gate's own files, `GNUmakefile` and `makefile` (make reads them before `Makefile`), and anything with `budget` or `quota` in its path.
+- The Makefile changed, if at all, outside the marked merge gate block, and no changed line could alter how `make merge` runs (a second `merge` rule, `include`, `SHELL`, `PATH`, `export`, `GIT_*` or `UV_*` variables, `$(shell)`, `$(eval)`, conditionals and similar).
+- When something deployable changed, the pull request's own CI plan is used, downloaded as the `plan-changes` artifact of the `infra / plan` run for the head commit. It may only create or update resource types on the allowlist in `config/merge_policy.yaml`. A local plan is never used, since it differs from CI's (no `ALERT_EMAIL`, a different zip hash).
+- No `[allow-destroy]` in the title, body or any commit message, since that marker lets the deploy delete resources.
+
+**What it refuses.** Anything else, and anything it cannot check. That includes any `aws_iam_*` change, any delete or replace, any import, any resource type not on the list, a plan from a manual `workflow_dispatch` run, a missing or expired plan artifact (it is kept for 7 days, so re-run the plan job), a plan run for a different commit, and pending checks. On a refusal it exits 1 and merges nothing.
+
+**Pinning.** The gate reads the head SHA once, checks everything against it, and merges with `gh pr merge --squash --match-head-commit <sha>`. A push after the check makes GitHub refuse the merge.
+
+**It always runs main's copy.** `make merge` fetches `main` into `refs/remotes/origin/main` without tags, and uses that full ref throughout, so a tag or local branch called `origin/main` cannot stand in. It exports `scripts/merge_gate.py`, `src/mind_the_data/ops/`, `config/merge_policy.yaml`, `pyproject.toml` and `uv.lock` from `origin/main` into a temporary directory with `git archive`, builds an environment from that lock file, and runs the gate there with `python -I`. The gate loads its module by file path, never through the installed package. The rules applied are the ones already on `main`, whatever a pull request changes, so a feature branch cannot loosen its own gate.
+
+The `make` recipe itself comes from the checked-out Makefile. It refuses to run unless its merge gate block matches the copy it exports. That catches running from a branch by accident, but a deliberately edited recipe could skip the check. So run `make merge` from a checkout of `main` (or a branch that does not touch the block).
+
+`make merge-check PR=<n> MERGE_GATE_REF=<ref>` dry-runs a proposed gate from another ref. `make merge` ignores that variable. The proposed code runs with your `gh` login, so read it before you dry-run it.
+
+**Changing the policy.** Edit `config/merge_policy.yaml` (or the gate's code) on a branch and open a pull request. Those files are protected, so the gate refuses that pull request and only the owner can merge it. Try it first with `make merge-check PR=<n> MERGE_GATE_REF=<branch>`. The loader rejects attempts to switch off the fixed rules (`unlisted_types`, `not_draft`, `checks_succeeded`, `pin_head_sha`).
+
+**It is a process guard, not a security boundary.** Anyone with the owner's `gh` login could run `gh pr merge` directly. The gate makes the safe path the easy one and leaves a printed record of why each merge was allowed. The AWS Budget alerts remain the backstop after a merge.

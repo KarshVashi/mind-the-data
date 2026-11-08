@@ -1,0 +1,58 @@
+# Weekly update pull requests, one per ecosystem. The 14-day cooldown matches
+# the project's supply-chain rule: no release is adopted until it is at least
+# two weeks old (see also exclude-newer in pyproject.toml). Security updates
+# are not delayed by the cooldown.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Europe/London
+    cooldown:
+      default-days: 14
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # Reads uv.lock directly; updates both pyproject.toml and the lock.
+  # exclude-newer in pyproject.toml is a fixed date, so these pull requests
+  # only offer releases older than it; move it forward deliberately.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Europe/London
+    cooldown:
+      default-days: 14
+    groups:
+      python:
+        patterns: ["*"]
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # Providers in both roots. infra/bootstrap is applied by hand (runbook H6),
+  # so a merged bump there takes effect at the next bootstrap apply.
+  - package-ecosystem: terraform
+    directories:
+      - /infra/envs/prod
+      - /infra/bootstrap
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Europe/London
+    cooldown:
+      default-days: 14
+    groups:
+      terraform:
+        patterns: ["*"]
+    commit-message:
+      prefix: chore
+      include: scope

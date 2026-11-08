@@ -1,0 +1,45 @@
+{
+  "number": 19,
+  "headRefOid": "ab735a56ab9049f9936ee4a069f85a2059cc229d",
+  "isDraft": false,
+  "author": {
+    "login": "KarshVashi"
+  },
+  "state": "OPEN",
+  "baseRefName": "main",
+  "title": "docs: add status page and decisions inbox",
+  "body": "Docs only.",
+  "commits": [
+    {
+      "messageHeadline": "docs: add status page and decisions inbox",
+      "messageBody": ""
+    },
+    {
+      "messageHeadline": "docs: split ADR approvals and correct the dbt-athena pin",
+      "messageBody": ""
+    }
+  ],
+  "files": [
+    {
+      "path": "README.md"
+    },
+    {
+      "path": "docs/DECISIONS.md"
+    },
+    {
+      "path": "docs/STATUS.md"
+    }
+  ],
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-07T01:17:20Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/KarshVashi/mind-the-data/actions/runs/42323099561/job/128252023153",
+      "name": "ci",
+      "startedAt": "2026-11-07T01:15:52Z",
+      "status": "COMPLETED",
+      "workflowName": "ci"
+    }
+  ]
+}
