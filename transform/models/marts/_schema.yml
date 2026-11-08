@@ -1,0 +1,171 @@
+version: 2
+
+models:
+  - name: dim_lines
+    description: Lines in scope, from config/lines.yaml through the `lines` seed.
+    columns:
+      - name: line_id
+        description: TfL line id.
+        data_tests: [unique, not_null]
+      - name: line_name
+        description: Display name.
+        data_tests: [not_null]
+      - name: mode_name
+        description: TfL mode.
+        data_tests: [not_null]
+      - name: colour
+        description: Line colour, hex.
+      - name: is_low_volume
+        description: Shown but flagged as low volume.
+        data_tests: [not_null]
+
+  - name: dim_service_hours
+    description: >
+      Scheduled operating minutes per line, London date and time band, the
+      denominator before missing minutes are taken out. Counted in real
+      minutes, so the clock-change Sundays have 25 and 23 London hours.
+    columns:
+      - name: service_hours_key
+        description: Row key, a hash of (line_id, london_date, time_band).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: london_date
+        description: London date.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+      - name: day_type
+        description: Day type of the date.
+      - name: day_class
+        description: weekday or weekend.
+      - name: time_band
+        description: Time band.
+        data_tests: [not_null]
+      - name: time_weight
+        description: Weight of the band.
+      - name: scheduled_minutes
+        description: Scheduled minutes in the band.
+        data_tests: [not_null]
+      - name: scheduled_hours
+        description: The same in hours.
+
+  - name: fct_line_daily
+    description: >
+      Declared-view metrics per line and London date (PLAN 7.1), over
+      scheduled minutes. Scored minutes are scheduled, observed, and neither
+      engineering works nor Service Closed. Disruption Index = 100 x sum of
+      (severity weight x time weight) over scored minutes / scored hours,
+      i.e. weighted disruption minutes per 100 service hours (D19).
+    columns:
+      - name: line_daily_key
+        description: Row key, a hash of (line_id, london_date).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: london_date
+        description: London date.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: scheduled_minutes
+        description: Minutes inside scheduled hours.
+      - name: observed_minutes
+        description: Scheduled minutes with a known status.
+      - name: missing_minutes
+        description: Scheduled minutes without one.
+      - name: engineering_works_minutes
+        description: Scheduled minutes whose worst status is a closure.
+      - name: service_closed_minutes
+        description: Scheduled minutes TfL reported as Service Closed.
+      - name: scored_minutes
+        description: The denominator of every score.
+      - name: good_service_minutes
+        description: Scored minutes at Good Service (code 10).
+      - name: disrupted_minutes
+        description: Scored minutes with a weight above 0.
+      - name: weighted_disruption_minutes
+        description: Sum of severity weight x time weight over scored minutes.
+      - name: incidents
+        description: Incidents starting on the date.
+      - name: median_recovery_minutes
+        description: Median recovery of closed incidents starting on the date.
+      - name: completeness
+        description: observed_minutes / scheduled_minutes.
+        data_tests: [not_null]
+      - name: disruption_index
+        description: Weighted disruption minutes per 100 scored service hours; null with no scored minutes.
+      - name: good_service_pct
+        description: Percentage of scored minutes at Good Service.
+      - name: incidents_per_100_hours
+        description: Incidents per 100 scored service hours.
+
+  - name: fct_line_weekly
+    description: >
+      Declared-view metrics per line and ISO week (Monday to Sunday, London
+      time). Sums of fct_line_daily with ratios recomputed, the week's rank
+      by Disruption Index (ties: higher Good Service %, D20), and movement
+      against the previous week. A line-week under `provisional_completeness`
+      (0.9) is provisional.
+    columns:
+      - name: line_weekly_key
+        description: Row key, a hash of (line_id, week_start).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: week_end
+        description: Sunday of the London week.
+      - name: service_days
+        description: London dates with scheduled minutes.
+      - name: scheduled_minutes
+        description: Minutes inside scheduled hours.
+      - name: observed_minutes
+        description: Scheduled minutes with a known status.
+      - name: missing_minutes
+        description: Scheduled minutes without one.
+      - name: engineering_works_minutes
+        description: Engineering works minutes.
+      - name: service_closed_minutes
+        description: Service Closed minutes in scheduled hours.
+      - name: scored_minutes
+        description: Denominator of every score.
+      - name: good_service_minutes
+        description: Scored minutes at Good Service.
+      - name: disrupted_minutes
+        description: Scored minutes with a weight above 0.
+      - name: weighted_disruption_minutes
+        description: Sum of severity weight x time weight.
+      - name: incidents
+        description: Incidents starting in the week.
+      - name: median_recovery_minutes
+        description: Median recovery of closed incidents starting in the week.
+      - name: completeness
+        description: observed_minutes / scheduled_minutes.
+        data_tests: [not_null]
+      - name: disruption_index
+        description: Weighted disruption minutes per 100 scored service hours.
+      - name: good_service_pct
+        description: Percentage of scored minutes at Good Service.
+      - name: incidents_per_100_hours
+        description: Incidents per 100 scored service hours.
+      - name: is_week_complete
+        description: The week's last London minute has passed.
+        data_tests: [not_null]
+      - name: is_provisional
+        description: Completeness under the threshold.
+        data_tests: [not_null]
+      - name: is_low_volume
+        description: Low-volume line.
+      - name: disruption_rank
+        description: Rank in the week, 1 = least disrupted; null with no scored minutes.
+      - name: previous_disruption_rank
+        description: Rank in the previous week.
+      - name: rank_movement
+        description: previous rank minus this rank; positive means the line climbed.
