@@ -57,10 +57,23 @@ parsed as (
 deduplicated as (
     select
         *,
-        -- A board can list the same prediction id twice; keep the freshest
-        -- copy, then the one TfL listed first.
+        -- TfL's prediction id is not unique on a board: every DLR prediction
+        -- at a station shares one id, and a train that terminates and leaves
+        -- again keeps its id on two platforms. A row is the same prediction
+        -- only when the train, place and time all match; then keep the
+        -- freshest copy, then the one TfL listed first.
         row_number() over (
-            partition by poll_id, request_path, prediction_id
+            partition by
+                poll_id,
+                request_path,
+                prediction_id,
+                line_id,
+                naptan_id,
+                platform_name,
+                direction,
+                vehicle_id,
+                destination_naptan_id,
+                expected_arrival
             order by prediction_timestamp desc nulls last, prediction_ordinal asc
         ) as duplicate_rank
     from parsed
@@ -88,7 +101,18 @@ select
     prediction_timestamp,
     time_to_live,
     dt,
-    {{ row_key(['poll_id', 'request_path', 'prediction_id']) }} as arrival_prediction_key,
+    {{ row_key([
+        'poll_id',
+        'request_path',
+        'prediction_id',
+        'line_id',
+        'naptan_id',
+        'platform_name',
+        'direction',
+        'vehicle_id',
+        'destination_naptan_id',
+        'expected_arrival',
+    ]) }} as arrival_prediction_key,
     date_trunc('minute', polled_at) as poll_minute
 from deduplicated
 where duplicate_rank = 1
