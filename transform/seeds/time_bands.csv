@@ -1,0 +1,7 @@
+day_class,time_band,band_start_minute,band_end_minute,time_weight
+weekday,early,0,420,1
+weekday,am_peak,420,600,2
+weekday,inter_peak,600,960,1
+weekday,pm_peak,960,1140,2
+weekday,evening,1140,1440,1
+weekend,weekend,0,1440,0.75

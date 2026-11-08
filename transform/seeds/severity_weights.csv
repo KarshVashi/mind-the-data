@@ -1,0 +1,12 @@
+severity_code,description,weight_unplanned,weight_planned,is_closure,is_service_closed,source
+0,Special Service,1,1,false,false,plan
+2,Suspended,8,8,false,false,plan
+3,Part Suspended,5,5,false,false,plan
+4,Planned Closure,0,0,true,false,plan
+5,Part Closure,0,0,true,false,plan
+6,Severe Delays,3,3,false,false,plan
+7,Reduced Service,1.5,1.5,false,false,plan
+8,Bus Service,5,0,false,false,plan
+9,Minor Delays,1,1,false,false,plan
+10,Good Service,0,0,false,false,plan
+20,Service Closed,0,0,false,true,decision_d16

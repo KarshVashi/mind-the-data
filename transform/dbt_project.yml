@@ -24,6 +24,17 @@ vars:
   # command line, e.g. --vars '{start_date: "2026-11-03", end_date: "2026-11-05"}'.
   start_date: null
   end_date: null
+  # Minutes int_utc_minutes leaves off the end, so the minute a run starts
+  # in (whose poll may still be in flight) is never read as missing.
+  minute_settle_minutes: 2
+  # PLAN 6.2: unplanned disruptions separated by fewer quiet minutes than
+  # this are one incident.
+  incident_merge_gap_minutes: 5
+  # PLAN 7.4: a line-week under this completeness is provisional.
+  provisional_completeness: 0.9
+  # analyses/league_preview.sql: a week to show instead of the latest
+  # complete one ('YYYY-MM-DD', a Monday).
+  preview_week_start: null
 
 # Every layer of a target lands in that target's single Glue database (`dev`
 # or `prod`, section 2 of the plan); the stg_/int_/fct_ prefixes carry the
@@ -41,9 +52,48 @@ models:
       +partitioned_by: ["dt"]
       +on_schema_change: fail
 
+# Intermediate and mart models are tables or merges declared in each model.
+# Seeds hold the metric definitions (severity weights, time bands, service
+# hours); column types are pinned so a seed edit cannot change a type.
 seeds:
   mind_the_data:
     +table_type: iceberg
+    lines:
+      +column_types:
+        line_id: varchar
+        line_name: varchar
+        mode_name: varchar
+        colour: varchar
+        is_low_volume: boolean
+    severity_weights:
+      +column_types:
+        severity_code: integer
+        description: varchar
+        weight_unplanned: double
+        weight_planned: double
+        is_closure: boolean
+        is_service_closed: boolean
+        source: varchar
+    time_bands:
+      +column_types:
+        day_class: varchar
+        time_band: varchar
+        band_start_minute: integer
+        band_end_minute: integer
+        time_weight: double
+    day_types:
+      +column_types:
+        iso_day_of_week: integer
+        day_name: varchar
+        day_type: varchar
+        day_class: varchar
+    line_operating_hours:
+      +column_types:
+        line_id: varchar
+        day_type: varchar
+        service_start_minute: integer
+        service_end_minute: integer
+        source: varchar
 
 # Staging tests cover the last 7 days. Older days were tested when they were
 # built; rescanning all history on every daily run would only add cost.
