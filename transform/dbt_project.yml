@@ -97,6 +97,19 @@ seeds:
         service_start_minute: integer
         service_end_minute: integer
         source: varchar
+    timetable_schedule_day_types:
+      +column_types:
+        schedule_name: varchar
+        day_type: varchar
+    seed_line_frequencies:
+      +column_types:
+        line_id: varchar
+        naptan_id: varchar
+        day_type: varchar
+        from_hour: integer
+        to_hour: integer
+        trains_per_hour: integer
+        source: varchar
 
 # Staging tests cover the last 7 days. Older days were tested when they were
 # built; rescanning all history on every daily run would only add cost.
