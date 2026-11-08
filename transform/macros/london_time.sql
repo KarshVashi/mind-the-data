@@ -19,13 +19,3 @@
         {{ utc_expr }}
     )
 {%- endmacro %}
-
-
-{#
-  Predicate keeping a date column inside the current run's window
-  (macros/staging_window.sql), as date literals.
-#}
-{% macro dt_in_window(column='dt') %}
-    {%- set window = staging_window() -%}
-    {{ column }} between date '{{ window.start }}' and date '{{ window.end }}'
-{%- endmacro %}

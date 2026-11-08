@@ -27,6 +27,9 @@ vars:
   # Minutes int_utc_minutes leaves off the end, so the minute a run starts
   # in (whose poll may still be in flight) is never read as missing.
   minute_settle_minutes: 2
+  # int_line_minute_status trims at most this many of the newest spine
+  # minutes back to the latest staged status poll (a build-order race).
+  tail_trim_minutes: 30
   # PLAN 6.2: unplanned disruptions separated by fewer quiet minutes than
   # this are one incident.
   incident_merge_gap_minutes: 5

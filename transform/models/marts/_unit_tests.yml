@@ -19,7 +19,10 @@ unit_tests:
       median of 10 and 30 = 20; incidents per 100 hours = 100 x 3 / (4 / 60)
       = 4,500. Bakerloo on 4 November has one scored Good Service minute:
       index 0, Good Service 100 %, no incidents (0 per 100 hours, median
-      null).
+      null). A disruption spanning midnight: Victoria's Severe Delays carry
+      on into 4 November (one off-peak minute, 3 x 1 = 3). That minute
+      scores on 4 November (index 100 x 3 / (1 / 60) = 18,000, Good Service
+      0 %), but the incident counts only on 3 November, where it started.
     model: fct_line_daily
     given:
       - input: ref('int_line_minute_status')
@@ -34,6 +37,7 @@ unit_tests:
           - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: true, is_scored: false, status_severity: 20, severity_weight: 0, time_weight: 1}
           - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: false, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: false, status_severity: 6, severity_weight: 3, time_weight: 1}
           - {line_id: bakerloo, london_date: "2026-11-04", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: true, status_severity: 10, severity_weight: 0, time_weight: 1}
+          - {line_id: victoria, london_date: "2026-11-04", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: true, status_severity: 6, severity_weight: 3, time_weight: 1}
       - input: ref('int_incidents')
         rows:
           - {line_id: victoria, start_london_date: "2026-11-03", recovery_minutes: 10}
@@ -43,13 +47,15 @@ unit_tests:
       rows:
         - {line_id: victoria, london_date: "2026-11-03", scheduled_minutes: 8, observed_minutes: 6, missing_minutes: 2, engineering_works_minutes: 1, service_closed_minutes: 1, scored_minutes: 4, good_service_minutes: 2, disrupted_minutes: 2, weighted_disruption_minutes: 7, incidents: 3, median_recovery_minutes: 20, completeness: 0.75, disruption_index: 10500, good_service_pct: 50, incidents_per_100_hours: 4500}
         - {line_id: bakerloo, london_date: "2026-11-04", scheduled_minutes: 1, observed_minutes: 1, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 1, good_service_minutes: 1, disrupted_minutes: 0, weighted_disruption_minutes: 0, incidents: 0, median_recovery_minutes: null, completeness: 1, disruption_index: 0, good_service_pct: 100, incidents_per_100_hours: 0}
+        - {line_id: victoria, london_date: "2026-11-04", scheduled_minutes: 1, observed_minutes: 1, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 1, good_service_minutes: 0, disrupted_minutes: 1, weighted_disruption_minutes: 3, incidents: 0, median_recovery_minutes: null, completeness: 1, disruption_index: 18000, good_service_pct: 0, incidents_per_100_hours: 0}
 
-  - name: fct_line_weekly_ranks_movement_and_clock_change_week
+  - name: fct_line_weekly_sums_ranks_and_movement
     description: >
-      Week of Monday 19 October 2026, which ends on the 25-hour Sunday of
-      the October clock change, and the week of 26 October. Days are
-      assigned to weeks by London date upstream; here Sunday 25 and Monday
-      26 land in different weeks.
+      Weekly sums, recomputed ratios, ranks, ties and movement, over the
+      weeks of 19 and 26 October 2026. Which week a minute belongs to across
+      a clock change is decided upstream and tested there
+      (int_line_minute_status_london_calendar_and_clock_changes,
+      assert_clock_change_days_have_real_length); here the week is input.
       Week 19 Oct, Victoria: 24 Oct (60 scored, 30 Good Service, weighted 30,
       1 incident) + 25 Oct (60 scored, all Good Service) = 120 scored, 90 Good
       Service, weighted 30: index 100 x 30 / 2 = 1,500, Good Service 75 %,

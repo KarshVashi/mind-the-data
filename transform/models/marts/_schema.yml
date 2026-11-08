@@ -156,7 +156,7 @@ models:
       - name: incidents_per_100_hours
         description: Incidents per 100 scored service hours.
       - name: is_week_complete
-        description: The week's last London minute has passed.
+        description: The week's last London minute has passed by the wall clock, whatever the data holds; completeness and is_provisional say how much was observed.
         data_tests: [not_null]
       - name: is_provisional
         description: Completeness under the threshold.

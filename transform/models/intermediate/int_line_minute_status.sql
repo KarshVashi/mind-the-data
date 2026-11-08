@@ -1,28 +1,33 @@
 {{
     config(
-        materialized='incremental',
-        incremental_strategy='merge',
-        unique_key='line_minute_key',
+        materialized='table',
         partitioned_by=['dt'],
-        incremental_predicates=staging_incremental_predicates(),
-        on_schema_change='fail',
     )
 }}
 
 -- One row per in-scope line per UTC minute, whether or not a poll landed.
 -- The worst current status wins (ADR-004). A minute can hold one or more
 -- polls (smoke-test polls, retries): the latest successful poll that lists
--- the line is read. A minute with no such poll, or whose poll has no current
--- entry for the line, is missing and never Good Service.
+-- the line is read (ADR-013). A minute with no such poll, or whose poll has
+-- no current entry for the line, is missing and never Good Service.
+--
+-- Rebuilt in full from raw_start_date on every run (ADR-012), so an edit to
+-- the weight, band or hours seeds reaches every past minute and a rerun
+-- gives the same rows. Backfill vars do not apply here.
 
--- The spine stops at the latest staged status poll. int_utc_minutes runs
--- after staging in a build, so its last minutes can be newer than anything
--- staged yet; they would read as missing until the next run. With no
--- staged poll in the window (an outage), every minute is kept, as missing.
+-- int_utc_minutes runs after staging in a build, so its newest minutes can
+-- be newer than anything staged yet. Only the last `tail_trim_minutes` are
+-- trimmed back to the latest staged status poll; older minutes are always
+-- kept, and show as missing if no poll covers them.
 with latest_staged as (
     select max(poll_minute) as latest_poll_minute
     from {{ ref('stg_line_status') }}
-    where {{ dt_in_window('dt') }}
+    where dt >= date '{{ var("raw_start_date") }}'
+),
+
+spine_end as (
+    select max(minute_utc) as last_minute
+    from {{ ref('int_utc_minutes') }}
 ),
 
 minutes as (
@@ -32,11 +37,12 @@ minutes as (
         {{ london_local('spine.minute_utc') }} as london_ts
     from {{ ref('int_utc_minutes') }} as spine
     cross join latest_staged
+    cross join spine_end
     where
-        {{ dt_in_window('spine.dt') }}
-        and (
-            latest_staged.latest_poll_minute is null
-            or spine.minute_utc <= latest_staged.latest_poll_minute
+        spine.dt >= date '{{ var("raw_start_date") }}'
+        and spine.minute_utc <= greatest(
+            coalesce(latest_staged.latest_poll_minute, spine_end.last_minute),
+            date_add('minute', -{{ var('tail_trim_minutes') }}, spine_end.last_minute)
         )
 ),
 
@@ -118,7 +124,7 @@ successful_polls as (
     where
         feed = 'line_status'
         and is_ok
-        and {{ dt_in_window('dt') }}
+        and dt >= date '{{ var("raw_start_date") }}'
     group by poll_minute
 ),
 
@@ -137,7 +143,7 @@ entries as (
         valid_from,
         valid_to
     from {{ ref('stg_line_status') }}
-    where {{ dt_in_window('dt') }}
+    where dt >= date '{{ var("raw_start_date") }}'
 ),
 
 line_polls as (
@@ -233,7 +239,7 @@ ranked as (
         bool_or(coalesce(is_closure, false)) over (
             partition by line_id, poll_minute
         ) as has_closure_entry,
-        count(*) over (partition by line_id, poll_minute) as current_entries
+        count(*) over (partition by line_id, poll_minute) as current_entry_count
     from weighted
 ),
 
@@ -263,7 +269,7 @@ joined as (
         worst_status.severity_weight,
         line_minutes.dt,
         coalesce(successful_polls.successful_polls, 0) as successful_polls,
-        coalesce(worst_status.current_entries, 0) as current_entries,
+        coalesce(worst_status.current_entry_count, 0) as current_entries,
         coalesce(worst_status.has_closure_entry, false) as has_closure_entry,
         worst_status.poll_id is null as is_missing,
         case

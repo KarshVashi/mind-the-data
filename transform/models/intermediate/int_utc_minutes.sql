@@ -6,7 +6,11 @@
 with calendar_days as (
     select calendar_days.calendar_day
     from
-        unnest(sequence(date '{{ var("raw_start_date") }}', current_date, interval '1' day))
+        unnest(sequence(
+            date '{{ var("raw_start_date") }}',
+            cast(current_timestamp at time zone 'UTC' as date),
+            interval '1' day
+        ))
             as calendar_days (calendar_day)
 ),
 
