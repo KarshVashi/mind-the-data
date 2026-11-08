@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #5f6368;
+    --rule: #d9dbdd;
+    --track: #eceeef;
+    --paper: #ffffff;
+    --band: #0019a8;
+    --amber: #b35c00;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: ${width}px;
+    height: ${height}px;
+    overflow: hidden;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .card {
+    width: ${width}px;
+    height: ${height}px;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    background: var(--band);
+    color: #fff;
+    padding: ${pad_y}px ${pad_x}px ${pad_y_small}px;
+  }
+  .kicker {
+    font-size: ${kicker_size}px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.85;
+  }
+  h1 {
+    font-size: ${title_size}px;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-top: 4px;
+  }
+  .insight {
+    padding: ${pad_y_small}px ${pad_x}px;
+    font-size: ${insight_size}px;
+    font-weight: 600;
+    line-height: 1.25;
+    border-bottom: 1px solid var(--rule);
+  }
+  .table {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(${columns}, 1fr);
+    column-gap: ${column_gap}px;
+    padding: ${pad_y_small}px ${pad_x}px 0;
+    min-height: 0;
+  }
+  .col { display: flex; flex-direction: column; }
+  .head, .row {
+    display: grid;
+    grid-template-columns: ${grid};
+    align-items: center;
+    column-gap: 8px;
+  }
+  .head {
+    font-size: ${small_size}px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .head .num { text-align: right; }
+  .row {
+    height: ${row_height}px;
+    font-size: ${row_size}px;
+    border-bottom: 1px solid var(--track);
+  }
+  .rank { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  .name { display: flex; align-items: center; gap: 8px; white-space: nowrap; overflow: hidden; }
+  .chip { width: 6px; height: ${chip_height}px; border-radius: 2px; flex: none; }
+  .mark { color: var(--amber); font-weight: 700; }
+  .bar { height: ${bar_height}px; background: var(--track); border-radius: 2px; overflow: hidden; }
+  .bar span { display: block; height: 100%; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .di { font-weight: 700; }
+  .unranked { color: var(--muted); }
+  footer {
+    padding: ${pad_y_small}px ${pad_x}px ${pad_y}px;
+    font-size: ${small_size}px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  footer p + p { margin-top: 2px; }
+  footer .mark { font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <header>
+    <div class="kicker">${kicker}</div>
+    <h1>${title}</h1>
+  </header>
+  <div class="insight">${insight}</div>
+  <div class="table">${table}</div>
+  <footer>${footer}</footer>
+</div>
+</body>
+</html>

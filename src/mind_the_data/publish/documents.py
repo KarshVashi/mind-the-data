@@ -1,0 +1,253 @@
+"""Build the published JSON documents (PLAN 8) from league and mart rows.
+
+Pure functions: the caller supplies generated_at and git_sha, so the same
+input always gives the same document. Every document carries the common
+envelope: schema_version, generated_at, data_window, completeness, git_sha.
+"""
+
+import csv
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from mind_the_data.publish.insight import Insight
+from mind_the_data.publish.league import (
+    CLOSURE_SHARE_PROVISIONAL,
+    OPEN_METRIC_DECISIONS,
+    League,
+    Standing,
+    Window,
+)
+from mind_the_data.publish.marts import BadHourRow, LineInfo, WeeklyRow
+from mind_the_data.publish.schemas import SCHEMA_VERSION
+
+TYPICAL_BAD_HOURS = 3
+
+
+@dataclass(frozen=True)
+class Stamp:
+    generated_at: datetime
+    git_sha: str
+
+    def __post_init__(self) -> None:
+        if self.generated_at.tzinfo is None:
+            raise ValueError("generated_at must be timezone-aware")
+
+
+def _utc(ts: datetime) -> str:
+    return ts.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _round(value: float | None, digits: int) -> float | None:
+    return None if value is None else round(value, digits)
+
+
+def iso_week_of(day: date) -> str:
+    year, week, _ = day.isocalendar()
+    return f"{year}-W{week:02d}"
+
+
+def envelope(stamp: Stamp, window: Window, completeness: float | None) -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "generated_at": _utc(stamp.generated_at),
+        "data_window": {
+            "start": window.start.isoformat(),
+            "end": window.end.isoformat(),
+            "timezone": "Europe/London",
+            "iso_week": window.iso_week,
+        },
+        "completeness": _round(completeness, 4),
+        "git_sha": stamp.git_sha,
+    }
+
+
+def measured_published(league: League) -> bool:
+    return any(s.measured is not None for s in league.standings)
+
+
+def _standing(standing: Standing) -> dict[str, Any]:
+    measured = standing.measured
+    return {
+        "line_id": standing.line.line_id,
+        "line_name": standing.line.line_name,
+        "mode": standing.line.mode_name,
+        "colour": standing.line.colour,
+        "is_low_volume": standing.line.is_low_volume,
+        "rank": standing.rank,
+        "rank_movement": standing.rank_movement,
+        "disruption_index": _round(standing.disruption_index, 1),
+        "good_service_pct": _round(standing.good_service_pct, 2),
+        "incidents": standing.incidents,
+        "incidents_per_100_hours": _round(standing.incidents_per_100_hours, 2),
+        "median_recovery_minutes": _round(standing.median_recovery_minutes, 1),
+        "completeness": _round(standing.completeness, 4),
+        "scheduled_minutes": standing.scheduled_minutes,
+        "scored_minutes": standing.scored_minutes,
+        "engineering_works_minutes": standing.engineering_works_minutes,
+        "is_provisional": standing.is_provisional,
+        "provisional_reasons": [
+            {"code": r.code, "decision": r.decision, "detail": r.detail}
+            for r in standing.provisional_reasons
+        ],
+        "measured_status": "not_measured" if measured is None else "measured",
+        "measured": None
+        if measured is None
+        else {
+            "excess_wait_minutes": _round(measured.excess_wait_minutes, 2),
+            "long_gaps_per_100_hours": _round(measured.long_gaps_per_100_hours, 2),
+            "honesty_gap_hours": _round(measured.honesty_gap_hours, 1),
+            "honesty_gap_share": _round(measured.honesty_gap_share, 4),
+            "experienced_rank": measured.experienced_rank,
+        },
+    }
+
+
+def league_document(league: League, insight: Insight | None, stamp: Stamp) -> dict[str, Any]:
+    worst = league.worst_incident
+    return {
+        **envelope(stamp, league.window, league.completeness),
+        "views": {
+            "declared": "published",
+            "measured": "published" if measured_published(league) else "not_measured",
+        },
+        "open_decisions": list(league.open_decisions),
+        "lines": [_standing(s) for s in league.standings],
+        "worst_incident": None
+        if worst is None
+        else {
+            "line_id": worst.line.line_id,
+            "line_name": worst.line.line_name,
+            "started_at": _utc(worst.incident.started_at_utc.replace(tzinfo=UTC)),
+            "start_london_date": worst.incident.start_london_date.isoformat(),
+            "duration_minutes": worst.incident.duration_minutes,
+            "is_open": worst.incident.is_open,
+            "worst_status": worst.incident.worst_status_description,
+            "first_reason": worst.incident.first_reason,
+        },
+        "insight": None
+        if insight is None
+        else {"kind": insight.kind, "line_id": insight.line_id, "text": insight.text},
+    }
+
+
+def _week(row: WeeklyRow) -> dict[str, Any]:
+    return {
+        "iso_week": iso_week_of(row.week_start),
+        "week_start": row.week_start.isoformat(),
+        "week_end": (row.week_start + timedelta(days=6)).isoformat(),
+        "rank": row.disruption_rank,
+        "rank_movement": row.rank_movement,
+        "disruption_index": _round(row.disruption_index, 1),
+        "good_service_pct": _round(row.good_service_pct, 2),
+        "incidents": row.incidents,
+        "completeness": _round(row.completeness, 4),
+        "is_week_complete": row.is_week_complete,
+        "is_provisional": row.is_provisional,
+    }
+
+
+def typical_bad_hours(rows: Sequence[BadHourRow], top: int = TYPICAL_BAD_HOURS) -> list[Any]:
+    """The London hours with the highest disrupted share; hours never disrupted are left out."""
+    disrupted = [r for r in rows if r.scored_minutes > 0 and r.disrupted_minutes > 0]
+    disrupted.sort(key=lambda r: (-r.disrupted_minutes / r.scored_minutes, r.london_hour))
+    return [
+        {
+            "london_hour": r.london_hour,
+            "disrupted_share": round(r.disrupted_minutes / r.scored_minutes, 4),
+            "scored_minutes": r.scored_minutes,
+        }
+        for r in disrupted[:top]
+    ]
+
+
+def line_document(
+    line: LineInfo,
+    weekly: Sequence[WeeklyRow],
+    bad_hours: Sequence[BadHourRow],
+    stamp: Stamp,
+    *,
+    measured: bool = False,
+) -> dict[str, Any] | None:
+    """lines/{line_id}.json, or None when the line has no weeks yet."""
+    history = sorted((w for w in weekly if w.line_id == line.line_id), key=lambda w: w.week_start)
+    if not history:
+        return None
+    window = Window(start=history[0].week_start, end=history[-1].week_start + timedelta(days=6))
+    scheduled = sum(w.scheduled_minutes for w in history)
+    observed = sum(w.observed_minutes for w in history)
+    complete = [w for w in history if w.is_week_complete and w.disruption_index is not None]
+    worst = max(complete, key=lambda w: (w.disruption_index or 0.0, w.week_start), default=None)
+    return {
+        **envelope(stamp, window, observed / scheduled if scheduled else None),
+        "line": {
+            "line_id": line.line_id,
+            "line_name": line.line_name,
+            "mode": line.mode_name,
+            "colour": line.colour,
+            "is_low_volume": line.is_low_volume,
+        },
+        "history": [_week(w) for w in history],
+        "worst_week": None if worst is None else _week(worst),
+        "typical_bad_hours": typical_bad_hours([r for r in bad_hours if r.line_id == line.line_id]),
+        "measured_status": "measured" if measured else "not_measured",
+    }
+
+
+def _bool(text: str) -> bool:
+    return text.strip().lower() == "true"
+
+
+def dbt_vars(transform_dir: Path) -> dict[str, Any]:
+    project = yaml.safe_load((transform_dir / "dbt_project.yml").read_text())
+    variables: dict[str, Any] = project["vars"]
+    return variables
+
+
+def methodology_document(transform_dir: Path, league: League, stamp: Stamp) -> dict[str, Any]:
+    """Weights and thresholds read from the seeds and dbt vars this commit builds with."""
+    seeds = transform_dir / "seeds"
+    with (seeds / "severity_weights.csv").open() as f:
+        severity = [
+            {
+                "severity_code": int(r["severity_code"]),
+                "description": r["description"],
+                "weight_unplanned": float(r["weight_unplanned"]),
+                "weight_planned": float(r["weight_planned"]),
+                "is_closure": _bool(r["is_closure"]),
+                "is_service_closed": _bool(r["is_service_closed"]),
+                "source": r["source"],
+            }
+            for r in csv.DictReader(f)
+        ]
+    with (seeds / "time_bands.csv").open() as f:
+        bands = [
+            {
+                "day_class": r["day_class"],
+                "time_band": r["time_band"],
+                "start_minute": int(r["band_start_minute"]),
+                "end_minute": int(r["band_end_minute"]),
+                "time_weight": float(r["time_weight"]),
+            }
+            for r in csv.DictReader(f)
+        ]
+    variables = dbt_vars(transform_dir)
+    return {
+        **envelope(stamp, league.window, league.completeness),
+        "severity_weights": severity,
+        "time_bands": bands,
+        "thresholds": {
+            "provisional_completeness": float(variables["provisional_completeness"]),
+            "closure_share_provisional": CLOSURE_SHARE_PROVISIONAL,
+            "incident_merge_gap_minutes": int(variables["incident_merge_gap_minutes"]),
+        },
+        "views": {
+            "declared": "published",
+            "measured": "published" if measured_published(league) else "not_measured",
+        },
+        "open_decisions": list(OPEN_METRIC_DECISIONS),
+    }

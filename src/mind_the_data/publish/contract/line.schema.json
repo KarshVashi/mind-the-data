@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Line history",
+  "description": "lines/{line_id}.json: one line's weekly history, worst week and typical bad hours.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "data_window",
+    "completeness",
+    "git_sha",
+    "line",
+    "history",
+    "worst_week",
+    "typical_bad_hours",
+    "measured_status"
+  ],
+  "properties": {
+    "schema_version": {"$ref": "league.schema.json#/$defs/schema_version"},
+    "generated_at": {"$ref": "league.schema.json#/$defs/utc_timestamp"},
+    "data_window": {"$ref": "league.schema.json#/$defs/data_window"},
+    "completeness": {"$ref": "league.schema.json#/$defs/nullable_share"},
+    "git_sha": {"$ref": "league.schema.json#/$defs/git_sha"},
+    "line": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line_id", "line_name", "mode", "colour", "is_low_volume"],
+      "properties": {
+        "line_id": {"type": "string", "pattern": "^[a-z-]+$"},
+        "line_name": {"type": "string", "minLength": 1},
+        "mode": {"type": "string", "minLength": 1},
+        "colour": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+        "is_low_volume": {"type": "boolean"}
+      }
+    },
+    "history": {
+      "description": "Every ISO week with data, oldest first.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/week"}
+    },
+    "worst_week": {
+      "description": "The complete week with the highest Disruption Index; null before one exists.",
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/week"}]
+    },
+    "typical_bad_hours": {
+      "description": "London hours of day with the highest share of disrupted scored minutes, worst first. Empty when not computed.",
+      "type": "array",
+      "maxItems": 24,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["london_hour", "disrupted_share", "scored_minutes"],
+        "properties": {
+          "london_hour": {"type": "integer", "minimum": 0, "maximum": 23},
+          "disrupted_share": {"$ref": "league.schema.json#/$defs/share"},
+          "scored_minutes": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "measured_status": {"enum": ["measured", "not_measured"]}
+  },
+  "$defs": {
+    "week": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "iso_week",
+        "week_start",
+        "week_end",
+        "rank",
+        "rank_movement",
+        "disruption_index",
+        "good_service_pct",
+        "incidents",
+        "completeness",
+        "is_week_complete",
+        "is_provisional"
+      ],
+      "properties": {
+        "iso_week": {"$ref": "league.schema.json#/$defs/iso_week"},
+        "week_start": {"$ref": "league.schema.json#/$defs/london_date"},
+        "week_end": {"$ref": "league.schema.json#/$defs/london_date"},
+        "rank": {"type": ["integer", "null"], "minimum": 1},
+        "rank_movement": {"type": ["integer", "null"]},
+        "disruption_index": {"$ref": "league.schema.json#/$defs/nullable_non_negative"},
+        "good_service_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+        "incidents": {"type": "integer", "minimum": 0},
+        "completeness": {"$ref": "league.schema.json#/$defs/share"},
+        "is_week_complete": {"type": "boolean"},
+        "is_provisional": {"type": "boolean"}
+      }
+    }
+  }
+}
