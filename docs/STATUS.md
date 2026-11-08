@@ -7,9 +7,9 @@ Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in
 | Milestone | State | Notes |
 | --- | --- | --- |
 | M0 Foundations | Done | |
-| M1 Collector live | Done, with one gap | Polling since 2026-11-04. The poller is unreserved until the quota rises (ADR-006). The deployed acceptance output (`completeness.py --hours 24`, alarm test) is not recorded in the repo yet. |
-| M2 Raw catalog, week-one review | In progress | Merged: the catalog, dbt sources, staging, `athena_query.py` and `transform-daily` (#13 to #15, #17, #18). Left: the dev rebuild, the `dbt build` / `source freshness` acceptance, and the week-one review. |
-| M3 Disruption Index | Not started | |
+| M1 Collector live | Done, with one gap | Polling since 2026-11-04. The poller's reserved concurrency of 1 is in the M3 bundle (Part 0, ADR-006), now that the quota is 1,000. The deployed acceptance output (`completeness.py --hours 24`, alarm test) is not recorded in the repo yet. |
+| M2 Raw catalog, week-one review | In progress | Staging verified on real data: a dev full refresh passed 114 of 114 (2026-11-08). The autonomy bundle (#23) merged. Left: `dbt source freshness` in the record, and the week-one review. |
+| M3 Disruption Index | In review | All four tasks in one bundle, `feat/m3-line-minute-metrics`, ticked in the local plan when the PR opened. The metric definitions D16 to D23 wait for the owner. The league preview needs a complete week of data, the first being 2 to 8 November (complete at Monday 9 November 00:00 London). |
 | M4 Experienced Reliability | Not started | |
 | M5 Publish pipeline | Not started | Needs H12 (Cloudflare). |
 | M6 League mechanics | Not started | |
@@ -17,48 +17,42 @@ Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in
 
 ## Open PRs and merge order
 
-- **Autonomy bundle** (`chore/autonomy-bundle`): one PR (#23) in place of #19 (this page and DECISIONS.md), #20 (deploy safety), #21 (ops workflows), the enforce-binding follow-up to ADR-010 and the merge gate (`feat/merge-gate`, ADR-011). Those three PRs are closed as superseded; their branches are kept. It touches `Makefile` and `.github/workflows/infra.yml`, so merging it deploys `infra/envs/prod` and runs the smoke test.
-- Merged on 2026-11-07 and 2026-11-08: #17, #18 and #22 (bootstrap hardening). The owner applied #22's bootstrap on 2026-11-08: the state is in S3, `mtd-ci-observer` and `mtd-ci-publish` exist, and the `new-roles` trust probe passed.
+- **M3 bundle** (`feat/m3-line-minute-metrics`): the poller's reserved concurrency (Part 0), seeds, line-minute status, intervals, incidents, service hours, daily and weekly facts, and their unit tests. Nothing else is open, so it merges on its own. Merging deploys `infra/envs/prod` (one in-place change: the poller's reserved concurrency) and the next `transform-daily` run builds the new models in prod.
+- Merged on 2026-11-07 and 2026-11-08: #17, #18, #22 (bootstrap hardening) and #23 (autonomy bundle).
 
 ## Blockers
 
-- **Poller reserved concurrency of 1:** waits on the Lambda quota increase (ADR-006).
-- **M2 acceptance:** waits on the dev rebuild below, then on about 7 days of data for the week-one review.
-- **Prod staging may still hold null-keyed rows** from runs before #17. See decision D8 in DECISIONS.md.
-- **ADR-006 to ADR-010:** each needs an explicit answer (DECISIONS.md). D11 to D15 come from the bundle.
+- **M3 metric definitions:** D16 to D23 are `never-default`. The models implement the recommended reading of each; nothing is published until M5, so they can change with a seed edit and a rebuild.
+- **M3 league preview:** returns a useful week only after Monday 9 November 00:00 London. Re-run it then (below).
+- **M2 acceptance:** about 7 days of data for the week-one review, around 2026-11-11.
+- **Prod staging may still hold null-keyed rows** from runs before #17. See decision D8.
+- **ADRs and decisions D1 to D15:** each needs an explicit answer (DECISIONS.md).
 
 ## Owner steps outstanding
 
-1. **AWS SSO session.** The `mtd-dev` token has expired, which blocks the dev rebuild and every AWS read.
+1. **Decisions.** Answer the items in DECISIONS.md, in particular D16 to D23 for M3. The `never-default` items wait for you.
+2. **After the M3 bundle merges**, in order:
 
    ```sh
-   aws sso login --sso-session mtd
+   gh run list --workflow infra.yml --limit 1          # the deploy: one in-place change on the poller, smoke test green
+   aws lambda get-function-concurrency --profile mtd-dev --region eu-west-2 \
+     --function-name mind-the-data-poller             # expect ReservedConcurrentExecutions: 1
+   gh workflow run transform-daily.yml --ref main      # builds the M3 models in prod
    ```
 
-2. **Lambda quota.** The request for 1,000 is `CASE_OPENED` (2026-11-06 02:54 UTC). To check it, or to request again if it is denied, see the runbook section "Lambda concurrency quota".
-3. **Decisions.** Answer the items in DECISIONS.md. The `never-default` items wait for you.
-4. **After the bundle merges**, in order (the PR description has the details):
+3. **On or after Monday 9 November**, re-run the league preview on dev (engineer step, no owner access needed):
 
    ```sh
-   gh variable get AWS_ACCOUNT_ID || gh variable set AWS_ACCOUNT_ID --body "$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)"
-   make bootstrap-plan     # only the trust policies of mtd-ci-plan, mtd-ci-apply and mtd-ci-transform change
-   make bootstrap-apply
-   gh workflow run bootstrap-plan.yml --ref main -f trust_probe=all-roles
-   gh workflow run transform-daily.yml --ref main
-   gh workflow run ops-daily.yml --ref main
+   make dbt-build-dev
+   cd transform && uv run --project .. dbt compile --profiles-dir . --target dev --select league_preview
+   uv run python scripts/athena_query.py --file transform/target/compiled/mind_the_data/analyses/league_preview.sql
    ```
-
-   Then check that a pull request's `infra / plan` still assumes the plan role (runbook H6, step 5). Once ADR-011 is decided, dry-run the gate from an up-to-date `main`: `make merge-check PR=<n>`.
-
-Engineer step, which only needs the SSO login now that #17 has deployed: rebuild dev staging.
-
-```sh
-make dbt-build-dev DBT_FLAGS="--profiles-dir . --full-refresh"
-```
 
 ## Upcoming dated checks
 
 | Date | Check |
 | --- | --- |
 | After 2026-11-10 | Re-run the station check during service hours: `uv run python scripts/discover_lines.py --check-arrivals --strict`. Suffragette line and tram closures leave some boards empty until then. |
+| 2026-11-09 | First complete London week (2 to 8 November) for the M3 league preview. Its first two days predate the collector, so every line-week is provisional. |
 | Around 2026-11-11 | Week-one data-quality review (M2), including the ADR-002 decision: keep 60 s polling or move to 30 s. |
+| 2026-11-16 | First full week of data (9 to 15 November): the first non-provisional league. |

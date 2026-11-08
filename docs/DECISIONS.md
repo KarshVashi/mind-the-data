@@ -125,6 +125,81 @@ The deadline is 72 hours after the item enters this inbox. Every item below ente
 - **Default:** none. Accept, reject, or accept with `transform/**` protected too.
 - **Deadline:** 2026-11-11 12:00 UTC. **Class:** `never-default`.
 
+### M3 metric definitions (D16 to D23)
+
+These come from the M3 bundle (`feat/m3-line-minute-metrics`). Each is implemented behind a named seed or variable, so changing the answer is a seed edit and a rebuild, not a rewrite. They entered on 2026-11-08, so the reminder date is 2026-11-11 15:00 UTC. All are `never-default` (metric semantics) except D24.
+
+### D16. Service Closed (code 20) is weighted 0 and left out of the score
+
+- **Context:** the plan has no weight for code 20. TfL sends it every night, roughly 01:15 to 04:15, and the week-one data has it on every line. With no seed row, `assert_line_status_codes_are_weighted` would fail every build.
+- **Implemented:** `severity_weights.csv` code 20, weight 0, `is_service_closed = true`, `source = decision_d16`. A Service Closed minute inside scheduled hours (about 25 line-minutes a day, all at the edges of the hours seed) is counted in `service_closed_minutes` and left out of the numerator and denominator, like engineering works.
+- **Alternatives:** count it as an in-service minute at weight 0 (it then reads as good service); weight it like Suspended (8), which would punish the edges of the hours seed; treat it as missing.
+- **Other codes** TfL lists in `Line/Meta/Severity` (1 and 11 to 19) have not appeared and are left out on purpose, so the first one fails a test and comes back here.
+- **Default:** none. **Class:** `never-default`.
+
+### D17. Scheduled hours: timetables for 13 lines, estimates for 7
+
+- **Context:** M3 needs fixed hours per line and day type. TfL timetables (`stg_timetable`, recorded 2026-11-05) cover the 11 Tube lines, DLR and Trams: the seed uses the first and last departures at the measurement stations, rounded out to 5 minutes, including Night Tube on Friday and Saturday. TfL returns 404 for Elizabeth line and Overground timetables.
+- **Implemented:** `line_operating_hours.csv`. Elizabeth line and Overground use 05:30 to 00:30 (Sunday 07:30 to 00:00), cut back for Liberty (22:10) and Suffragette (00:00) where boards showed earlier last trains. Rows carry `source = estimate_2026_11_08`. Waterloo & City has no weekend hours, as its timetable has none. Public holidays use the calendar day; Overground night services are not modelled.
+- **Alternatives:** hours from published TfL first/last train pages for the 7 lines; hours inferred from arrival boards (noisy: boards show predictions from 03:00); a public-holiday seed.
+- **Default:** none. Confirm or supply hours for the 7 estimated lines.
+- **Class:** `never-default`.
+
+### D18. Incidents and recovery
+
+- **Context:** PLAN 6.2 says an incident starts when a line leaves Good Service for an unplanned severity, ends when it returns, and gaps under 5 minutes merge. It doesn't say how missing minutes, closures or the end of service affect that, or what "recovery" measures.
+- **Implemented** (`int_incidents`, var `incident_merge_gap_minutes: 5`):
+  - an incident minute is a scored minute whose worst status is unplanned with a weight above 0;
+  - every other observed minute is quiet, including minutes outside service hours, planned statuses and closures;
+  - missing minutes are bridged: no data neither starts nor ends an incident;
+  - incident minutes separated by fewer than 5 quiet minutes merge;
+  - an incident belongs to the London date and week it starts in;
+  - recovery = minutes from the first to the last incident minute of a closed incident; open incidents have no recovery yet and are left out of the median.
+- **Alternatives:** let a long poller gap end an incident; measure recovery to the first Good Service minute specifically; count incidents in every day they touch.
+- **Default:** none. **Class:** `never-default`.
+
+### D19. Disruption Index denominator
+
+- **Context:** PLAN 7.1 divides the time-weighted sum by "scheduled service hours" without saying whether the hours are time-weighted.
+- **Implemented:** the literal reading. Disruption Index = 100 x sum(severity weight x time weight) / scored hours, i.e. weighted disruption minutes per 100 service hours. Scored hours exclude missing, engineering works and Service Closed minutes (PLAN 7, ADR-004). Values run from 0 to 96,000 (Suspended all peak). Week one ranged up to about 12,500 a day.
+- **Alternative:** divide by time-weighted hours, which makes the index a weighted mean severity (0 to 800). Lines with more peak service then aren't favoured by a larger denominator.
+- **Default:** none. **Class:** `never-default`.
+
+### D20. Ranking ties and unranked lines
+
+- **Context:** the plan doesn't say how ties are broken or whether provisional lines are ranked.
+- **Implemented:** rank by Disruption Index ascending; ties go to the higher Good Service %; lines still equal share a rank. Lines with no scored minutes are unranked. Provisional line-weeks (completeness under `provisional_completeness: 0.9`) are ranked and flagged.
+- **Alternatives:** leave provisional lines unranked; break ties by fewer incidents.
+- **Default:** none. **Class:** `never-default`.
+
+### D21. Time bands follow the London calendar day
+
+- **Context:** PLAN 7.1 says weekday peaks weigh 2, other weekday service 1, weekends and Night Tube 0.75.
+- **Implemented:** the band comes from the London calendar date and time of the minute (`time_bands.csv`, `day_types.csv`). So Night Tube minutes, which all fall on Saturday and Sunday mornings, are 0.75, and the 00:00 to 00:30 tail of Friday's normal service counts as weekend. The tail of Sunday's service after midnight counts as Monday, weekday off-peak (1).
+- **Alternative:** band by service day, so Friday's late-night tail stays weekday.
+- **Default:** none. **Class:** `never-default`.
+
+### D22. Planned statuses other than closures still score
+
+- **Context:** the plan exempts only closures (and planned Bus Service) from the score. On 2026-11-06, Suffragette had a planned Part Closure for 1,036 minutes, which left the score, and a planned Reduced Service for the other 74, which counted. Its index that day was 9,000 from 74 scored minutes.
+- **Implemented:** the plan as written: planned Reduced Service and Special Service carry their weights.
+- **Alternatives:** weight planned Reduced Service at 0, or treat it as engineering works; require a minimum of scored hours before a line-day or line-week gets an index or rank.
+- **Default:** none. **Class:** `never-default`.
+
+### D23. Which entries describe a minute
+
+- **Context:** ADR-004 reads the latest successful poll in the minute. Polls per minute can be more than one (post-deploy smoke test, ADR-006).
+- **Implemented:** the latest successful poll in the minute that lists the line. An entry counts if it has no validity period or one overlapping the minute. TfL sometimes keeps listing a planned status a minute after its period ends, with no other entry for the line; that minute is missing (`missing_reason = no_current_entry`, 1 to 5 line-minutes a day).
+- **Alternatives:** read only the very latest poll, so a later poll that omits a line makes the minute missing; keep a just-expired entry as current.
+- **Default:** none. **Class:** `never-default`.
+
+### D24. Intervals and incidents rebuild in full
+
+- **Context:** PLAN 6.1 lists intermediate models as incremental merges. A status run or an incident can start before any incremental window, so a windowed merge would split or duplicate it.
+- **Implemented:** `int_line_minute_status` is an incremental merge on (line, minute). `int_status_intervals`, `int_incidents`, `dim_service_hours` and the marts are tables rebuilt from it each run. The scan is a few MB per week of data. See ADR-012 (proposed).
+- **Default:** keep full rebuilds; revisit if the daily build passes a few minutes or 1 GB scanned.
+- **Deadline:** 2026-11-11 15:00 UTC. **Class:** `auto-apply`.
+
 ## Settled
 
 | Date | Decision | Outcome |
