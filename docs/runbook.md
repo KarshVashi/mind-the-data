@@ -113,7 +113,7 @@ make bootstrap-plan    # read-only plan; signs in with `aws sso login` if needed
 make bootstrap-apply   # plans again, shows it, applies after you type yes
 ```
 
-`make bootstrap-apply` applies exactly the plan it showed. It then sets the repository variables from the outputs: `TF_STATE_BUCKET`, `AWS_PLAN_ROLE_ARN`, `AWS_ROLE_ARN`, `AWS_TRANSFORM_ROLE_ARN`, `AWS_OBSERVER_ROLE_ARN`, `AWS_PUBLISH_ROLE_ARN` and `BOOTSTRAP_PLAN_ENABLED`. These are identifiers, not secrets.
+`make bootstrap-apply` applies exactly the plan it showed. It then sets the repository variables from the outputs: `AWS_ACCOUNT_ID`, `TF_STATE_BUCKET`, `AWS_PLAN_ROLE_ARN`, `AWS_ROLE_ARN`, `AWS_TRANSFORM_ROLE_ARN`, `AWS_OBSERVER_ROLE_ARN`, `AWS_PUBLISH_ROLE_ARN` and `BOOTSTRAP_PLAN_ENABLED`. These are identifiers, not secrets. Until `AWS_ACCOUNT_ID` or the explicit variables are set, the `infra` and `transform-daily` workflows skip with a notice (see "Repository variables" below).
 
 The budget alert address comes from the `ALERT_EMAIL` repository variable, read with `gh`. To use a different one, set `ALERT_EMAIL=you@example.com` before the command. Set `BOOTSTRAP_PROFILE` or `BOOTSTRAP_REF` to change the profile (default `mtd-admin`) or the ref (default `origin/main`).
 
@@ -178,6 +178,47 @@ From now on:
 - CloudWatch dashboards, composite alarms and Lambda layers named `mind-the-data-*`
 - configuration parameters under `/mind-the-data/config/`
 - the publish role
+
+---
+
+## Repository variables
+
+`AWS_ACCOUNT_ID` is the only variable the workflows need. Everything else follows the naming convention in `infra/`. `make bootstrap-apply` (H6, step 3) sets `AWS_ACCOUNT_ID` and the first four rows below from the bootstrap outputs; the `DBT_ATHENA_*_PROD` values are only derived:
+
+| Variable | Derived from `AWS_ACCOUNT_ID` | Used by |
+| --- | --- | --- |
+| `TF_STATE_BUCKET` | `mtd-tfstate-<id>` | infra |
+| `AWS_PLAN_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-plan` | infra (pull requests) |
+| `AWS_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-apply` | infra (main) |
+| `AWS_TRANSFORM_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-transform` | transform-daily |
+| `DBT_ATHENA_S3_STAGING_DIR_PROD` | `s3://mind-the-data-athena-results-<id>/prod/` | transform-daily |
+| `DBT_ATHENA_S3_DATA_DIR_PROD` | `s3://mind-the-data-curated-<id>/prod/` | transform-daily |
+| `DBT_ATHENA_WORKGROUP_PROD` | `mind-the-data-prod` | transform-daily |
+| `DBT_ATHENA_SCHEMA_PROD` | `mind_the_data_prod` | transform-daily |
+
+A variable that is set wins over the derived value, so the explicit variables still work. Set one only when a name really differs, for example after renaming a bucket or changing the `ci_name_prefix` or `resource_prefix` defaults in Terraform. `ALERT_EMAIL` is separate and optional (see "Alert email").
+
+The `DBT_ATHENA_*_PROD` variables were copied by hand before `AWS_ACCOUNT_ID` existed. To drop them, set `AWS_ACCOUNT_ID` (or run `make bootstrap-apply`), then delete each one whose value equals its derived value. This deletes only exact matches and prints any that differ. Leave the bootstrap-set variables alone: the next `make bootstrap-apply` sets them again anyway.
+
+```sh
+id=$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)
+gh variable set AWS_ACCOUNT_ID --body "$id"
+while read -r name derived; do
+  current=$(gh variable get "$name" 2>/dev/null || true)
+  if [ "$current" = "$derived" ]; then
+    gh variable delete "$name" && echo "deleted $name"
+  elif [ -n "$current" ]; then
+    echo "kept $name: '$current' differs from '$derived'"
+  fi
+done <<EOF
+DBT_ATHENA_S3_STAGING_DIR_PROD s3://mind-the-data-athena-results-$id/prod/
+DBT_ATHENA_S3_DATA_DIR_PROD s3://mind-the-data-curated-$id/prod/
+DBT_ATHENA_WORKGROUP_PROD mind-the-data-prod
+DBT_ATHENA_SCHEMA_PROD mind_the_data_prod
+EOF
+```
+
+Locally, `make plan` and `make dbt-build-dev` derive `TF_STATE_BUCKET` and the `DBT_ATHENA_*_DEV` values the same way when `AWS_ACCOUNT_ID` is set (env.example).
 
 ---
 
@@ -253,6 +294,17 @@ Merging is the approval.
 1. **Review the plan.** On the pull request, the `infra` workflow's `plan` job writes the plan to its run summary. Read it there.
 2. **Merge.** Merge only if the plan shows the changes the pull request says it makes, and nothing else.
 3. **Watch the deploy.** The merge starts the `deploy` job on `main`. It plans again from `main` and applies that plan. It also writes the plan it applied to its run summary, so you can check it matches what you reviewed.
+
+**Before plan and apply**, both jobs build the Lambda package and import every handler Terraform names (`make handlers`) from it in a clean interpreter. A pull request that points a function or schedule at code that is not on its branch fails here, so the order pull requests merge in cannot put a schedule live before its code.
+
+**After apply**, the deploy runs a smoke test (`.github/scripts/smoke-test.sh`):
+
+- It invokes the poller once, synchronously, with the event its schedule sends (`{"scheduled_time": "<this minute>"}`), and fails the deploy if the function errors, writes nothing, or its object is not in the raw bucket.
+- If raw has no `raw/ref_*` objects yet, it invokes the reference function once the same way.
+- If the invoke is throttled (the poller busy with its scheduled run), it retries once a minute later and fails if throttled again.
+- Only if the deploy role is not allowed `lambda:InvokeFunction` does it print a warning and pass. Today the apply role has it (through `lambda:*` on `mind-the-data-*`); the escape keeps deploys green if the bootstrap narrows that before granting invoke explicitly. Any other error fails the deploy. There is no rollback: a failed smoke test means the change is live and broken, so fix forward or revert the pull request.
+
+The smoke poll is an extra poll, never a replacement: its objects carry their own `poll_id` in the key and are written with `IfNoneMatch`, so nothing scheduled is overwritten, and the CLI makes one attempt only, so a slow invoke is never sent twice. It starts at second 20 to 40 of a minute, after that minute's scheduled poll has normally finished (they average about 3 s). Each deploy therefore leaves one minute with two polls about 20 to 40 s apart, the same as an overlap without reserved concurrency (ADR-006). Models built on raw must treat polls per minute as one or more, not exactly one.
 
 If `main` moved after the pull request's plan ran, the deploy includes those changes too. Merging soon after the pull request's plan keeps the two the same.
 
@@ -337,19 +389,18 @@ terraform -chdir=infra/envs/prod output -json dbt_athena_env
 
 The workgroups enforce their own results location and a 10 GiB scan limit per query, so a client setting cannot override either. Query results expire after 7 days.
 
-Set the prod values once, after the first deploy of M2:
+The prod values are derived from `AWS_ACCOUNT_ID` in CI (see "Repository variables"), so nothing needs setting. To override one, set it as a repository variable. To check the derived values still match the stack:
 
 ```sh
 terraform -chdir=infra/envs/prod output -json dbt_athena_env \
-  | jq -r 'to_entries[] | select(.key | endswith("_PROD")) | "\(.key) \(.value)"' \
-  | while read -r name value; do gh variable set "$name" --body "$value"; done
+  | jq -r 'to_entries[] | select(.key | endswith("_PROD")) | "\(.key) \(.value)"'
 ```
 
 ---
 
 ## Daily transform
 
-`.github/workflows/transform-daily.yml` runs `dbt build --target prod` at 03:30 London time every day, as the `mtd-ci-transform` role. It needs `AWS_TRANSFORM_ROLE_ARN` (H6 step 5) and the four `DBT_ATHENA_*_PROD` repository variables (above); without the role variable it skips with a notice.
+`.github/workflows/transform-daily.yml` runs `dbt build --target prod` at 03:30 London time every day, as the `mtd-ci-transform` role. It needs `AWS_ACCOUNT_ID` (H6 step 5), from which the role ARN and the dbt settings are derived; without it, or an explicit `AWS_TRANSFORM_ROLE_ARN`, it skips with a notice.
 
 **Why two cron lines.** GitHub's cron runs in UTC only. 03:30 London is 02:30 UTC in summer (BST) and 03:30 UTC in winter (GMT), so the workflow is scheduled at both. Its first step ends the run early unless the slot that fired matches London's current UTC offset: the 02:30 UTC slot builds only while London is on BST, the 03:30 UTC slot only while it is on GMT. Exactly one of the two builds each day. The check uses the slot that fired, not the time the job starts, so a run GitHub starts late under load still builds. The clocks change at 01:00 UTC, before either slot.
 

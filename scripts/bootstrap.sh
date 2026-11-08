@@ -145,6 +145,8 @@ set_var() {
   (cd "$repo_root" && gh variable set "$1" --body "$2")
   echo "set $1"
 }
+# The workflows derive the remaining names from the account id.
+set_var AWS_ACCOUNT_ID "$account"
 set_var TF_STATE_BUCKET "$(tf output -raw state_bucket)"
 set_var AWS_PLAN_ROLE_ARN "$(tf output -raw plan_role_arn)"
 set_var AWS_ROLE_ARN "$(tf output -raw apply_role_arn)"

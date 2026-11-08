@@ -14,6 +14,27 @@ TF_ROOTS  := $(wildcard infra/bootstrap infra/envs/prod)
 # Hand-written SQL; macros are linted as rendered inside the models that call them.
 SQL_DIRS  := $(DBT_DIR)/models $(DBT_DIR)/tests $(DBT_DIR)/analyses
 
+# One provider download shared by every checkout and worktree, instead of
+# each .terraform/ holding its own copy (the AWS provider alone is ~700 MB).
+# Terraform refuses to start if the directory is missing. Terraform does not
+# promise the cache is safe for concurrent `terraform init`, so avoid running
+# make check in several checkouts at once, or set TF_PLUGIN_CACHE_DIR= (empty)
+# to turn the cache off.
+export TF_PLUGIN_CACHE_DIR ?= $(HOME)/.terraform.d/plugin-cache
+$(if $(TF_PLUGIN_CACHE_DIR),$(shell mkdir -p "$(TF_PLUGIN_CACHE_DIR)"))
+
+# With only AWS_ACCOUNT_ID set, the other AWS names follow the naming
+# convention in infra/ (docs/runbook.md, Repository variables). Non-empty
+# values win; empty ones (as copied from env.example) are filled in.
+derive = $(if $(strip $($(1))),,$(eval export $(1) := $(2)))
+ifneq ($(AWS_ACCOUNT_ID),)
+$(call derive,TF_STATE_BUCKET,mtd-tfstate-$(AWS_ACCOUNT_ID))
+$(call derive,DBT_ATHENA_S3_STAGING_DIR_DEV,s3://mind-the-data-athena-results-$(AWS_ACCOUNT_ID)/dev/)
+$(call derive,DBT_ATHENA_S3_DATA_DIR_DEV,s3://mind-the-data-curated-$(AWS_ACCOUNT_ID)/dev/)
+$(call derive,DBT_ATHENA_WORKGROUP_DEV,mind-the-data-dev)
+$(call derive,DBT_ATHENA_SCHEMA_DEV,mind_the_data_dev)
+endif
+
 .PHONY: help
 help: ## List targets
 	@grep -E '^[a-z][a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-24s %s\n", $$1, $$2}'
@@ -26,7 +47,7 @@ install: ## Install the locked Python environment and git pre-commit hook
 # ---- Full gate ---------------------------------------------------------------
 
 .PHONY: check
-check: lint typecheck test-all sql-lint dbt-parse tf-fmt-check tf-validate tf-lint ## Everything CI runs
+check: lint typecheck test-all action-pins handlers sql-lint dbt-parse tf-fmt-check tf-validate tf-lint ## Everything CI runs
 
 .PHONY: check-fast
 check-fast: lint typecheck test ## ruff, mypy, unit tests
@@ -47,6 +68,10 @@ test: ## Unit tests
 .PHONY: test-all
 test-all: ## Unit and integration tests
 	$(UV_RUN) pytest tests -q
+
+.PHONY: action-pins
+action-pins: ## Every GitHub Action pinned to a commit SHA with a version comment
+	$(UV_RUN) python scripts/check_action_pins.py .github
 
 .PHONY: sql-lint
 sql-lint:
@@ -114,6 +139,18 @@ package: ## Build dist/lambda.zip for the arm64 python3.12 Lambdas
 	if [ -d config ]; then mkdir -p $(LAMBDA_BUILD)/config && cp -R config/. $(LAMBDA_BUILD)/config/; fi
 	$(UV) run --no-project --python 3.12 python scripts/zip_lambda.py $(LAMBDA_BUILD) $(LAMBDA_ZIP)
 
+# Every handler Terraform names must import from the package that deploy
+# builds, so a schedule cannot go live before the code it calls. The infra
+# workflow runs this before plan and apply.
+.PHONY: handlers
+# Like package and tflint --init, it downloads (wheels), so make check needs
+# the network. Host builds of compiled wheels are checked against uv.lock's hashes.
+LOCK_REQS := build/lock-requirements.txt
+handlers: package ## Check every Terraform Lambda handler imports from dist/lambda.zip
+	$(UV) export --no-dev --no-emit-project --frozen --quiet -o $(LOCK_REQS)
+	$(UV) run --no-project --python 3.12 python scripts/check_handlers.py \
+		$(LAMBDA_ZIP) $(LOCK_REQS) infra/envs/prod
+
 # ---- Needs AWS access -------------------------------------------------------
 
 DBT_DEV_VARS := DBT_ATHENA_S3_STAGING_DIR_DEV DBT_ATHENA_S3_DATA_DIR_DEV DBT_ATHENA_WORKGROUP_DEV DBT_ATHENA_SCHEMA_DEV
@@ -142,6 +179,6 @@ bootstrap-migrate-state: ## Owner only, once: move local bootstrap state into th
 
 .PHONY: plan
 plan: package ## terraform plan for infra/envs/prod (needs AWS read access and TF_STATE_BUCKET)
-	@[ -n "$${TF_STATE_BUCKET:-}" ] || { echo "plan: set TF_STATE_BUCKET (bootstrap output state_bucket)" >&2; exit 1; }
+	@[ -n "$${TF_STATE_BUCKET:-}" ] || { echo "plan: set AWS_ACCOUNT_ID or TF_STATE_BUCKET (see env.example)" >&2; exit 1; }
 	terraform -chdir=infra/envs/prod init -input=false -backend-config="bucket=$$TF_STATE_BUCKET"
 	terraform -chdir=infra/envs/prod plan -input=false -lock=false
