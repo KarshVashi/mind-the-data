@@ -201,6 +201,24 @@ These come from the M3 bundle (`feat/m3-line-minute-metrics`). D16 to D23 are me
 - **Default:** none: it deviates from the plan. Accept ADR-012, or ask for a seed-free incremental layer under a table that applies the seeds.
 - **Class:** `never-default`.
 
+### M5 decisions (D25 and D26)
+
+These come from the M5 publish work (`feat/m5-publish`). They entered on 2026-11-08, so the reminder date is 2026-11-11 22:00 UTC. Both are `never-default`.
+
+### D25. Mark lines scored on a small share of their hours as provisional
+
+- **Context:** under D22, a line with long closures is scored only on the minutes left, and delays on top of a part closure stay in while the Good Service around them drops out. For 4 to 8 November, Suffragette had 94% of its scheduled minutes under closures and was ranked last on 5 scored hours; Tram had 42% and Mildmay 36%.
+- **Implemented:** display only. A line with at least 25% of its scheduled minutes under closures (`CLOSURE_SHARE_PROVISIONAL` in `src/mind_the_data/publish/league.py`) gets a provisional marker on the cards, in the JSON (`provisional_reasons`, code `mostly_engineering_works`, decision `D22`) and in the numbers sheet. Its rank is unchanged (D20).
+- **Alternatives:** a different threshold (50% marks only Suffragette); leave such lines unranked; settle D22 so the marker is not needed.
+- **Default:** none. **Class:** `never-default` (metric semantics and publishing).
+
+### D26. Publish while D16 to D23 are open
+
+- **Context:** the first post is planned for Wednesday 11 November, on a custom window (Wednesday 4 to Tuesday 10 November) made with `scripts/post_snapshot.py`. The M3 metric definitions it rests on are still open.
+- **Implemented:** nothing is published by code: there is no upload until H12. The cards say "Methodology v0.1: weights and definitions are provisional and may be revised", mark provisional lines, and the JSON lists the open decisions in `open_decisions`.
+- **Alternatives:** wait for D16 to D23; publish only the lines not marked provisional.
+- **Default:** none. Publishing is the owner's call. **Class:** `never-default` (publishing).
+
 ## Settled
 
 | Date | Decision | Outcome |
