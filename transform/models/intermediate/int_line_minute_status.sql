@@ -1,7 +1,6 @@
 {{
     config(
         materialized='table',
-        partitioned_by=['dt'],
     )
 }}
 

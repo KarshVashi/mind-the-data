@@ -139,7 +139,7 @@ models:
           - not_null:
               config: *recent
       - name: dt
-        description: UTC date of the minute. Partition column.
+        description: UTC date of the minute.
         data_tests:
           - not_null:
               config: *recent

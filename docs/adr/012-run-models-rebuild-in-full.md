@@ -38,5 +38,6 @@ Staging stays an incremental merge (ADR-008). Raw is the expensive scan, and sta
 
 - **Idempotent by construction:** a rerun recomputes the same rows, and a seed edit reaches every past minute on the next build.
 - **Cost grows with history.** Each build reads all of `stg_line_status` and `stg_polls` since `raw_start_date`, and writes about 10 million line-minutes a year. That is a few hundred MB a year scanned, well under a cent a run. Revisit if the daily build takes more than about 10 minutes or scans more than 1 GB. The fix then is the seed-free incremental layer above.
+- **Unpartitioned.** Athena allows at most 100 partitions per CTAS. A table partitioned by day and rebuilt from `raw_start_date` would pass that around February 2027 and fall back to the adapter's batched path every day. Every downstream model reads the minute table whole, so it isn't partitioned; only the 7-day data tests lose pruning.
 - **Backfill vars don't apply** to these models. Rebuilding staging days (runbook) is enough: the next build picks them up.
 - **Plan section 6.1** should say intermediate models are rebuilt in full where their grain or their seeds require it.
