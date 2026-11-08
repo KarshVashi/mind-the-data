@@ -10,6 +10,8 @@
     "data_window",
     "completeness",
     "git_sha",
+    "is_window_complete",
+    "data_through",
     "views",
     "open_decisions",
     "lines",
@@ -22,6 +24,14 @@
     "data_window": {"$ref": "#/$defs/data_window"},
     "completeness": {"$ref": "#/$defs/nullable_share"},
     "git_sha": {"$ref": "#/$defs/git_sha"},
+    "is_window_complete": {
+      "description": "True once the data reaches past the window's last London date. A false window is partial and must be labelled so.",
+      "type": "boolean"
+    },
+    "data_through": {
+      "description": "The newest minute in the data, London wall-clock time.",
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/london_timestamp"}]
+    },
     "views": {"$ref": "#/$defs/views"},
     "open_decisions": {
       "description": "Owner decisions, open when the file was written, that change published numbers (docs/DECISIONS.md).",
@@ -48,9 +58,19 @@
       "type": "string",
       "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
     },
+    "london_timestamp": {
+      "description": "London wall-clock time, no offset.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}$"
+    },
+    "line_id": {"type": "string", "pattern": "^[a-z-]+$"},
     "london_date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
     "iso_week": {"type": "string", "pattern": "^\\d{4}-W\\d{2}$"},
-    "git_sha": {"type": "string", "pattern": "^([0-9a-f]{7,40}|unknown)$"},
+    "git_sha": {
+      "description": "Commit of the publishing code; -dirty when the checkout had uncommitted changes.",
+      "type": "string",
+      "pattern": "^([0-9a-f]{7,40}(-dirty)?|unknown)$"
+    },
     "decision_id": {"type": "string", "pattern": "^D\\d+$"},
     "share": {"type": "number", "minimum": 0, "maximum": 1},
     "nullable_share": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
@@ -79,10 +99,15 @@
     "provisional_reason": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["code", "decision", "detail"],
+      "required": ["code", "decisions", "detail"],
       "properties": {
         "code": {"enum": ["low_completeness", "no_scheduled_minutes", "mostly_engineering_works"]},
-        "decision": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/decision_id"}]},
+        "decisions": {
+          "description": "Open decisions the flag rests on; each is also in open_decisions.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/decision_id"},
+          "uniqueItems": true
+        },
         "detail": {"type": "string", "minLength": 1}
       }
     },
@@ -131,7 +156,7 @@
         "measured"
       ],
       "properties": {
-        "line_id": {"type": "string", "pattern": "^[a-z-]+$"},
+        "line_id": {"$ref": "#/$defs/line_id"},
         "line_name": {"type": "string", "minLength": 1},
         "mode": {"type": "string", "minLength": 1},
         "colour": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
@@ -171,6 +196,7 @@
         "line_id",
         "line_name",
         "started_at",
+        "started_at_london",
         "start_london_date",
         "duration_minutes",
         "is_open",
@@ -178,9 +204,10 @@
         "first_reason"
       ],
       "properties": {
-        "line_id": {"type": "string"},
+        "line_id": {"$ref": "#/$defs/line_id"},
         "line_name": {"type": "string"},
         "started_at": {"$ref": "#/$defs/utc_timestamp"},
+        "started_at_london": {"$ref": "#/$defs/london_timestamp"},
         "start_london_date": {"$ref": "#/$defs/london_date"},
         "duration_minutes": {"type": "integer", "minimum": 1},
         "is_open": {"type": "boolean"},
@@ -194,7 +221,7 @@
       "required": ["kind", "line_id", "text"],
       "properties": {
         "kind": {"enum": ["honesty_gap", "lowest_good_service"]},
-        "line_id": {"type": "string"},
+        "line_id": {"$ref": "#/$defs/line_id"},
         "text": {"type": "string", "minLength": 1, "maxLength": 160}
       }
     }

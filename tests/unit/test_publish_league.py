@@ -78,6 +78,7 @@ def incident(
     return IncidentRow(
         line_id=line_id,
         started_at_utc=datetime(day.year, day.month, day.day, hour, 0),
+        started_at_london=datetime(day.year, day.month, day.day, hour, 0),
         start_london_date=day,
         duration_minutes=duration,
         is_open=recovery is None,
@@ -134,7 +135,7 @@ def test_provisional_reasons() -> None:
     # Exactly at the threshold counts; just under does not.
     works_at = int(1000 * CLOSURE_SHARE_PROVISIONAL)
     closed = provisional_reasons(standing("a", scheduled=1000, works=works_at))
-    assert [(r.code, r.decision) for r in closed] == [("mostly_engineering_works", "D22")]
+    assert [(r.code, r.decisions) for r in closed] == [("mostly_engineering_works", ("D22", "D25"))]
     assert provisional_reasons(standing("a", scheduled=1000, works=works_at - 1)) == ()
 
     nothing = provisional_reasons(standing("a", scheduled=0, scored=0, good=0))
@@ -237,3 +238,54 @@ def test_daily_sum_matches_dbt_weekly_on_a_recorded_week() -> None:
 
 def _w(window: Window) -> tuple[date, date]:
     return window.start, window.end
+
+
+def test_wednesday_to_tuesday_window_across_two_iso_weeks() -> None:
+    """The first post's shape: Wed 4 to Tue 10 Nov spans W45 and W46."""
+    window = Window(date(2026, 11, 4), date(2026, 11, 10))
+    days = [date(2026, 11, d) for d in range(3, 12)]  # Tue 3 to Wed 11
+    rows = [
+        daily("a", d, scheduled_minutes=100, observed_minutes=100, scored_minutes=100,
+              good_service_minutes=90, weighted_disruption_minutes=2.0, incidents=1)
+        for d in days
+    ]  # fmt: skip
+    incidents = [
+        # Starts the day before the window: belongs to 3 Nov (D18), left out.
+        incident("a", date(2026, 11, 3), 2000, recovery=2000, hour=23),
+        # Starts on the last day and runs past midnight: in, by its start date.
+        incident("a", date(2026, 11, 10), 90, recovery=90, hour=23),
+        incident("a", date(2026, 11, 4), 10, recovery=10),
+        incident("a", date(2026, 11, 7), 40, recovery=40),
+        incident("a", date(2026, 11, 9), 20, recovery=20),
+        # Starts the day after: out.
+        incident("a", date(2026, 11, 11), 5000, recovery=5000),
+    ]
+    league = league_from_daily(window, [line("a")], rows, incidents, datetime(2026, 11, 11, 0, 3))
+    (a,) = league.standings
+    assert a.scheduled_minutes == 700  # seven days, not nine
+    # 14 weighted minutes over 700 scored minutes = 120 per 100 hours.
+    assert a.disruption_index == pytest.approx(120.0)
+    assert a.incidents == 7  # from fct_line_daily's own counts for the seven days
+    # Even count (10, 20, 40, 90): the mean of the middle two, as dbt does.
+    assert a.median_recovery_minutes == 30.0
+    assert league.worst_incident is not None
+    assert league.worst_incident.incident.duration_minutes == 90
+    assert league.is_complete
+
+
+def test_window_is_complete_only_once_data_passes_its_end() -> None:
+    window = Window(date(2026, 11, 4), date(2026, 11, 10))
+    assert not league_from_daily(window, [], [], [], None).is_complete
+    assert not league_from_daily(window, [], [], [], datetime(2026, 11, 10, 23, 59)).is_complete
+    assert league_from_daily(window, [], [], [], datetime(2026, 11, 11, 0, 0)).is_complete
+
+
+def test_weekly_flags_come_from_the_mart() -> None:
+    marts = RecordedMarts(FIXTURES)
+    window = Window.for_iso_week("2026-W45")
+    weekly = [replace(w, is_provisional=False) for w in marts.weekly()]
+    league = league_from_weekly(window.start, marts.lines(), weekly, [])
+    # Completeness is under 90% for every line, but dbt said not provisional.
+    assert not any(
+        r.code == "low_completeness" for s in league.standings for r in s.provisional_reasons
+    )

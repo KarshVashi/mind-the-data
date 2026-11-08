@@ -34,7 +34,9 @@ LANDSCAPE = CardSize("1200x675", 1200, 675, 2, 35, 15, 30, 21)
 PORTRAIT = CardSize("1080x1350", 1080, 1350, 1, 40, 20, 44, 28)
 SIZES = (LANDSCAPE, PORTRAIT)
 
-PROVISIONAL_MARK = "†"  # dagger
+# Card text is plain ASCII, so no font on any runner can lack a glyph for it
+# (M5 acceptance: no missing glyphs). A test checks the rendered text.
+PROVISIONAL_MARK = "*"
 
 
 class CardOverflow(RuntimeError):
@@ -105,9 +107,15 @@ def footer_lines(league: League) -> list[str]:
         data += f" {completeness:.1%} of scheduled minutes observed."
     notes.append(data)
     notes.append(
-        "Disruption Index: severity-weighted disrupted minutes per 100 service hours, "
-        "peaks count double; lower is better. Planned closures are left out."
+        "Disruption Index: severity-weighted disrupted minutes per 100 service hours "
+        "(peaks x2, weekends x0.75); lower is better. Closures and missing data are left out."
     )
+    if not league.is_complete:
+        through = league.latest_data_london
+        notes.append(
+            "Partial window: data through "
+            + (f"{through:%a %-d %b %H:%M} London time." if through else "an unknown time.")
+        )
     groups = [
         (_names(league, "mostly_engineering_works"), "a large share of hours closed for works"),
         (_names(league, "low_completeness"), "under 90% of minutes observed"),
@@ -163,7 +171,7 @@ def card_html(league: League, insight: Insight | None, size: CardSize) -> str:
         "grid": f"22px {name_width}px 1fr 44px 62px"
         if size.columns == 2
         else f"30px {name_width}px 1fr 64px 90px",
-        "kicker": escape("London rail league · " + window_label(*_window(league))),
+        "kicker": escape("London rail league | " + window_label(*_window(league))),
         "title": escape("How reliable was each line?"),
         "insight": escape(insight_text),
         "table": table,

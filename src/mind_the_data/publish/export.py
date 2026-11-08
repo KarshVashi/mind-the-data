@@ -35,12 +35,16 @@ from mind_the_data.publish.documents import (
 )
 from mind_the_data.publish.insight import pick_insight
 from mind_the_data.publish.league import League, Window, league_from_weekly
-from mind_the_data.publish.marts import AthenaMarts, Marts, RecordedMarts
+from mind_the_data.publish.marts import AthenaMarts, Marts, RecordedMarts, WeeklyRow
 from mind_the_data.publish.schemas import validate
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_WORKGROUP = "mind-the-data-dev"
 DEFAULT_DATABASE = "mind_the_data_prod"
+
+
+class IncompleteWeek(RuntimeError):
+    """The requested week has not finished, or the data does not reach past it."""
 
 
 @dataclass(frozen=True)
@@ -51,24 +55,36 @@ class Output:
 
 
 def git_sha(cwd: Path = REPO_ROOT) -> str:
+    """The publishing code's commit, suffixed -dirty if the checkout has changes.
+
+    This is the commit of the export and the seeds methodology.json reads,
+    not of the dbt build that made the marts.
+    """
     sha = os.environ.get("GITHUB_SHA")
     if sha:
         return sha
     try:
-        result = subprocess.run(
+        head = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=cwd, capture_output=True, text=True, check=True
-        )
+        ).stdout.strip()
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
-    return result.stdout.strip() or "unknown"
+    if not head:
+        return "unknown"
+    return f"{head}-dirty" if status else head
 
 
-def latest_complete_week(marts: Marts) -> date:
+def latest_complete_week(weekly: Sequence[WeeklyRow]) -> date | None:
     # A finished week before the collector started has rows but nothing observed.
-    weeks = [w.week_start for w in marts.weekly() if w.is_week_complete and w.observed_minutes]
-    if not weeks:
-        raise SystemExit("no complete week with data in fct_line_weekly yet; pass --week")
-    return max(weeks)
+    weeks = [w.week_start for w in weekly if w.is_week_complete and w.observed_minutes]
+    return max(weeks, default=None)
 
 
 def build_outputs(
@@ -76,15 +92,30 @@ def build_outputs(
     week_start: date,
     stamp: Stamp,
     *,
+    weekly: Sequence[WeeklyRow] | None = None,
     transform_dir: Path = REPO_ROOT / "transform",
-    write_latest: bool = True,
+    allow_incomplete: bool = False,
 ) -> tuple[League, list[Output]]:
-    """Every JSON document for the week, validated against its schema."""
+    """Every JSON document for the week, validated against its schema.
+
+    A week that has not finished, or that the data does not yet reach past,
+    is refused unless allow_incomplete is set; it is then written under its
+    own name only and flagged is_window_complete = false. league/latest.json
+    is written only for the latest complete week.
+    """
     window = Window.for_iso_week(iso_week_of(week_start))
     lines = marts.lines()
-    weekly = marts.weekly()
+    weekly = marts.weekly() if weekly is None else weekly
     incidents = marts.incidents(window.start, window.end)
-    league = league_from_weekly(window.start, lines, weekly, incidents)
+    league = league_from_weekly(
+        window.start, lines, weekly, incidents, marts.latest_minute_london()
+    )
+    if not league.is_complete and not allow_incomplete:
+        raise IncompleteWeek(
+            f"{iso_week_of(window.start)} is not complete (data through "
+            f"{league.latest_data_london}); pass --allow-incomplete to write it anyway"
+        )
+    write_latest = league.is_complete and latest_complete_week(weekly) == window.start
     insight = pick_insight(league)
 
     league_doc = league_document(league, insight, stamp)
@@ -93,7 +124,9 @@ def build_outputs(
     if write_latest:
         outputs.append(Output("league/latest.json", league_doc, "league"))
 
-    history_start = min((w.week_start for w in weekly), default=window.start)
+    history_start = min(
+        (w.week_start for w in weekly if w.observed_minutes > 0), default=window.start
+    )
     bad_hours = marts.bad_hours(history_start, window.end)
     for line in lines:
         doc = line_document(line, weekly, bad_hours, stamp)
@@ -148,14 +181,31 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--dry-run", action="store_true", help="validate and list the files; write nothing"
     )
+    parser.add_argument(
+        "--allow-incomplete",
+        action="store_true",
+        help="write a week that has not finished (flagged; never as latest.json)",
+    )
     args = parser.parse_args(argv)
     if not args.workgroup.endswith("-dev"):
         parser.error("queries run only through a dev workgroup (read-only)")
 
     marts = marts_from_args(args)
-    week_start = Window.for_iso_week(args.week).start if args.week else latest_complete_week(marts)
+    weekly = marts.weekly()
+    if args.week:
+        week_start = Window.for_iso_week(args.week).start
+    else:
+        latest = latest_complete_week(weekly)
+        if latest is None:
+            raise SystemExit("no complete week with data in fct_line_weekly yet; pass --week")
+        week_start = latest
     stamp = Stamp(generated_at=datetime.now(UTC), git_sha=git_sha())
-    league, outputs = build_outputs(marts, week_start, stamp)
+    try:
+        league, outputs = build_outputs(
+            marts, week_start, stamp, weekly=weekly, allow_incomplete=args.allow_incomplete
+        )
+    except IncompleteWeek as exc:
+        raise SystemExit(str(exc)) from exc
     iso_week = iso_week_of(week_start)
 
     if args.dry_run:

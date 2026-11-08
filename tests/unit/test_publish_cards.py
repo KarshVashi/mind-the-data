@@ -43,6 +43,7 @@ def league() -> League:
         marts.lines(),
         marts.daily(WINDOW.start, WINDOW.end),
         marts.incidents(WINDOW.start, WINDOW.end),
+        marts.latest_minute_london(),
     )
 
 
@@ -55,7 +56,8 @@ def test_declared_insight_skips_provisional_lines(league: League) -> None:
     # Suffragette (0% Good Service, mostly closed) is provisional, so District leads.
     assert insight.line_id == "district"
     assert (
-        insight.text == "The District line showed Good Service for only 34% of its service hours."
+        insight.text
+        == "The District line showed Good Service for only 34% of its scored service time."
     )
 
 
@@ -80,7 +82,7 @@ def test_no_insight_when_everything_is_provisional(league: League) -> None:
 def _reason() -> Any:
     from mind_the_data.publish.league import ProvisionalReason
 
-    return (ProvisionalReason("low_completeness", None, "test"),)
+    return (ProvisionalReason("low_completeness", (), "test"),)
 
 
 @pytest.mark.parametrize(
@@ -197,27 +199,46 @@ def test_numbers_sheet(league: League) -> None:
         marts.lines(),
         generated_at=datetime(2026, 11, 8, 22, 0, tzinfo=UTC),
         git_sha="abc1234",
-        today_london=datetime(2026, 11, 8, 22, 0, tzinfo=UTC),
     )
     assert "| 20 | Suffragette | 11,947 | 0.0 |" in sheet
-    assert "The window is not over" in sheet
+    # The recording was taken on 8 November, so the window is partial.
+    assert "**Partial window**" in sheet
+    assert "Data through: Sun 8 Nov 18:21 (London)" in sheet
     rows = [r for r in sheet.splitlines() if r.startswith("| District | Sat 7 Nov 07:49 | 1051")]
     assert len(rows) == 1
     later = numbers_sheet(
-        league,
+        replace(league, is_complete=True),
         None,
         [],
         marts.lines(),
         generated_at=datetime(2026, 11, 12, tzinfo=UTC),
         git_sha="abc1234",
-        today_london=datetime(2026, 11, 12, tzinfo=UTC),
     )
-    assert "not over" not in later and "| (none) |" in later
+    assert "Partial window" not in later and "| (none) |" in later
 
 
-def test_london_time_follows_the_clock_change() -> None:
-    assert london_time(datetime(2026, 11, 7, 7, 49)) == "Sat 7 Nov 07:49"
-    assert london_time(datetime(2026, 7, 4, 7, 49)) == "Sat 4 Jul 08:49"
+def test_london_time_is_only_formatted() -> None:
+    # The marts carry London time already; the sheet never converts.
+    assert london_time(datetime(2026, 7, 4, 8, 49)) == "Sat 4 Jul 08:49"
+
+
+def test_card_text_is_ascii(league: League) -> None:
+    """Every character on the card has a glyph in any font (M5: no missing glyphs)."""
+    import re
+
+    for size in (LANDSCAPE, PORTRAIT):
+        html = card_html(league, pick_insight(league), size)
+        body = html[html.index("<body>") :]
+        text = re.sub(r"<[^>]+>", "", body)
+        assert text.isascii(), sorted({c for c in text if not c.isascii()})
+
+
+def test_partial_window_is_said_on_the_card(league: League) -> None:
+    assert not league.is_complete
+    assert any(
+        n.startswith("Partial window: data through Sun 8 Nov 18:21") for n in footer_lines(league)
+    )
+    assert not any("Partial" in n for n in footer_lines(replace(league, is_complete=True)))
 
 
 # ---- Mart parsing -------------------------------------------------------------------
@@ -228,6 +249,7 @@ def test_parsing_handles_nulls_and_athena_formats() -> None:
         {
             "line_id": "bakerloo",
             "started_at": "2026-11-08 07:15:00.000000",
+            "started_at_london": "2026-11-08 07:15:00.000000",
             "start_london_date": "2026-11-08",
             "duration_minutes": "667",
             "is_open": "true",

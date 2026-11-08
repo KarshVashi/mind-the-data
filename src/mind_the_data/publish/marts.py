@@ -76,6 +76,8 @@ class WeeklyRow:
 class IncidentRow:
     line_id: str
     started_at_utc: datetime
+    # London wall-clock time of the first minute, as dbt computed it.
+    started_at_london: datetime
     start_london_date: date
     duration_minutes: int
     is_open: bool
@@ -96,6 +98,7 @@ class BadHourRow:
 
 
 class Marts(Protocol):
+    def latest_minute_london(self) -> datetime | None: ...
     def lines(self) -> list[LineInfo]: ...
     def daily(self, start: date, end: date) -> list[DailyRow]: ...
     def weekly(self) -> list[WeeklyRow]: ...
@@ -152,6 +155,10 @@ def _timestamp(cells: Cells, name: str) -> datetime:
     return datetime.fromisoformat(_req(cells, name).replace(" ", "T"))
 
 
+def _opt_timestamp(cells: Cells, name: str) -> datetime | None:
+    return None if _opt(cells, name) is None else _timestamp(cells, name)
+
+
 def parse_line(cells: Cells) -> LineInfo:
     return LineInfo(
         line_id=_req(cells, "line_id"),
@@ -206,6 +213,7 @@ def parse_incident(cells: Cells) -> IncidentRow:
     return IncidentRow(
         line_id=_req(cells, "line_id"),
         started_at_utc=_timestamp(cells, "started_at"),
+        started_at_london=_timestamp(cells, "started_at_london"),
         start_london_date=_date(cells, "start_london_date"),
         duration_minutes=_int(cells, "duration_minutes"),
         is_open=_bool(cells, "is_open"),
@@ -239,8 +247,10 @@ WEEKLY_COLUMNS = (
     "incidents_per_100_hours, is_week_complete, is_provisional, disruption_rank, rank_movement"
 )
 INCIDENT_COLUMNS = (
-    "line_id, started_at, start_london_date, duration_minutes, is_open, recovery_minutes, "
-    "peak_severity_weight, worst_status_description, first_reason"
+    "incidents.line_id, incidents.started_at, minutes.london_ts as started_at_london, "
+    "incidents.start_london_date, incidents.duration_minutes, incidents.is_open, "
+    "incidents.recovery_minutes, incidents.peak_severity_weight, "
+    "incidents.worst_status_description, incidents.first_reason"
 )
 
 
@@ -259,9 +269,19 @@ def queries(database: str, start: date, end: date) -> dict[str, str]:
         "weekly": (
             f"select {WEEKLY_COLUMNS} from {database}.fct_line_weekly order by week_start, line_id"
         ),
+        # London time comes from dbt (int_line_minute_status.london_ts), not
+        # from a conversion here.
         "incidents": (
-            f"select {INCIDENT_COLUMNS} from {database}.int_incidents "
-            f"where start_london_date between {window} order by line_id, started_at"
+            f"select {INCIDENT_COLUMNS} from {database}.int_incidents as incidents "
+            f"inner join {database}.int_line_minute_status as minutes "
+            "on incidents.line_id = minutes.line_id "
+            "and incidents.started_at = minutes.minute_utc "
+            f"where incidents.start_london_date between {window} "
+            "order by incidents.line_id, incidents.started_at"
+        ),
+        # The newest minute built, in London time: how far the data reaches.
+        "freshness": (
+            f"select max(london_ts) as latest_london_ts from {database}.int_line_minute_status"
         ),
         # london_ts is the minute already in London time (dbt does the
         # conversion), so only the hour is read here.
@@ -304,6 +324,10 @@ class RecordedMarts:
 
     def _cells(self, stem: str) -> list[dict[str, str | None]]:
         return load_recording(self.directory / f"{stem}.json").cells()
+
+    def latest_minute_london(self) -> datetime | None:
+        cells = self._cells("freshness")
+        return _opt_timestamp(cells[0], "latest_london_ts") if cells else None
 
     def lines(self) -> list[LineInfo]:
         return [parse_line(c) for c in self._cells("lines")]
@@ -365,7 +389,11 @@ class AthenaMarts:
             dump_recording(self.record_to / f"{stem}.json", recording)
         return recording.cells()
 
-    # The window is irrelevant to lines and weekly; any dates do.
+    # The window is irrelevant to lines, weekly and freshness; any dates do.
+    def latest_minute_london(self) -> datetime | None:
+        cells = self._run("freshness", date.min, date.min)
+        return _opt_timestamp(cells[0], "latest_london_ts") if cells else None
+
     def lines(self) -> list[LineInfo]:
         return [parse_line(c) for c in self._run("lines", date.min, date.min)]
 

@@ -28,7 +28,7 @@ from mind_the_data.publish.league import (
     Window,
     league_from_daily,
 )
-from mind_the_data.publish.marts import BadHourRow, RecordedMarts
+from mind_the_data.publish.marts import BadHourRow, RecordedMarts, WeeklyRow
 from mind_the_data.publish.schemas import SCHEMA_NAMES, load_schema, validate
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -48,9 +48,11 @@ def test_schemas_are_valid_draft_2020_12(name: str) -> None:
 
 
 def test_every_output_validates(marts: RecordedMarts) -> None:
-    _league, outputs = export.build_outputs(marts, WEEK, STAMP)
+    _league, outputs = export.build_outputs(marts, WEEK, STAMP, allow_incomplete=True)
     paths = {o.path for o in outputs}
-    assert {"league/2026-W45.json", "league/latest.json", "meta/methodology.json"} <= paths
+    assert {"league/2026-W45.json", "meta/methodology.json"} <= paths
+    # A partial week is never written as latest.
+    assert "league/latest.json" not in paths
     assert len([p for p in paths if p.startswith("lines/")]) == 20
     for output in outputs:
         validate(output.document, output.schema)
@@ -73,8 +75,8 @@ def test_every_output_validates(marts: RecordedMarts) -> None:
 
 
 def test_build_is_deterministic(marts: RecordedMarts) -> None:
-    _, first = export.build_outputs(marts, WEEK, STAMP)
-    _, second = export.build_outputs(marts, WEEK, STAMP)
+    _, first = export.build_outputs(marts, WEEK, STAMP, allow_incomplete=True)
+    _, second = export.build_outputs(marts, WEEK, STAMP, allow_incomplete=True)
     assert [o.document for o in first] == [o.document for o in second]
 
 
@@ -85,6 +87,7 @@ def _league_doc(marts: RecordedMarts) -> dict[str, Any]:
         marts.lines(),
         marts.daily(window.start, window.end),
         marts.incidents(window.start, window.end),
+        marts.latest_minute_london(),
     )
     return league_document(league, pick_insight(league), STAMP)
 
@@ -95,9 +98,16 @@ def test_custom_window_document(marts: RecordedMarts) -> None:
     assert doc["data_window"]["iso_week"] is None
     suffragette = next(line for line in doc["lines"] if line["line_id"] == "suffragette")
     assert suffragette["is_provisional"]
-    assert suffragette["provisional_reasons"][0]["decision"] == "D22"
+    assert suffragette["provisional_reasons"][0]["decisions"] == ["D22", "D25"]
     assert doc["insight"]["kind"] == "lowest_good_service"
-    assert "D22" in doc["open_decisions"] and "D19" in doc["open_decisions"]
+    assert doc["is_window_complete"] is False
+    assert doc["data_through"] == "2026-11-08T18:21:00"
+    # Every decision a flag cites is listed as open.
+    cited = {
+        d for line in doc["lines"] for r in line["provisional_reasons"] for d in r["decisions"]
+    }
+    assert cited and cited <= set(doc["open_decisions"])
+    assert doc["worst_incident"]["started_at_london"] == "2026-11-07T07:49:00"
 
 
 def test_measured_view_validates_when_present(marts: RecordedMarts) -> None:
@@ -161,11 +171,12 @@ def test_line_document_history_and_worst_week(marts: RecordedMarts) -> None:
 
 def test_typical_bad_hours_ranks_by_share() -> None:
     rows = [
-        BadHourRow("a", 8, 100, 50),
-        BadHourRow("a", 9, 100, 50),  # same share: the earlier hour first
-        BadHourRow("a", 17, 10, 9),
+        BadHourRow("a", 8, 1000, 500),
+        BadHourRow("a", 9, 1000, 500),  # same share: the earlier hour first
+        BadHourRow("a", 17, 300, 270),
+        BadHourRow("a", 13, 15, 15),  # too few scored minutes to count
         BadHourRow("a", 3, 0, 0),
-        BadHourRow("a", 12, 100, 0),
+        BadHourRow("a", 12, 1000, 0),
     ]
     assert [h["london_hour"] for h in typical_bad_hours(rows)] == [17, 8, 9]
     assert typical_bad_hours(rows)[0]["disrupted_share"] == 0.9
@@ -174,7 +185,7 @@ def test_typical_bad_hours_ranks_by_share() -> None:
 def test_methodology_thresholds_follow_dbt(marts: RecordedMarts) -> None:
     variables = dbt_vars(ROOT / "transform")
     assert float(variables["provisional_completeness"]) == PROVISIONAL_COMPLETENESS
-    _, outputs = export.build_outputs(marts, WEEK, STAMP)
+    _, outputs = export.build_outputs(marts, WEEK, STAMP, allow_incomplete=True)
     doc = next(o.document for o in outputs if o.path == "meta/methodology.json")
     codes = {w["severity_code"] for w in doc["severity_weights"]}
     assert {10, 20} <= codes
@@ -184,14 +195,15 @@ def test_methodology_thresholds_follow_dbt(marts: RecordedMarts) -> None:
 
 
 def test_export_cli_writes_and_dry_runs(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    args = ["--week", "2026-W45", "--recorded", str(FIXTURES), "--no-cards"]
+    args = ["--week", "2026-W45", "--recorded", str(FIXTURES), "--no-cards", "--allow-incomplete"]
     assert export.main([*args, "--dry-run", "--out-dir", str(tmp_path)]) == 0
     assert "would write league/2026-W45.json" in capsys.readouterr().out
     assert not any(tmp_path.iterdir())
 
     assert export.main([*args, "--out-dir", str(tmp_path)]) == 0
-    latest = json.loads((tmp_path / "league" / "latest.json").read_text())
-    validate(latest, "league")
+    week = json.loads((tmp_path / "league" / "2026-W45.json").read_text())
+    validate(week, "league")
+    assert not (tmp_path / "league" / "latest.json").exists()
     assert (tmp_path / "lines" / "victoria.json").exists()
 
 
@@ -200,9 +212,66 @@ def test_export_refuses_a_non_dev_workgroup() -> None:
         export.main(["--recorded", str(FIXTURES), "--workgroup", "mind-the-data-prod"])
 
 
-def test_latest_complete_week_needs_one(marts: RecordedMarts) -> None:
+def test_latest_complete_week_needs_data(marts: RecordedMarts) -> None:
+    # 2026-W44 has finished but holds nothing observed: the collector began on 4 November.
+    assert export.latest_complete_week(marts.weekly()) is None
     with pytest.raises(SystemExit, match="no complete week"):
-        export.latest_complete_week(marts)
+        export.main(["--recorded", str(FIXTURES), "--dry-run", "--no-cards"])
+
+
+class FinishedWeek(RecordedMarts):
+    """The recording, as if W45 had finished and the data had moved on."""
+
+    def weekly(self) -> list[WeeklyRow]:
+        return [replace(w, is_week_complete=True) for w in super().weekly()]
+
+    def latest_minute_london(self) -> datetime | None:
+        return datetime(2026, 11, 9, 0, 5)
+
+
+def test_incomplete_week_is_refused(marts: RecordedMarts) -> None:
+    with pytest.raises(export.IncompleteWeek, match="2026-W45 is not complete"):
+        export.build_outputs(marts, WEEK, STAMP)
+    with pytest.raises(SystemExit, match="allow-incomplete"):
+        export.main(["--week", "2026-W45", "--recorded", str(FIXTURES), "--dry-run"])
+
+
+def test_latest_is_only_the_latest_complete_week() -> None:
+    finished = FinishedWeek(FIXTURES)
+    league, outputs = export.build_outputs(finished, WEEK, STAMP)
+    assert league.is_complete
+    paths = {o.path for o in outputs}
+    assert "league/latest.json" in paths
+    latest = next(o.document for o in outputs if o.path == "league/latest.json")
+    assert latest["is_window_complete"] is True
+
+    # Wall clock says W45 is over, but the data stops on its last day.
+    class Stale(FinishedWeek):
+        def latest_minute_london(self) -> datetime | None:
+            return datetime(2026, 11, 8, 23, 0)
+
+    with pytest.raises(export.IncompleteWeek):
+        export.build_outputs(Stale(FIXTURES), WEEK, STAMP)
+
+    # An older finished week is written under its own name, never as latest.
+    class Later(FinishedWeek):
+        def weekly(self) -> list[WeeklyRow]:
+            rows = super().weekly()
+            return rows + [replace(w, week_start=date(2026, 11, 9)) for w in rows]
+
+        def latest_minute_london(self) -> datetime | None:
+            return datetime(2026, 11, 16, 0, 5)
+
+    _, outputs = export.build_outputs(Later(FIXTURES), WEEK, STAMP)
+    assert "league/latest.json" not in {o.path for o in outputs}
+
+
+def test_git_sha_marks_a_dirty_checkout(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GITHUB_SHA", "abcdef1")
+    assert export.git_sha() == "abcdef1"
+    monkeypatch.delenv("GITHUB_SHA")
+    sha = export.git_sha()
+    assert sha == "unknown" or len(sha.removesuffix("-dirty")) == 40
 
 
 def _load_script(name: str) -> ModuleType:
@@ -229,4 +298,4 @@ def test_post_snapshot_custom_window(tmp_path: Path) -> None:
     assert doc["data_window"]["start"] == "2026-11-04"
     sheet = (tmp_path / "numbers.md").read_text()
     assert "| 18 | District | 6,420 | 33.8 |" in sheet
-    assert "Suffragette" in sheet and "(D22)" in sheet
+    assert "Suffragette" in sheet and "(D22, D25)" in sheet

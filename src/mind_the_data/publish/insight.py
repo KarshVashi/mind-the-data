@@ -3,7 +3,8 @@
 The plan fills it from the week's biggest Honesty Gap (PLAN 7.3). Until the
 measured view exists, or when no line has a gap, it falls back to a
 declared-view fact: the lowest Good Service % among lines whose numbers are
-not provisional.
+not provisional (D28). Good Service % is over scored minutes, which leave out
+closures, Service Closed and missing minutes, hence "scored service time".
 """
 
 from dataclasses import dataclass
@@ -49,7 +50,7 @@ def pick_insight(league: League) -> Insight | None:
         line_id=worst.line.line_id,
         text=(
             f"{line_label(worst.line.line_name)} showed Good Service for only {pct:.0f}% "
-            "of its service hours."
+            "of its scored service time."
         ),
     )
 

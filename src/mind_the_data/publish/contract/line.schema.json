@@ -27,7 +27,7 @@
       "additionalProperties": false,
       "required": ["line_id", "line_name", "mode", "colour", "is_low_volume"],
       "properties": {
-        "line_id": {"type": "string", "pattern": "^[a-z-]+$"},
+        "line_id": {"$ref": "league.schema.json#/$defs/line_id"},
         "line_name": {"type": "string", "minLength": 1},
         "mode": {"type": "string", "minLength": 1},
         "colour": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
@@ -35,7 +35,7 @@
       }
     },
     "history": {
-      "description": "Every ISO week with data, oldest first.",
+      "description": "Every ISO week with observed minutes, oldest first.",
       "type": "array",
       "items": {"$ref": "#/$defs/week"}
     },
@@ -44,7 +44,7 @@
       "oneOf": [{"type": "null"}, {"$ref": "#/$defs/week"}]
     },
     "typical_bad_hours": {
-      "description": "London hours of day with the highest share of disrupted scored minutes, worst first. Empty when not computed.",
+      "description": "Up to three London hours of day with the highest share of disrupted scored minutes over the history, worst first, among hours with at least 300 scored minutes (D27). Empty when none qualify.",
       "type": "array",
       "maxItems": 24,
       "items": {
@@ -54,7 +54,7 @@
         "properties": {
           "london_hour": {"type": "integer", "minimum": 0, "maximum": 23},
           "disrupted_share": {"$ref": "league.schema.json#/$defs/share"},
-          "scored_minutes": {"type": "integer", "minimum": 1}
+          "scored_minutes": {"type": "integer", "minimum": 300}
         }
       }
     },

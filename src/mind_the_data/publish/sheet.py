@@ -2,7 +2,6 @@
 
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from zoneinfo import ZoneInfo
 
 from mind_the_data.publish.insight import Insight
 from mind_the_data.publish.league import (
@@ -12,7 +11,6 @@ from mind_the_data.publish.league import (
 )
 from mind_the_data.publish.marts import IncidentRow, LineInfo
 
-LONDON = ZoneInfo("Europe/London")
 TOP_INCIDENTS = 5
 
 
@@ -20,9 +18,9 @@ def _num(value: float | None, fmt: str) -> str:
     return "n/a" if value is None else format(value, fmt)
 
 
-def london_time(utc: datetime) -> str:
-    """Display only: an incident start as London wall-clock time."""
-    return utc.replace(tzinfo=UTC).astimezone(LONDON).strftime("%a %-d %b %H:%M")
+def london_time(london: datetime) -> str:
+    """A London wall-clock time from the marts (dbt converts; nothing here does)."""
+    return london.strftime("%a %-d %b %H:%M")
 
 
 def numbers_sheet(
@@ -34,7 +32,6 @@ def numbers_sheet(
     generated_at: datetime,
     git_sha: str,
     bytes_scanned: int | None = None,
-    today_london: datetime | None = None,
 ) -> str:
     window = league.window
     names = {line.line_id: line.line_name for line in lines}
@@ -44,10 +41,12 @@ def numbers_sheet(
     out.append(f"- Generated: {generated_at.astimezone(UTC):%Y-%m-%d %H:%M} UTC, git {git_sha}")
     out.append(f"- Window: {window.days} days; ISO week: {window.iso_week or 'custom window'}")
     out.append(f"- Completeness (all lines): {_num(league.completeness, '.2%')}")
-    if today_london is not None and window.end >= today_london.date():
+    through = league.latest_data_london
+    out.append(f"- Data through: {london_time(through) if through else 'unknown'} (London)")
+    if not league.is_complete:
         out.append(
-            f"- **The window is not over**: {window.end} is today or later in London, "
-            "so its last day is partial."
+            f"- **Partial window**: the data does not yet reach past {window.end}, "
+            "so the numbers will change."
         )
     out.append(f"- Open decisions behind these numbers: {', '.join(league.open_decisions)}")
     out.append("- Measured view (Honesty Gap): not measured yet (M4)")
@@ -69,7 +68,7 @@ def numbers_sheet(
     out.append("|---:|---|---:|---:|---:|---:|---:|---:|---:|---|")
     for s in league.standings:
         flags = "; ".join(
-            f"{r.detail}" + (f" ({r.decision})" if r.decision else "")
+            f"{r.detail}" + (f" ({', '.join(r.decisions)})" if r.decisions else "")
             for r in s.provisional_reasons
         )
         if s.line.is_low_volume:
@@ -84,8 +83,8 @@ def numbers_sheet(
     out.append("")
     out.append(
         f"Provisional: completeness under {PROVISIONAL_COMPLETENESS:.0%} (PLAN 7.4), or at least "
-        f"{CLOSURE_SHARE_PROVISIONAL:.0%} of scheduled minutes under closures (D22; threshold "
-        "pending as D25). Provisional lines are still ranked (D20)."
+        f"{CLOSURE_SHARE_PROVISIONAL:.0%} of scheduled minutes under closures (D22, threshold "
+        "D25). Provisional lines are still ranked (D20), but never named in the insight (D28)."
     )
     out.append("")
 
@@ -100,7 +99,7 @@ def numbers_sheet(
     for i in longest:
         reason = (i.first_reason or "").replace("|", "/").strip()
         out.append(
-            f"| {names.get(i.line_id, i.line_id)} | {london_time(i.started_at_utc)} "
+            f"| {names.get(i.line_id, i.line_id)} | {london_time(i.started_at_london)} "
             f"| {i.duration_minutes} | {i.worst_status_description} "
             f"| {'yes' if i.is_open else 'no'} | {reason} |"
         )

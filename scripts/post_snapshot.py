@@ -19,7 +19,6 @@ import json
 import sys
 from datetime import UTC, date, datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import boto3
 
@@ -65,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
     lines = marts.lines()
     daily = marts.daily(window.start, window.end)
     incidents = marts.incidents(window.start, window.end)
-    league = league_from_daily(window, lines, daily, incidents)
+    league = league_from_daily(window, lines, daily, incidents, marts.latest_minute_london())
     insight = pick_insight(league)
     stamp = Stamp(generated_at=datetime.now(UTC), git_sha=git_sha())
 
@@ -81,11 +80,15 @@ def main(argv: list[str] | None = None) -> int:
         generated_at=stamp.generated_at,
         git_sha=stamp.git_sha,
         bytes_scanned=athena.bytes_scanned if athena else None,
-        today_london=datetime.now(ZoneInfo("Europe/London")),
     )
     (args.out_dir / "numbers.md").write_text(sheet)
     print(f"wrote {args.out_dir / 'numbers.md'}")
     print(f"wrote {args.out_dir / 'league.json'}")
+    if not league.is_complete:
+        print(
+            f"warning: partial window, data through {league.latest_data_london}",
+            file=sys.stderr,
+        )
 
     if not args.no_cards:
         from mind_the_data.publish.share_card import render_cards

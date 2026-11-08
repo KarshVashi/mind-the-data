@@ -14,7 +14,7 @@ decision the owner has not made yet.
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from statistics import median
 
 from mind_the_data.publish.marts import (
@@ -36,8 +36,20 @@ PROVISIONAL_COMPLETENESS = 0.9
 # not changed. The threshold itself is pending as D25.
 CLOSURE_SHARE_PROVISIONAL = 0.25
 
-# Open owner decisions that change published numbers (docs/DECISIONS.md).
-OPEN_METRIC_DECISIONS: tuple[str, ...] = ("D16", "D17", "D18", "D19", "D20", "D21", "D22", "D23")
+# Open owner decisions that change published numbers or flags (docs/DECISIONS.md).
+OPEN_METRIC_DECISIONS: tuple[str, ...] = (
+    "D16",
+    "D17",
+    "D18",
+    "D19",
+    "D20",
+    "D21",
+    "D22",
+    "D23",
+    "D25",
+    "D27",
+    "D28",
+)
 
 
 @dataclass(frozen=True)
@@ -70,7 +82,7 @@ class Window:
 @dataclass(frozen=True)
 class ProvisionalReason:
     code: str
-    decision: str | None
+    decisions: tuple[str, ...]
     detail: str
 
 
@@ -148,6 +160,9 @@ class League:
     window: Window
     standings: tuple[Standing, ...]
     worst_incident: WorstIncident | None
+    # False while the data does not yet reach past the window's last London date.
+    is_complete: bool = False
+    latest_data_london: datetime | None = None
     open_decisions: tuple[str, ...] = field(default=OPEN_METRIC_DECISIONS)
 
     @property
@@ -157,16 +172,25 @@ class League:
         return observed / scheduled if scheduled else None
 
 
-def provisional_reasons(standing: Standing) -> tuple[ProvisionalReason, ...]:
+def provisional_reasons(
+    standing: Standing, *, low_completeness: bool | None = None
+) -> tuple[ProvisionalReason, ...]:
+    """Why a line's numbers are provisional.
+
+    `low_completeness` passes on dbt's own is_provisional flag where the mart
+    has one (fct_line_weekly); otherwise it is worked out from the minutes.
+    """
     reasons: list[ProvisionalReason] = []
     completeness = standing.completeness
+    if low_completeness is None:
+        low_completeness = completeness is not None and completeness < PROVISIONAL_COMPLETENESS
     if completeness is None:
-        reasons.append(ProvisionalReason("no_scheduled_minutes", None, "no scheduled minutes"))
-    elif completeness < PROVISIONAL_COMPLETENESS:
+        reasons.append(ProvisionalReason("no_scheduled_minutes", (), "no scheduled minutes"))
+    elif low_completeness:
         reasons.append(
             ProvisionalReason(
                 "low_completeness",
-                None,
+                (),
                 f"{completeness:.0%} of scheduled minutes observed",
             )
         )
@@ -175,7 +199,7 @@ def provisional_reasons(standing: Standing) -> tuple[ProvisionalReason, ...]:
         reasons.append(
             ProvisionalReason(
                 "mostly_engineering_works",
-                "D22",
+                ("D22", "D25"),
                 f"{share:.0%} of scheduled minutes under closures; scored on the rest",
             )
         )
@@ -230,11 +254,17 @@ def worst_incident(
     return WorstIncident(line=by_id[worst.line_id], incident=worst)
 
 
+def data_reaches_past(window: Window, latest_minute_london: datetime | None) -> bool:
+    """True once the data holds a minute after the window's last London date."""
+    return latest_minute_london is not None and latest_minute_london.date() > window.end
+
+
 def league_from_daily(
     window: Window,
     lines: Sequence[LineInfo],
     daily: Sequence[DailyRow],
     incidents: Sequence[IncidentRow],
+    latest_minute_london: datetime | None = None,
 ) -> League:
     """Sum fct_line_daily over a custom window and rank it (D20).
 
@@ -264,6 +294,8 @@ def league_from_daily(
         window=window,
         standings=tuple(rank_standings(standings)),
         worst_incident=worst_incident(lines, window_incidents),
+        is_complete=data_reaches_past(window, latest_minute_london),
+        latest_data_london=latest_minute_london,
     )
 
 
@@ -272,8 +304,9 @@ def league_from_weekly(
     lines: Sequence[LineInfo],
     weekly: Sequence[WeeklyRow],
     incidents: Sequence[IncidentRow],
+    latest_minute_london: datetime | None = None,
 ) -> League:
-    """The ISO week as fct_line_weekly ranked it."""
+    """The ISO week as fct_line_weekly ranked and flagged it."""
     window = Window(start=week_start, end=week_start + timedelta(days=6))
     rows = {w.line_id: w for w in weekly if w.week_start == week_start}
     standings = []
@@ -295,13 +328,19 @@ def league_from_weekly(
                 rank=row.disruption_rank,
                 rank_movement=row.rank_movement,
             )
-        standings.append(replace(standing, provisional_reasons=provisional_reasons(standing)))
+        flagged = provisional_reasons(
+            standing, low_completeness=None if row is None else row.is_provisional
+        )
+        standings.append(replace(standing, provisional_reasons=flagged))
     standings.sort(
         key=lambda s: (s.rank is None, s.rank if s.rank is not None else 0, s.line.line_name)
     )
     week_incidents = [i for i in incidents if window.start <= i.start_london_date <= window.end]
+    week_over = bool(rows) and all(r.is_week_complete for r in rows.values())
     return League(
         window=window,
         standings=tuple(standings),
         worst_incident=worst_incident(lines, week_incidents),
+        is_complete=week_over and data_reaches_past(window, latest_minute_london),
+        latest_data_london=latest_minute_london,
     )

@@ -26,6 +26,10 @@ from mind_the_data.publish.marts import BadHourRow, LineInfo, WeeklyRow
 from mind_the_data.publish.schemas import SCHEMA_VERSION
 
 TYPICAL_BAD_HOURS = 3
+# An hour of day needs this many scored minutes across the history before it
+# can be named a typical bad hour, so one disrupted quarter-hour on a line
+# that is mostly closed is not reported as a pattern (D27).
+MIN_BAD_HOUR_SCORED_MINUTES = 300
 
 
 @dataclass(frozen=True)
@@ -40,6 +44,11 @@ class Stamp:
 
 def _utc(ts: datetime) -> str:
     return ts.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _local(ts: datetime) -> str:
+    """A London wall-clock time from the marts, written without an offset."""
+    return ts.strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def _round(value: float | None, digits: int) -> float | None:
@@ -91,7 +100,7 @@ def _standing(standing: Standing) -> dict[str, Any]:
         "engineering_works_minutes": standing.engineering_works_minutes,
         "is_provisional": standing.is_provisional,
         "provisional_reasons": [
-            {"code": r.code, "decision": r.decision, "detail": r.detail}
+            {"code": r.code, "decisions": list(r.decisions), "detail": r.detail}
             for r in standing.provisional_reasons
         ],
         "measured_status": "not_measured" if measured is None else "measured",
@@ -111,6 +120,10 @@ def league_document(league: League, insight: Insight | None, stamp: Stamp) -> di
     worst = league.worst_incident
     return {
         **envelope(stamp, league.window, league.completeness),
+        "is_window_complete": league.is_complete,
+        "data_through": None
+        if league.latest_data_london is None
+        else _local(league.latest_data_london),
         "views": {
             "declared": "published",
             "measured": "published" if measured_published(league) else "not_measured",
@@ -123,6 +136,7 @@ def league_document(league: League, insight: Insight | None, stamp: Stamp) -> di
             "line_id": worst.line.line_id,
             "line_name": worst.line.line_name,
             "started_at": _utc(worst.incident.started_at_utc.replace(tzinfo=UTC)),
+            "started_at_london": _local(worst.incident.started_at_london),
             "start_london_date": worst.incident.start_london_date.isoformat(),
             "duration_minutes": worst.incident.duration_minutes,
             "is_open": worst.incident.is_open,
@@ -153,7 +167,11 @@ def _week(row: WeeklyRow) -> dict[str, Any]:
 
 def typical_bad_hours(rows: Sequence[BadHourRow], top: int = TYPICAL_BAD_HOURS) -> list[Any]:
     """The London hours with the highest disrupted share; hours never disrupted are left out."""
-    disrupted = [r for r in rows if r.scored_minutes > 0 and r.disrupted_minutes > 0]
+    disrupted = [
+        r
+        for r in rows
+        if r.scored_minutes >= MIN_BAD_HOUR_SCORED_MINUTES and r.disrupted_minutes > 0
+    ]
     disrupted.sort(key=lambda r: (-r.disrupted_minutes / r.scored_minutes, r.london_hour))
     return [
         {
@@ -174,7 +192,11 @@ def line_document(
     measured: bool = False,
 ) -> dict[str, Any] | None:
     """lines/{line_id}.json, or None when the line has no weeks yet."""
-    history = sorted((w for w in weekly if w.line_id == line.line_id), key=lambda w: w.week_start)
+    # Weeks before the collector started have scheduled minutes but nothing observed.
+    history = sorted(
+        (w for w in weekly if w.line_id == line.line_id and w.observed_minutes > 0),
+        key=lambda w: w.week_start,
+    )
     if not history:
         return None
     window = Window(start=history[0].week_start, end=history[-1].week_start + timedelta(days=6))
