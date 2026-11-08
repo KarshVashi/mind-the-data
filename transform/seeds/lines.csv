@@ -1,0 +1,21 @@
+line_id,line_name,mode_name,colour,is_low_volume
+bakerloo,Bakerloo,tube,#A45A2A,false
+central,Central,tube,#DA291C,false
+circle,Circle,tube,#FFCD00,false
+district,District,tube,#007A33,false
+hammersmith-city,Hammersmith & City,tube,#E89CAE,false
+jubilee,Jubilee,tube,#7C878E,false
+metropolitan,Metropolitan,tube,#840B55,false
+northern,Northern,tube,#000000,false
+piccadilly,Piccadilly,tube,#10069F,false
+victoria,Victoria,tube,#00A3E0,false
+waterloo-city,Waterloo & City,tube,#6ECEB2,false
+elizabeth,Elizabeth line,elizabeth-line,#753BBD,false
+dlr,DLR,dlr,#00B2A9,false
+tram,Tram,tram,#78BE20,true
+liberty,Liberty,overground,#606667,true
+lioness,Lioness,overground,#EF9600,false
+mildmay,Mildmay,overground,#2774AE,false
+suffragette,Suffragette,overground,#5BA763,false
+weaver,Weaver,overground,#893B67,false
+windrush,Windrush,overground,#D22730,false

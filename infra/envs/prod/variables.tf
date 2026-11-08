@@ -54,8 +54,9 @@ variable "workload_boundary_policy_name" {
 
 variable "poller_reserved_concurrency" {
   type        = number
-  description = "Reserved concurrency for the poller; -1 leaves it unreserved. See ADR-006 before changing."
-  default     = -1
+  description = "Reserved concurrency for the poller: 1 means one poll at a time, -1 leaves it unreserved. See ADR-006 before changing."
+  # 1 since the account quota rose to 1,000 (2026-11-07, ADR-006).
+  default = 1
 
   validation {
     condition     = var.poller_reserved_concurrency == -1 || var.poller_reserved_concurrency == 1

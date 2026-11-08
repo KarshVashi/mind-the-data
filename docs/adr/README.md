@@ -38,3 +38,5 @@ What gets easier, what gets harder, what to revisit and when.
 | [009](009-oidc-immutable-subjects.md) | CI roles trust the repository's immutable OIDC subject | proposed |
 | [010](010-workflow-bound-ci-roles.md) | CI roles bound to their workflow files through `job_workflow_ref` | proposed |
 | [011](011-merge-gate.md) | The engineer may merge low-risk pull requests through a gate | proposed |
+| [012](012-run-models-rebuild-in-full.md) | Declared-view intermediate models rebuild in full each run | proposed |
+| [013](013-poll-per-line-minute.md) | Read the latest poll that lists the line, and only current entries (amends ADR-004) | proposed |

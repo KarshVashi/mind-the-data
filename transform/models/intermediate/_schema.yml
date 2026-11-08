@@ -1,0 +1,234 @@
+version: 2
+
+# Most tests on int_line_minute_status cover the last 7 days of `dt`; older
+# days were tested when first built. The weight test covers all history,
+# because a seed edit changes every row.
+
+models:
+  - name: int_utc_minutes
+    description: >
+      Every UTC minute from `raw_start_date` up to `minute_settle_minutes`
+      before the run. The spine of int_line_minute_status, so a minute with
+      no poll still gets a row and shows as missing.
+    columns:
+      - name: minute_utc
+        description: Start of the minute, UTC.
+        data_tests: [unique, not_null]
+      - name: dt
+        description: UTC date of the minute.
+        data_tests: [not_null]
+
+  - name: int_line_minute_status
+    description: >
+      One row per in-scope line per UTC minute (ADR-004). The latest
+      successful line-status poll in the minute that lists the line is read;
+      a minute can hold more than one poll (post-deploy smoke test, overlap).
+      Of that poll's entries for the line, those with no validity period or a
+      period overlapping the minute count, and the highest weight wins, then
+      the lowest code, then the reason. A minute with no such entry is
+      missing, never Good Service. London date, day type, time band and
+      scheduled service come from the seeds day_types, time_bands and
+      line_operating_hours. Rebuilt in full from `raw_start_date` each run
+      (ADR-012), so a seed edit reaches every past minute and the spine has
+      no holes; only the newest `tail_trim_minutes` (30) can wait for the
+      next build if staging has not caught up.
+    columns:
+      - name: line_minute_key
+        description: Row key, a hash of (line_id, minute_utc). Merge key.
+        data_tests:
+          - unique:
+              config: &recent
+                where: "dt >= current_date - interval '7' day"
+          - not_null:
+              config: *recent
+      - name: line_id
+        description: TfL line id.
+        data_tests:
+          - not_null:
+              config: *recent
+          - relationships:
+              arguments:
+                to: ref('dim_lines')
+                field: line_id
+              config: *recent
+      - name: minute_utc
+        description: Start of the minute, UTC.
+        data_tests:
+          - not_null:
+              config: *recent
+      - name: london_ts
+        description: The minute in London wall-clock time.
+        data_tests:
+          - not_null:
+              config: *recent
+      - name: london_date
+        description: London calendar date of the minute.
+        data_tests:
+          - not_null:
+              config: *recent
+      - name: week_start
+        description: Monday of the minute's ISO week, London time.
+        data_tests:
+          - not_null:
+              config: *recent
+      - name: day_type
+        description: Day type of the London date (seed day_types).
+      - name: day_class
+        description: weekday or weekend.
+      - name: time_band
+        description: Time band of the London minute (seed time_bands).
+        data_tests:
+          - not_null:
+              config: *recent
+      - name: time_weight
+        description: Weight of the time band.
+        data_tests:
+          - not_null:
+              config: *recent
+      - name: is_scheduled
+        description: Inside the line's scheduled hours (seed line_operating_hours).
+        data_tests:
+          - not_null:
+              config: *recent
+      - name: successful_polls
+        description: Successful line-status requests that started in the minute.
+      - name: status_poll_id
+        description: Poll the minute's status was read from; null when missing.
+      - name: status_severity
+        description: TfL code of the worst current status; null when missing.
+      - name: status_severity_description
+        description: TfL text of that code.
+      - name: reason
+        description: TfL reason text of the worst status.
+      - name: is_planned
+        description: The worst status is filed as planned work.
+      - name: severity_weight
+        description: >
+          Weight of the worst status (seed severity_weights). Never null on an
+          observed minute: an unweighted code wins its minute and fails this
+          test, over all history.
+        data_tests:
+          - not_null:
+              config:
+                where: "not is_missing"
+      - name: current_entries
+        description: Current status entries for the line in the chosen poll.
+      - name: has_closure_entry
+        description: Any current entry is a closure, whether or not it won the minute.
+      - name: is_missing
+        description: No status known for the line in this minute.
+        data_tests:
+          - not_null:
+              config: *recent
+      - name: missing_reason
+        description: >
+          `no_successful_poll`, `line_not_in_poll` or `no_current_entry`;
+          null when not missing.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [no_successful_poll, line_not_in_poll, no_current_entry]
+              config: *recent
+      - name: is_engineering_works
+        description: The worst status is a closure, so nothing else has a weight above 0 (ADR-004).
+      - name: is_service_closed
+        description: The worst status is TfL's Service Closed (D16).
+      - name: is_scored
+        description: Counts toward the Disruption Index and Good Service %.
+        data_tests:
+          - not_null:
+              config: *recent
+      - name: dt
+        description: UTC date of the minute.
+        data_tests:
+          - not_null:
+              config: *recent
+
+  - name: int_status_intervals
+    description: >
+      Runs of consecutive minutes in one state per line, where a state is
+      the worst status code and its planned flag, or missing. Reasons are
+      reworded within a run; the run keeps its first. Rebuilt in full each
+      run from int_line_minute_status.
+    columns:
+      - name: status_interval_key
+        description: Row key, a hash of (line_id, interval_start_utc).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: interval_start_utc
+        description: First minute of the run, UTC.
+        data_tests: [not_null]
+      - name: interval_end_utc
+        description: Minute after the run's last, UTC.
+        data_tests: [not_null]
+      - name: duration_minutes
+        description: Minutes in the run.
+        data_tests: [not_null]
+      - name: scheduled_minutes
+        description: Minutes of the run inside scheduled hours.
+      - name: is_missing
+        description: A run of missing minutes.
+        data_tests: [not_null]
+      - name: status_severity
+        description: TfL code; null for a missing run.
+      - name: status_severity_description
+        description: TfL text for the code.
+      - name: is_planned
+        description: Planned work.
+      - name: severity_weight
+        description: Weight of the status.
+      - name: reason
+        description: Reason text at the start of the run.
+
+  - name: int_incidents
+    description: >
+      Unplanned disruptions per line (PLAN 6.2, D18). An incident minute is a
+      scored minute whose worst status is unplanned with a weight above 0.
+      Other observed minutes are quiet, including those outside service
+      hours. Missing minutes are bridged, neither starting nor ending an
+      incident. Incident minutes separated by fewer than
+      `incident_merge_gap_minutes` (5) quiet minutes are one incident. An
+      incident belongs to the London date and week it starts in. Rebuilt in
+      full each run.
+    columns:
+      - name: incident_key
+        description: Row key, a hash of (line_id, started_at).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: started_at
+        description: First incident minute, UTC.
+        data_tests: [not_null]
+      - name: ended_at
+        description: Minute after the last incident minute, UTC.
+        data_tests: [not_null]
+      - name: start_london_date
+        description: London date of the start.
+        data_tests: [not_null]
+      - name: start_week_start
+        description: Monday of the start's London week.
+        data_tests: [not_null]
+      - name: incident_minutes
+        description: Incident minutes, excluding bridged gaps.
+      - name: duration_minutes
+        description: Wall-clock minutes from start to the last incident minute, inclusive.
+      - name: is_open
+        description: >
+          Fewer quiet minutes than the merge gap follow the incident, so a
+          later minute could still extend it.
+        data_tests: [not_null]
+      - name: recovery_minutes
+        description: >
+          Minutes from start until the line left the incident for good
+          (duration of a closed incident); null while open (D18).
+      - name: peak_severity_weight
+        description: Highest weight in the incident.
+      - name: worst_status_severity
+        description: Code of the highest-weight status.
+      - name: worst_status_description
+        description: TfL text for that code.
+      - name: first_reason
+        description: Reason at the first incident minute.

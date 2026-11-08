@@ -1,0 +1,97 @@
+version: 2
+
+# Hand-computed metric cases (PLAN M3, task 4). The arithmetic is in each
+# description.
+
+unit_tests:
+  - name: fct_line_daily_disruption_index_by_hand
+    description: >
+      Victoria on Tuesday 3 November 2026, nine minutes:
+      peak Severe Delays (3 x 2 = 6), peak Good Service (0), off-peak Minor
+      Delays (1 x 1 = 1), off-peak Good Service (0), two missing minutes, one
+      engineering-works minute, one Service Closed minute inside scheduled
+      hours, and one Severe Delays minute outside scheduled hours (ignored).
+      Scheduled 8; observed 6; missing 2; scored 4; Good Service 2;
+      disrupted 2; weighted disruption 7.
+      Disruption Index = 100 x 7 / (4 / 60) = 10,500.
+      Good Service % = 2 / 4 = 50. Completeness = 6 / 8 = 0.75.
+      Three incidents start that day, recoveries 10, 30 and one still open:
+      median of 10 and 30 = 20; incidents per 100 hours = 100 x 3 / (4 / 60)
+      = 4,500. Bakerloo on 4 November has one scored Good Service minute:
+      index 0, Good Service 100 %, no incidents (0 per 100 hours, median
+      null). A disruption spanning midnight: Victoria's Severe Delays carry
+      on into 4 November (one off-peak minute, 3 x 1 = 3). That minute
+      scores on 4 November (index 100 x 3 / (1 / 60) = 18,000, Good Service
+      0 %), but the incident counts only on 3 November, where it started.
+    model: fct_line_daily
+    given:
+      - input: ref('int_line_minute_status')
+        rows:
+          - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: true, status_severity: 6, severity_weight: 3, time_weight: 2}
+          - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: true, status_severity: 10, severity_weight: 0, time_weight: 2}
+          - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: true, status_severity: 9, severity_weight: 1, time_weight: 1}
+          - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: true, status_severity: 10, severity_weight: 0, time_weight: 1}
+          - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: true, is_engineering_works: false, is_service_closed: false, is_scored: false, status_severity: null, severity_weight: null, time_weight: 2}
+          - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: true, is_engineering_works: false, is_service_closed: false, is_scored: false, status_severity: null, severity_weight: null, time_weight: 1}
+          - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: true, is_service_closed: false, is_scored: false, status_severity: 5, severity_weight: 0, time_weight: 1}
+          - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: true, is_scored: false, status_severity: 20, severity_weight: 0, time_weight: 1}
+          - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: false, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: false, status_severity: 6, severity_weight: 3, time_weight: 1}
+          - {line_id: bakerloo, london_date: "2026-11-04", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: true, status_severity: 10, severity_weight: 0, time_weight: 1}
+          - {line_id: victoria, london_date: "2026-11-04", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: true, status_severity: 6, severity_weight: 3, time_weight: 1}
+      - input: ref('int_incidents')
+        rows:
+          - {line_id: victoria, start_london_date: "2026-11-03", recovery_minutes: 10}
+          - {line_id: victoria, start_london_date: "2026-11-03", recovery_minutes: 30}
+          - {line_id: victoria, start_london_date: "2026-11-03", recovery_minutes: null}
+    expect:
+      rows:
+        - {line_id: victoria, london_date: "2026-11-03", scheduled_minutes: 8, observed_minutes: 6, missing_minutes: 2, engineering_works_minutes: 1, service_closed_minutes: 1, scored_minutes: 4, good_service_minutes: 2, disrupted_minutes: 2, weighted_disruption_minutes: 7, incidents: 3, median_recovery_minutes: 20, completeness: 0.75, disruption_index: 10500, good_service_pct: 50, incidents_per_100_hours: 4500}
+        - {line_id: bakerloo, london_date: "2026-11-04", scheduled_minutes: 1, observed_minutes: 1, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 1, good_service_minutes: 1, disrupted_minutes: 0, weighted_disruption_minutes: 0, incidents: 0, median_recovery_minutes: null, completeness: 1, disruption_index: 0, good_service_pct: 100, incidents_per_100_hours: 0}
+        - {line_id: victoria, london_date: "2026-11-04", scheduled_minutes: 1, observed_minutes: 1, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 1, good_service_minutes: 0, disrupted_minutes: 1, weighted_disruption_minutes: 3, incidents: 0, median_recovery_minutes: null, completeness: 1, disruption_index: 18000, good_service_pct: 0, incidents_per_100_hours: 0}
+
+  - name: fct_line_weekly_sums_ranks_and_movement
+    description: >
+      Weekly sums, recomputed ratios, ranks, ties and movement, over the
+      weeks of 19 and 26 October 2026. Which week a minute belongs to across
+      a clock change is decided upstream and tested there
+      (int_line_minute_status_london_calendar_and_clock_changes,
+      assert_clock_change_days_have_real_length); here the week is input.
+      Week 19 Oct, Victoria: 24 Oct (60 scored, 30 Good Service, weighted 30,
+      1 incident) + 25 Oct (60 scored, all Good Service) = 120 scored, 90 Good
+      Service, weighted 30: index 100 x 30 / 2 = 1,500, Good Service 75 %,
+      1 incident = 50 per 100 hours, completeness 1. Median recovery of its
+      closed incidents (12, and one open) = 12.
+      Bakerloo: 120 scheduled, 90 observed and scored, 45 Good Service,
+      weighted 22.5: index 100 x 22.5 / 1.5 = 1,500, Good Service 50 %,
+      completeness 0.75, so provisional. Equal index: Victoria's higher Good
+      Service % ranks it 1, Bakerloo 2. Waterloo & City: 60 scheduled, none
+      observed: no index, no rank, completeness 0, provisional.
+      Week 26 Oct: Victoria 60 scored, 30 Good Service, weighted 60, index
+      6,000; Bakerloo 60 scored, all Good Service, index 0. Bakerloo ranks
+      1 (up 1 from 2), Victoria 2 (down 1).
+    model: fct_line_weekly
+    given:
+      - input: ref('fct_line_daily')
+        rows:
+          - {line_id: victoria, london_date: "2026-10-24", week_start: "2026-10-19", scheduled_minutes: 60, observed_minutes: 60, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 60, good_service_minutes: 30, disrupted_minutes: 30, weighted_disruption_minutes: 30, incidents: 1}
+          - {line_id: victoria, london_date: "2026-10-25", week_start: "2026-10-19", scheduled_minutes: 60, observed_minutes: 60, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 60, good_service_minutes: 60, disrupted_minutes: 0, weighted_disruption_minutes: 0, incidents: 0}
+          - {line_id: bakerloo, london_date: "2026-10-25", week_start: "2026-10-19", scheduled_minutes: 120, observed_minutes: 90, missing_minutes: 30, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 90, good_service_minutes: 45, disrupted_minutes: 45, weighted_disruption_minutes: 22.5, incidents: 0}
+          - {line_id: waterloo-city, london_date: "2026-10-23", week_start: "2026-10-19", scheduled_minutes: 60, observed_minutes: 0, missing_minutes: 60, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 0, good_service_minutes: 0, disrupted_minutes: 0, weighted_disruption_minutes: 0, incidents: 0}
+          - {line_id: victoria, london_date: "2026-10-26", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 60, good_service_minutes: 30, disrupted_minutes: 30, weighted_disruption_minutes: 60, incidents: 0}
+          - {line_id: bakerloo, london_date: "2026-10-26", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 60, good_service_minutes: 60, disrupted_minutes: 0, weighted_disruption_minutes: 0, incidents: 0}
+      - input: ref('int_incidents')
+        rows:
+          - {line_id: victoria, start_week_start: "2026-10-19", recovery_minutes: 12}
+          - {line_id: victoria, start_week_start: "2026-10-19", recovery_minutes: null}
+      - input: ref('dim_lines')
+        rows:
+          - {line_id: victoria, is_low_volume: false}
+          - {line_id: bakerloo, is_low_volume: false}
+          - {line_id: waterloo-city, is_low_volume: false}
+    expect:
+      rows:
+        - {line_id: victoria, week_start: "2026-10-19", week_end: "2026-10-25", scored_minutes: 120, disruption_index: 1500, good_service_pct: 75, incidents_per_100_hours: 50, completeness: 1, median_recovery_minutes: 12, is_week_complete: true, is_provisional: false, disruption_rank: 1, previous_disruption_rank: null, rank_movement: null}
+        - {line_id: bakerloo, week_start: "2026-10-19", week_end: "2026-10-25", scored_minutes: 90, disruption_index: 1500, good_service_pct: 50, incidents_per_100_hours: 0, completeness: 0.75, median_recovery_minutes: null, is_week_complete: true, is_provisional: true, disruption_rank: 2, previous_disruption_rank: null, rank_movement: null}
+        - {line_id: waterloo-city, week_start: "2026-10-19", week_end: "2026-10-25", scored_minutes: 0, disruption_index: null, good_service_pct: null, incidents_per_100_hours: null, completeness: 0, median_recovery_minutes: null, is_week_complete: true, is_provisional: true, disruption_rank: null, previous_disruption_rank: null, rank_movement: null}
+        - {line_id: victoria, week_start: "2026-10-26", week_end: "2026-11-01", scored_minutes: 60, disruption_index: 6000, good_service_pct: 50, incidents_per_100_hours: 0, completeness: 1, median_recovery_minutes: null, is_week_complete: true, is_provisional: false, disruption_rank: 2, previous_disruption_rank: 1, rank_movement: -1}
+        - {line_id: bakerloo, week_start: "2026-10-26", week_end: "2026-11-01", scored_minutes: 60, disruption_index: 0, good_service_pct: 100, incidents_per_100_hours: 0, completeness: 1, median_recovery_minutes: null, is_week_complete: true, is_provisional: false, disruption_rank: 1, previous_disruption_rank: 2, rank_movement: 1}

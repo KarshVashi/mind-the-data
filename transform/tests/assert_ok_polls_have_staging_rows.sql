@@ -2,6 +2,8 @@
 -- produce staging rows. Column tests pass on an empty table, so without this
 -- a parse that silently yields nothing (a renamed or re-cased key) would look
 -- like a quiet network. Arrivals and disruptions can be empty and are left out.
+-- The last 15 minutes are skipped: within one build, stg_polls can run after
+-- a feed model and see a poll that landed in between.
 
 with ok_polls as (
     select
@@ -13,6 +15,8 @@ with ok_polls as (
         is_ok
         and feed in ('line_status', 'ref_severity', 'ref_route_sequence')
         and dt >= current_date - interval '7' day
+        and polled_at
+        < date_add('minute', -15, cast(current_timestamp at time zone 'UTC' as timestamp(6)))
 ),
 
 staged as (

@@ -1,0 +1,8 @@
+iso_day_of_week,day_name,day_type,day_class
+1,Monday,mon_thu,weekday
+2,Tuesday,mon_thu,weekday
+3,Wednesday,mon_thu,weekday
+4,Thursday,mon_thu,weekday
+5,Friday,fri,weekday
+6,Saturday,sat,weekend
+7,Sunday,sun,weekend

@@ -1,0 +1,139 @@
+version: 2
+
+seeds:
+  - name: lines
+    description: >
+      Lines in scope, copied from config/lines.yaml (a unit test keeps the
+      two in step). Feeds dim_lines.
+    columns:
+      - name: line_id
+        description: TfL line id.
+        data_tests: [unique, not_null]
+      - name: line_name
+        description: Display name.
+        data_tests: [not_null]
+      - name: mode_name
+        description: TfL mode.
+        data_tests: [not_null]
+      - name: colour
+        description: Line colour, hex.
+      - name: is_low_volume
+        description: Shown but flagged as low volume (PLAN 7.4).
+        data_tests: [not_null]
+
+  - name: severity_weights
+    description: >
+      Weight of each TfL status severity code (PLAN 7.1, ADR-004). The
+      higher weight wins a minute. `weight_planned` applies when the entry's
+      disruption is filed as planned work; only Bus Service differs.
+      Codes 4 and 5 are closures: a minute whose worst status is a closure is
+      engineering works and leaves the score. Code 20 (Service Closed) is not
+      in the plan; it is TfL's overnight status and is weighted 0 and left out
+      of the score (DECISIONS.md D16). A code missing here fails
+      assert_line_status_codes_are_weighted rather than defaulting.
+    columns:
+      - name: severity_code
+        description: TfL statusSeverity.
+        data_tests: [unique, not_null]
+      - name: description
+        description: TfL's text for the code, checked against what TfL sends.
+        data_tests: [not_null]
+      - name: weight_unplanned
+        description: Weight when the entry is not planned work.
+        data_tests: [not_null]
+      - name: weight_planned
+        description: Weight when the entry is planned work.
+        data_tests: [not_null]
+      - name: is_closure
+        description: Planned Closure or Part Closure.
+        data_tests: [not_null]
+      - name: is_service_closed
+        description: TfL's Service Closed status.
+        data_tests: [not_null]
+      - name: source
+        description: "`plan` (PLAN 7.1) or the DECISIONS.md item that set it."
+        data_tests: [not_null]
+
+  - name: time_bands
+    description: >
+      Time weights by London wall-clock time (PLAN 7.1): weekday 07:00 to
+      10:00 and 16:00 to 19:00 weigh 2, other weekday minutes 1, Saturday and
+      Sunday 0.75. Night Tube runs only into Saturday and Sunday mornings, so
+      it falls in the weekend band. Bands are [start, end) minutes after
+      London midnight and cover each day class exactly once (unit test).
+    columns:
+      - name: day_class
+        description: weekday or weekend, from day_types.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [weekday, weekend]
+      - name: time_band
+        description: Band name.
+        data_tests: [not_null]
+      - name: band_start_minute
+        description: First minute of the band after London midnight.
+        data_tests: [not_null]
+      - name: band_end_minute
+        description: Minute after the band's last, after London midnight.
+        data_tests: [not_null]
+      - name: time_weight
+        description: The band's weight.
+        data_tests: [not_null]
+
+  - name: day_types
+    description: >
+      ISO day of week (London date) to the operating-hours day type and the
+      time-band day class. Public holidays are not modelled in v1.
+    columns:
+      - name: iso_day_of_week
+        description: 1 = Monday to 7 = Sunday.
+        data_tests: [unique, not_null]
+      - name: day_name
+        description: Day name.
+      - name: day_type
+        description: mon_thu, fri, sat or sun, the day types of line_operating_hours.
+        data_tests: [not_null]
+      - name: day_class
+        description: weekday or weekend.
+        data_tests: [not_null]
+
+  - name: line_operating_hours
+    description: >
+      v1 scheduled hours per line and day type, in minutes after the London
+      midnight that starts the service day; an end past 1440 runs into the
+      next day (Night Tube Fridays and Saturdays). [start, end).
+      `tfl_timetable_2026_11_05`: first and last departures at the line's
+      measurement stations in TfL's Line/{id}/Timetable responses recorded on
+      2026-11-05 (stg_timetable), rounded out to 5 minutes. Waterloo & City
+      has no weekend rows because TfL timetables no weekend service.
+      `estimate_2026_11_08`: TfL returns 404 for Elizabeth line and Overground
+      timetables, so these lines use 05:30 to 00:30 (Sunday 07:30 to 00:00),
+      cut back where boards showed earlier last trains (Liberty, Suffragette).
+      DECISIONS.md D17 tracks replacing them.
+    columns:
+      - name: line_id
+        description: TfL line id.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('lines')
+                field: line_id
+      - name: day_type
+        description: Day type of the service day.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [mon_thu, fri, sat, sun]
+      - name: service_start_minute
+        description: First scheduled minute after the service day's London midnight.
+        data_tests: [not_null]
+      - name: service_end_minute
+        description: Minute after the last scheduled one; may pass 1440.
+        data_tests: [not_null]
+      - name: source
+        description: Where the hours come from (see the model description).
+        data_tests: [not_null]

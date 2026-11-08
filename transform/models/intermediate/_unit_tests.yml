@@ -1,0 +1,266 @@
+version: 2
+
+# Hand-computed cases for the declared-view logic (PLAN M3, task 4). Every
+# expected value is worked out in the description; none was copied from a
+# model run. The seeds are given in full where the logic reads them, so a
+# seed edit cannot silently change what these tests check.
+
+unit_tests:
+  - name: int_line_minute_status_worst_status_polls_and_gaps
+    description: >
+      Tuesday 2026-11-03, GMT, so London time equals UTC and 08:15 to 08:20
+      sit in the weekday am_peak band (weight 2); both lines are in service
+      (Victoria 05:25 to 00:45, Bakerloo 05:35 to 00:40).
+      08:15: Victoria has Severe Delays (weight 3) and a planned Part Closure
+      (0): the delay wins, the closure is noted, the minute is scored, not
+      engineering works. Bakerloo has Good Service with no validity period.
+      08:16: two polls. The later one (p3) lists Victoria with only the
+      Part Closure, so Victoria is engineering works. p3 omits Bakerloo, so
+      Bakerloo is read from p2 (Good Service), not marked missing.
+      08:17: the only poll failed; 08:18: no poll. Both lines missing,
+      never Good Service.
+      08:19: Victoria has a planned Bus Service (weight 0 when planned) and
+      Minor Delays valid only from 09:00, which does not count yet. Bakerloo's
+      only entry expired at 08:19:00, so it has no current entry: missing.
+      08:20: a successful poll without Bakerloo: missing, line_not_in_poll.
+      08:21: two polls. Victoria's later poll (p8) lists only an entry that
+      expired at 08:21:00, so Victoria is missing (no_current_entry) even
+      though p7 had Good Service: the latest poll listing the line decides
+      (ADR-013). Bakerloo (p7 only) has Good Service and code 1, which the
+      weights seed lacks: the unweighted code wins the minute with a null
+      weight, so the severity_weight not_null test fails the build.
+      08:25: no poll, missing. 09:00 is the spine's last minute; the latest
+      staged poll is 08:21, so the trim keeps everything up to
+      max(08:21, 09:00 - 30 min) = 08:30. 09:00 has no row yet, and 08:25,
+      inside the bound, is kept as missing.
+    model: int_line_minute_status
+    overrides:
+      vars:
+        raw_start_date: "2026-11-03"
+    given:
+      - input: ref('int_utc_minutes')
+        rows:
+          - {minute_utc: "2026-11-03 08:15:00", dt: "2026-11-03"}
+          - {minute_utc: "2026-11-03 08:16:00", dt: "2026-11-03"}
+          - {minute_utc: "2026-11-03 08:17:00", dt: "2026-11-03"}
+          - {minute_utc: "2026-11-03 08:18:00", dt: "2026-11-03"}
+          - {minute_utc: "2026-11-03 08:19:00", dt: "2026-11-03"}
+          - {minute_utc: "2026-11-03 08:20:00", dt: "2026-11-03"}
+          - {minute_utc: "2026-11-03 08:21:00", dt: "2026-11-03"}
+          - {minute_utc: "2026-11-03 08:25:00", dt: "2026-11-03"}
+          - {minute_utc: "2026-11-03 09:00:00", dt: "2026-11-03"}
+      - input: ref('dim_lines')
+        rows:
+          - {line_id: victoria}
+          - {line_id: bakerloo}
+      - input: ref('day_types')
+        rows: &day_types
+          - {iso_day_of_week: 1, day_type: mon_thu, day_class: weekday}
+          - {iso_day_of_week: 2, day_type: mon_thu, day_class: weekday}
+          - {iso_day_of_week: 3, day_type: mon_thu, day_class: weekday}
+          - {iso_day_of_week: 4, day_type: mon_thu, day_class: weekday}
+          - {iso_day_of_week: 5, day_type: fri, day_class: weekday}
+          - {iso_day_of_week: 6, day_type: sat, day_class: weekend}
+          - {iso_day_of_week: 7, day_type: sun, day_class: weekend}
+      - input: ref('time_bands')
+        rows: &time_bands
+          - {day_class: weekday, time_band: early, band_start_minute: 0, band_end_minute: 420, time_weight: 1}
+          - {day_class: weekday, time_band: am_peak, band_start_minute: 420, band_end_minute: 600, time_weight: 2}
+          - {day_class: weekday, time_band: inter_peak, band_start_minute: 600, band_end_minute: 960, time_weight: 1}
+          - {day_class: weekday, time_band: pm_peak, band_start_minute: 960, band_end_minute: 1140, time_weight: 2}
+          - {day_class: weekday, time_band: evening, band_start_minute: 1140, band_end_minute: 1440, time_weight: 1}
+          - {day_class: weekend, time_band: weekend, band_start_minute: 0, band_end_minute: 1440, time_weight: 0.75}
+      - input: ref('line_operating_hours')
+        rows: &operating_hours
+          - {line_id: victoria, day_type: mon_thu, service_start_minute: 325, service_end_minute: 1485}
+          - {line_id: victoria, day_type: fri, service_start_minute: 325, service_end_minute: 1635}
+          - {line_id: victoria, day_type: sat, service_start_minute: 195, service_end_minute: 1635}
+          - {line_id: victoria, day_type: sun, service_start_minute: 195, service_end_minute: 1450}
+          - {line_id: bakerloo, day_type: mon_thu, service_start_minute: 335, service_end_minute: 1480}
+          - {line_id: bakerloo, day_type: fri, service_start_minute: 335, service_end_minute: 1480}
+          - {line_id: bakerloo, day_type: sat, service_start_minute: 335, service_end_minute: 1480}
+          - {line_id: bakerloo, day_type: sun, service_start_minute: 435, service_end_minute: 1440}
+      - input: ref('severity_weights')
+        rows: &severity_weights
+          - {severity_code: 5, description: Part Closure, weight_unplanned: 0, weight_planned: 0, is_closure: true, is_service_closed: false}
+          - {severity_code: 6, description: Severe Delays, weight_unplanned: 3, weight_planned: 3, is_closure: false, is_service_closed: false}
+          - {severity_code: 8, description: Bus Service, weight_unplanned: 5, weight_planned: 0, is_closure: false, is_service_closed: false}
+          - {severity_code: 9, description: Minor Delays, weight_unplanned: 1, weight_planned: 1, is_closure: false, is_service_closed: false}
+          - {severity_code: 10, description: Good Service, weight_unplanned: 0, weight_planned: 0, is_closure: false, is_service_closed: false}
+          - {severity_code: 20, description: Service Closed, weight_unplanned: 0, weight_planned: 0, is_closure: false, is_service_closed: true}
+      - input: ref('stg_polls')
+        rows:
+          - {poll_id: p1, feed: line_status, is_ok: true, poll_minute: "2026-11-03 08:15:00", dt: "2026-11-03"}
+          - {poll_id: p2, feed: line_status, is_ok: true, poll_minute: "2026-11-03 08:16:00", dt: "2026-11-03"}
+          - {poll_id: p3, feed: line_status, is_ok: true, poll_minute: "2026-11-03 08:16:00", dt: "2026-11-03"}
+          - {poll_id: p4, feed: line_status, is_ok: false, poll_minute: "2026-11-03 08:17:00", dt: "2026-11-03"}
+          - {poll_id: p4, feed: arrivals, is_ok: true, poll_minute: "2026-11-03 08:17:00", dt: "2026-11-03"}
+          - {poll_id: p5, feed: line_status, is_ok: true, poll_minute: "2026-11-03 08:19:00", dt: "2026-11-03"}
+          - {poll_id: p6, feed: line_status, is_ok: true, poll_minute: "2026-11-03 08:20:00", dt: "2026-11-03"}
+          - {poll_id: p7, feed: line_status, is_ok: true, poll_minute: "2026-11-03 08:21:00", dt: "2026-11-03"}
+          - {poll_id: p8, feed: line_status, is_ok: true, poll_minute: "2026-11-03 08:21:00", dt: "2026-11-03"}
+      - input: ref('stg_line_status')
+        rows:
+          - {poll_id: p1, request_path: /s, polled_at: "2026-11-03 08:15:00.100", poll_minute: "2026-11-03 08:15:00", line_id: victoria, status_ordinal: 1, status_severity: 6, status_severity_description: Severe Delays, reason: Signal failure, is_planned: false, valid_from: "2026-11-03 08:01:00", valid_to: "2026-11-03 09:30:00", dt: "2026-11-03"}
+          - {poll_id: p1, request_path: /s, polled_at: "2026-11-03 08:15:00.100", poll_minute: "2026-11-03 08:15:00", line_id: victoria, status_ordinal: 2, status_severity: 5, status_severity_description: Part Closure, reason: Works, is_planned: true, valid_from: "2026-11-03 00:00:00", valid_to: "2026-11-03 23:59:00", dt: "2026-11-03"}
+          - {poll_id: p1, request_path: /s, polled_at: "2026-11-03 08:15:00.100", poll_minute: "2026-11-03 08:15:00", line_id: bakerloo, status_ordinal: 1, status_severity: 10, status_severity_description: Good Service, reason: null, is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-03"}
+          - {poll_id: p2, request_path: /s, polled_at: "2026-11-03 08:16:05.000", poll_minute: "2026-11-03 08:16:00", line_id: victoria, status_ordinal: 1, status_severity: 10, status_severity_description: Good Service, reason: null, is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-03"}
+          - {poll_id: p2, request_path: /s, polled_at: "2026-11-03 08:16:05.000", poll_minute: "2026-11-03 08:16:00", line_id: bakerloo, status_ordinal: 1, status_severity: 10, status_severity_description: Good Service, reason: null, is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-03"}
+          - {poll_id: p3, request_path: /s, polled_at: "2026-11-03 08:16:40.000", poll_minute: "2026-11-03 08:16:00", line_id: victoria, status_ordinal: 1, status_severity: 5, status_severity_description: Part Closure, reason: Works, is_planned: true, valid_from: "2026-11-03 00:00:00", valid_to: "2026-11-03 23:59:00", dt: "2026-11-03"}
+          - {poll_id: p5, request_path: /s, polled_at: "2026-11-03 08:19:00.200", poll_minute: "2026-11-03 08:19:00", line_id: victoria, status_ordinal: 1, status_severity: 8, status_severity_description: Bus Service, reason: Rail replacement, is_planned: true, valid_from: "2026-11-03 06:00:00", valid_to: "2026-11-03 12:00:00", dt: "2026-11-03"}
+          - {poll_id: p5, request_path: /s, polled_at: "2026-11-03 08:19:00.200", poll_minute: "2026-11-03 08:19:00", line_id: victoria, status_ordinal: 2, status_severity: 9, status_severity_description: Minor Delays, reason: Later, is_planned: false, valid_from: "2026-11-03 09:00:00", valid_to: "2026-11-03 10:00:00", dt: "2026-11-03"}
+          - {poll_id: p5, request_path: /s, polled_at: "2026-11-03 08:19:00.200", poll_minute: "2026-11-03 08:19:00", line_id: bakerloo, status_ordinal: 1, status_severity: 7, status_severity_description: Reduced Service, reason: Expired, is_planned: true, valid_from: "2026-11-03 06:00:00", valid_to: "2026-11-03 08:19:00", dt: "2026-11-03"}
+          - {poll_id: p6, request_path: /s, polled_at: "2026-11-03 08:20:00.300", poll_minute: "2026-11-03 08:20:00", line_id: victoria, status_ordinal: 1, status_severity: 10, status_severity_description: Good Service, reason: null, is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-03"}
+          - {poll_id: p7, request_path: /s, polled_at: "2026-11-03 08:21:10.000", poll_minute: "2026-11-03 08:21:00", line_id: victoria, status_ordinal: 1, status_severity: 10, status_severity_description: Good Service, reason: null, is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-03"}
+          - {poll_id: p7, request_path: /s, polled_at: "2026-11-03 08:21:10.000", poll_minute: "2026-11-03 08:21:00", line_id: bakerloo, status_ordinal: 1, status_severity: 10, status_severity_description: Good Service, reason: null, is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-03"}
+          - {poll_id: p7, request_path: /s, polled_at: "2026-11-03 08:21:10.000", poll_minute: "2026-11-03 08:21:00", line_id: bakerloo, status_ordinal: 2, status_severity: 1, status_severity_description: Closed, reason: Unweighted, is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-03"}
+          - {poll_id: p8, request_path: /s, polled_at: "2026-11-03 08:21:50.000", poll_minute: "2026-11-03 08:21:00", line_id: victoria, status_ordinal: 1, status_severity: 7, status_severity_description: Reduced Service, reason: Expired, is_planned: true, valid_from: "2026-11-03 06:00:00", valid_to: "2026-11-03 08:21:00", dt: "2026-11-03"}
+    expect:
+      rows:
+        - {line_id: victoria, minute_utc: "2026-11-03 08:15:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 1, status_poll_id: p1, status_severity: 6, severity_weight: 3, has_closure_entry: true, is_engineering_works: false, is_missing: false, missing_reason: null, is_scored: true}
+        - {line_id: bakerloo, minute_utc: "2026-11-03 08:15:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 1, status_poll_id: p1, status_severity: 10, severity_weight: 0, has_closure_entry: false, is_engineering_works: false, is_missing: false, missing_reason: null, is_scored: true}
+        - {line_id: victoria, minute_utc: "2026-11-03 08:16:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 2, status_poll_id: p3, status_severity: 5, severity_weight: 0, has_closure_entry: true, is_engineering_works: true, is_missing: false, missing_reason: null, is_scored: false}
+        - {line_id: bakerloo, minute_utc: "2026-11-03 08:16:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 2, status_poll_id: p2, status_severity: 10, severity_weight: 0, has_closure_entry: false, is_engineering_works: false, is_missing: false, missing_reason: null, is_scored: true}
+        - {line_id: victoria, minute_utc: "2026-11-03 08:17:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 0, status_poll_id: null, status_severity: null, severity_weight: null, has_closure_entry: false, is_engineering_works: false, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: bakerloo, minute_utc: "2026-11-03 08:17:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 0, status_poll_id: null, status_severity: null, severity_weight: null, has_closure_entry: false, is_engineering_works: false, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: victoria, minute_utc: "2026-11-03 08:18:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 0, status_poll_id: null, status_severity: null, severity_weight: null, has_closure_entry: false, is_engineering_works: false, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: bakerloo, minute_utc: "2026-11-03 08:18:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 0, status_poll_id: null, status_severity: null, severity_weight: null, has_closure_entry: false, is_engineering_works: false, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: victoria, minute_utc: "2026-11-03 08:19:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 1, status_poll_id: p5, status_severity: 8, severity_weight: 0, has_closure_entry: false, is_engineering_works: false, is_missing: false, missing_reason: null, is_scored: true}
+        - {line_id: bakerloo, minute_utc: "2026-11-03 08:19:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 1, status_poll_id: null, status_severity: null, severity_weight: null, has_closure_entry: false, is_engineering_works: false, is_missing: true, missing_reason: no_current_entry, is_scored: false}
+        - {line_id: victoria, minute_utc: "2026-11-03 08:20:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 1, status_poll_id: p6, status_severity: 10, severity_weight: 0, has_closure_entry: false, is_engineering_works: false, is_missing: false, missing_reason: null, is_scored: true}
+        - {line_id: bakerloo, minute_utc: "2026-11-03 08:20:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 1, status_poll_id: null, status_severity: null, severity_weight: null, has_closure_entry: false, is_engineering_works: false, is_missing: true, missing_reason: line_not_in_poll, is_scored: false}
+        - {line_id: victoria, minute_utc: "2026-11-03 08:21:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 2, status_poll_id: null, status_severity: null, severity_weight: null, has_closure_entry: false, is_engineering_works: false, is_missing: true, missing_reason: no_current_entry, is_scored: false}
+        - {line_id: bakerloo, minute_utc: "2026-11-03 08:21:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 2, status_poll_id: p7, status_severity: 1, severity_weight: null, has_closure_entry: false, is_engineering_works: false, is_missing: false, missing_reason: null, is_scored: true}
+        - {line_id: victoria, minute_utc: "2026-11-03 08:25:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 0, status_poll_id: null, status_severity: null, severity_weight: null, has_closure_entry: false, is_engineering_works: false, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: bakerloo, minute_utc: "2026-11-03 08:25:00", time_band: am_peak, time_weight: 2, is_scheduled: true, successful_polls: 0, status_poll_id: null, status_severity: null, severity_weight: null, has_closure_entry: false, is_engineering_works: false, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+
+  - name: int_line_minute_status_london_calendar_and_clock_changes
+    description: >
+      London date, ISO week, time band and service hours across both clock
+      changes, with no polls (every minute missing, never Good Service).
+      2026-10-25 00:30 and 01:30 UTC are both 01:30 London on Sunday 25
+      October (BST, then GMT), weekend band 0.75, week of Monday 19 October;
+      Victoria runs Saturday's Night Tube until 03:15 (1635 - 1440 minutes),
+      Bakerloo is closed. 2026-10-26 00:05 UTC is Monday 00:05 GMT: new week
+      (26 October), weekday early band (1); Victoria's Sunday service runs to
+      00:10 (1450) so it is in service, Bakerloo's ends at midnight (1440).
+      2027-03-28 01:30 UTC is 02:30 BST on Sunday 28 March (week of 22
+      March), Victoria Night Tube in service. 2027-03-28 23:05 UTC is
+      already Monday 29 March 00:05 BST: week of 29 March, Victoria in
+      service until 00:10. 2026-11-07 02:00 UTC is Saturday 02:00 GMT:
+      Friday's Night Tube keeps Victoria in service. 2026-11-04 17:30 UTC is
+      Wednesday pm_peak (2); 2026-10-21 07:30 UTC is 08:30 BST Wednesday,
+      am_peak (2); both lines in service.
+    model: int_line_minute_status
+    # No staged poll at all, so the tail trim keeps every spine minute.
+    overrides:
+      vars:
+        raw_start_date: "2026-10-01"
+    given:
+      - input: ref('int_utc_minutes')
+        rows:
+          - {minute_utc: "2026-10-25 00:30:00", dt: "2026-10-25"}
+          - {minute_utc: "2026-10-25 01:30:00", dt: "2026-10-25"}
+          - {minute_utc: "2026-10-26 00:05:00", dt: "2026-10-26"}
+          - {minute_utc: "2027-03-28 01:30:00", dt: "2027-03-28"}
+          - {minute_utc: "2027-03-28 23:05:00", dt: "2027-03-28"}
+          - {minute_utc: "2026-11-07 02:00:00", dt: "2026-11-07"}
+          - {minute_utc: "2026-11-04 17:30:00", dt: "2026-11-04"}
+          - {minute_utc: "2026-10-21 07:30:00", dt: "2026-10-21"}
+      - input: ref('dim_lines')
+        rows:
+          - {line_id: victoria}
+          - {line_id: bakerloo}
+      - input: ref('day_types')
+        rows: *day_types
+      - input: ref('time_bands')
+        rows: *time_bands
+      - input: ref('line_operating_hours')
+        rows: *operating_hours
+      - input: ref('severity_weights')
+        rows: *severity_weights
+      - input: ref('stg_polls')
+        rows: []
+      - input: ref('stg_line_status')
+        rows: []
+    expect:
+      rows:
+        - {line_id: victoria, minute_utc: "2026-10-25 00:30:00", london_ts: "2026-10-25 01:30:00", london_date: "2026-10-25", week_start: "2026-10-19", time_band: weekend, time_weight: 0.75, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: bakerloo, minute_utc: "2026-10-25 00:30:00", london_ts: "2026-10-25 01:30:00", london_date: "2026-10-25", week_start: "2026-10-19", time_band: weekend, time_weight: 0.75, is_scheduled: false, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: victoria, minute_utc: "2026-10-25 01:30:00", london_ts: "2026-10-25 01:30:00", london_date: "2026-10-25", week_start: "2026-10-19", time_band: weekend, time_weight: 0.75, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: bakerloo, minute_utc: "2026-10-25 01:30:00", london_ts: "2026-10-25 01:30:00", london_date: "2026-10-25", week_start: "2026-10-19", time_band: weekend, time_weight: 0.75, is_scheduled: false, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: victoria, minute_utc: "2026-10-26 00:05:00", london_ts: "2026-10-26 00:05:00", london_date: "2026-10-26", week_start: "2026-10-26", time_band: early, time_weight: 1, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: bakerloo, minute_utc: "2026-10-26 00:05:00", london_ts: "2026-10-26 00:05:00", london_date: "2026-10-26", week_start: "2026-10-26", time_band: early, time_weight: 1, is_scheduled: false, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: victoria, minute_utc: "2027-03-28 01:30:00", london_ts: "2027-03-28 02:30:00", london_date: "2027-03-28", week_start: "2027-03-22", time_band: weekend, time_weight: 0.75, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: bakerloo, minute_utc: "2027-03-28 01:30:00", london_ts: "2027-03-28 02:30:00", london_date: "2027-03-28", week_start: "2027-03-22", time_band: weekend, time_weight: 0.75, is_scheduled: false, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: victoria, minute_utc: "2027-03-28 23:05:00", london_ts: "2027-03-29 00:05:00", london_date: "2027-03-29", week_start: "2027-03-29", time_band: early, time_weight: 1, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: bakerloo, minute_utc: "2027-03-28 23:05:00", london_ts: "2027-03-29 00:05:00", london_date: "2027-03-29", week_start: "2027-03-29", time_band: early, time_weight: 1, is_scheduled: false, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: victoria, minute_utc: "2026-11-07 02:00:00", london_ts: "2026-11-07 02:00:00", london_date: "2026-11-07", week_start: "2026-11-02", time_band: weekend, time_weight: 0.75, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: bakerloo, minute_utc: "2026-11-07 02:00:00", london_ts: "2026-11-07 02:00:00", london_date: "2026-11-07", week_start: "2026-11-02", time_band: weekend, time_weight: 0.75, is_scheduled: false, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: victoria, minute_utc: "2026-11-04 17:30:00", london_ts: "2026-11-04 17:30:00", london_date: "2026-11-04", week_start: "2026-11-02", time_band: pm_peak, time_weight: 2, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: bakerloo, minute_utc: "2026-11-04 17:30:00", london_ts: "2026-11-04 17:30:00", london_date: "2026-11-04", week_start: "2026-11-02", time_band: pm_peak, time_weight: 2, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: victoria, minute_utc: "2026-10-21 07:30:00", london_ts: "2026-10-21 08:30:00", london_date: "2026-10-21", week_start: "2026-10-19", time_band: am_peak, time_weight: 2, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+        - {line_id: bakerloo, minute_utc: "2026-10-21 07:30:00", london_ts: "2026-10-21 08:30:00", london_date: "2026-10-21", week_start: "2026-10-19", time_band: am_peak, time_weight: 2, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+
+  - name: int_incidents_merge_bridge_and_midnight
+    description: >
+      Victoria, Tuesday 3 to Wednesday 4 November 2026 (GMT). Incident
+      minutes: 23:56 and 23:57 (Severe Delays, 3), 00:00 (Minor Delays, 1),
+      00:05 (Minor Delays). 23:58 and 23:59 are missing and bridged. 00:01 to
+      00:04 are 4 quiet minutes, under the 5-minute gap, so 00:05 joins the
+      same incident: one incident spanning midnight, started 23:56 on 3
+      November (week of 2 November), 4 incident minutes, 10 minutes from
+      23:56 to 00:05, ended 00:06. 00:06 to 00:10 are 5 quiet minutes, so
+      00:11 (Severe Delays) starts a second incident on 4 November. After it
+      come only 3 quiet minutes (00:12, 00:13, and a planned Reduced Service
+      at 00:14, which is not an incident), so it is still open and has no
+      recovery time. The first is closed: 8 quiet minutes follow it, and its
+      recovery is its 10 minutes.
+    model: int_incidents
+    given:
+      - input: ref('int_line_minute_status')
+        rows:
+          - {line_id: victoria, minute_utc: "2026-11-03 23:55:00", london_date: "2026-11-03", week_start: "2026-11-02", status_severity: 10, status_severity_description: Good Service, severity_weight: 0, reason: null, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-03 23:56:00", london_date: "2026-11-03", week_start: "2026-11-02", status_severity: 6, status_severity_description: Severe Delays, severity_weight: 3, reason: Signal failure, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-03 23:57:00", london_date: "2026-11-03", week_start: "2026-11-02", status_severity: 6, status_severity_description: Severe Delays, severity_weight: 3, reason: Signal failure update, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-03 23:58:00", london_date: "2026-11-03", week_start: "2026-11-02", status_severity: null, status_severity_description: null, severity_weight: null, reason: null, is_planned: null, is_scored: false, is_missing: true}
+          - {line_id: victoria, minute_utc: "2026-11-03 23:59:00", london_date: "2026-11-03", week_start: "2026-11-02", status_severity: null, status_severity_description: null, severity_weight: null, reason: null, is_planned: null, is_scored: false, is_missing: true}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:00:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 9, status_severity_description: Minor Delays, severity_weight: 1, reason: Recovering, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:01:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 10, status_severity_description: Good Service, severity_weight: 0, reason: null, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:02:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 10, status_severity_description: Good Service, severity_weight: 0, reason: null, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:03:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 10, status_severity_description: Good Service, severity_weight: 0, reason: null, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:04:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 10, status_severity_description: Good Service, severity_weight: 0, reason: null, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:05:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 9, status_severity_description: Minor Delays, severity_weight: 1, reason: Recovering, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:06:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 10, status_severity_description: Good Service, severity_weight: 0, reason: null, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:07:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 10, status_severity_description: Good Service, severity_weight: 0, reason: null, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:08:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 10, status_severity_description: Good Service, severity_weight: 0, reason: null, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:09:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 10, status_severity_description: Good Service, severity_weight: 0, reason: null, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:10:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 10, status_severity_description: Good Service, severity_weight: 0, reason: null, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:11:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 6, status_severity_description: Severe Delays, severity_weight: 3, reason: Train cancellations, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:12:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 10, status_severity_description: Good Service, severity_weight: 0, reason: null, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:13:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 10, status_severity_description: Good Service, severity_weight: 0, reason: null, is_planned: false, is_scored: true, is_missing: false}
+          - {line_id: victoria, minute_utc: "2026-11-04 00:14:00", london_date: "2026-11-04", week_start: "2026-11-02", status_severity: 7, status_severity_description: Reduced Service, severity_weight: 1.5, reason: Planned, is_planned: true, is_scored: true, is_missing: false}
+    expect:
+      rows:
+        - {line_id: victoria, started_at: "2026-11-03 23:56:00", ended_at: "2026-11-04 00:06:00", start_london_date: "2026-11-03", start_week_start: "2026-11-02", incident_minutes: 4, duration_minutes: 10, is_open: false, recovery_minutes: 10, peak_severity_weight: 3, worst_status_severity: 6, first_reason: Signal failure}
+        - {line_id: victoria, started_at: "2026-11-04 00:11:00", ended_at: "2026-11-04 00:12:00", start_london_date: "2026-11-04", start_week_start: "2026-11-02", incident_minutes: 1, duration_minutes: 1, is_open: true, recovery_minutes: null, peak_severity_weight: 3, worst_status_severity: 6, first_reason: Train cancellations}
+
+  - name: int_status_intervals_runs_and_missing
+    description: >
+      Bakerloo, four minutes: Good Service, Good Service with a reworded
+      reason, missing, Good Service. Three runs: 2 minutes of Good Service
+      (first reason kept), 1 missing minute, 1 minute of Good Service. A
+      missing minute always breaks a run.
+    model: int_status_intervals
+    given:
+      - input: ref('int_line_minute_status')
+        rows:
+          - {line_id: bakerloo, minute_utc: "2026-11-03 10:00:00", is_missing: false, status_severity: 10, status_severity_description: Good Service, is_planned: false, severity_weight: 0, reason: a, is_scheduled: true}
+          - {line_id: bakerloo, minute_utc: "2026-11-03 10:01:00", is_missing: false, status_severity: 10, status_severity_description: Good Service, is_planned: false, severity_weight: 0, reason: b, is_scheduled: true}
+          - {line_id: bakerloo, minute_utc: "2026-11-03 10:02:00", is_missing: true, status_severity: null, status_severity_description: null, is_planned: null, severity_weight: null, reason: null, is_scheduled: true}
+          - {line_id: bakerloo, minute_utc: "2026-11-03 10:03:00", is_missing: false, status_severity: 10, status_severity_description: Good Service, is_planned: false, severity_weight: 0, reason: c, is_scheduled: false}
+    expect:
+      rows:
+        - {line_id: bakerloo, interval_start_utc: "2026-11-03 10:00:00", interval_end_utc: "2026-11-03 10:02:00", duration_minutes: 2, scheduled_minutes: 2, is_missing: false, status_severity: 10, reason: a}
+        - {line_id: bakerloo, interval_start_utc: "2026-11-03 10:02:00", interval_end_utc: "2026-11-03 10:03:00", duration_minutes: 1, scheduled_minutes: 1, is_missing: true, status_severity: null, reason: null}
+        - {line_id: bakerloo, interval_start_utc: "2026-11-03 10:03:00", interval_end_utc: "2026-11-03 10:04:00", duration_minutes: 1, scheduled_minutes: 0, is_missing: false, status_severity: 10, reason: c}
