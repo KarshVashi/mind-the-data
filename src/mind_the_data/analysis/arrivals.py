@@ -71,7 +71,7 @@ All times are UTC. Nothing here knows about London time or schedules.
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 
@@ -194,6 +194,24 @@ def seconds_to_arrival(expected_arrival: datetime, polled_at: datetime) -> int:
     return max(0, int((expected_arrival - polled_at).total_seconds()))
 
 
+_MILLISECOND = timedelta(milliseconds=1)
+
+
+def _ms(delta: timedelta) -> int:
+    """A time difference in whole milliseconds.
+
+    Comparisons run on integer milliseconds, as the SQL model's
+    ``date_diff('millisecond', ...)`` does, so a value exactly on a tolerance
+    falls the same side in both. Poll times carry milliseconds and expected
+    arrivals whole seconds, so nothing is lost.
+    """
+    return delta // _MILLISECOND
+
+
+def _tolerance_ms(seconds: float) -> int:
+    return round(seconds * 1000)
+
+
 def _vehicle(prediction: Prediction, params: InferenceParams) -> str | None:
     vehicle_id = prediction.vehicle_id
     if vehicle_id is None or vehicle_id in params.placeholder_vehicle_ids:
@@ -212,30 +230,34 @@ def drop_duplicates(
 ) -> list[Prediction]:
     """One board in one poll, without the second listing of the same train.
 
-    Ordered by (expected_arrival, prediction_id); a prediction within
-    ``tolerance_seconds`` of the one before it is dropped. Comparing with the
+    Ordered by (expected_arrival, prediction_id, vehicle_id, time_to_station);
+    a prediction within ``tolerance_seconds`` of the one before it is dropped.
+    The last two keys only settle which of two rows with one id and one time
+    is kept (a DLR board shares one id across trains). Comparing with the
     previous row, not the previous kept row, keeps this a window function in
     SQL (``lag``).
     """
-    ordered = sorted(predictions, key=lambda p: (p.expected_arrival, p.prediction_id))
+    ordered = sorted(
+        predictions,
+        key=lambda p: (p.expected_arrival, p.prediction_id, p.vehicle_id or "", p.time_to_station),
+    )
+    tolerance = _tolerance_ms(tolerance_seconds)
     kept: list[Prediction] = []
     for index, prediction in enumerate(ordered):
         if index > 0:
-            gap = (
-                prediction.expected_arrival - ordered[index - 1].expected_arrival
-            ).total_seconds()
-            if gap <= tolerance_seconds:
+            gap = _ms(prediction.expected_arrival - ordered[index - 1].expected_arrival)
+            if gap <= tolerance:
                 continue
         kept.append(prediction)
     return kept
 
 
 def _distance(
-    earlier: Prediction, later: Prediction, poll_gap_seconds: float, params: InferenceParams
-) -> float | None:
-    """How far apart two sightings are as the same train; None if they cannot be."""
-    tolerance = params.match_tolerance_seconds
-    moved = (later.expected_arrival - earlier.expected_arrival).total_seconds()
+    earlier: Prediction, later: Prediction, poll_gap_ms: int, params: InferenceParams
+) -> int | None:
+    """How far apart two sightings are as the same train, in milliseconds; None if they cannot be."""
+    tolerance = _tolerance_ms(params.match_tolerance_seconds)
+    moved = _ms(later.expected_arrival - earlier.expected_arrival)
     earlier_vehicle = _vehicle(earlier, params)
     later_vehicle = _vehicle(later, params)
     if (
@@ -245,16 +267,16 @@ def _distance(
     ):
         # A shared id still needs a plausible time, so an id reused later in
         # the day cannot chain two trains.
-        if earlier_vehicle == later_vehicle and abs(moved) <= poll_gap_seconds + tolerance:
-            return 0.0
+        if earlier_vehicle == later_vehicle and abs(moved) <= poll_gap_ms + tolerance:
+            return 0
         return None
     if abs(moved) <= tolerance:
         return abs(moved)
     # Only at the platform. A train held short of it is not linked this way:
     # on real boards the next train often takes over the time to station the
     # previous one showed a poll earlier, and would be merged into it (D26).
-    standing = later.to_go == 0 and earlier.to_go <= tolerance
-    clock_drift = abs(moved - poll_gap_seconds)
+    standing = later.to_go == 0 and earlier.to_go * 1000 <= tolerance
+    clock_drift = abs(moved - poll_gap_ms)
     if standing and clock_drift <= tolerance:
         return tolerance + clock_drift
     return None
@@ -273,13 +295,14 @@ def link_polls(
     then the lower prediction id, so the result does not depend on input
     order.
     """
+    gap_ms = _tolerance_ms(poll_gap_seconds)
     best_later: dict[int, int] = {}
     best_earlier: dict[int, int] = {}
     for i, a in enumerate(earlier):
         options = [
             (d, b.expected_arrival, b.prediction_id, j)
             for j, b in enumerate(later)
-            if (d := _distance(a, b, poll_gap_seconds, params)) is not None
+            if (d := _distance(a, b, gap_ms, params)) is not None
         ]
         if options:
             best_later[i] = min(options)[3]
@@ -287,7 +310,7 @@ def link_polls(
         options = [
             (d, a.expected_arrival, a.prediction_id, i)
             for i, a in enumerate(earlier)
-            if (d := _distance(a, b, poll_gap_seconds, params)) is not None
+            if (d := _distance(a, b, gap_ms, params)) is not None
         ]
         if options:
             best_earlier[j] = min(options)[3]
@@ -394,8 +417,8 @@ def collapse_repeats(
     kept: list[InferredArrival] = []
     for index, arrival in enumerate(ordered):
         if index + 1 < len(ordered):
-            gap = (ordered[index + 1].arrival_time - arrival.arrival_time).total_seconds()
-            if gap <= tolerance_seconds:
+            gap = _ms(ordered[index + 1].arrival_time - arrival.arrival_time)
+            if gap <= _tolerance_ms(tolerance_seconds):
                 continue
         kept.append(arrival)
     return kept
