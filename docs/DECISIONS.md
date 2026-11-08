@@ -201,14 +201,14 @@ These come from the M3 bundle (`feat/m3-line-minute-metrics`). D16 to D23 are me
 - **Default:** none: it deviates from the plan. Accept ADR-012, or ask for a seed-free incremental layer under a table that applies the seeds.
 - **Class:** `never-default`.
 
-### M5 decisions (D25 and D26)
+### M5 decisions (D25 to D28)
 
-These come from the M5 publish work (`feat/m5-publish`). They entered on 2026-11-08, so the reminder date is 2026-11-11 22:00 UTC. Both are `never-default`.
+These come from the M5 publish work (`feat/m5-publish`). They entered on 2026-11-08, so the reminder date is 2026-11-11 22:00 UTC. All are `never-default`. D25, D27 and D28 are listed in every published file's `open_decisions`.
 
 ### D25. Mark lines scored on a small share of their hours as provisional
 
 - **Context:** under D22, a line with long closures is scored only on the minutes left, and delays on top of a part closure stay in while the Good Service around them drops out. For 4 to 8 November, Suffragette had 94% of its scheduled minutes under closures and was ranked last on 5 scored hours; Tram had 42% and Mildmay 36%.
-- **Implemented:** display only. A line with at least 25% of its scheduled minutes under closures (`CLOSURE_SHARE_PROVISIONAL` in `src/mind_the_data/publish/league.py`) gets a provisional marker on the cards, in the JSON (`provisional_reasons`, code `mostly_engineering_works`, decision `D22`) and in the numbers sheet. Its rank is unchanged (D20).
+- **Implemented:** display only. A line with at least 25% of its scheduled minutes under closures (`CLOSURE_SHARE_PROVISIONAL` in `src/mind_the_data/publish/league.py`) gets a provisional marker on the cards, in the JSON (`provisional_reasons`, code `mostly_engineering_works`, decisions `D22` and `D25`) and in the numbers sheet. Its rank is unchanged (D20). A provisional line is never named in the insight line (D28), so this threshold also decides which line the headline can name.
 - **Alternatives:** a different threshold (50% marks only Suffragette); leave such lines unranked; settle D22 so the marker is not needed.
 - **Default:** none. **Class:** `never-default` (metric semantics and publishing).
 
@@ -218,6 +218,20 @@ These come from the M5 publish work (`feat/m5-publish`). They entered on 2026-11
 - **Implemented:** nothing is published by code: there is no upload until H12. The cards say "Methodology v0.1: weights and definitions are provisional and may be revised", mark provisional lines, and the JSON lists the open decisions in `open_decisions`.
 - **Alternatives:** wait for D16 to D23; publish only the lines not marked provisional.
 - **Default:** none. Publishing is the owner's call. **Class:** `never-default` (publishing).
+
+### D27. Typical bad hours on each line page
+
+- **Context:** PLAN 8 names "typical bad hours" in `lines/{line_id}.json` without defining them.
+- **Implemented:** the London hours of day with the highest share of scored minutes that carried a weight above 0, over the line's whole history, unweighted by time band; at most three, worst first, ties to the earlier hour. An hour needs at least 300 scored minutes (`MIN_BAD_HOUR_SCORED_MINUTES` in `documents.py`), so one disrupted quarter-hour on a mostly closed line is not called a pattern. Planned Reduced Service counts as disrupted (D22).
+- **Alternatives:** weight by time band or severity; count only unplanned statuses; a rolling window (the last 12 weeks) instead of the whole history, which also bounds the scan as data grows.
+- **Default:** none. **Class:** `never-default` (metric semantics).
+
+### D28. The share card's insight line without the measured view
+
+- **Context:** M5 fills the insight line from the week's biggest Honesty Gap, which needs M4.
+- **Implemented:** the biggest Honesty Gap when any line has one; otherwise the lowest Good Service % among lines that are not provisional, worded "showed Good Service for only X% of its scored service time" (scored time leaves out closures, Service Closed and missing minutes). With every line provisional there is no insight, and the card shows a neutral line.
+- **Alternatives:** the highest Disruption Index; the longest incident; write the insight by hand for each post.
+- **Default:** none. **Class:** `never-default` (publishing and metric wording).
 
 ## Settled
 

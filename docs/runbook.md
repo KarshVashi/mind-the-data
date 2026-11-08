@@ -600,9 +600,9 @@ AWS_PROFILE=mtd-dev uv run python scripts/post_snapshot.py \
   --start 2026-11-04 --end 2026-11-10 --out-dir ~/mtd-snapshots/2026-11-11
 ```
 
-It writes `numbers.md` (league, Disruption Index, Good Service %, completeness per line, longest incidents), `league.json` (the league contract) and `card.png` / `card-1080x1350.png`. Check `numbers.md` before posting: the provisional flags and the open decisions are listed there. The cards render with Playwright: run `uv run playwright install chromium` once, or pass `--browser-channel chrome` to use a local Google Chrome. A card whose content does not fit is refused, not written.
+It writes `numbers.md` (league, Disruption Index, Good Service %, completeness per line, longest incidents, and how far the data reaches), `league.json` (the league contract) and `card.png` / `card-1080x1350.png`. Check `numbers.md` before posting: the provisional flags and the open decisions are listed there. The cards render with Playwright: run `uv run playwright install chromium` once, or pass `--browser-channel chrome` to use a local Google Chrome. A card whose content does not fit is refused, not written.
 
-The weekly files for an ISO week (`league/`, `lines/`, `meta/`, `cards/`) come from `uv run python -m mind_the_data.publish.export --week 2026-W46 --out-dir build/publish`; `--dry-run` validates them against `src/mind_the_data/publish/contract/` and writes nothing. Upload waits for H12.
+The weekly files for an ISO week (`league/`, `lines/`, `meta/`, `cards/`) come from `uv run python -m mind_the_data.publish.export --week 2026-W46 --out-dir build/publish`; `--dry-run` validates them against `src/mind_the_data/publish/contract/` and writes nothing. A week that has not finished, or that the data does not yet reach past, is refused; `--allow-incomplete` writes it flagged `is_window_complete: false` and never as `league/latest.json`. `git_sha` is the publishing checkout's commit, suffixed `-dirty` when it has uncommitted changes. Upload waits for H12.
 
 ## Merge gate
 

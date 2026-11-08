@@ -11,7 +11,7 @@ Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in
 | M2 Raw catalog, week-one review | In progress | Staging verified on real data: a dev full refresh passed 114 of 114 (2026-11-08). The autonomy bundle (#23) merged. Left: `dbt source freshness` in the record, and the week-one review. |
 | M3 Disruption Index | In review | All four tasks in one bundle, #27 (`feat/m3-line-minute-metrics`). The four M3 boxes in the local plan are to be ticked in the main checkout (the copy is local-only). Decisions D16 to D24 wait for the owner. The league preview needs a complete week of data, the first being 2 to 8 November (complete at Monday 9 November 00:00 London). |
 | M4 Experienced Reliability | Not started | |
-| M5 Publish pipeline | In progress | Offline parts on `feat/m5-publish`: JSON contract and `export.py`, share cards, `scripts/post_snapshot.py` for custom windows. R2 upload, the Pages hook and `publish-weekly.yml` need H12 (Cloudflare); M5 ships as one PR once they are added. Decisions D25 and D26. |
+| M5 Publish pipeline | In progress | Offline parts on `feat/m5-publish`: JSON contract and `export.py`, share cards, `scripts/post_snapshot.py` for custom windows. R2 upload, the Pages hook and `publish-weekly.yml` need H12 (Cloudflare); M5 ships as one PR once they are added. Decisions D25 to D28. |
 | M6 League mechanics | Not started | |
 | M7 Hardening and docs | Not started | |
 
