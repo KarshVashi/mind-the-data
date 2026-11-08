@@ -568,6 +568,8 @@ Ignored files in a removed worktree (`.venv`, `.terraform`, dbt `target/`, local
 
 ### Automerge (off)
 
+The merge gate below (ADR-011) covers the same need with stricter checks. Decision D14 asks whether to remove automerge in its favour. Until then, leave `AUTOMERGE_ENABLED` unset.
+
 `.github/workflows/automerge.yml` squash-merges a pull request after `ci` passes, if all of these hold:
 
 - you opened it, from a branch in this repository, and it isn't a draft;

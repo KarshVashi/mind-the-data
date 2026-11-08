@@ -114,7 +114,15 @@ The deadline is 72 hours after the item enters this inbox. Every item below ente
 ### D14. Automerge allow-list
 
 - **Context:** automerge (Part 3) is off until `AUTOMERGE_ENABLED` is `true`. Its allow-list is `transform/models/`, `tests/` and `docs/` (not `docs/adr/`). An auto-merged dbt model runs on `main` as the transform role, even after the binding in D11.
-- **Default:** none: it is a security boundary. Keep it off, or turn it on with the list cut to `tests/` and `docs/`.
+- The merge gate (Part 5, ADR-011) covers the same need with stricter checks: protected paths, the PR's own plan evidence and a pinned head. Automerge runs the gate's checks only in part, through its own allow-list.
+- **Default:** none: it is a security boundary. The recommendation is to remove automerge in favour of the gate (a follow-up deleting `automerge.yml` and `ops/automerge.py`). The alternatives are to keep it off, or to turn it on with the list cut to `tests/` and `docs/`.
+- **Deadline:** 2026-11-11 12:00 UTC. **Class:** `never-default`.
+
+### D15. ADR-011: the engineer may merge low-risk pull requests through the gate
+
+- **Context:** `make merge PR=<n>` merges only when the gate returns ALLOW. The gate runs `main`'s copy of `scripts/merge_gate.py`, `src/mind_the_data/ops/merge_gate.py` and `config/merge_policy.yaml`. Protected paths, IAM, deletes and any unlisted Terraform type always need you. The accepted risks are listed in ADR-011.
+- If you accept it, the local working rule "never merge PRs" changes to allow `make merge` only. Until then nobody runs `make merge`; `make merge-check` is a dry run and changes nothing.
+- **Default:** none. Accept, reject, or accept with `transform/**` protected too.
 - **Deadline:** 2026-11-11 12:00 UTC. **Class:** `never-default`.
 
 ## Settled

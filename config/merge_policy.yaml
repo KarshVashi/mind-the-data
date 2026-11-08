@@ -80,6 +80,7 @@ plan_required_paths:
   - "src/**"
   - "config/**"
   - "scripts/zip_lambda.py"
+  - "scripts/check_handlers.py"
   - "pyproject.toml"
   - "uv.lock"
   - "Makefile"

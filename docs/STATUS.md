@@ -17,7 +17,7 @@ Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in
 
 ## Open PRs and merge order
 
-- **Autonomy bundle** (`chore/autonomy-bundle`): one PR in place of #19 (this page and DECISIONS.md), #20 (deploy safety), #21 (ops workflows) and the enforce-binding follow-up to ADR-010. Those three PRs are closed as superseded; their branches are kept. It touches `Makefile` and `.github/workflows/infra.yml`, so merging it deploys `infra/envs/prod` and runs the smoke test.
+- **Autonomy bundle** (`chore/autonomy-bundle`): one PR (#23) in place of #19 (this page and DECISIONS.md), #20 (deploy safety), #21 (ops workflows), the enforce-binding follow-up to ADR-010 and the merge gate (`feat/merge-gate`, ADR-011). Those three PRs are closed as superseded; their branches are kept. It touches `Makefile` and `.github/workflows/infra.yml`, so merging it deploys `infra/envs/prod` and runs the smoke test.
 - Merged on 2026-11-07 and 2026-11-08: #17, #18 and #22 (bootstrap hardening). The owner applied #22's bootstrap on 2026-11-08: the state is in S3, `mtd-ci-observer` and `mtd-ci-publish` exist, and the `new-roles` trust probe passed.
 
 ## Blockers
@@ -25,7 +25,7 @@ Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in
 - **Poller reserved concurrency of 1:** waits on the Lambda quota increase (ADR-006).
 - **M2 acceptance:** waits on the dev rebuild below, then on about 7 days of data for the week-one review.
 - **Prod staging may still hold null-keyed rows** from runs before #17. See decision D8 in DECISIONS.md.
-- **ADR-006 to ADR-010:** each needs an explicit answer (DECISIONS.md). D11 to D14 come from the bundle.
+- **ADR-006 to ADR-010:** each needs an explicit answer (DECISIONS.md). D11 to D15 come from the bundle.
 
 ## Owner steps outstanding
 
@@ -48,7 +48,7 @@ Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in
    gh workflow run ops-daily.yml --ref main
    ```
 
-   Then check that a pull request's `infra / plan` still assumes the plan role (runbook H6, step 5).
+   Then check that a pull request's `infra / plan` still assumes the plan role (runbook H6, step 5). Once ADR-011 is decided, dry-run the gate from an up-to-date `main`: `make merge-check PR=<n>`.
 
 Engineer step, which only needs the SSO login now that #17 has deployed: rebuild dev staging.
 
