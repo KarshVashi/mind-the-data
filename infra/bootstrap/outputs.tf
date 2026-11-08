@@ -18,6 +18,16 @@ output "transform_role_arn" {
   value       = module.ci_role.transform_role_arn
 }
 
+output "observer_role_arn" {
+  description = "Set as the AWS_OBSERVER_ROLE_ARN repository variable."
+  value       = module.ci_role.observer_role_arn
+}
+
+output "publish_role_arn" {
+  description = "Set as the AWS_PUBLISH_ROLE_ARN repository variable (M5)."
+  value       = module.ci_role.publish_role_arn
+}
+
 output "workload_boundary_arn" {
   description = "Permissions boundary for every role the pipeline creates."
   value       = module.ci_role.workload_boundary_arn

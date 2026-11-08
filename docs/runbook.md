@@ -63,9 +63,17 @@ unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_E
 
 ---
 
-## H6: Bootstrap (once)
+## H6: Bootstrap
 
-Creates the remote state bucket and the two CI roles (read-only plan for pull requests, deploy for `main`), and wires them to the existing GitHub OIDC provider. Run it as `mtd-admin` through Identity Center (H3), never from CI.
+`infra/bootstrap` holds everything CI must not be able to change for itself:
+
+- the remote state bucket and the GitHub OIDC provider
+- the CI roles and the workload boundary. The roles are `mtd-ci-plan`, `mtd-ci-apply`, `mtd-ci-transform`, `mtd-ci-observer` and `mtd-ci-publish`, each bound to its workflow files (ADR-010).
+- the AWS Budget, the `project` cost allocation tag and the Lambda concurrency quota
+
+Only you apply it, as `mtd-admin` through Identity Center (H3), never from CI. The make targets run it from a temporary `git worktree` of `origin/main` under the system temp directory, and remove that worktree afterwards. Your checkout never switches branch.
+
+Steps 1 and 2 are for a new account only. They were done on 2026-11-03.
 
 **1. Block public S3 access for the whole account.** It is currently off. This is the strongest guard against a bucket being made public by mistake.
 
@@ -96,53 +104,86 @@ This applies to every bucket in the account, including other projects'. Check fi
 aws iam list-open-id-connect-providers --profile mtd-admin
 ```
 
-If the output lists `token.actions.githubusercontent.com`, keep the default. If it is empty, add `-var create_github_oidc_provider=true` to the plan command in step 3.
+If the output lists `token.actions.githubusercontent.com`, keep the default. If it is empty, prefix the make commands in step 3 with `TF_VAR_create_github_oidc_provider=true`.
 
-**3. Plan, review, apply.**
-
-```sh
-aws sso login --sso-session mtd   # browser sign-in with MFA
-eval "$(aws configure export-credentials --profile mtd-admin --format env)"
-terraform -chdir=infra/bootstrap init
-terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
-#   Expect: 1 S3 bucket and its settings, 1 IAM policy (mtd-workload-boundary),
-#   3 IAM roles (mtd-ci-plan, mtd-ci-apply, mtd-ci-transform) with inline
-#   policies, and an OIDC provider only if you asked for one. Nothing else.
-#   On a re-apply for M2, expect only: mtd-ci-transform and its inline
-#   policy "transform" to be created.
-terraform -chdir=infra/bootstrap apply bootstrap.tfplan
-unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION
-```
-
-**4. Keep the bootstrap state safe.** It is local by design and is gitignored. Copy it into the state bucket so it survives a lost laptop:
+**3. Plan, review, apply.** Run these from your normal checkout, on any branch. They run what is on `origin/main`, so merge the change first.
 
 ```sh
-BUCKET=$(terraform -chdir=infra/bootstrap output -raw state_bucket)
-aws s3 cp --profile mtd-admin infra/bootstrap/terraform.tfstate "s3://$BUCKET/bootstrap/terraform.tfstate"
+make bootstrap-plan    # read-only plan; signs in with `aws sso login` if needed
+make bootstrap-apply   # plans again, shows it, applies after you type yes
 ```
 
-CI can read and write only `envs/` in that bucket, so it cannot touch this copy. Repeat the copy after every bootstrap apply.
+`make bootstrap-apply` applies exactly the plan it showed. It then sets the repository variables from the outputs: `AWS_ACCOUNT_ID`, `TF_STATE_BUCKET`, `AWS_PLAN_ROLE_ARN`, `AWS_ROLE_ARN`, `AWS_TRANSFORM_ROLE_ARN`, `AWS_OBSERVER_ROLE_ARN`, `AWS_PUBLISH_ROLE_ARN` and `BOOTSTRAP_PLAN_ENABLED`. These are identifiers, not secrets. Until `AWS_ACCOUNT_ID` or the explicit variables are set, the `infra` and `transform-daily` workflows skip with a notice (see "Repository variables" below).
 
-**5. Set the repository variable.** The account id is an identifier, not a secret. Every other setting the workflows need is derived from it (see "Repository variables" below).
+The budget alert address comes from the `ALERT_EMAIL` repository variable, read with `gh`. To use a different one, set `ALERT_EMAIL=you@example.com` before the command. Set `BOOTSTRAP_PROFILE` or `BOOTSTRAP_REF` to change the profile (default `mtd-admin`) or the ref (default `origin/main`).
+
+**4. State.** The bootstrap state is at `s3://mtd-tfstate-<account>/bootstrap/terraform.tfstate`, locked with an S3 lockfile. The bucket is versioned, so earlier versions are kept for 90 days. CI's plan role can read this key (for the drift check). Only you can write it: the apply role can write `envs/` only.
+
+*One-time move from local state.* Until 2026-11 the state was a local file in `infra/bootstrap/`, with copies uploaded by hand. After the change that adds the S3 backend is merged:
 
 ```sh
-gh variable set AWS_ACCOUNT_ID --body "$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)"
+make bootstrap-migrate-state   # copies infra/bootstrap/terraform.tfstate into the bucket; applies nothing
+make bootstrap-plan            # must show only the changes you expect, not a rebuild
 ```
 
-Until it is set, the `infra` and `transform-daily` workflows skip with a notice.
+`migrate-state` refuses if the copy in the bucket is newer than the local file. Once a plan reads the state from S3 correctly, the local `infra/bootstrap/terraform.tfstate*` files are no longer used. Keep them a week, then delete them.
+
+*Rebuilding in a new account.* The backend bucket is created by this same root, so the first apply has to use local state. Do these steps in the checkout, not through the make targets, and don't commit the override file (it is gitignored):
+
+```sh
+printf 'terraform {\n  backend "local" {}\n}\n' > infra/bootstrap/backend_override.tf
+AWS_PROFILE=mtd-admin TF_VAR_alert_email=you@example.com terraform -chdir=infra/bootstrap init
+AWS_PROFILE=mtd-admin TF_VAR_alert_email=you@example.com terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
+# review, then apply bootstrap.tfplan with the same environment
+rm infra/bootstrap/backend_override.tf
+make bootstrap-migrate-state
+```
+
+**5. Bind the roles to their workflows (ADR-010).** Do this once, after the first apply that includes `mtd-ci-observer`.
+
+1. Run the trust probe:
+
+   ```sh
+   gh workflow run bootstrap-plan.yml --ref main -f trust_probe=new-roles
+   gh run watch "$(gh run list --workflow bootstrap-plan.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
+   ```
+
+   All of its jobs must pass:
+   - `plan` and `trust-probe` show that the plan role accepts `bootstrap-plan.yml` on `main`, and that the observer and publish roles refuse it.
+   - `oidc-claims` writes the claims into the run summary.
+2. Check the pull request form. Open the follow-up pull request from step 3 and look at the summary of its `bootstrap-plan / oidc-claims` job. `job_workflow_ref` must read `KarshVashi/mind-the-data/.github/workflows/bootstrap-plan.yml@refs/pull/<number>/merge`, which is the form the plan role will match on pull requests. If it reads differently, stop and fix `plan_pull_request` in `infra/modules/ci_role/main.tf` first.
+3. Merge the follow-up change that sets `enforce_workflow_binding` to `true` in `infra/bootstrap/variables.tf`.
+4. Run `make bootstrap-apply` again.
+5. Run the probe again with `-f trust_probe=all-roles`.
+6. Open or update any pull request that touches `infra/`. Its `infra / plan` job must still assume the plan role.
+
+If step 1 or 2 fails, stop. Leave `enforce_workflow_binding` off and read ADR-010's fallback.
 
 From now on:
 
-- **Pull requests** that touch `infra/` get a read-only plan.
-- **Merging** such a pull request deploys it (see H10).
+- **Pull requests** that touch `infra/` get a read-only plan of `infra/envs/prod`.
+- Pull requests that touch `infra/bootstrap/` or `infra/modules/ci_role/` also get a bootstrap plan (`bootstrap-plan.yml`).
+- **Merging** such a pull request deploys `infra/envs/prod` (see H10). The bootstrap is never deployed by a merge.
 
-**Re-applying.** When a later milestone needs the CI roles to manage a new kind of resource, the change lands in `infra/modules/ci_role` and you re-run steps 3 and 4. CI cannot change its own permissions.
+**Drift check.** Every Monday `bootstrap-plan.yml` plans the bootstrap on `main`. If the plan is not empty, it opens an issue titled "Bootstrap drift: plan is not empty", or comments on the open one. A change made by hand in the console, such as to a CI role or the budget, shows up here.
+
+**Money and quota.** All three are set by the bootstrap:
+
+- **Budget.** `mind-the-data-monthly` is 6.50 USD a month, about the £5 in plan H5; Budgets works in USD. It emails `ALERT_EMAIL` at 50%, 80% and 100% of actual spend, and when forecast spend passes 100%. It counts only costs tagged `project = mind-the-data`, from the day that tag was activated.
+- **Cost allocation tag.** `project` is activated by `aws_ce_cost_allocation_tag`. This only works once the key has appeared in billing data, which it has. Costs are attributed from activation onwards, and it can take up to 24 hours to show.
+- **Lambda concurrency quota.** `aws_servicequotas_service_quota.lambda_concurrency` holds the quota at 1,000 (see "Lambda concurrency quota" below). It is adopted with an `import` block, so the first apply sends no request.
+
+**Re-applying.** When a later milestone needs the CI roles to manage a new kind of resource, the change lands in `infra/modules/ci_role`. Merge it, then run `make bootstrap-plan` and `make bootstrap-apply`. CI cannot change its own permissions. These are already granted for M3 to M7, so those milestones should not need a re-apply for them:
+
+- CloudWatch dashboards, composite alarms and Lambda layers named `mind-the-data-*`
+- configuration parameters under `/mind-the-data/config/`
+- the publish role
 
 ---
 
 ## Repository variables
 
-`AWS_ACCOUNT_ID` is the only variable the workflows need. Everything else follows the naming convention in `infra/`:
+`AWS_ACCOUNT_ID` is the only variable the workflows need. Everything else follows the naming convention in `infra/`. `make bootstrap-apply` (H6, step 3) sets `AWS_ACCOUNT_ID` and the first four rows below from the bootstrap outputs; the `DBT_ATHENA_*_PROD` values are only derived:
 
 | Variable | Derived from `AWS_ACCOUNT_ID` | Used by |
 | --- | --- | --- |
@@ -157,7 +198,7 @@ From now on:
 
 A variable that is set wins over the derived value, so the explicit variables still work. Set one only when a name really differs, for example after renaming a bucket or changing the `ci_name_prefix` or `resource_prefix` defaults in Terraform. `ALERT_EMAIL` is separate and optional (see "Alert email").
 
-To move to `AWS_ACCOUNT_ID` from the explicit variables, set it, then delete each explicit variable whose value equals its derived value. This deletes only exact matches and prints any that differ:
+The `DBT_ATHENA_*_PROD` variables were copied by hand before `AWS_ACCOUNT_ID` existed. To drop them, set `AWS_ACCOUNT_ID` (or run `make bootstrap-apply`), then delete each one whose value equals its derived value. This deletes only exact matches and prints any that differ. Leave the bootstrap-set variables alone: the next `make bootstrap-apply` sets them again anyway.
 
 ```sh
 id=$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)
@@ -170,10 +211,6 @@ while read -r name derived; do
     echo "kept $name: '$current' differs from '$derived'"
   fi
 done <<EOF
-TF_STATE_BUCKET mtd-tfstate-$id
-AWS_PLAN_ROLE_ARN arn:aws:iam::$id:role/mtd-ci-plan
-AWS_ROLE_ARN arn:aws:iam::$id:role/mtd-ci-apply
-AWS_TRANSFORM_ROLE_ARN arn:aws:iam::$id:role/mtd-ci-transform
 DBT_ATHENA_S3_STAGING_DIR_PROD s3://mind-the-data-athena-results-$id/prod/
 DBT_ATHENA_S3_DATA_DIR_PROD s3://mind-the-data-curated-$id/prod/
 DBT_ATHENA_WORKGROUP_PROD mind-the-data-prod
@@ -288,6 +325,9 @@ If `main` moved after the pull request's plan ran, the deploy includes those cha
 - read on the `mind_the_data_raw` tables, read and write on the `mind_the_data_dev` database
 - read on `raw/` in the raw bucket
 - read and write on `dev/` in the curated and Athena results buckets
+- **an explicit deny on reading parameters.**
+  - It covers `/mind-the-data` and everything under it, so the TfL key stays out of reach even though `ReadOnlyAccess` allows `ssm:Get*`.
+  - It also denies `ssm:GetParametersByPath` everywhere. A path read authorises against the path it names, so `--path / --recursive` would otherwise return the key.
 
 Do this after the M2 pull request is merged and deployed, so the workgroup and buckets exist.
 
@@ -392,16 +432,18 @@ aws sns list-subscriptions-by-topic --profile mtd-dev --region eu-west-2 \
 
 ## Lambda concurrency quota
 
-The account's Lambda concurrency quota is 10. Lambda won't reserve concurrency for any function until the quota is higher, so the poller runs unreserved for now (ADR-006).
+The account started with a Lambda concurrency quota of 10, too low for Lambda to reserve concurrency for any function (ADR-006). A request for 1,000 made on 2026-11-06 was approved on 2026-11-07.
 
-Request the increase. It is free.
+The bootstrap now holds the quota (`aws_servicequotas_service_quota.lambda_concurrency`, see H6). If the value ever drops below 1,000, a bootstrap apply asks for the increase. If a request is already open, the apply logs a warning and sends nothing. Don't also request it by hand.
+
+Check requests:
 
 ```sh
-aws service-quotas request-service-quota-increase --profile mtd-admin --region eu-west-2 \
-  --service-code lambda --quota-code L-B99A9384 --desired-value 1000
+aws service-quotas list-requested-service-quota-change-history-by-quota --profile mtd-dev --region eu-west-2 \
+  --service-code lambda --quota-code L-B99A9384 --query 'RequestedQuotas[].[Status,DesiredValue,Created]'
 ```
 
-Check progress:
+Check the limit itself:
 
 ```sh
 aws lambda get-account-settings --profile mtd-dev --region eu-west-2 --query AccountLimit.ConcurrentExecutions

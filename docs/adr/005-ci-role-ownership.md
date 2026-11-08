@@ -86,3 +86,11 @@ GitHub Actions deploys `infra/envs/prod` through an OIDC role. Two questions:
 - **The transform role is a CI role, not a workload role.** `mtd-ci-transform` is defined in `infra/modules/ci_role` next to the plan and apply roles, applied from the bootstrap by a human, and named `mtd-*` so the pipeline cannot edit it. It carries its own inline policy (prod workgroup, read on raw, write on `mind_the_data_prod` and the `prod/` prefixes of the curated and results buckets) rather than a permissions boundary. The workload boundary is unchanged: it only limits roles the pipeline creates, and the pipeline does not create this one.
 - **Four repository variables for AWS access:** `TF_STATE_BUCKET`, `AWS_PLAN_ROLE_ARN`, `AWS_ROLE_ARN` and `AWS_TRANSFORM_ROLE_ARN`.
 - **Same subject, separate role.** The transform role trusts the same subject as the apply role, the immutable form from ADR-009 (`repo:KarshVashi@41749592/mind-the-data@1442302649:ref:refs/heads/main`), so the accepted risk "any job running on `main` can assume" applies to it too, with far less reach than the apply role.
+
+## Amendment (2026-11-07): workflow binding
+
+- **The accepted risk "any job running on `main` can assume the apply role" is addressed by ADR-010.** Each CI role also matches the `job_workflow_ref` claim, so only its named workflow files can assume it. The roles in use before that are bound in a second step, after a probe confirms the claim.
+- **Two more roles live in `infra/modules/ci_role`, as the invariants above require:**
+  - `mtd-ci-observer`, for scheduled health checks.
+  - `mtd-ci-publish`, for the M5 weekly publish.
+- **New invariant: nothing sensitive under `/mind-the-data/config/`.** CI can read and write that path, and the plan role, which any pull request from this repository can assume, can read it. Secrets stay outside it, as the TfL key does at `/mind-the-data/tfl/app_key`.

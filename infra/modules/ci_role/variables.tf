@@ -64,3 +64,27 @@ variable "metric_namespace" {
   description = "CloudWatch namespace workloads may publish custom metrics to."
   default     = "MindTheData"
 }
+
+variable "enforce_workflow_binding" {
+  type        = bool
+  description = "Bind the plan (pull request), apply and transform roles to their workflow files through the job_workflow_ref claim (ADR-010). Off until the trust probe has shown AWS matches the claim; the observer, publish and drift-check trust is bound regardless."
+  default     = false
+}
+
+variable "workflow_branch" {
+  type        = string
+  description = "Branch whose scheduled workflows (health checks, weekly publish, bootstrap drift check) may assume their roles."
+  default     = "main"
+}
+
+variable "observer_workgroup" {
+  type        = string
+  description = "Suffix of the Athena workgroup the observer role queries in (<resource_prefix>-<suffix>), also its results-bucket prefix. infra/envs/prod creates it."
+  default     = "ops"
+}
+
+variable "bootstrap_state_key" {
+  type        = string
+  description = "Key of the bootstrap's own state in the state bucket. The plan role may read it for the drift check, never write it."
+  default     = "bootstrap/terraform.tfstate"
+}

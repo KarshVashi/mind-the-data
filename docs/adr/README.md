@@ -36,3 +36,4 @@ What gets easier, what gets harder, what to revisit and when.
 | [007](007-reference-lambda-sizing.md) | Reference Lambda gets 1024 MB, 300 s and concurrency 4 | proposed |
 | [008](008-staging-merge.md) | Staging merges whole days on a row key, not append | proposed |
 | [009](009-oidc-immutable-subjects.md) | CI roles trust the repository's immutable OIDC subject | proposed |
+| [010](010-workflow-bound-ci-roles.md) | CI roles bound to their workflow files through `job_workflow_ref` | proposed |

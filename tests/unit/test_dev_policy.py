@@ -26,8 +26,36 @@ def as_list(value: str | list[str]) -> list[str]:
     return [value] if isinstance(value, str) else value
 
 
-def test_only_allows() -> None:
-    assert all(s["Effect"] == "Allow" for s in statements())
+PARAMETER_READS = {"ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"}
+
+
+def test_only_denies_are_parameter_reads() -> None:
+    for s in statements():
+        if s["Effect"] != "Allow":
+            assert s["Effect"] == "Deny"
+            assert set(as_list(s["Action"])) <= PARAMETER_READS, s
+
+
+def test_project_parameters_are_denied() -> None:
+    # ReadOnlyAccess allows ssm:Get*, and the AWS-managed SSM key decrypts for
+    # any caller SSM authorises, so only an explicit deny keeps the TfL key out.
+    denied: dict[str, set[str]] = {}
+    for s in statements():
+        if s["Effect"] == "Deny":
+            for resource in as_list(s["Resource"]):
+                denied.setdefault(resource, set()).update(as_list(s["Action"]))
+    prefix = "arn:aws:ssm:eu-west-2:ACCOUNT_ID:parameter/mind-the-data"
+    for resource in (prefix, prefix + "/*"):
+        assert PARAMETER_READS <= denied.get(resource, set()), resource
+    # A path read authorises against the path it names, so `--path /` would
+    # otherwise return everything below it.
+    assert "ssm:GetParametersByPath" in denied.get("*", set())
+
+
+def test_allows_never_reach_parameters() -> None:
+    for s in statements():
+        if s["Effect"] == "Allow":
+            assert not any(a.startswith("ssm:") for a in as_list(s["Action"])), s
 
 
 def test_nothing_names_prod() -> None:
