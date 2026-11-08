@@ -6,7 +6,7 @@
 
 -- Scheduled service per line, measurement station, direction, day type and
 -- service-day hour, from the weekly TfL timetables (stg_timetable), with
--- seed_line_frequencies for stations TfL has no timetable for.
+-- seed_line_frequencies for station-directions TfL has no timetable for.
 --
 -- Hours are TfL's London service-day clock: 24 to 27 are the small hours of
 -- the next calendar day. Rows of two service days can fall in one London
@@ -15,8 +15,9 @@
 -- choosing one. A gap belongs to the hour of the departure that ends it
 -- (DECISIONS.md D30), and gaps are not formed across two schedules.
 --
--- Rebuilt in full each run (ADR-012): the timetables are a few hundred
--- thousand rows a year, and a seed edit then reaches every version.
+-- Rebuilt in full each run (ADR-012, extended to this model in D24): the
+-- timetables are a few hundred thousand rows a year, and a seed edit then
+-- reaches every version.
 
 with fetches as (
     -- The latest successful fetch of each timetable per UTC day; a day's
@@ -39,6 +40,7 @@ versions as (
         departure_stop_id,
         direction,
         poll_id,
+        fetched_dt,
         fetched_at,
         -- The first fetch also covers the days collected before it.
         if(
@@ -69,6 +71,7 @@ departures as (
     inner join {{ ref('stg_timetable') }} as timetable
         on
             versions.poll_id = timetable.poll_id
+            and versions.fetched_dt = timetable.dt
             and versions.line_id = timetable.line_id
             and versions.departure_stop_id = timetable.departure_stop_id
             and versions.direction = timetable.direction
@@ -91,7 +94,8 @@ gaps as (
         day_type,
         departure_minute_of_service_day / 60 as service_hour,
         departure_minute_of_service_day - lag(departure_minute_of_service_day) over (
-            partition by line_id, departure_stop_id, direction, valid_from, day_type
+            partition by
+                line_id, departure_stop_id, direction, valid_from, day_type, schedule_name
             order by departure_minute_of_service_day
         ) as headway_minutes
     from departures
@@ -111,7 +115,9 @@ timetabled as (
         coalesce(sum(60e0 * headway_minutes), 0e0) as sum_headway_seconds,
         coalesce(sum(3600e0 * headway_minutes * headway_minutes), 0e0)
             as sum_headway_squared_seconds,
-        60e0 * max(headway_minutes) as max_headway_seconds,
+        -- An hour whose only gaps are same-minute pairs has no usable
+        -- scheduled headway: 0 would make every observed gap "long".
+        nullif(60e0 * max(headway_minutes), 0e0) as max_headway_seconds,
         'timetable' as schedule_source,
         max(schedule_name) as source_detail,
         max(fetched_at) as timetable_fetched_at
@@ -120,10 +126,11 @@ timetabled as (
         line_id, departure_stop_id, direction, day_type, service_hour, valid_from, valid_to
 ),
 
-timetabled_stations as (
+timetabled_directions as (
     select distinct
         line_id,
-        departure_stop_id as naptan_id
+        departure_stop_id as naptan_id,
+        direction
     from {{ ref('stg_timetable') }}
     where dt >= date '{{ var("raw_start_date") }}'
 ),
@@ -151,12 +158,14 @@ fallback as (
     cross join
         unnest(sequence(frequencies.from_hour, frequencies.to_hour - 1))
             as hours (service_hour)
-    left join timetabled_stations
+    left join timetabled_directions
         on
-            frequencies.line_id = timetabled_stations.line_id
-            and frequencies.naptan_id = timetabled_stations.naptan_id
+            frequencies.line_id = timetabled_directions.line_id
+            and frequencies.naptan_id = timetabled_directions.naptan_id
+            and directions.direction = timetabled_directions.direction
     where
-        timetabled_stations.line_id is null
+        frequencies.direction in (directions.direction, 'both')
+        and timetabled_directions.line_id is null
         and frequencies.trains_per_hour > 0
 ),
 
@@ -180,7 +189,7 @@ select
     headway_count,
     sum_headway_seconds,
     sum_headway_squared_seconds,
-    if(headway_count > 0, sum_headway_seconds / headway_count) as mean_headway_seconds,
+    if(sum_headway_seconds > 0, sum_headway_seconds / headway_count) as mean_headway_seconds,
     max_headway_seconds,
     -- PLAN 7.3: expected wait for a passenger arriving at random.
     if(sum_headway_seconds > 0, sum_headway_squared_seconds / (2 * sum_headway_seconds))

@@ -154,8 +154,9 @@ def test_fallback_frequencies_are_measurement_stations_inside_service_hours() ->
         assert start <= first * 60, row
         assert last * 60 <= end, row
         assert int(row["trains_per_hour"]) > 0, row
+        assert row["direction"] in {"inbound", "outbound", "both"}, row
         assert row["source"], row
-        seen = covered.setdefault((line_id, naptan_id, day_type), set())
+        seen = covered.setdefault((line_id, naptan_id, row["direction"] + day_type), set())
         span = set(range(first, last))
         assert not seen.intersection(span), row
         seen.update(span)

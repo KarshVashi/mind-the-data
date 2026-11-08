@@ -245,11 +245,11 @@ models:
       belongs to the hour of the later one (D30); two departures in one
       minute both count (D31). Each day's fetch is a version valid from that
       UTC date until the next; the first version also covers earlier days
-      (D32). Stations with no timetable at all take flat frequencies from
-      seed_line_frequencies, flagged `is_fallback` (D33). Hours with no
+      (D32). Station-directions with no timetable in any fetch take flat
+      frequencies from seed_line_frequencies, flagged `is_fallback` (D33). Hours with no
       scheduled departure have no row and are not measured. The headway sums
       are additive, so rows of two service days in one London hour (Night
-      Tube) can be added. Rebuilt in full each run (ADR-012).
+      Tube) can be added. Rebuilt in full each run (ADR-012, D24).
     columns:
       - name: scheduled_headway_key
         description: Row key, a hash of (line_id, naptan_id, direction, day_type, service_hour, valid_from).
@@ -305,9 +305,9 @@ models:
         description: Sum of the squared gaps, seconds squared.
         data_tests: [not_null]
       - name: mean_headway_seconds
-        description: sum_headway_seconds / headway_count; null without a gap.
+        description: sum_headway_seconds / headway_count; null when there is no gap or every gap is 0 (same-minute pairs).
       - name: max_headway_seconds
-        description: Longest scheduled gap ending in the hour (D34).
+        description: Longest scheduled gap ending in the hour (D34); null when there is no gap longer than 0.
       - name: scheduled_average_wait_seconds
         description: >
           PLAN 7.3 scheduled average wait for a passenger arriving at random,

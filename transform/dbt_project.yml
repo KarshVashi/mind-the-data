@@ -105,6 +105,7 @@ seeds:
       +column_types:
         line_id: varchar
         naptan_id: varchar
+        direction: varchar
         day_type: varchar
         from_hour: integer
         to_hour: integer

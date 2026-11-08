@@ -163,8 +163,9 @@ seeds:
       Fallback scheduled frequencies (PLAN 6.2) for measurement stations
       whose TfL timetable is unusable: TfL returns 404 for every Elizabeth
       line and Overground timetable request. Trains per hour in each
-      direction, over service-day hours [from_hour, to_hour) (hours past 23
-      run into the next morning). Only whole hours inside line_operating_hours
+      scheduled direction, over service-day hours [from_hour, to_hour) (hours
+      past 23 run into the next morning). A terminus has only the direction
+      its board labels trains with; other stations have `both`. Only whole hours inside line_operating_hours
       are covered, so a part hour at either end of service has no scheduled
       headway and is not measured. Weekday peaks are 07:00 to 10:00 and
       16:00 to 19:00, as in time_bands. `estimate_2026_11_08`: from published
@@ -184,6 +185,13 @@ seeds:
       - name: naptan_id
         description: Measurement station (config/stations.yaml; a unit test keeps them in step).
         data_tests: [not_null]
+      - name: direction
+        description: "`inbound`, `outbound` or `both`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [inbound, outbound, both]
       - name: day_type
         description: Day type of the service day.
         data_tests:

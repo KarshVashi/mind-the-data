@@ -283,8 +283,12 @@ unit_tests:
       departure at 10:00. Fallback: Elizabeth at Tottenham Court Road has no
       timetable; 24 trains an hour over hours 7 and 8 gives each direction
       24 gaps of 150 s per hour: sum 3600 s, squares 24 x 22,500 = 540,000
-      s², wait 540,000 / 7200 = 75 s. The seed's Victoria row is ignored
-      because Oxford Circus has a timetable.
+      s², wait 540,000 / 7200 = 75 s. The seed's Victoria row (`both`, 30
+      an hour) is ignored outbound, which has a timetable, but applies
+      inbound, which has none: 30 gaps of 120 s, squares 30 x 14,400 =
+      432,000 s², wait 60 s. Liberty at Upminster is a terminus with only
+      `inbound` in the seed: 2 gaps of 1800 s in hour 7, squares 6,480,000
+      s², wait 900 s, and no outbound row.
     model: int_scheduled_headways
     overrides:
       vars:
@@ -309,8 +313,9 @@ unit_tests:
           - {schedule_name: Sunday, day_type: sun}
       - input: ref('seed_line_frequencies')
         rows:
-          - {line_id: elizabeth, naptan_id: 910GTOTCTRD, day_type: mon_thu, from_hour: 7, to_hour: 9, trains_per_hour: 24, source: estimate_test}
-          - {line_id: victoria, naptan_id: 940GZZLUOXC, day_type: mon_thu, from_hour: 7, to_hour: 9, trains_per_hour: 30, source: estimate_test}
+          - {line_id: elizabeth, naptan_id: 910GTOTCTRD, direction: both, day_type: mon_thu, from_hour: 7, to_hour: 9, trains_per_hour: 24, source: estimate_test}
+          - {line_id: victoria, naptan_id: 940GZZLUOXC, direction: both, day_type: mon_thu, from_hour: 7, to_hour: 9, trains_per_hour: 30, source: estimate_test}
+          - {line_id: liberty, naptan_id: 910GUPMNSTR, direction: inbound, day_type: mon_thu, from_hour: 7, to_hour: 8, trains_per_hour: 2, source: estimate_test}
     expect:
       rows:
         - {line_id: victoria, naptan_id: 940GZZLUOXC, direction: outbound, day_type: mon_thu, service_hour: 7, london_hour: 7, is_next_calendar_day: false, valid_from: null, valid_to: "2026-11-12", scheduled_departures: 1, headway_count: 0, sum_headway_seconds: 0, sum_headway_squared_seconds: 0, mean_headway_seconds: null, max_headway_seconds: null, scheduled_average_wait_seconds: null, is_fallback: false, source_detail: Monday - Friday}
@@ -323,4 +328,7 @@ unit_tests:
         - {line_id: elizabeth, naptan_id: 910GTOTCTRD, direction: inbound, day_type: mon_thu, service_hour: 7, london_hour: 7, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 24, headway_count: 24, sum_headway_seconds: 3600, sum_headway_squared_seconds: 540000, mean_headway_seconds: 150, max_headway_seconds: 150, scheduled_average_wait_seconds: 75, is_fallback: true, source_detail: estimate_test}
         - {line_id: elizabeth, naptan_id: 910GTOTCTRD, direction: inbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 24, headway_count: 24, sum_headway_seconds: 3600, sum_headway_squared_seconds: 540000, mean_headway_seconds: 150, max_headway_seconds: 150, scheduled_average_wait_seconds: 75, is_fallback: true, source_detail: estimate_test}
         - {line_id: elizabeth, naptan_id: 910GTOTCTRD, direction: outbound, day_type: mon_thu, service_hour: 7, london_hour: 7, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 24, headway_count: 24, sum_headway_seconds: 3600, sum_headway_squared_seconds: 540000, mean_headway_seconds: 150, max_headway_seconds: 150, scheduled_average_wait_seconds: 75, is_fallback: true, source_detail: estimate_test}
+        - {line_id: victoria, naptan_id: 940GZZLUOXC, direction: inbound, day_type: mon_thu, service_hour: 7, london_hour: 7, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 30, headway_count: 30, sum_headway_seconds: 3600, sum_headway_squared_seconds: 432000, mean_headway_seconds: 120, max_headway_seconds: 120, scheduled_average_wait_seconds: 60, is_fallback: true, source_detail: estimate_test}
+        - {line_id: victoria, naptan_id: 940GZZLUOXC, direction: inbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 30, headway_count: 30, sum_headway_seconds: 3600, sum_headway_squared_seconds: 432000, mean_headway_seconds: 120, max_headway_seconds: 120, scheduled_average_wait_seconds: 60, is_fallback: true, source_detail: estimate_test}
+        - {line_id: liberty, naptan_id: 910GUPMNSTR, direction: inbound, day_type: mon_thu, service_hour: 7, london_hour: 7, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 2, headway_count: 2, sum_headway_seconds: 3600, sum_headway_squared_seconds: 6480000, mean_headway_seconds: 1800, max_headway_seconds: 1800, scheduled_average_wait_seconds: 900, is_fallback: true, source_detail: estimate_test}
         - {line_id: elizabeth, naptan_id: 910GTOTCTRD, direction: outbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 24, headway_count: 24, sum_headway_seconds: 3600, sum_headway_squared_seconds: 540000, mean_headway_seconds: 150, max_headway_seconds: 150, scheduled_average_wait_seconds: 75, is_fallback: true, source_detail: estimate_test}
