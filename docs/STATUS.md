@@ -9,7 +9,7 @@ Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in
 | M0 Foundations | Done | |
 | M1 Collector live | Done, with one gap | Polling since 2026-11-04. The poller's reserved concurrency of 1 is in the M3 bundle (Part 0, ADR-006), now that the quota is 1,000. The deployed acceptance output (`completeness.py --hours 24`, alarm test) is not recorded in the repo yet. |
 | M2 Raw catalog, week-one review | In progress | Staging verified on real data: a dev full refresh passed 114 of 114 (2026-11-08). The autonomy bundle (#23) merged. Left: `dbt source freshness` in the record, and the week-one review. |
-| M3 Disruption Index | In review | All four tasks in one bundle, `feat/m3-line-minute-metrics`, ticked in the local plan when the PR opened. The metric definitions D16 to D23 wait for the owner. The league preview needs a complete week of data, the first being 2 to 8 November (complete at Monday 9 November 00:00 London). |
+| M3 Disruption Index | In review | All four tasks in one bundle, #27 (`feat/m3-line-minute-metrics`). The four M3 boxes in the local plan are to be ticked in the main checkout (the copy is local-only). Decisions D16 to D24 wait for the owner. The league preview needs a complete week of data, the first being 2 to 8 November (complete at Monday 9 November 00:00 London). |
 | M4 Experienced Reliability | Not started | |
 | M5 Publish pipeline | Not started | Needs H12 (Cloudflare). |
 | M6 League mechanics | Not started | |
@@ -17,7 +17,7 @@ Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in
 
 ## Open PRs and merge order
 
-- **M3 bundle** (`feat/m3-line-minute-metrics`): the poller's reserved concurrency (Part 0), seeds, line-minute status, intervals, incidents, service hours, daily and weekly facts, and their unit tests. Nothing else is open, so it merges on its own. Merging deploys `infra/envs/prod` (one in-place change: the poller's reserved concurrency) and the next `transform-daily` run builds the new models in prod.
+- **M3 bundle** (#27, `feat/m3-line-minute-metrics`): the poller's reserved concurrency (Part 0), seeds, line-minute status, intervals, incidents, service hours, daily and weekly facts, and their unit tests. Nothing else is open, so it merges on its own. Merging deploys `infra/envs/prod` (one in-place change: the poller's reserved concurrency) and the next `transform-daily` run builds the new models in prod.
 - Merged on 2026-11-07 and 2026-11-08: #17, #18, #22 (bootstrap hardening) and #23 (autonomy bundle).
 
 ## Blockers
