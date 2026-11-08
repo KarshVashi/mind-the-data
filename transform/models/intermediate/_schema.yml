@@ -232,3 +232,99 @@ models:
         description: TfL text for that code.
       - name: first_reason
         description: Reason at the first incident minute.
+
+  - name: int_scheduled_headways
+    description: >
+      Scheduled service per line x measurement station x direction x day type
+      x service-day hour x timetable version (PLAN 6.2, 7.3), the baseline for
+      excess wait, long gaps and the quality gate. From TfL timetables
+      (stg_timetable): every listed departure from the station, pooled over
+      the timetable's routes, mapped to day types by
+      timetable_schedule_day_types. Timetables have no platforms, so the grain
+      is station and direction (D29). A gap between consecutive departures
+      belongs to the hour of the later one (D30); two departures in one
+      minute both count (D31). Each day's fetch is a version valid from that
+      UTC date until the next; the first version also covers earlier days
+      (D32). Stations with no timetable at all take flat frequencies from
+      seed_line_frequencies, flagged `is_fallback` (D33). Hours with no
+      scheduled departure have no row and are not measured. The headway sums
+      are additive, so rows of two service days in one London hour (Night
+      Tube) can be added. Rebuilt in full each run (ADR-012).
+    columns:
+      - name: scheduled_headway_key
+        description: Row key, a hash of (line_id, naptan_id, direction, day_type, service_hour, valid_from).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('lines')
+                field: line_id
+      - name: naptan_id
+        description: Measurement station (the timetable's departure stop).
+        data_tests: [not_null]
+      - name: direction
+        description: "`inbound` or `outbound`, as TfL names timetable directions."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [inbound, outbound]
+      - name: day_type
+        description: Day type of the service day (day_types).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [mon_thu, fri, sat, sun]
+      - name: service_hour
+        description: Hour of the London service-day clock, 0 to 27; 24 and later are the next calendar morning.
+        data_tests: [not_null]
+      - name: london_hour
+        description: "`service_hour` mod 24: the London wall-clock hour."
+        data_tests: [not_null]
+      - name: is_next_calendar_day
+        description: The hour falls on the calendar day after the service day.
+        data_tests: [not_null]
+      - name: valid_from
+        description: First date the version applies to (UTC date of its fetch); null for the first version, which also covers earlier days.
+      - name: valid_to
+        description: Date the next version takes over; null for the current one.
+      - name: scheduled_departures
+        description: Scheduled trains in the hour. The quality gate's denominator (PLAN 7.2).
+        data_tests: [not_null]
+      - name: headway_count
+        description: Gaps ending in the hour. Less than scheduled_departures where the first train of the day is in the hour.
+        data_tests: [not_null]
+      - name: sum_headway_seconds
+        description: Sum of those gaps, seconds.
+        data_tests: [not_null]
+      - name: sum_headway_squared_seconds
+        description: Sum of the squared gaps, seconds squared.
+        data_tests: [not_null]
+      - name: mean_headway_seconds
+        description: sum_headway_seconds / headway_count; null without a gap.
+      - name: max_headway_seconds
+        description: Longest scheduled gap ending in the hour (D34).
+      - name: scheduled_average_wait_seconds
+        description: >
+          PLAN 7.3 scheduled average wait for a passenger arriving at random,
+          sum(H squared) / (2 x sum(H)); H / 2 when the gaps are even. Null
+          without a gap.
+      - name: schedule_source
+        description: "`timetable` or `seed_line_frequencies`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [timetable, seed_line_frequencies]
+      - name: is_fallback
+        description: The row comes from seed_line_frequencies, not a TfL timetable (PLAN 6.2).
+        data_tests: [not_null]
+      - name: source_detail
+        description: TfL schedule name, or the seed row's source.
+        data_tests: [not_null]
+      - name: timetable_fetched_at
+        description: When the timetable version was fetched, UTC; null for fallback rows.

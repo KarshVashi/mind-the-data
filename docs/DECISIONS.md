@@ -242,6 +242,64 @@ These come from the M4 bundle (`feat/m4-measured-view`). They are readings of PL
 - **Alternatives:** follow trains per station and direction, across platforms.
 - **Recommendation:** keep it, and count platform changes in the review.
 
+### D29. Scheduled service is per station and direction, not per platform
+
+- **Context:** PLAN 7.3 compares headways "at a platform and direction" with `int_scheduled_headways` "for that line, station, direction". TfL timetables have no platforms. At Earl's Court, the District inbound timetable lists two departures in the same minute 21 times on weekdays, one per eastbound platform.
+- **Implemented:** `int_scheduled_headways` is per station and direction, pooling every timetable route.
+- **Consequence for `int_headways` (not built yet):** pool a station-direction's platforms before forming headways. Per-platform headways at a two-platform station would read as about twice the scheduled ones, and become false long gaps.
+- **Alternatives:** split scheduled departures across platforms using board history.
+- **Recommendation:** pool, as implemented.
+
+### D30. Which hour a gap belongs to, and service-day hours
+
+- **Context:** PLAN 7.3 uses headways "in the hour" without saying which end of a gap sets the hour.
+- **Implemented:**
+  - A gap belongs to the hour of the departure that ends it, which is the train a waiting passenger boards. `int_headways` must use the same rule.
+  - Hours are TfL's service-day clock (0 to 27). Hour 24 and later are the next calendar morning (`london_hour`, `is_next_calendar_day`).
+  - Gaps are not formed across schedules: Friday's last Night Tube train and Saturday's first are in different schedules.
+  - The sums of gaps and squared gaps are kept, so `int_headways` can add Friday hour 27 and Saturday hour 3, which fall in the same London hour.
+- **Alternatives:** split a gap across the hours it spans; give it to the hour it starts in.
+- **Recommendation:** keep it.
+
+### D31. Two departures in one minute both count
+
+- **Context:** TfL gives departure times to the minute. In the 2026-11-05 fetch, 127 journeys share their minute with another journey of the same route at the same station and direction, across all schedules. They are on the Jubilee, District, Victoria and Waterloo & City lines and the tram.
+- At DLR Canning Town, each departure of route 1 is also listed in route 2 at the same minute (120 inbound on weekdays). That could be one train listed twice, or the Stratford International and Bank services leaving their two platforms together.
+- **Implemented:** every listed journey counts, entered as a 0-minute gap. A 0 gap adds nothing to the sums in the average-wait formula, but it adds a scheduled train.
+- If the Canning Town pairs are duplicates, scheduled trains there are overstated by about half. The quality gate would then exclude those hours rather than score them.
+- **Alternatives:** collapse same-minute departures listed under different routes.
+- **Recommendation:** decide Canning Town from its boards in the review. DLR boards there carry no vehicle ids and few predictions (see open questions in STATUS.md).
+
+### D32. Timetable versions
+
+- **Context:** the plan doesn't say which weekly timetable applies to which days.
+- **Implemented:** the latest fetch of each UTC day is a version, valid from that date until the next version's date. The first version also covers the days collected before it (data starts 2026-11-01, the first fetch was 2026-11-05).
+- If a later fetch fails, the last good version stays in force; `timetable_fetched_at` shows its age.
+- **Alternatives:** use only the latest timetable for all history (a December timetable change would then rewrite November); treat a failed week as no timetable (unmeasured).
+- **Recommendation:** keep it.
+
+### D33. Fallback frequencies for the Elizabeth line and the Overground
+
+- **Context:** TfL returns 404 for every Elizabeth line and Overground timetable request: 46 station-directions across 7 lines, the same set as D17.
+- **Implemented:** `seed_line_frequencies` holds per-station trains per hour in each direction for those 23 stations. There are weekday peak (07:00 to 10:00, 16:00 to 19:00) and off-peak values, and Saturday and Sunday values, all `source = estimate_2026_11_08` and flagged `is_fallback`.
+  - Values come from published service patterns. At mid-line stations they were checked against inferred arrivals on 2026-11-05 (vehicle-id linking). For example, Tottenham Court Road showed about 24 an hour per direction at peak and about 16 off-peak; Romford about 12 and 8; Canada Water about 16.
+  - Where the two sources disagreed, the lower figure was used. A lower scheduled frequency means a longer scheduled headway, so service is never judged against a timetable busier than the real one.
+  - Terminus boards over-count badly (for example, Watford Junction showed 41 at 21:00 against 3 an hour), so they were not used.
+  - Only whole hours inside `line_operating_hours` are covered.
+- **Not covered by the fallback:**
+  - Tube termini in the direction TfL returns 404 for. Trains end there, so there is nothing to wait for.
+  - Tram at New Addington (both directions) and East Croydon inbound, which also return 404 while the rest of the tram timetable works. They stay unscheduled and unmeasured.
+- **Caveat:** the fallback lines' quality gate compares boards with estimates partly checked against the same boards. A pass for these lines is weak evidence.
+- **Alternatives:** take frequencies from TfL's published working timetables; leave these lines out of the measured view until real timetables exist; add tram rows.
+- **Recommendation:** confirm or replace the 23 stations' values (owner). Report the fallback lines separately in the M4 acceptance figure.
+
+### D34. Scheduled headway for long gaps when gaps are uneven
+
+- **Context:** PLAN 7.3 counts a long gap when a headway exceeds 2 x the scheduled headway, but the scheduled headway is ambiguous when an hour's gaps are uneven. On weekdays at 12:00, Victoria at Oxford Circus has a mean of 134 s and a longest gap of 180 s.
+- **Implemented here:** `int_scheduled_headways` exposes both `mean_headway_seconds` and `max_headway_seconds`; `int_headways` will choose.
+- **Recommendation for `int_headways`:** use the longest scheduled gap in the hour. Then a long gap is one that no scheduled gap that hour comes near, which is the conservative reading for the Honesty Gap headline.
+- **Alternative:** the mean, which flags more gaps.
+
 ## Settled
 
 | Date | Decision | Outcome |

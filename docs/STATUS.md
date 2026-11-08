@@ -10,7 +10,7 @@ Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in
 | M1 Collector live | Done, with one gap | Polling since 2026-11-04. The poller's reserved concurrency of 1 is in the M3 bundle (Part 0, ADR-006), now that the quota is 1,000. The deployed acceptance output (`completeness.py --hours 24`, alarm test) is not recorded in the repo yet. |
 | M2 Raw catalog, week-one review | In progress | Staging verified on real data: a dev full refresh passed 114 of 114 (2026-11-08). The autonomy bundle (#23) merged. Left: `dbt source freshness` in the record, and the week-one review. |
 | M3 Disruption Index | In review | All four tasks in one bundle, #27 (`feat/m3-line-minute-metrics`). The four M3 boxes in the local plan are to be ticked in the main checkout (the copy is local-only). Decisions D16 to D24 wait for the owner. The league preview needs a complete week of data, the first being 2 to 8 November (complete at Monday 9 November 00:00 London). |
-| M4 Experienced Reliability | Not started | |
+| M4 Experienced Reliability | In progress | Branch `feat/m4-measured-view`, one bundled PR later. Done: the arrival inference reference (task 1) and `int_scheduled_headways` with the fallback seed (task 3), built on dev. Left: `int_inferred_arrivals`, `int_headways` and the metrics, the quality gate. They wait for the week-one review. Decisions D25 to D34. |
 | M5 Publish pipeline | Not started | Needs H12 (Cloudflare). |
 | M6 League mechanics | Not started | |
 | M7 Hardening and docs | Not started | |
@@ -47,6 +47,18 @@ Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in
    cd transform && uv run --project .. dbt compile --profiles-dir . --target dev --select league_preview
    uv run python scripts/athena_query.py --file transform/target/compiled/mind_the_data/analyses/league_preview.sql
    ```
+
+## Questions for the week-one review (M4)
+
+The measured view depends on these. Each names the decision it feeds.
+
+- **Is `vehicle_id` stable per train, line by line?** It sets `vehicle_id_lines` (D27). On 2026-11-05 at Oxford Circus and King's Cross, Victoria line linking by vehicle id gave 1,874 arrivals against 2,225 by the 45 s rule (D26).
+- **How far does `expected_arrival` move between polls in the last 120 s, and how often does a held train's estimate move by more than 45 s a minute?** This decides whether the 45 s window stands (D26, ADR-002).
+- **How often do duplicate predictions appear, and how far apart are they?** This sets the 15 s duplicate tolerance (D25).
+- **How often does a train change platform on the board mid-approach** (D28)?
+- **Do terminus boards list arriving trains that terminate?** There is no timetable for them (D33), so are they to be left out of headways?
+- **DLR boards:** no vehicle ids, few predictions (Canning Town showed about 60 sightings an hour on a weekday morning), and one prediction id per platform and destination. Can DLR be measured at all? Are the Canning Town same-minute departures one train or two (D31)?
+- **Overground boards:** `direction` is often null, especially at termini. Suffragette predictions are absent at Barking Riverside and Blackhorse Road during the closure. Which boards are usable for the fallback lines (D33)?
 
 ## Upcoming dated checks
 
