@@ -69,8 +69,14 @@ variable "athena_results_expiration_days" {
   default     = 7
 }
 
+variable "athena_ops_bytes_scanned_cutoff_per_query" {
+  type        = number
+  description = "Per-query scan limit for the ops (health check) workgroup, in bytes. 1 GiB covers several days of one raw feed."
+  default     = 1073741824
+}
+
 variable "athena_bytes_scanned_cutoff_per_query" {
   type        = number
-  description = "Per-query scan limit for every workgroup, in bytes (plan section 11: 10 GiB)."
+  description = "Per-query scan limit for every workgroup without its own, in bytes (plan section 11: 10 GiB)."
   default     = 10737418240
 }

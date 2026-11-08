@@ -51,7 +51,7 @@ output "curated_bucket_arn" {
 }
 
 output "athena_workgroups" {
-  description = "Athena workgroups, one per dbt target."
+  description = "Athena workgroups: one per dbt target, and ops for the health checks."
   value       = module.athena.workgroup_names
 }
 
