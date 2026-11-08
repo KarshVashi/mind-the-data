@@ -1,6 +1,6 @@
 # Status
 
-Updated: 2026-11-07. Every PR updates this page. Pending decisions are listed in [DECISIONS.md](DECISIONS.md).
+Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in [DECISIONS.md](DECISIONS.md).
 
 ## Milestones
 
@@ -17,16 +17,15 @@ Updated: 2026-11-07. Every PR updates this page. Pending decisions are listed in
 
 ## Open PRs and merge order
 
-- This PR (`docs/working-agreement`): docs only, so it can merge in any order.
-- `feat/bootstrap-hardening`, `chore/deploy-safety` and `feat/ops-workflows` are in progress with no PR yet. Each branches from `main`. Their merge order goes here when they open.
-- Merged on 2026-11-06: #17, then #18. The `infra` deploy for #17 passed, and `transform-daily` has passed since.
+- **Autonomy bundle** (`chore/autonomy-bundle`): one PR in place of #19 (this page and DECISIONS.md), #20 (deploy safety), #21 (ops workflows) and the enforce-binding follow-up to ADR-010. Those three PRs are closed as superseded; their branches are kept. It touches `Makefile` and `.github/workflows/infra.yml`, so merging it deploys `infra/envs/prod` and runs the smoke test.
+- Merged on 2026-11-07 and 2026-11-08: #17, #18 and #22 (bootstrap hardening). The owner applied #22's bootstrap on 2026-11-08: the state is in S3, `mtd-ci-observer` and `mtd-ci-publish` exist, and the `new-roles` trust probe passed.
 
 ## Blockers
 
 - **Poller reserved concurrency of 1:** waits on the Lambda quota increase (ADR-006).
 - **M2 acceptance:** waits on the dev rebuild below, then on about 7 days of data for the week-one review.
 - **Prod staging may still hold null-keyed rows** from runs before #17. See decision D8 in DECISIONS.md.
-- **ADR-006 to ADR-010:** each needs an explicit answer (DECISIONS.md).
+- **ADR-006 to ADR-010:** each needs an explicit answer (DECISIONS.md). D11 to D14 come from the bundle.
 
 ## Owner steps outstanding
 
@@ -38,6 +37,18 @@ Updated: 2026-11-07. Every PR updates this page. Pending decisions are listed in
 
 2. **Lambda quota.** The request for 1,000 is `CASE_OPENED` (2026-11-06 02:54 UTC). To check it, or to request again if it is denied, see the runbook section "Lambda concurrency quota".
 3. **Decisions.** Answer the items in DECISIONS.md. The `never-default` items wait for you.
+4. **After the bundle merges**, in order (the PR description has the details):
+
+   ```sh
+   gh variable get AWS_ACCOUNT_ID || gh variable set AWS_ACCOUNT_ID --body "$(aws sts get-caller-identity --profile mtd-admin --query Account --output text)"
+   make bootstrap-plan     # only the trust policies of mtd-ci-plan, mtd-ci-apply and mtd-ci-transform change
+   make bootstrap-apply
+   gh workflow run bootstrap-plan.yml --ref main -f trust_probe=all-roles
+   gh workflow run transform-daily.yml --ref main
+   gh workflow run ops-daily.yml --ref main
+   ```
+
+   Then check that a pull request's `infra / plan` still assumes the plan role (runbook H6, step 5).
 
 Engineer step, which only needs the SSO login now that #17 has deployed: rebuild dev staging.
 

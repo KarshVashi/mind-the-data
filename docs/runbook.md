@@ -191,7 +191,7 @@ From now on:
 
 ## Repository variables
 
-`AWS_ACCOUNT_ID` is the only variable the workflows need. Everything else follows the naming convention in `infra/`. `make bootstrap-apply` (H6, step 3) sets `AWS_ACCOUNT_ID` and the first four rows below from the bootstrap outputs; the `DBT_ATHENA_*_PROD` values are only derived:
+`AWS_ACCOUNT_ID` is the only variable the workflows need. Everything else follows the naming convention in `infra/`. `make bootstrap-apply` (H6, step 3) sets `AWS_ACCOUNT_ID` and the first five rows below from the bootstrap outputs; the `DBT_ATHENA_*_PROD` values are only derived:
 
 | Variable | Derived from `AWS_ACCOUNT_ID` | Used by |
 | --- | --- | --- |
@@ -199,6 +199,7 @@ From now on:
 | `AWS_PLAN_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-plan` | infra (pull requests) |
 | `AWS_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-apply` | infra (main) |
 | `AWS_TRANSFORM_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-transform` | transform-daily |
+| `AWS_OBSERVER_ROLE_ARN` | `arn:aws:iam::<id>:role/mtd-ci-observer` | ops-daily, ops-daytime |
 | `DBT_ATHENA_S3_STAGING_DIR_PROD` | `s3://mind-the-data-athena-results-<id>/prod/` | transform-daily |
 | `DBT_ATHENA_S3_DATA_DIR_PROD` | `s3://mind-the-data-curated-<id>/prod/` | transform-daily |
 | `DBT_ATHENA_WORKGROUP_PROD` | `mind-the-data-prod` | transform-daily |
@@ -534,7 +535,7 @@ Each run writes its report to the run summary. When something misses its target,
 
 The daytime check reads what the collector stored rather than calling TfL. CI never needs the TfL key, and the check tests the data the league table is built from.
 
-**Turning them on.** They run once the `AWS_OBSERVER_ROLE_ARN` repository variable is set. `make bootstrap-apply` sets it from the bootstrap outputs (H6, step 3), so after the apply that created `mtd-ci-observer` there is nothing more to do. To check:
+**Turning them on.** They run once the `AWS_OBSERVER_ROLE_ARN` or `AWS_ACCOUNT_ID` repository variable is set (see "Repository variables"). `make bootstrap-apply` sets it from the bootstrap outputs (H6, step 3), so after the apply that created `mtd-ci-observer` there is nothing more to do. To check:
 
 ```sh
 gh variable get AWS_OBSERVER_ROLE_ARN   # arn:aws:iam::<account>:role/mtd-ci-observer

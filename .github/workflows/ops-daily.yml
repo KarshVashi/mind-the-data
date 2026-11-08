@@ -26,7 +26,7 @@ concurrency:
 
 env:
   AWS_REGION: eu-west-2
-  ROLE_ARN: ${{ vars.AWS_OBSERVER_ROLE_ARN }}
+  ROLE_ARN: ${{ vars.AWS_OBSERVER_ROLE_ARN || (vars.AWS_ACCOUNT_ID && format('arn:aws:iam::{0}:role/mtd-ci-observer', vars.AWS_ACCOUNT_ID)) || '' }}
 
 jobs:
   health:
@@ -41,7 +41,7 @@ jobs:
         id: config
         run: |
           if [ -z "$ROLE_ARN" ]; then
-            echo "::warning title=ops-daily skipped::Set AWS_OBSERVER_ROLE_ARN; make bootstrap-apply sets it (docs/runbook.md, H6)."
+            echo "::warning title=ops-daily skipped::Set AWS_OBSERVER_ROLE_ARN or AWS_ACCOUNT_ID; make bootstrap-apply sets both (docs/runbook.md, H6)."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"

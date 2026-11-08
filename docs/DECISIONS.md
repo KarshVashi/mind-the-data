@@ -91,12 +91,31 @@ The deadline is 72 hours after the item enters this inbox. Every item below ente
 - **Default:** pin `dbt-athena-community>=1.11.1,<1.12`, and add `dbt-athena>=1.11.1,<1.12`. Upgrade in a deliberate PR that runs the dev unit tests.
 - **Deadline:** 2026-11-10 12:00 UTC. **Class:** `auto-apply`.
 
-### D11. ADR-010: bind OIDC roles to specific workflows (forthcoming)
+### D11. ADR-010: bind OIDC roles to specific workflows
 
-- **Context:** the CI roles trust any workflow on the matching ref or event. ADR-010 will propose narrowing that to named workflows.
-- It needs a bootstrap apply by the owner.
-- **Default:** none until the ADR and its PR exist. Review the trust policy diff and the bootstrap plan.
-- **Deadline:** 72 hours after the PR opens. **Class:** `never-default`.
+- **Context:** ADR-010 and its first step merged in #22 and were applied on 2026-11-08: the observer and publish roles, and the plan role on `main`, are bound to their workflow files. The `new-roles` trust probe passed the same day.
+- The autonomy bundle (Part 4) sets `enforce_workflow_binding` to `true`, so the plan (pull request), apply and transform roles are bound too. It takes effect only with your `make bootstrap-apply`.
+- **Default:** none. Accept ADR-010, merge the bundle, apply, then run the `all-roles` probe and the role checks (runbook H6, step 5).
+- **Deadline:** 2026-11-11 12:00 UTC (72 hours after the bundle opened). **Class:** `never-default`.
+
+### D12. Smoke test after each deploy invokes the poller
+
+- **Context:** the deploy smoke test (autonomy bundle, Part 2) invokes the poller once after `apply`. Each deploy leaves one minute with two polls 20 to 40 s apart, the same overlap ADR-006 already allows. Later `int_` models must treat a minute as one or more polls.
+- The alternative is to wait for the next scheduled object instead of invoking. It is slower and doesn't prove the deployed code runs on demand.
+- **Default:** none: this touches metric semantics. Accept the extra poll, or ask for the wait-only check.
+- **Deadline:** 2026-11-11 12:00 UTC. **Class:** `never-default`.
+
+### D13. Ops checks when the observer role can't be assumed
+
+- **Context:** `ops-daily` and `ops-daytime` (Part 3) skip with a warning, and stay green, when the role can't be assumed. If the observer trust broke later, the checks would go quiet.
+- **Default:** fail the job when the role variable is set but the role can't be assumed. A two-line follow-up.
+- **Deadline:** 2026-11-11 12:00 UTC. **Class:** `auto-apply`.
+
+### D14. Automerge allow-list
+
+- **Context:** automerge (Part 3) is off until `AUTOMERGE_ENABLED` is `true`. Its allow-list is `transform/models/`, `tests/` and `docs/` (not `docs/adr/`). An auto-merged dbt model runs on `main` as the transform role, even after the binding in D11.
+- **Default:** none: it is a security boundary. Keep it off, or turn it on with the list cut to `tests/` and `docs/`.
+- **Deadline:** 2026-11-11 12:00 UTC. **Class:** `never-default`.
 
 ## Settled
 
