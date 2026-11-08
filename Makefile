@@ -145,3 +145,43 @@ plan: package ## terraform plan for infra/envs/prod (needs AWS read access and T
 	@[ -n "$${TF_STATE_BUCKET:-}" ] || { echo "plan: set TF_STATE_BUCKET (bootstrap output state_bucket)" >&2; exit 1; }
 	terraform -chdir=infra/envs/prod init -input=false -backend-config="bucket=$$TF_STATE_BUCKET"
 	terraform -chdir=infra/envs/prod plan -input=false -lock=false
+
+# >>> merge gate (protected: config/merge_policy.yaml)
+# Low-risk pull requests can be merged without the owner (ADR-011). The gate
+# always runs origin/main's copy of its code, policy and lock file, exported
+# to a temporary directory, because a feature branch must not be able to
+# loosen its own gate and the working tree may be on any branch. `python -I`
+# keeps the working tree off sys.path, the environment is built from main's
+# uv.lock without the project, and the gate loads its module by file path.
+# MERGE_GATE_REF lets merge-check try a proposed gate before it merges;
+# `merge` always uses origin/main. Changes to this block need the owner.
+# Full refs, and a fetch without tags, so a tag or local branch called
+# origin/main cannot stand in for main.
+MERGE_GATE_MAIN := refs/remotes/origin/main
+MERGE_GATE_REF ?= $(MERGE_GATE_MAIN)
+define merge_gate
+	@[[ "$(PR)" =~ ^[0-9]+$$ ]] || { echo "usage: make $@ PR=<number>" >&2; exit 2; }
+	@git fetch --quiet --no-tags origin +refs/heads/main:$(MERGE_GATE_MAIN)
+	@# This recipe comes from the working tree. It only stands for main's if
+	@# this block matches the copy being exported, so refuse otherwise.
+	@diff -q <(sed -n '/^# >>> merge gate/,/^# <<< merge gate/p' Makefile) \
+		<(git show "$(1):Makefile" | sed -n '/^# >>> merge gate/,/^# <<< merge gate/p') \
+		>/dev/null || { echo "merge gate: this Makefile's merge block differs from $(1)'s;" \
+		"run from a checkout of main" >&2; exit 2; }
+	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
+	git archive "$(1)" scripts/merge_gate.py src/mind_the_data/ops config/merge_policy.yaml \
+		pyproject.toml uv.lock | tar -x -C "$$tmp"; \
+	export UV_PROJECT_ENVIRONMENT="$$tmp/.venv"; unset UV_PYTHON VIRTUAL_ENV; \
+	uv sync --quiet --locked --no-dev --no-install-project --project "$$tmp"; \
+	uv run --quiet --locked --no-sync --project "$$tmp" \
+		python -I "$$tmp/scripts/merge_gate.py" "$(PR)" $(2) --source "$(1)"
+endef
+
+.PHONY: merge-check
+merge-check: ## Dry-run the merge gate for PR=<n> (gate code from origin/main)
+	$(call merge_gate,$(MERGE_GATE_REF),--dry-run)
+
+.PHONY: merge
+merge: ## Merge PR=<n> if the gate, run from origin/main, allows it
+	$(call merge_gate,$(MERGE_GATE_MAIN),--merge)
+# <<< merge gate
