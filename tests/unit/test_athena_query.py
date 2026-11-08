@@ -169,3 +169,39 @@ def test_format_table_and_bytes() -> None:
     ]
     assert human_bytes(512) == "512 B"
     assert human_bytes(10 * 1024**3) == "10.0 GB"
+
+
+def test_describe_rows_are_split_into_the_declared_columns() -> None:
+    """Athena declares DESCRIBE's three columns but sends each row as one
+    tab-separated cell; that used to raise an IndexError in format_table."""
+    columns = ["col_name", "data_type", "comment"]
+    athena = FakeAthena(
+        ["SUCCEEDED"],
+        [_page([["# Table schema:\t\t"], ["poll_id\tstring\t"], []], columns)],
+    )
+    result = run_query(athena, "describe stg_polls", workgroup="w", database="d")  # type: ignore[arg-type]
+    assert result.rows == [
+        ["# Table schema:", None, None],
+        ["poll_id", "string", None],
+        [None, None, None],
+    ]
+    assert format_table(result).splitlines()[2].startswith("# Table schema: |")
+
+
+def test_show_rows_with_one_column_format() -> None:
+    athena = FakeAthena(["SUCCEEDED"], [_page([["day_types"], ["dim_lines"], []], ["tab_name"])])
+    result = run_query(athena, "show tables in d", workgroup="w", database="d")  # type: ignore[arg-type]
+    assert result.rows == [["day_types"], ["dim_lines"], [None]]
+    assert format_table(result).splitlines() == [
+        "tab_name ",
+        "---------",
+        "day_types",
+        "dim_lines",
+        "         ",
+    ]
+
+
+def test_extra_cells_stay_in_the_last_column() -> None:
+    athena = FakeAthena(["SUCCEEDED"], [_page([["a\tb\tc"]], ["x", "y"])])
+    result = run_query(athena, "select 1", workgroup="w", database="d")  # type: ignore[arg-type]
+    assert result.rows == [["a", "b\tc"]]
