@@ -5,6 +5,7 @@ mind_the_data.analysis.arrivals, not copied from a run. Polls are a minute
 apart from 08:00:00 UTC on 2026-11-05 unless a test says otherwise.
 """
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -204,6 +205,67 @@ def test_held_train_short_of_the_platform_splits() -> None:
     assert arrival.observations == 3
 
 
+def stale(minute: int, prediction_id: str, eta_seconds: float, **kwargs: str) -> Prediction:
+    """As `seen`, but with TfL's time to station 40 s stale: counted from a
+    prediction timestamp 40 s before the poll, as on the real boards."""
+    return replace(
+        seen(minute, prediction_id, eta_seconds, **kwargs),
+        time_to_station=max(0, round(eta_seconds - 60 * minute + 40)),
+    )
+
+
+def test_arrival_rule_reads_time_to_go_from_the_poll_not_tfl() -> None:
+    """Week-one review, Q4: Victoria id 217 left the board at a poll showing
+    121 s, due 16 s later. Here: at 08:00 due 08:01:20 (80 s to go, TfL shows
+    120 s); at 08:01 due 08:01:16 (16 s to go, TfL shows 56 s). Gone at 08:02:
+    arrived at 08:01:16, with 16 s to go at its last sighting. TfL's stale
+    figure is kept as a diagnostic."""
+    rows = [stale(0, "a", 80), stale(1, "a", 76)]
+    [arrival] = infer_arrivals(rows, polls(0, 1, 2))
+    assert arrival.arrival_time == at(76)
+    assert arrival.last_seconds_to_arrival == 16
+    assert arrival.last_time_to_station == 56
+
+
+def test_stale_time_to_station_over_the_threshold_still_arrives() -> None:
+    """Last seen at 08:00 due 08:01:30: 90 s to go from the poll, but TfL
+    shows 130 s. Gone at 08:01. Read from the poll it is within 120 s, an
+    arrival; read from TfL's figure it would be dropped."""
+    [arrival] = infer_arrivals([stale(0, "a", 90)], polls(0, 1))
+    assert arrival.last_time_to_station == 130
+    assert arrival.last_seconds_to_arrival == 90
+    assert arrival.rule == "left_board"
+
+
+def test_time_to_go_truncates_and_floors_at_zero() -> None:
+    """Poll at 08:00:00.877, due 08:02:00: 119.123 s truncates to 119, as
+    Athena's date_diff does. Due before the poll: 0, so at the platform."""
+    poll = [
+        BoardPoll("p0", STATION, T0 + timedelta(milliseconds=877)),
+        BoardPoll("p1", STATION, at(60)),
+    ]
+    [late, due] = infer_arrivals(
+        [seen(0, "a", 120, platform="P1"), seen(0, "b", -5, platform="P2")], poll
+    )
+    assert late.last_seconds_to_arrival == 119
+    assert due.last_seconds_to_arrival == 0
+    assert due.rule == "at_platform"
+
+
+def test_placeholder_vehicle_ids_are_no_id() -> None:
+    """On a trusted line, a train due at 100 s then one due at 200 s a minute
+    later: moved 100 s, beyond 45 s but within the poll gap plus 45 s. Under a
+    real shared id (201) that is one train. Under the placeholder 001, which
+    several trains share, the id says nothing: the expected-arrival rule
+    applies and they do not link."""
+    trusted = InferenceParams(vehicle_id_lines=frozenset({"victoria"}))
+    real = [seen(0, "a", 100, vehicle_id="201")]
+    assert link_polls(real, [seen(1, "b", 200, vehicle_id="201")], 60, trusted) == {0: 0}
+    placeholder = [seen(0, "a", 100, vehicle_id="001")]
+    assert link_polls(placeholder, [seen(1, "b", 200, vehicle_id="001")], 60, trusted) == {}
+    assert link_polls(placeholder, [seen(1, "b", 120, vehicle_id="001")], 60, trusted) == {0: 0}
+
+
 def test_standing_link_ranks_after_a_moving_one() -> None:
     """Earlier poll: A at the platform (0 s, 08:00:00) and B 60 s out (due
     08:01:00). Later poll, 60 s on: one train at 0 s, 08:01:00. It is 60 s
@@ -300,6 +362,7 @@ def test_plain_rows_in_plain_rows_out() -> None:
             "rule": "left_board",
             "last_poll_id": "p1",
             "last_prediction_id": "a",
+            "last_seconds_to_arrival": 90,
             "last_time_to_station": 90,
         }
     ]

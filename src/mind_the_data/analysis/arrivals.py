@@ -21,7 +21,7 @@ chain-derived fields of ``InferredArrival`` (``first_seen_at``,
    successful poll *k+1* are candidates when
    - their expected arrivals are within ``match_tolerance_seconds`` (PLAN 7.2
      rule 1): a moving train; or
-   - the later shows ``time_to_station`` = 0, the earlier at most the
+   - the later is due now (0 s to go), the earlier at most the
      tolerance, and the expected arrival moved by the time between the polls,
      give or take the tolerance: a train standing at the platform. TfL's expected arrival is its timestamp plus
      ``time_to_station``, so a standing train pushes it on by a minute a
@@ -30,14 +30,15 @@ chain-derived fields of ``InferredArrival`` (``first_seen_at``,
      than once (a known bias, D26); or
    - on a line listed in ``vehicle_id_lines``, both carry the same
      ``vehicle_id`` and the expected arrival moved by no more than the poll
-     gap plus the tolerance (D27).
+     gap plus the tolerance (D27). Placeholder ids (``000``, ``001``), which
+     several trains share, count as no id.
    Each prediction picks its nearest candidate; a pair links only when the
    choice is mutual, so links are one to one. A chain of links is one train.
 4. **Arrival.** A train's last observation (one with no link to the next
    poll) is an arrival when the station's next successful poll exists and the
-   observation's ``time_to_station`` is at most ``arrival_threshold_seconds``
-   (rule 2, "absent in poll t+1"), or when no later poll exists and it shows
-   ``time_to_station`` = 0 (rule 2, "or shows 0"). The arrival time is that
+   observation is at most ``arrival_threshold_seconds`` to go (rule 2,
+   "absent in poll t+1"), or when no later poll exists and it is 0 s to go
+   (rule 2, "or shows 0"). The arrival time is that
    observation's ``expected_arrival``, the last one seen for the train
    (rule 3). A train seen once with more than the threshold to go is never an
    arrival (rule 4, phantoms) (DECISIONS.md D26).
@@ -45,6 +46,14 @@ chain-derived fields of ``InferredArrival`` (``first_seen_at``,
    flicker) ends twice. On one board, an arrival followed by another within
    ``match_tolerance_seconds`` is the same train, and only the later one is
    kept: two trains cannot use one platform that close together.
+
+**Time to go.** Every rule above reads the time to go as of the poll,
+``expected_arrival - polled_at`` in whole seconds (truncated, floored at 0),
+not TfL's ``time_to_station``. That is relative to the prediction's own
+timestamp, about 40 s older than the poll, and repeats between polls, so a
+train whose last sighting shows 121 s may be 16 s from the platform
+(week-one review, Q4; DECISIONS.md D39). ``time_to_station`` is kept on the
+output for diagnosis only.
 
 "Next poll" means the station's next *successful* poll. When polls failed in
 between, the arrival is still inferred, and ``confirmed_at`` shows how long
@@ -79,9 +88,11 @@ class InferenceParams:
     match_tolerance_seconds: float = 45.0
     duplicate_tolerance_seconds: float = 15.0
     arrival_threshold_seconds: int = 120
-    # Lines whose vehicle_id is stable per train. Empty until the week-one
-    # data review establishes which lines qualify (D27).
+    # Lines whose vehicle_id is stable per train (D27). Empty by default; the
+    # SQL model reads the list from seed_vehicle_id_lines.
     vehicle_id_lines: frozenset[str] = field(default_factory=frozenset)
+    # Ids several trains share at once (week-one review, Q2): no id at all.
+    placeholder_vehicle_ids: frozenset[str] = frozenset({"000", "001"})
 
 
 DEFAULT_PARAMS = InferenceParams()
@@ -110,6 +121,17 @@ class Prediction:
     vehicle_id: str | None
     expected_arrival: datetime
     time_to_station: int
+    # Whole seconds from the poll to expected_arrival, floored at 0. Set by
+    # infer_arrivals from the station's poll time; when None (a prediction
+    # built by hand for link_polls), time_to_station stands in.
+    seconds_to_arrival: int | None = None
+
+    @property
+    def to_go(self) -> int:
+        """Seconds to go as the inference reads them."""
+        if self.seconds_to_arrival is not None:
+            return self.seconds_to_arrival
+        return self.time_to_station
 
     @property
     def board(self) -> BoardKey:
@@ -135,6 +157,9 @@ class InferredArrival:
     rule: ArrivalRule
     last_poll_id: str
     last_prediction_id: str
+    # Seconds to go at the last sighting, as the arrival rule read them.
+    last_seconds_to_arrival: int
+    # TfL's own figure at the last sighting, stale by about 40 s; diagnostic.
     last_time_to_station: int
     vehicle_id: str | None
     first_seen_at: datetime
@@ -158,6 +183,22 @@ class _Observation:
 @dataclass
 class _Train:
     observations: list[_Observation]
+
+
+def seconds_to_arrival(expected_arrival: datetime, polled_at: datetime) -> int:
+    """Whole seconds from the poll to the expected arrival, floored at 0.
+
+    Truncated toward zero, as Athena's ``date_diff('second', ...)`` does, so
+    the reference and the SQL model agree to the second.
+    """
+    return max(0, int((expected_arrival - polled_at).total_seconds()))
+
+
+def _vehicle(prediction: Prediction, params: InferenceParams) -> str | None:
+    vehicle_id = prediction.vehicle_id
+    if vehicle_id is None or vehicle_id in params.placeholder_vehicle_ids:
+        return None
+    return vehicle_id
 
 
 def _utc(value: datetime) -> datetime:
@@ -195,14 +236,16 @@ def _distance(
     """How far apart two sightings are as the same train; None if they cannot be."""
     tolerance = params.match_tolerance_seconds
     moved = (later.expected_arrival - earlier.expected_arrival).total_seconds()
+    earlier_vehicle = _vehicle(earlier, params)
+    later_vehicle = _vehicle(later, params)
     if (
         earlier.line_id in params.vehicle_id_lines
-        and earlier.vehicle_id is not None
-        and later.vehicle_id is not None
+        and earlier_vehicle is not None
+        and later_vehicle is not None
     ):
-        # A shared id still needs a plausible time, so a placeholder id
-        # shared by several trains cannot chain them.
-        if earlier.vehicle_id == later.vehicle_id and abs(moved) <= poll_gap_seconds + tolerance:
+        # A shared id still needs a plausible time, so an id reused later in
+        # the day cannot chain two trains.
+        if earlier_vehicle == later_vehicle and abs(moved) <= poll_gap_seconds + tolerance:
             return 0.0
         return None
     if abs(moved) <= tolerance:
@@ -210,7 +253,7 @@ def _distance(
     # Only at the platform. A train held short of it is not linked this way:
     # on real boards the next train often takes over the time to station the
     # previous one showed a poll earlier, and would be merged into it (D26).
-    standing = later.time_to_station == 0 and earlier.time_to_station <= tolerance
+    standing = later.to_go == 0 and earlier.to_go <= tolerance
     clock_drift = abs(moved - poll_gap_seconds)
     if standing and clock_drift <= tolerance:
         return tolerance + clock_drift
@@ -305,16 +348,18 @@ def _arrival(
     next_index = last.poll_index + 1
     confirmed_at: datetime | None
     if next_index < len(station_polls):
-        if prediction.time_to_station > params.arrival_threshold_seconds:
+        if prediction.to_go > params.arrival_threshold_seconds:
             return None
-        rule: ArrivalRule = "at_platform" if prediction.time_to_station == 0 else "left_board"
+        rule: ArrivalRule = "at_platform" if prediction.to_go == 0 else "left_board"
         confirmed_at = station_polls[next_index].polled_at
     else:
-        if prediction.time_to_station != 0:
+        if prediction.to_go != 0:
             return None
         rule = "at_platform"
         confirmed_at = None
-    vehicle_ids = [o.prediction.vehicle_id for o in train.observations if o.prediction.vehicle_id]
+    vehicle_ids = [
+        v for o in train.observations if (v := _vehicle(o.prediction, params)) is not None
+    ]
     return InferredArrival(
         request_path=prediction.request_path,
         naptan_id=prediction.naptan_id,
@@ -325,6 +370,7 @@ def _arrival(
         rule=rule,
         last_poll_id=prediction.poll_id,
         last_prediction_id=prediction.prediction_id,
+        last_seconds_to_arrival=prediction.to_go,
         last_time_to_station=prediction.time_to_station,
         vehicle_id=vehicle_ids[-1] if vehicle_ids else None,
         first_seen_at=station_polls[train.observations[0].poll_index].polled_at,
@@ -387,7 +433,13 @@ def infer_arrivals(
                 f"prediction {prediction.prediction_id} is from poll {prediction.poll_id} "
                 f"at {prediction.request_path}, which is not a listed successful poll"
             )
-        normalised = replace(prediction, expected_arrival=_utc(prediction.expected_arrival))
+        expected_arrival = _utc(prediction.expected_arrival)
+        polled_at = station_polls[prediction.request_path][poll_index[key]].polled_at
+        normalised = replace(
+            prediction,
+            expected_arrival=expected_arrival,
+            seconds_to_arrival=seconds_to_arrival(expected_arrival, polled_at),
+        )
         boards[prediction.board][poll_index[key]].append(normalised)
 
     arrivals: list[InferredArrival] = []
@@ -488,6 +540,7 @@ ARRIVAL_COLUMNS = (
     "rule",
     "last_poll_id",
     "last_prediction_id",
+    "last_seconds_to_arrival",
     "last_time_to_station",
 )
 """The columns the SQL model must reproduce exactly, in comparison order."""
