@@ -135,7 +135,7 @@ def test_provisional_reasons() -> None:
     # Exactly at the threshold counts; just under does not.
     works_at = int(1000 * CLOSURE_SHARE_PROVISIONAL)
     closed = provisional_reasons(standing("a", scheduled=1000, works=works_at))
-    assert [(r.code, r.decisions) for r in closed] == [("mostly_engineering_works", ("D22", "D25"))]
+    assert [(r.code, r.decisions) for r in closed] == [("mostly_engineering_works", ("D22", "D35"))]
     assert provisional_reasons(standing("a", scheduled=1000, works=works_at - 1)) == ()
 
     nothing = provisional_reasons(standing("a", scheduled=0, scored=0, good=0))

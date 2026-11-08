@@ -28,7 +28,7 @@ from mind_the_data.publish.schemas import SCHEMA_VERSION
 TYPICAL_BAD_HOURS = 3
 # An hour of day needs this many scored minutes across the history before it
 # can be named a typical bad hour, so one disrupted quarter-hour on a line
-# that is mostly closed is not reported as a pattern (D27).
+# that is mostly closed is not reported as a pattern (D37).
 MIN_BAD_HOUR_SCORED_MINUTES = 300
 
 

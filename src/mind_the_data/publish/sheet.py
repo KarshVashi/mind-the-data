@@ -84,7 +84,7 @@ def numbers_sheet(
     out.append(
         f"Provisional: completeness under {PROVISIONAL_COMPLETENESS:.0%} (PLAN 7.4), or at least "
         f"{CLOSURE_SHARE_PROVISIONAL:.0%} of scheduled minutes under closures (D22, threshold "
-        "D25). Provisional lines are still ranked (D20), but never named in the insight (D28)."
+        "D35). Provisional lines are still ranked (D20), but never named in the insight (D38)."
     )
     out.append("")
 

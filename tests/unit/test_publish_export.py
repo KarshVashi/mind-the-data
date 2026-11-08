@@ -98,7 +98,7 @@ def test_custom_window_document(marts: RecordedMarts) -> None:
     assert doc["data_window"]["iso_week"] is None
     suffragette = next(line for line in doc["lines"] if line["line_id"] == "suffragette")
     assert suffragette["is_provisional"]
-    assert suffragette["provisional_reasons"][0]["decisions"] == ["D22", "D25"]
+    assert suffragette["provisional_reasons"][0]["decisions"] == ["D22", "D35"]
     assert doc["insight"]["kind"] == "lowest_good_service"
     assert doc["is_window_complete"] is False
     assert doc["data_through"] == "2026-11-08T18:21:00"
@@ -298,4 +298,4 @@ def test_post_snapshot_custom_window(tmp_path: Path) -> None:
     assert doc["data_window"]["start"] == "2026-11-04"
     sheet = (tmp_path / "numbers.md").read_text()
     assert "| 18 | District | 6,420 | 33.8 |" in sheet
-    assert "Suffragette" in sheet and "(D22, D25)" in sheet
+    assert "Suffragette" in sheet and "(D22, D35)" in sheet

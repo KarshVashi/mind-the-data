@@ -44,7 +44,7 @@
       "oneOf": [{"type": "null"}, {"$ref": "#/$defs/week"}]
     },
     "typical_bad_hours": {
-      "description": "Up to three London hours of day with the highest share of disrupted scored minutes over the history, worst first, among hours with at least 300 scored minutes (D27). Empty when none qualify.",
+      "description": "Up to three London hours of day with the highest share of disrupted scored minutes over the history, worst first, among hours with at least 300 scored minutes (D37). Empty when none qualify.",
       "type": "array",
       "maxItems": 24,
       "items": {

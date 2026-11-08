@@ -33,7 +33,7 @@ PROVISIONAL_COMPLETENESS = 0.9
 # what is left, and under D22 a delay on top of a part closure stays in while
 # the Good Service around it drops out. Such a line's index and rank depend on
 # how D22 is answered, so it is marked provisional. Display only: the rank is
-# not changed. The threshold itself is pending as D25.
+# not changed. The threshold itself is pending as D35.
 CLOSURE_SHARE_PROVISIONAL = 0.25
 
 # Open owner decisions that change published numbers or flags (docs/DECISIONS.md).
@@ -46,9 +46,9 @@ OPEN_METRIC_DECISIONS: tuple[str, ...] = (
     "D21",
     "D22",
     "D23",
-    "D25",
-    "D27",
-    "D28",
+    "D35",
+    "D37",
+    "D38",
 )
 
 
@@ -199,7 +199,7 @@ def provisional_reasons(
         reasons.append(
             ProvisionalReason(
                 "mostly_engineering_works",
-                ("D22", "D25"),
+                ("D22", "D35"),
                 f"{share:.0%} of scheduled minutes under closures; scored on the rest",
             )
         )
