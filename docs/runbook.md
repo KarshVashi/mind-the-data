@@ -139,7 +139,7 @@ rm infra/bootstrap/backend_override.tf
 make bootstrap-migrate-state
 ```
 
-**5. Bind the roles to their workflows (ADR-010).** Do this once, after the first apply that includes `mtd-ci-observer`.
+**5. Bind the roles to their workflows (ADR-010).** Do this once, after the first apply that includes `mtd-ci-observer`. Steps 1 and 2 were done on 2026-11-08: the `new-roles` probe passed, and the pull request form matched. Step 3 is the change that makes `enforce_workflow_binding` default to `true`; steps 4 to 7 follow its merge.
 
 1. Run the trust probe:
 
@@ -151,13 +151,21 @@ make bootstrap-migrate-state
    All of its jobs must pass:
    - `plan` and `trust-probe` show that the plan role accepts `bootstrap-plan.yml` on `main`, and that the observer and publish roles refuse it.
    - `oidc-claims` writes the claims into the run summary.
-2. Check the pull request form. Open the follow-up pull request from step 3 and look at the summary of its `bootstrap-plan / oidc-claims` job. `job_workflow_ref` must read `KarshVashi/mind-the-data/.github/workflows/bootstrap-plan.yml@refs/pull/<number>/merge`, which is the form the plan role will match on pull requests. If it reads differently, stop and fix `plan_pull_request` in `infra/modules/ci_role/main.tf` first.
+2. Check the pull request form. Open any pull request that runs `bootstrap-plan.yml` (the form does not depend on which one; #22's was used) and look at the summary of its `bootstrap-plan / oidc-claims` job. `job_workflow_ref` must read `KarshVashi/mind-the-data/.github/workflows/bootstrap-plan.yml@refs/pull/<number>/merge`, which is the form the plan role will match on pull requests. If it reads differently, stop and fix `plan_pull_request` in `infra/modules/ci_role/main.tf` first.
 3. Merge the follow-up change that sets `enforce_workflow_binding` to `true` in `infra/bootstrap/variables.tf`.
 4. Run `make bootstrap-apply` again.
 5. Run the probe again with `-f trust_probe=all-roles`.
 6. Open or update any pull request that touches `infra/`. Its `infra / plan` job must still assume the plan role.
+7. Check the two main-branch roles this rebinds. Run the transform and watch it get past "configure AWS credentials"; for the apply role, watch the next `infra` run on `main` do the same:
+
+   ```sh
+   gh workflow run transform-daily.yml --ref main
+   gh run watch "$(gh run list --workflow transform-daily.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
+   ```
 
 If step 1 or 2 fails, stop. Leave `enforce_workflow_binding` off and read ADR-010's fallback.
+
+If step 5, 6 or 7 fails after the apply, a pull request plan, a deploy or the transform can no longer assume its role. Recover from your machine: `TF_VAR_enforce_workflow_binding=false make bootstrap-apply` restores the unbound trust for the plan (pull request), apply and transform roles. Until a fix merges, every `make bootstrap-apply` needs that prefix, or it binds the roles again, and the Monday drift check opens a "Bootstrap drift" issue. Then open a change that sets the default back to `false`, removes `test_bootstrap_binds_the_pre_adr_010_roles` from `tests/unit/test_infra_invariants.py`, and says why in ADR-010.
 
 From now on:
 

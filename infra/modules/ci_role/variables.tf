@@ -67,7 +67,7 @@ variable "metric_namespace" {
 
 variable "enforce_workflow_binding" {
   type        = bool
-  description = "Bind the plan (pull request), apply and transform roles to their workflow files through the job_workflow_ref claim (ADR-010). Off until the trust probe has shown AWS matches the claim; the observer, publish and drift-check trust is bound regardless."
+  description = "Bind the plan (pull request), apply and transform roles to their workflow files through the job_workflow_ref claim (ADR-010). The bootstrap turns it on; false is the fallback if AWS stops matching the claim. The observer, publish and drift-check trust is bound regardless."
   default     = false
 }
 

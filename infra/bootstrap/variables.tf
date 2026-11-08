@@ -12,8 +12,8 @@ variable "github_subject_prefix" {
 
 variable "enforce_workflow_binding" {
   type        = bool
-  description = "Bind the plan, apply and transform roles to their workflow files (ADR-010). Turn on in a follow-up change once the trust probe has passed."
-  default     = false
+  description = "Bind the plan (pull request), apply and transform roles to their workflow files (ADR-010). On since the new-roles trust probe passed on 2026-11-08; false is the recovery switch if a bound role stops accepting its workflow (runbook H6, step 5)."
+  default     = true
 }
 
 variable "alert_email" {
