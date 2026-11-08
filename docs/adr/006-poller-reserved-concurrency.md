@@ -38,3 +38,7 @@ Every day before the collector deploys is a day of data that can't be recovered,
 - Until the switch, two polls could in principle overlap, if a run is still going when the next minute's run starts. The 45 s budget makes this rare. If it happens, the run writes extra objects, each with its own `poll_id`. Nothing is lost.
 - The throttle alarm stays useful either way. Without a reservation it catches the account limit being hit.
 - Revisit when the quota increase is granted.
+
+## Update, 2026-11-08
+
+The quota rose to 1,000 on 2026-11-07 (`aws lambda get-account-settings` returns `"ConcurrentExecutions": 1000`). The default of `poller_reserved_concurrency` is now `1`, as decided above. The change is an in-place `PutFunctionConcurrency` on the poller. Polls can no longer overlap. A minute can still hold two polls, because the post-deploy smoke test adds one (runbook, H10), so minute-level models still treat a minute as one or more polls.

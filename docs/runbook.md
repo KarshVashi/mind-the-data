@@ -458,7 +458,7 @@ Check the limit itself:
 aws lambda get-account-settings --profile mtd-dev --region eu-west-2 --query AccountLimit.ConcurrentExecutions
 ```
 
-Once this returns 1000, open a pull request that changes the default of `poller_reserved_concurrency` in `infra/envs/prod/variables.tf` to `1`.
+It has returned 1000 since 2026-11-07, and `poller_reserved_concurrency` in `infra/envs/prod/variables.tf` now defaults to `1` (ADR-006). If the quota ever falls back to 10, set it to `-1` before the next deploy, or `PutFunctionConcurrency` fails.
 
 ---
 
