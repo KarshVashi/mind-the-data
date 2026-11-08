@@ -1,0 +1,7 @@
+[
+  {"address": "module.poller.aws_lambda_function.this", "mode": "managed", "type": "aws_lambda_function", "actions": ["update"], "importing": false},
+  {"address": "module.alarms.aws_cloudwatch_metric_alarm.throttles", "mode": "managed", "type": "aws_cloudwatch_metric_alarm", "actions": ["create"], "importing": false},
+  {"address": "module.raw_bucket.aws_s3_bucket.this", "mode": "managed", "type": "aws_s3_bucket", "actions": ["no-op"], "importing": false},
+  {"address": "module.poller.aws_iam_role.this", "mode": "managed", "type": "aws_iam_role", "actions": ["no-op"], "importing": false},
+  {"address": "module.poller.data.aws_iam_policy_document.write", "mode": "data", "type": "aws_iam_policy_document", "actions": ["read"], "importing": false}
+]

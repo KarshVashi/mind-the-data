@@ -586,3 +586,37 @@ Notes:
 ```sh
 gh variable set AUTOMERGE_ENABLED --body true    # off again: gh variable delete AUTOMERGE_ENABLED
 ```
+
+---
+
+## Merge gate
+
+Low-risk pull requests can be merged by the project's engineer without the owner, through a gate (ADR-011). Everything else waits for the owner, as before.
+
+```sh
+make merge-check PR=<n>   # dry run: prints the verdict and every reason
+make merge PR=<n>         # squash-merges the pinned head commit, only on ALLOW
+```
+
+**What it allows.** All of these must hold:
+
+- The pull request is open, targets `main`, is not a draft, and its author is in the allowlist (`KarshVashi`).
+- Every check on the head commit has finished, and none failed or was cancelled. `ci / ci` must succeed. `infra / plan` must also succeed when anything deployable changed (`infra/`, `src/`, `config/`, the Lambda build inputs, `Makefile`).
+- No protected path changed. Protected paths are `infra/bootstrap/**`, `infra/modules/ci_role/**`, `.github/**`, `docs/adr/**`, the gate's own files, `GNUmakefile` and `makefile` (make reads them before `Makefile`), and anything with `budget` or `quota` in its path.
+- The Makefile changed, if at all, outside the marked merge gate block, and no changed line could alter how `make merge` runs (a second `merge` rule, `include`, `SHELL`, `PATH`, `export`, `GIT_*` or `UV_*` variables, `$(shell)`, `$(eval)`, conditionals and similar).
+- When something deployable changed, the pull request's own CI plan is used, downloaded as the `plan-changes` artifact of the `infra / plan` run for the head commit. It may only create or update resource types on the allowlist in `config/merge_policy.yaml`. A local plan is never used, since it differs from CI's (no `ALERT_EMAIL`, a different zip hash).
+- No `[allow-destroy]` in the title, body or any commit message, since that marker lets the deploy delete resources.
+
+**What it refuses.** Anything else, and anything it cannot check. That includes any `aws_iam_*` change, any delete or replace, any import, any resource type not on the list, a plan from a manual `workflow_dispatch` run, a missing or expired plan artifact (it is kept for 7 days, so re-run the plan job), a plan run for a different commit, and pending checks. On a refusal it exits 1 and merges nothing.
+
+**Pinning.** The gate reads the head SHA once, checks everything against it, and merges with `gh pr merge --squash --match-head-commit <sha>`. A push after the check makes GitHub refuse the merge.
+
+**It always runs main's copy.** `make merge` fetches `main` into `refs/remotes/origin/main` without tags, and uses that full ref throughout, so a tag or local branch called `origin/main` cannot stand in. It exports `scripts/merge_gate.py`, `src/mind_the_data/ops/`, `config/merge_policy.yaml`, `pyproject.toml` and `uv.lock` from `origin/main` into a temporary directory with `git archive`, builds an environment from that lock file, and runs the gate there with `python -I`. The gate loads its module by file path, never through the installed package. The rules applied are the ones already on `main`, whatever a pull request changes, so a feature branch cannot loosen its own gate.
+
+The `make` recipe itself comes from the checked-out Makefile. It refuses to run unless its merge gate block matches the copy it exports. That catches running from a branch by accident, but a deliberately edited recipe could skip the check. So run `make merge` from a checkout of `main` (or a branch that does not touch the block).
+
+`make merge-check PR=<n> MERGE_GATE_REF=<ref>` dry-runs a proposed gate from another ref. `make merge` ignores that variable. The proposed code runs with your `gh` login, so read it before you dry-run it.
+
+**Changing the policy.** Edit `config/merge_policy.yaml` (or the gate's code) on a branch and open a pull request. Those files are protected, so the gate refuses that pull request and only the owner can merge it. Try it first with `make merge-check PR=<n> MERGE_GATE_REF=<branch>`. The loader rejects attempts to switch off the fixed rules (`unlisted_types`, `not_draft`, `checks_succeeded`, `pin_head_sha`).
+
+**It is a process guard, not a security boundary.** Anyone with the owner's `gh` login could run `gh pr merge` directly. The gate makes the safe path the easy one and leaves a printed record of why each merge was allowed. The AWS Budget alerts remain the backstop after a merge.
