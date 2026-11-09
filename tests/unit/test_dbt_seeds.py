@@ -1,8 +1,9 @@
-"""The dbt seeds that define the declared-view metrics (PLAN 7.1, M3).
+"""The dbt seeds that define the metrics (PLAN 7.1 and 7.3, M3 and M4).
 
 These hold metric definitions, so a careless edit changes every score. The
 checks here are the ones a dbt data test cannot express simply: agreement
-with config/lines.yaml and the plan's weights, and full coverage of time.
+with config/lines.yaml, config/stations.yaml and the plan's weights, and
+full coverage of time.
 """
 
 import csv
@@ -10,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from mind_the_data.common.config import load_lines
+from mind_the_data.common.config import load_lines, load_stations
 
 ROOT = Path(__file__).resolve().parents[2]
 SEEDS = ROOT / "transform" / "seeds"
@@ -119,3 +120,75 @@ def test_operating_hours_cover_every_line_on_weekdays() -> None:
         # A service day may run past midnight, never past the next day's.
         assert end - start <= 2 * MINUTES_PER_DAY
         assert row["source"]
+
+
+def test_schedule_day_types_are_known_and_unique() -> None:
+    rows = read_seed("timetable_schedule_day_types")
+    pairs = [(row["schedule_name"], row["day_type"]) for row in rows]
+    assert len(pairs) == len(set(pairs))
+    assert {day_type for _, day_type in pairs} == DAY_TYPES
+
+
+def test_fallback_frequencies_are_measurement_stations_inside_service_hours() -> None:
+    """Every seed_line_frequencies row is a configured station of its line,
+    covers whole hours inside line_operating_hours (a part hour is not
+    measured, D33), and no two rows of a station and day type overlap."""
+    stations = {
+        (station.line_id, station.naptan_id)
+        for station in load_stations(ROOT / "config" / "stations.yaml")
+    }
+    hours = {
+        (row["line_id"], row["day_type"]): (
+            int(row["service_start_minute"]),
+            int(row["service_end_minute"]),
+        )
+        for row in read_seed("line_operating_hours")
+    }
+    covered: dict[tuple[str, str, str], set[int]] = {}
+    for row in read_seed("seed_line_frequencies"):
+        line_id, naptan_id, day_type = row["line_id"], row["naptan_id"], row["day_type"]
+        assert (line_id, naptan_id) in stations, row
+        start, end = hours[(line_id, day_type)]
+        first, last = int(row["from_hour"]), int(row["to_hour"])
+        assert first < last, row
+        assert start <= first * 60, row
+        assert last * 60 <= end, row
+        assert int(row["trains_per_hour"]) > 0, row
+        assert row["direction"] in {"inbound", "outbound", "both"}, row
+        assert row["source"], row
+        seen = covered.setdefault((line_id, naptan_id, row["direction"] + day_type), set())
+        span = set(range(first, last))
+        assert not seen.intersection(span), row
+        seen.update(span)
+
+
+def test_vehicle_id_lines_cover_every_line_once() -> None:
+    """Every line has an explicit setting, so a line added to the config
+    cannot fall silently to either linking rule (DECISIONS.md D27)."""
+    rows = read_seed("seed_vehicle_id_lines")
+    line_ids = [line.id for line in load_lines(ROOT / "config" / "lines.yaml")]
+    assert sorted(row["line_id"] for row in rows) == sorted(line_ids)
+    assert {row["link_by_vehicle_id"] for row in rows} <= {"true", "false"}
+    assert all(row["decision_status"] for row in rows)
+
+
+def test_measurement_stations_seed_matches_config() -> None:
+    expected = [
+        {
+            "line_id": station.line_id,
+            "naptan_id": station.naptan_id,
+            "station_name": station.name,
+            "role": station.role.value,
+        }
+        for station in load_stations(ROOT / "config" / "stations.yaml")
+    ]
+    assert read_seed("seed_measurement_stations") == expected
+
+
+def test_measured_lines_cover_every_line_and_give_a_reason_when_off() -> None:
+    rows = read_seed("seed_measured_lines")
+    line_ids = [line.id for line in load_lines(ROOT / "config" / "lines.yaml")]
+    assert sorted(row["line_id"] for row in rows) == sorted(line_ids)
+    for row in rows:
+        assert row["is_measured"] in {"true", "false"}
+        assert (row["is_measured"] == "false") == bool(row["reason"]), row

@@ -1,0 +1,79 @@
+line_id,naptan_id,station_name,role
+bakerloo,940GZZLUEAC,Elephant & Castle,terminus
+bakerloo,940GZZLUWLO,Waterloo,core
+bakerloo,940GZZLUOXC,Oxford Circus,core
+bakerloo,940GZZLUBST,Baker Street,core
+central,940GZZLUOXC,Oxford Circus,core
+central,940GZZLUBNK,Bank,core
+central,940GZZLUSTD,Stratford,core
+central,940GZZLUEBY,Ealing Broadway,terminus
+central,940GZZLUEPG,Epping,terminus
+circle,940GZZLUBST,Baker Street,core
+circle,940GZZLUKSX,King's Cross St. Pancras,core
+circle,940GZZLULVT,Liverpool Street,core
+circle,940GZZLUVIC,Victoria,core
+district,940GZZLUECT,Earl's Court,core
+district,940GZZLUVIC,Victoria,core
+district,940GZZLUBKG,Barking,core
+district,940GZZLUEBY,Ealing Broadway,terminus
+district,940GZZLUWIM,Wimbledon,terminus
+hammersmith-city,940GZZLUHSC,Hammersmith (H&C Line),terminus
+hammersmith-city,940GZZLUBST,Baker Street,core
+hammersmith-city,940GZZLUKSX,King's Cross St. Pancras,core
+hammersmith-city,940GZZLULVT,Liverpool Street,core
+hammersmith-city,940GZZLUBKG,Barking,terminus
+jubilee,940GZZLUBST,Baker Street,core
+jubilee,940GZZLUGPK,Green Park,core
+jubilee,940GZZLUWLO,Waterloo,core
+jubilee,940GZZLUSTD,Stratford,terminus
+metropolitan,940GZZLUBST,Baker Street,core
+metropolitan,940GZZLUKSX,King's Cross St. Pancras,core
+metropolitan,940GZZLULVT,Liverpool Street,core
+metropolitan,940GZZLUUXB,Uxbridge,terminus
+metropolitan,940GZZLUAMS,Amersham,terminus
+northern,940GZZLUBNK,Bank,core
+northern,940GZZLUWLO,Waterloo,core
+northern,940GZZLUEGW,Edgware,terminus
+northern,940GZZLUHBT,High Barnet,terminus
+northern,940GZZLUMDN,Morden,terminus
+piccadilly,940GZZLUKSX,King's Cross St. Pancras,core
+piccadilly,940GZZLUGPK,Green Park,core
+piccadilly,940GZZLUCKS,Cockfosters,terminus
+piccadilly,940GZZLUHRC,Heathrow Terminals 2 & 3,branch
+piccadilly,940GZZLUUXB,Uxbridge,terminus
+victoria,940GZZLUVIC,Victoria,core
+victoria,940GZZLUGPK,Green Park,core
+victoria,940GZZLUOXC,Oxford Circus,core
+victoria,940GZZLUKSX,King's Cross St. Pancras,core
+waterloo-city,940GZZLUWLO,Waterloo,terminus
+waterloo-city,940GZZLUBNK,Bank,terminus
+elizabeth,910GTOTCTRD,Tottenham Court Road,core
+elizabeth,910GROMFORD,Romford,branch
+elizabeth,910GABWDXR,Abbey Wood,terminus
+elizabeth,910GHTRWAPT,Heathrow Terminals 2 & 3,branch
+dlr,940GZZDLBNK,Bank DLR,terminus
+dlr,940GZZDLCGT,Canning Town DLR,core
+dlr,940GZZDLLEW,Lewisham DLR,terminus
+dlr,940GZZDLWLA,Woolwich Arsenal DLR,terminus
+tram,940GZZCRECR,East Croydon,core
+tram,940GZZCRWMB,Wimbledon,terminus
+tram,940GZZCRNWA,New Addington,terminus
+liberty,910GROMFORD,Romford,terminus
+liberty,910GUPMNSTR,Upminster,terminus
+lioness,910GEUSTON,London Euston,terminus
+lioness,910GWLSDJHL,Willesden Junction,core
+lioness,910GWATFJDC,Watford Junction,terminus
+mildmay,910GSTFD,Stratford (London),terminus
+mildmay,910GHGHI,Highbury & Islington,core
+mildmay,910GWLSDJHL,Willesden Junction,core
+mildmay,910GRICHMND,Richmond (London),terminus
+suffragette,910GGOSPLOK,Gospel Oak,terminus
+suffragette,910GBLCHSRD,Blackhorse Road,core
+suffragette,910GBARKRIV,Barking Riverside,terminus
+weaver,910GHAKNYNM,Hackney Downs,core
+weaver,910GEDMNGRN,Edmonton Green,branch
+weaver,910GCHINGFD,Chingford,terminus
+windrush,910GHGHI,Highbury & Islington,terminus
+windrush,910GCNDAW,Canada Water,core
+windrush,910GWCROYDN,West Croydon,terminus
+windrush,910GCLPHMJ1,Clapham Junction (Windrush),terminus

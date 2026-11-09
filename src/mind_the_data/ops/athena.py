@@ -148,7 +148,7 @@ def _results(
             data = data[1:]
         first_page = False
         for row in data:
-            rows.append(_cells(row))
+            rows.append(_fit(_cells(row), len(columns)))
             if len(rows) >= max_rows:
                 return columns, rows
     return columns, rows
@@ -160,6 +160,21 @@ def _pages(athena: "AthenaClient", query_id: str) -> Iterator["GetQueryResultsOu
 
 def _cells(row: "RowTypeDef") -> list[str | None]:
     return [cell.get("VarCharValue") for cell in row.get("Data", [])]
+
+
+def _fit(cells: list[str | None], width: int) -> list[str | None]:
+    """A row with exactly ``width`` cells.
+
+    DESCRIBE declares three columns but sends each row as one tab-separated
+    cell, and SHOW can send a row with no cells at all; both are reshaped so
+    every row lines up with the header.
+    """
+    if len(cells) == 1 and width > 1 and cells[0] is not None and "\t" in cells[0]:
+        cells = [part.strip() or None for part in cells[0].split("\t")]
+    if len(cells) > width:
+        # Keep anything past the last column in that column rather than lose it.
+        cells = [*cells[: width - 1], "\t".join(c or "" for c in cells[width - 1 :])]
+    return cells + [None] * (width - len(cells))
 
 
 def format_table(result: QueryResult) -> str:

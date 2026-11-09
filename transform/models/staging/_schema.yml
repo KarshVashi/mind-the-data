@@ -258,15 +258,24 @@ models:
   - name: stg_arrivals
     description: >
       Arrival predictions at a grain of poll x measurement station request x
-      prediction. A board that lists one prediction id twice keeps the copy
-      with the latest TfL timestamp, then the one listed first. Predictions
+      prediction. TfL's prediction id alone is not unique on a board (every
+      DLR prediction at a station shares one id; a train that terminates and
+      leaves again keeps its id on two platforms), so a prediction is the id
+      plus line, stop, platform, direction, vehicle, destination and expected
+      arrival. A board that lists that same prediction twice (identical
+      expected arrival too) keeps the copy with the latest TfL timestamp,
+      then the one listed first; a re-listing whose expected arrival moved is
+      a separate row here and is collapsed in int_inferred_arrivals. Predictions
       with different ids but near-identical expected arrivals are a train-level
       question and are collapsed in int_inferred_arrivals, not here. Only
       successful envelopes; a station whose request failed has no rows for
       that poll and shows as not ok in stg_polls.
     columns:
       - name: arrival_prediction_key
-        description: Row key, a hash of (poll_id, request_path, prediction_id). Merge key.
+        description: >
+          Row key, a hash of (poll_id, request_path, prediction_id, line_id,
+          naptan_id, platform_name, direction, vehicle_id,
+          destination_naptan_id, expected_arrival). Merge key.
         data_tests: [unique, not_null]
       - name: poll_id
         description: Collector run that fetched the board. Shared by every station of that run.
@@ -281,7 +290,7 @@ models:
         description: "`polled_at` truncated to the minute, UTC."
         data_tests: [not_null]
       - name: prediction_id
-        description: TfL prediction id.
+        description: TfL prediction id. Not unique within a board; see the model description.
         data_tests: [not_null]
       - name: vehicle_id
         description: TfL vehicle id; null when TfL sends it empty. Stability is checked in the week-one review.

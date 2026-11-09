@@ -140,7 +140,8 @@ unit_tests:
                  "timeToLive": "0001-01-01T00:00:00", "modeName": "tube"},
                 {"id": "351445571", "vehicleId": "223", "naptanId": "940GZZLUOXC",
                  "lineId": "bakerloo", "platformName": "Southbound - Platform 3",
-                 "direction": "inbound", "timestamp": "2026-11-03T08:14:26.5894441Z",
+                 "direction": "inbound", "destinationNaptanId": "940GZZLUEAC",
+                 "timestamp": "2026-11-03T08:14:26.5894441Z",
                  "timeToStation": 163, "expectedArrival": "2026-11-03T08:17:09Z",
                  "timeToLive": "0001-01-01T00:00:00", "modeName": "tube"}]' as payload,
               '2026-11-03' as dt,
@@ -163,6 +164,75 @@ unit_tests:
           expected_arrival: "2026-11-03 08:17:09"
           prediction_timestamp: "2026-11-03 08:14:26.589"
           time_to_live: null
+
+  - name: stg_arrivals_keeps_different_predictions_that_share_an_id
+    description: >
+      Shapes from the week-one review (docs/data-quality/2026-11-08-week-one.md,
+      Q5). Canning Town's DLR board lists three trains under one id
+      (-846781707): all three are kept. At Baker Street, Metropolitan vehicle
+      402 is listed under one id on two platforms, arriving to terminate and
+      leaving again: both are kept. The same prediction listed twice with an
+      older and a newer TfL timestamp is one row, the newer copy. Keying on
+      the id alone kept 1 of the 3 DLR trains and 1 of the 2 Metropolitan
+      listings.
+    model: stg_arrivals
+    overrides: *full_history_window
+    given:
+      - input: source('raw', 'arrivals')
+        format: sql
+        rows: |
+          select
+              'p1' as poll_id,
+              '2026-11-06T08:40:00.250Z' as polled_at,
+              'arrivals' as feed,
+              cast(row('/StopPoint/940GZZDLCAN/Arrivals') as row(path varchar)) as request,
+              200 as http_status,
+              150 as latency_ms,
+              cast(null as varchar) as error,
+              '[{"id": "-846781707", "naptanId": "940GZZDLCAN", "lineId": "dlr",
+                 "platformName": "1", "direction": "inbound", "vehicleId": "",
+                 "destinationNaptanId": "940GZZDLWLA", "timeToStation": 102,
+                 "timestamp": "2026-11-06T08:39:20Z", "expectedArrival": "2026-11-06T08:41:02Z"},
+                {"id": "-846781707", "naptanId": "940GZZDLCAN", "lineId": "dlr",
+                 "platformName": "3", "direction": "inbound", "vehicleId": "",
+                 "destinationNaptanId": "940GZZDLBEC", "timeToStation": 102,
+                 "timestamp": "2026-11-06T08:39:20Z", "expectedArrival": "2026-11-06T08:41:02Z"},
+                {"id": "-846781707", "naptanId": "940GZZDLCAN", "lineId": "dlr",
+                 "platformName": "1", "direction": "inbound", "vehicleId": "",
+                 "destinationNaptanId": "940GZZDLWLA", "timeToStation": 402,
+                 "timestamp": "2026-11-06T08:39:20Z", "expectedArrival": "2026-11-06T08:46:02Z"}]' as payload,
+              '2026-11-06' as dt,
+              '08' as hour
+          union all
+          select
+              'p1',
+              '2026-11-06T08:40:00.250Z',
+              'arrivals',
+              cast(row('/StopPoint/940GZZLUBST/Arrivals') as row(path varchar)),
+              200,
+              160,
+              cast(null as varchar),
+              '[{"id": "-1336847038", "naptanId": "940GZZLUBST", "lineId": "metropolitan",
+                 "platformName": "Platform 1", "direction": "", "vehicleId": "402",
+                 "destinationNaptanId": "940GZZLUBST", "timeToStation": 100,
+                 "timestamp": "2026-11-06T08:39:20Z", "expectedArrival": "2026-11-06T08:42:00Z"},
+                {"id": "-1336847038", "naptanId": "940GZZLUBST", "lineId": "metropolitan",
+                 "platformName": "Platform 4", "direction": "outbound", "vehicleId": "402",
+                 "destinationNaptanId": "940GZZLUAMS", "timeToStation": 1120,
+                 "timestamp": "2026-11-06T08:39:20Z", "expectedArrival": "2026-11-06T08:59:00Z"},
+                {"id": "-1336847038", "naptanId": "940GZZLUBST", "lineId": "metropolitan",
+                 "platformName": "Platform 4", "direction": "outbound", "vehicleId": "402",
+                 "destinationNaptanId": "940GZZLUAMS", "timeToStation": 1150,
+                 "timestamp": "2026-11-06T08:38:50Z", "expectedArrival": "2026-11-06T08:59:00Z"}]',
+              '2026-11-06',
+              '08'
+    expect:
+      rows:
+        - {request_path: /StopPoint/940GZZDLCAN/Arrivals, platform_name: "1", destination_naptan_id: 940GZZDLWLA, expected_arrival: "2026-11-06 08:41:02", time_to_station: 102}
+        - {request_path: /StopPoint/940GZZDLCAN/Arrivals, platform_name: "3", destination_naptan_id: 940GZZDLBEC, expected_arrival: "2026-11-06 08:41:02", time_to_station: 102}
+        - {request_path: /StopPoint/940GZZDLCAN/Arrivals, platform_name: "1", destination_naptan_id: 940GZZDLWLA, expected_arrival: "2026-11-06 08:46:02", time_to_station: 402}
+        - {request_path: /StopPoint/940GZZLUBST/Arrivals, platform_name: Platform 1, destination_naptan_id: 940GZZLUBST, expected_arrival: "2026-11-06 08:42:00", time_to_station: 100}
+        - {request_path: /StopPoint/940GZZLUBST/Arrivals, platform_name: Platform 4, destination_naptan_id: 940GZZLUAMS, expected_arrival: "2026-11-06 08:59:00", time_to_station: 1120}
 
   - name: stg_line_status_keeps_only_the_first_listing_of_a_repeated_line
     description: >

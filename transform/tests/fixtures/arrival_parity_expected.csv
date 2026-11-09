@@ -1,0 +1,38 @@
+request_path,naptan_id,line_id,platform_name,direction,arrival_time,rule,last_poll_id,last_prediction_id,last_seconds_to_arrival,last_time_to_station
+/StopPoint/940GZZDLCGT/Arrivals,940GZZDLCGT,dlr,Platform 1,outbound,2026-11-06 08:00:50,left_board,poll-001,-846781707,25,70
+/StopPoint/940GZZDLCGT/Arrivals,940GZZDLCGT,dlr,Platform 1,outbound,2026-11-06 08:05:51,at_platform,poll-007,-846781707,0,71
+/StopPoint/940GZZDLCGT/Arrivals,940GZZDLCGT,dlr,Platform 1,outbound,2026-11-06 08:08:52,left_board,poll-009,-846781707,27,71
+/StopPoint/940GZZDLCGT/Arrivals,940GZZDLCGT,dlr,Platform 2,inbound,2026-11-06 08:01:50,left_board,poll-002,-846781707,24,70
+/StopPoint/940GZZDLCGT/Arrivals,940GZZDLCGT,dlr,Platform 2,inbound,2026-11-06 08:02:50,left_board,poll-003,-846781707,25,70
+/StopPoint/940GZZDLCGT/Arrivals,940GZZDLCGT,dlr,Platform 3,outbound,2026-11-06 08:00:50,left_board,poll-001,-846781707,25,70
+/StopPoint/940GZZDLCGT/Arrivals,940GZZDLCGT,dlr,Platform 3,outbound,2026-11-06 08:04:50,left_board,poll-005,-846781707,25,130
+/StopPoint/940GZZDLCGT/Arrivals,940GZZDLCGT,dlr,Platform 3,outbound,2026-11-06 08:05:51,at_platform,poll-007,-846781707,0,71
+/StopPoint/940GZZDLCGT/Arrivals,940GZZDLCGT,dlr,Platform 4,inbound,2026-11-06 08:01:50,left_board,poll-002,-846781707,24,70
+/StopPoint/940GZZDLCGT/Arrivals,940GZZDLCGT,dlr,Platform 4,inbound,2026-11-06 08:02:50,left_board,poll-003,-846781707,25,70
+/StopPoint/940GZZDLCGT/Arrivals,940GZZDLCGT,dlr,Platform 4,inbound,2026-11-06 08:05:51,at_platform,poll-007,-846781707,0,71
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,central,Eastbound - Platform 2,outbound,2026-11-06 08:01:31,left_board,poll-002,-872132532,5,111
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,central,Eastbound - Platform 2,outbound,2026-11-06 08:04:01,at_platform,poll-005,-1212253562,0,21
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,central,Eastbound - Platform 2,outbound,2026-11-06 08:06:02,at_platform,poll-007,316460321,0,22
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,central,Eastbound - Platform 2,outbound,2026-11-06 08:08:00,at_platform,poll-009,-872066993,0,17
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,central,Westbound - Platform 1,inbound,2026-11-06 08:00:07,at_platform,poll-002,2062115792,0,27
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,central,Westbound - Platform 1,inbound,2026-11-06 08:01:58,at_platform,poll-003,181677938,0,17
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,central,Westbound - Platform 1,inbound,2026-11-06 08:04:42,at_platform,poll-006,316919073,0,2
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,central,Westbound - Platform 1,inbound,2026-11-06 08:06:30,left_board,poll-007,-1347246889,4,50
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,central,Westbound - Platform 1,inbound,2026-11-06 08:08:30,left_board,poll-009,-1212581223,5,47
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,victoria,Northbound - Platform 6,outbound,2026-11-06 08:00:31,at_platform,poll-002,-1357177618,0,51
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,victoria,Northbound - Platform 6,outbound,2026-11-06 08:03:25,at_platform,poll-004,-1224361251,0,45
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,victoria,Northbound - Platform 6,outbound,2026-11-06 08:06:25,at_platform,poll-007,-1224623395,0,45
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,victoria,Northbound - Platform 6,outbound,2026-11-06 08:07:31,left_board,poll-008,1909227907,5,51
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,victoria,Southbound - Platform 5,inbound,2026-11-06 08:01:31,left_board,poll-002,1774478292,5,111
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,victoria,Southbound - Platform 5,inbound,2026-11-06 08:03:25,at_platform,poll-004,-859969463,0,45
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,victoria,Southbound - Platform 5,inbound,2026-11-06 08:04:32,left_board,poll-005,436023154,7,52
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,victoria,Southbound - Platform 5,inbound,2026-11-06 08:06:26,at_platform,poll-007,-727108040,0,46
+/StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,victoria,Southbound - Platform 5,inbound,2026-11-06 08:08:31,left_board,poll-009,-727435720,6,48
+/StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Due,outbound,2026-11-06 09:01:50,at_platform,poll-903,u1,0,30
+/StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Dup,outbound,2026-11-06 09:01:30,left_board,poll-901,d1,90,130
+/StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Edge,outbound,2026-11-06 09:02:00,left_board,poll-901,e1,120,160
+/StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Match,outbound,2026-11-06 09:05:00,at_platform,poll-906,m2,0,40
+/StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Match,outbound,2026-11-06 09:06:45,left_board,poll-906,m1,104,141
+/StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Two,outbound,2026-11-06 09:06:05,left_board,poll-906,x1,64,105
+/StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Veh,outbound,2026-11-06 09:05:30,left_board,poll-905,v1,89,130
+/StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Veh,outbound,2026-11-06 09:06:50,left_board,poll-906,v2,109,150
