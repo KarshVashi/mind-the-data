@@ -182,6 +182,14 @@ models:
           - accepted_values:
               arguments:
                 values: [measured, not_measured, no_measured_hours]
+      - name: scheduled_measurement_hours
+        description: Station-direction-hours with scheduled service on days the collector ran (int_measured_hours).
+      - name: measured_share
+        description: measured_hours / scheduled_measurement_hours; the measured view's coverage.
+      - name: is_measured_provisional
+        description: measured_share below `min_measured_share` (0.5); the line gets no experienced_rank (D41).
+      - name: excess_wait_hours
+        description: Measured hours with at least one in-service headway, the denominator of excess_wait_minutes.
       - name: observed_measurement_hours
         description: Station-direction-hours with scheduled service and complete arrivals polling (int_measured_hours).
       - name: measured_hours
@@ -208,4 +216,4 @@ models:
         description: >
           PLAN 7.3 Experienced Reliability rank within the week: lowest excess
           wait first, ties to fewer long gaps per 100 hours. Null when not
-          measured. Not published until the M4 acceptance passes.
+          measured or measured-provisional. Not published until the M4 acceptance passes.

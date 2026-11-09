@@ -58,8 +58,12 @@ measured_weekly as (
     select
         line_id,
         week_start,
+        count(*) as scheduled_measurement_hours,
         count_if(is_observed) as observed_measurement_hours,
         count_if(counts_for_reliability) as measured_hours,
+        -- A gated hour with no in-service gap ending in it has no excess
+        -- wait, so excess wait has its own denominator.
+        count_if(counts_for_reliability and excess_wait_seconds is not null) as excess_wait_hours,
         avg(if(counts_for_reliability, excess_wait_seconds)) / 60 as excess_wait_minutes,
         sum(if(counts_for_reliability, long_gaps, 0)) as long_gaps
     from {{ ref('int_measured_hours') }}
@@ -112,8 +116,14 @@ scored as (
         in_scope_lines.is_low_volume,
         recovery_medians.median_recovery_minutes,
         coalesce(measured_lines.is_measured, false) as is_measured,
+        measured_weekly.scheduled_measurement_hours,
         measured_weekly.observed_measurement_hours,
         measured_weekly.measured_hours,
+        measured_weekly.excess_wait_hours,
+        if(
+            measured_lines.is_measured and measured_weekly.scheduled_measurement_hours > 0,
+            1e0 * measured_weekly.measured_hours / measured_weekly.scheduled_measurement_hours
+        ) as measured_share,
         if(measured_lines.is_measured, measured_weekly.excess_wait_minutes) as excess_wait_minutes,
         if(measured_lines.is_measured, measured_weekly.long_gaps) as long_gaps,
         if(
@@ -168,6 +178,8 @@ ranked as (
     select
         *,
         completeness < {{ var('provisional_completeness') }} as is_provisional,
+        -- Too few gated hours to rank the line on the measured view (D41).
+        coalesce(measured_share, 0) < {{ var('min_measured_share') }} as is_measured_provisional,
         -- Lowest Disruption Index first; equal indexes are split by the
         -- higher Good Service %, and still-equal lines share a rank.
         if(
@@ -180,10 +192,14 @@ ranked as (
         ) as disruption_rank,
         -- PLAN 7.3: lowest excess wait first, ties to fewer long gaps.
         if(
-            excess_wait_minutes is null,
+            excess_wait_minutes is null
+            or coalesce(measured_share, 0) < {{ var('min_measured_share') }},
             null,
             rank() over (
-                partition by week_start
+                partition by
+                    week_start,
+                    excess_wait_minutes is null
+                    or coalesce(measured_share, 0) < {{ var('min_measured_share') }}
                 order by excess_wait_minutes asc nulls last, long_gaps_per_100_hours asc nulls last
             )
         ) as experienced_rank
@@ -219,8 +235,12 @@ select
     previous_week.disruption_rank - ranked.disruption_rank as rank_movement,
     ranked.is_measured,
     ranked.measurement_status,
+    ranked.scheduled_measurement_hours,
     ranked.observed_measurement_hours,
     ranked.measured_hours,
+    ranked.measured_share,
+    ranked.is_measured_provisional,
+    ranked.excess_wait_hours,
     ranked.excess_wait_minutes,
     ranked.long_gaps,
     ranked.long_gaps_per_100_hours,
