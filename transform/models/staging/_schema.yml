@@ -262,8 +262,10 @@ models:
       DLR prediction at a station shares one id; a train that terminates and
       leaves again keeps its id on two platforms), so a prediction is the id
       plus line, stop, platform, direction, vehicle, destination and expected
-      arrival. A board that lists that same prediction twice keeps the copy
-      with the latest TfL timestamp, then the one listed first. Predictions
+      arrival. A board that lists that same prediction twice (identical
+      expected arrival too) keeps the copy with the latest TfL timestamp,
+      then the one listed first; a re-listing whose expected arrival moved is
+      a separate row here and is collapsed in int_inferred_arrivals. Predictions
       with different ids but near-identical expected arrivals are a train-level
       question and are collapsed in int_inferred_arrivals, not here. Only
       successful envelopes; a station whose request failed has no rows for

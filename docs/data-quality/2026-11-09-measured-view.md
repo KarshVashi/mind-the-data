@@ -26,7 +26,7 @@ The 812 rows still dropped are the same prediction listed twice in one response.
 | 2026-11-06 | 53,815 | 0 |
 | 2026-11-07 | 50,780 | 0 |
 
-The same comparison runs offline on a 10-minute fixture (`tests/unit/test_arrival_parity.py` and the dbt unit test `int_inferred_arrivals_matches_the_reference`).
+The same comparison runs offline on a 10-minute fixture of real boards plus a synthetic station built on the rules' boundaries (a failed poll, an empty board, a placeholder id, two id candidates, an arrival due before the poll, values exactly on 15 s, 45 s and 120 s): `tests/unit/test_arrival_parity.py` and the dbt unit test `int_inferred_arrivals_matches_the_reference`.
 
 ## Victoria re-check
 
@@ -48,7 +48,7 @@ Core-station hours on measured Tube lines, observed hours only:
 | Window | Observed hours | In band |
 | --- | --- | --- |
 | Thu 5 to Sat 7 Nov | 3,693 | 65.6% |
-| Mon 2 to Sun 8 Nov | 5,537 | 67.1% |
+| Mon 2 to Sun 8 Nov | 6,057 | 66.2% |
 
 Per line, 5 to 7 November, core stations: Jubilee 88.3%, Northern 87.5%, Central 80.9%, Piccadilly 72.3%, Bakerloo 71.1%, Victoria 70.7%, Metropolitan 62.6%, District 54.4%, Circle 48.0%, Hammersmith & City 30.8%. The target is 80%. `assert_measured_hours_pass_the_gate` reports this as a warning (D43).
 
@@ -60,4 +60,4 @@ DLR, tram, Waterloo & City and Suffragette: `not_measured` in `fct_line_weekly` 
 
 ## Caution on long gaps and the Honesty Gap
 
-A train the inference misses joins two gaps into one. With the gate at 80% to 90% of the timetable, long gaps read high: 17 to 97 per 100 measured hours on Tube lines for the week of 2 November, and the Honesty Gap at 34% to 81% of Good Service hours. Excess wait is plausible (Tube lines 0.5 to 1.2 minutes). None of these are results until the gate passes (D41).
+A train the inference misses joins two gaps into one. With the gate at 80% to 90% of the timetable, long gaps read high: 19 to 99 per 100 measured hours on Tube lines for the week of 2 November, and the Honesty Gap at 35% to 81% of Good Service hours. Excess wait is plausible (Tube lines 0.5 to 1.2 minutes). None of these are results until the gate passes (D41).

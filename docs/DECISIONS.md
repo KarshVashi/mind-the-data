@@ -341,11 +341,13 @@ These come from the M4 bundle (`feat/m4-measured-view`). They are readings of PL
 - **Context:** PLAN 7.2 and 7.3 leave the grain of the gate and the denominators open.
 - **Implemented:**
   - The gate is judged per line, station, direction and London hour (the review's station-direction-hour), platforms pooled (D29). Null-direction boards are left out.
-  - An hour is observed when the station had at least 54 successful arrivals polls and no gap over 150 s between them. Only observed hours are gated; a poller gap is missing data, not a failed hour.
+  - An hour is observed when the station had at least 54 successful arrivals polls (var `min_polls_per_hour`), no gap over 150 s between polls touches it, and it is a single UTC hour. The October fall-back 01:00 happens twice in London time and would hold two hours of trains against one of timetable, so it is not observed. Only observed hours are gated; a poller gap is missing data, not a failed hour.
   - A headway counts only when every London hour it spans has scheduled service at that station and direction, so the overnight break is not a gap.
-  - Weekly excess wait is the mean over gated hours (each is one service hour at one station-direction). Long gaps per 100 hours divide by gated station-direction-hours.
-  - The Honesty Gap's denominator is whole-hour Good Service hours with at least one gated measurement of the line.
-- **Known bias:** a train the inference misses joins two gaps into one, so long gaps and the Honesty Gap read high while the gate sits at 80% to 90% of the timetable. On 2 to 8 November the Tube lines show 17 to 97 long gaps per 100 measured hours, and the Honesty Gap 34% to 81% of Good Service hours. These are not results.
+  - Weekly excess wait is the mean over gated hours with at least one counted headway (`excess_wait_hours`; each is one service hour at one station-direction). Long gaps per 100 hours divide by all gated station-direction-hours (`measured_hours`).
+  - A line is ranked on the measured view only when at least half its scheduled station-direction-hours pass the gate (`measured_share`, var `min_measured_share`); below that it is `is_measured_provisional` and unranked, like the declared view's 90% completeness rule.
+  - The Honesty Gap's denominator is whole-hour Good Service hours with at least one gated measurement of the line. A long gap belongs to the hour of the arrival that ends it (D30), and only that hour's declared status is checked: a gap that began in a minute of declared delay in the previous hour still counts if the ending hour was all Good Service. That reads the Honesty Gap slightly high; requiring Good Service over the gap's whole span is the alternative.
+  - The gate's exclusion takes the worst hours out: a suspension leaves an hour under 80% of the timetable, so it drops out of excess wait, long gaps and the Honesty Gap. This follows PLAN 7.2 literally; under-band hours are kept in `int_measured_hours` for a separate count if wanted.
+- **Known bias:** a train the inference misses joins two gaps into one, so long gaps and the Honesty Gap read high while the gate sits at 80% to 90% of the timetable. On 2 to 8 November the Tube lines show 19 to 99 long gaps per 100 measured hours, and the Honesty Gap 35% to 81% of Good Service hours. These are not results.
 - **Alternatives:** gate per line-hour pooled over stations; long gaps per 100 scheduled service hours from `dim_service_hours`.
 - **Class:** `never-default` (metric semantics). **Recommendation:** keep the grain; do not publish the Honesty Gap before the gate passes.
 
@@ -358,7 +360,7 @@ These come from the M4 bundle (`feat/m4-measured-view`). They are readings of PL
 
 ### D43. The M4 gate test warns until the acceptance passes
 
-- **Context:** PLAN M4 asks for a test that fails when more than 30% of core-station line-hours fall outside 80% to 120%. On 5 to 7 November 65.6% of core-station hours on measured Tube lines are in band (34.4% out); over 2 to 8 November 67.1%. A failing test would stop every daily prod transform.
+- **Context:** PLAN M4 asks for a test that fails when more than 30% of core-station line-hours fall outside 80% to 120%. On 5 to 7 November 65.6% of core-station hours on measured Tube lines are in band (34.4% out); over 2 to 8 November 66.2%. If no hour is observed in the window, the test also reports it, rather than passing. A failing test would stop every daily prod transform.
 - **Implemented:** `assert_measured_hours_pass_the_gate` takes its severity from the var `gate_test_severity`, `warn` for now. Every build shows the shortfall without blocking the declared view.
 - **Alternatives:** `error` now, which stops `transform-daily` until the gate passes.
 - **Class:** `never-default` (deviates from the plan). **Recommendation:** set it to `error` once the gate passes.
@@ -366,7 +368,7 @@ These come from the M4 bundle (`feat/m4-measured-view`). They are readings of PL
 ### D44. `stg_arrivals` keys on the prediction, and prod needs a full refresh
 
 - **Context:** the week-one review (Q5) found `stg_arrivals` keyed on `(poll_id, request_path, prediction_id)`. TfL's id is not unique on a board: every DLR prediction at a station shares one id, and a train that terminates and leaves again keeps its id on two platforms. On 6 November staging dropped 83.7% of DLR rows and up to 38% at Tube termini. This is a bug fix to merged M2 staging.
-- **Implemented:** the key adds line, stop, platform, direction, vehicle, destination and expected arrival. On dev, 6 November goes from 1,250,353 to 1,444,004 rows against 1,444,816 raw (the 812 left are the same prediction listed twice). `assert_staged_arrivals_match_raw` fails when staging holds under 99% of the raw predictions of a line-day.
+- **Implemented:** the key adds line, stop, platform, direction, vehicle, destination and expected arrival. On dev, 6 November goes from 1,250,353 to 1,444,004 rows against 1,444,816 raw (the 812 left are the same prediction listed twice). `assert_staged_arrivals_match_raw` fails when staged rows differ from the distinct raw predictions of any line-day, either way: fewer means a key narrower than a prediction, more means rows left by an older key. TfL does list one prediction twice (8% of Piccadilly rows overnight), so raw rows are not compared one for one.
 - **Prod:** the merge key changed, so an incremental run would keep the old rows beside the new ones for the days it rereads, and older days stay short. Prod needs `dbt build --full-refresh --select stg_arrivals+` once after merge (owner step in STATUS.md). The dev table was rebuilt this way.
 - **Class:** `never-default` (data rewrite). **Recommendation:** accept, and run the full refresh straight after merge.
 
