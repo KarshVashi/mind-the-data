@@ -201,9 +201,9 @@ These come from the M3 bundle (`feat/m3-line-minute-metrics`). D16 to D23 are me
 - **Default:** none: it deviates from the plan. Accept ADR-012, or ask for a seed-free incremental layer under a table that applies the seeds.
 - **Class:** `never-default`.
 
-### M5 decisions (D35 to D38)
+### M5 decisions (D35 to D39)
 
-These come from the M5 publish work (`feat/m5-publish`). They entered on 2026-11-08, so the reminder date is 2026-11-11 22:00 UTC. All are `never-default`. D35, D37 and D38 are listed in every published file's `open_decisions`.
+These come from the M5 publish work (`feat/m5-publish`). D35 to D38 entered on 2026-11-08, so the reminder date is 2026-11-11 22:00 UTC; D39 entered on 2026-11-09, reminder 2026-11-12 22:00 UTC. All are `never-default`. D35, D37 and D38 are listed in every published file's `open_decisions`.
 
 ### D35. Mark lines scored on a small share of their hours as provisional
 
@@ -232,6 +232,13 @@ These come from the M5 publish work (`feat/m5-publish`). They entered on 2026-11
 - **Implemented:** the biggest Honesty Gap when any line has one; otherwise the lowest Good Service % among lines that are not provisional, worded "showed Good Service for only X% of its scored service time" (scored time leaves out closures, Service Closed and missing minutes). With every line provisional there is no insight, and the card shows a neutral line.
 - **Alternatives:** the highest Disruption Index; the longest incident; write the insight by hand for each post.
 - **Default:** none. **Class:** `never-default` (publishing and metric wording).
+
+### D39. Rewrite every archived week on each publish
+
+- **Context:** the website needs an archive index (`meta/index.json`, see `docs/site-integration.md`). `lines/{line_id}.json` is already rebuilt from the current marts on every run, so a league file written once and never touched again would drift from the line pages after any metric change or backfill.
+- **Implemented:** each export run writes `league/{iso_week}.json` for every complete week with observed data, `league/latest.json` for the newest complete week (whichever week was asked for), and `meta/index.json` listing exactly those weeks and the line files. Past weeks therefore always show the current methodology; `generated_at` and `git_sha` say which. Share cards are still rendered only for the week asked for, so a card is a record of what was posted.
+- **Alternatives:** write each week once and freeze it (the archive then shows the methodology of its day, and the index must be built from an R2 listing at upload time); freeze weeks only after D16 to D23 are settled.
+- **Default:** none. **Class:** `never-default` (publishing).
 
 ## Settled
 

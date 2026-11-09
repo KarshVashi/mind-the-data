@@ -273,3 +273,58 @@ def methodology_document(transform_dir: Path, league: League, stamp: Stamp) -> d
         },
         "open_decisions": list(OPEN_METRIC_DECISIONS),
     }
+
+
+def index_document(
+    archive: Sequence[League],
+    lines: Sequence[LineInfo],
+    stamp: Stamp,
+    *,
+    fallback_window: Window,
+    latest_data_london: datetime | None,
+) -> dict[str, Any]:
+    """meta/index.json: the archived weeks, the latest week and the lines with history files.
+
+    archive holds the complete weekly leagues written in this run; lines the
+    lines that got a lines/{line_id}.json. fallback_window stands in for the
+    data window before the first complete week.
+    """
+    weeks = sorted(archive, key=lambda league: league.window.start, reverse=True)
+    if weeks:
+        window = Window(start=weeks[-1].window.start, end=weeks[0].window.end)
+        scheduled = sum(s.scheduled_minutes for lg in weeks for s in lg.standings)
+        observed = sum(s.observed_minutes for lg in weeks for s in lg.standings)
+        completeness = observed / scheduled if scheduled else None
+    else:
+        window, completeness = fallback_window, None
+    measured = any(measured_published(league) for league in weeks)
+    return {
+        **envelope(stamp, window, completeness),
+        "data_through": None if latest_data_london is None else _local(latest_data_london),
+        "latest_week": iso_week_of(weeks[0].window.start) if weeks else None,
+        "weeks": [
+            {
+                "iso_week": iso_week_of(league.window.start),
+                "week_start": league.window.start.isoformat(),
+                "week_end": league.window.end.isoformat(),
+                "path": f"league/{iso_week_of(league.window.start)}.json",
+            }
+            for league in weeks
+        ],
+        "lines": [
+            {
+                "line_id": line.line_id,
+                "line_name": line.line_name,
+                "mode": line.mode_name,
+                "colour": line.colour,
+                "is_low_volume": line.is_low_volume,
+                "path": f"lines/{line.line_id}.json",
+            }
+            for line in sorted(lines, key=lambda line: (line.line_name, line.line_id))
+        ],
+        "views": {
+            "declared": "published",
+            "measured": "published" if measured else "not_measured",
+        },
+        "open_decisions": list(OPEN_METRIC_DECISIONS),
+    }

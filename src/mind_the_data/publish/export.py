@@ -9,8 +9,9 @@ workgroup) unless --recorded points at saved query results. Every document
 is validated against its schema before anything is written; --dry-run
 validates and lists the files without writing them.
 
-Written: league/{iso_week}.json, league/latest.json, lines/{line_id}.json,
-meta/methodology.json and cards/{iso_week}.png plus the 1080x1350 variant.
+Written: league/{iso_week}.json for the week and for every complete week
+before it, league/latest.json, lines/{line_id}.json, meta/methodology.json,
+meta/index.json and cards/{iso_week}.png plus the 1080x1350 variant.
 divisions/ and season/ wait for the league mechanics in M6, and
 open-data/ for M7.
 """
@@ -22,12 +23,13 @@ import subprocess
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from mind_the_data.publish.documents import (
     Stamp,
+    index_document,
     iso_week_of,
     league_document,
     line_document,
@@ -100,43 +102,87 @@ def build_outputs(
 
     A week that has not finished, or that the data does not yet reach past,
     is refused unless allow_incomplete is set; it is then written under its
-    own name only and flagged is_window_complete = false. league/latest.json
-    is written only for the latest complete week.
+    own name only and flagged is_window_complete = false.
+
+    Every complete week with observed data is written too, from the same
+    marts and code, so the archive, the line histories and meta/index.json
+    always agree (D39). league/latest.json is the newest complete week,
+    whichever week was asked for.
     """
     window = Window.for_iso_week(iso_week_of(week_start))
     lines = marts.lines()
     weekly = marts.weekly() if weekly is None else weekly
-    incidents = marts.incidents(window.start, window.end)
-    league = league_from_weekly(
-        window.start, lines, weekly, incidents, marts.latest_minute_london()
-    )
+    latest_minute = marts.latest_minute_london()
+    observed_weeks = sorted({w.week_start for w in weekly if w.observed_minutes > 0})
+    history_start = min([window.start, *observed_weeks])
+    history_end = max([window.end, *(w + timedelta(days=6) for w in observed_weeks)])
+    # One query for every week's incidents; each league keeps its own window's.
+    incidents = marts.incidents(history_start, history_end)
+    league = league_from_weekly(window.start, lines, weekly, incidents, latest_minute)
     if not league.is_complete and not allow_incomplete:
         raise IncompleteWeek(
             f"{iso_week_of(window.start)} is not complete (data through "
             f"{league.latest_data_london}); pass --allow-incomplete to write it anyway"
         )
-    write_latest = league.is_complete and latest_complete_week(weekly) == window.start
-    insight = pick_insight(league)
 
-    league_doc = league_document(league, insight, stamp)
-    iso_week = iso_week_of(window.start)
-    outputs = [Output(f"league/{iso_week}.json", league_doc, "league")]
-    if write_latest:
-        outputs.append(Output("league/latest.json", league_doc, "league"))
+    archive = [
+        league
+        if start == window.start
+        else league_from_weekly(start, lines, weekly, incidents, latest_minute)
+        for start in observed_weeks
+    ]
+    archive = [week for week in archive if week.is_complete]
+    if league.is_complete and league not in archive:
+        archive.append(league)
+    outputs = [
+        Output(
+            f"league/{iso_week_of(week.window.start)}.json",
+            league_document(week, pick_insight(week), stamp),
+            "league",
+        )
+        for week in sorted(archive, key=lambda week: week.window.start)
+    ]
+    if league not in archive:
+        outputs.append(
+            Output(
+                f"league/{iso_week_of(window.start)}.json",
+                league_document(league, pick_insight(league), stamp),
+                "league",
+            )
+        )
+    if archive:
+        newest = max(archive, key=lambda week: week.window.start)
+        outputs.append(
+            Output(
+                "league/latest.json", league_document(newest, pick_insight(newest), stamp), "league"
+            )
+        )
 
-    history_start = min(
-        (w.week_start for w in weekly if w.observed_minutes > 0), default=window.start
-    )
-    bad_hours = marts.bad_hours(history_start, window.end)
+    bad_hours = marts.bad_hours(history_start, history_end)
+    with_history = []
     for line in lines:
         doc = line_document(line, weekly, bad_hours, stamp)
         if doc is not None:
             outputs.append(Output(f"lines/{line.line_id}.json", doc, "line"))
+            with_history.append(line)
     outputs.append(
         Output(
             "meta/methodology.json",
             methodology_document(transform_dir, league, stamp),
             "methodology",
+        )
+    )
+    outputs.append(
+        Output(
+            "meta/index.json",
+            index_document(
+                archive,
+                with_history,
+                stamp,
+                fallback_window=window,
+                latest_data_london=latest_minute,
+            ),
+            "index",
         )
     )
     for output in outputs:

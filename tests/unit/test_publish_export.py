@@ -50,7 +50,7 @@ def test_schemas_are_valid_draft_2020_12(name: str) -> None:
 def test_every_output_validates(marts: RecordedMarts) -> None:
     _league, outputs = export.build_outputs(marts, WEEK, STAMP, allow_incomplete=True)
     paths = {o.path for o in outputs}
-    assert {"league/2026-W45.json", "meta/methodology.json"} <= paths
+    assert {"league/2026-W45.json", "meta/methodology.json", "meta/index.json"} <= paths
     # A partial week is never written as latest.
     assert "league/latest.json" not in paths
     assert len([p for p in paths if p.startswith("lines/")]) == 20
@@ -253,17 +253,65 @@ def test_latest_is_only_the_latest_complete_week() -> None:
     with pytest.raises(export.IncompleteWeek):
         export.build_outputs(Stale(FIXTURES), WEEK, STAMP)
 
-    # An older finished week is written under its own name, never as latest.
-    class Later(FinishedWeek):
-        def weekly(self) -> list[WeeklyRow]:
-            rows = super().weekly()
-            return rows + [replace(w, week_start=date(2026, 11, 9)) for w in rows]
-
-        def latest_minute_london(self) -> datetime | None:
-            return datetime(2026, 11, 16, 0, 5)
-
+    # Asking for an older finished week writes it under its own name; latest
+    # stays the newest complete week (D39).
     _, outputs = export.build_outputs(Later(FIXTURES), WEEK, STAMP)
-    assert "league/latest.json" not in {o.path for o in outputs}
+    docs = {o.path: o.document for o in outputs}
+    assert docs["league/latest.json"]["data_window"]["iso_week"] == "2026-W46"
+    assert docs["league/2026-W45.json"]["data_window"]["iso_week"] == "2026-W45"
+
+
+class Later(FinishedWeek):
+    """W45 and a copy of it as W46, both finished, with data reaching W47."""
+
+    def weekly(self) -> list[WeeklyRow]:
+        rows = super().weekly()
+        return rows + [replace(w, week_start=date(2026, 11, 9)) for w in rows]
+
+    def latest_minute_london(self) -> datetime | None:
+        return datetime(2026, 11, 16, 0, 5)
+
+
+def test_index_lists_the_archive_and_the_lines() -> None:
+    # Asking for the newest week still writes every complete week before it.
+    _, outputs = export.build_outputs(Later(FIXTURES), date(2026, 11, 9), STAMP)
+    docs = {o.path: o.document for o in outputs}
+    index = docs["meta/index.json"]
+    validate(index, "index")
+    assert index["latest_week"] == "2026-W46"
+    assert [w["iso_week"] for w in index["weeks"]] == ["2026-W46", "2026-W45"]
+    # Every listed file is written in the same run, and nothing archived is unlisted.
+    listed = {w["path"] for w in index["weeks"]} | {line["path"] for line in index["lines"]}
+    assert listed <= set(docs)
+    assert {p for p in docs if p.startswith("league/2")} == {w["path"] for w in index["weeks"]}
+    assert index["data_window"] == {
+        "start": "2026-11-02",
+        "end": "2026-11-15",
+        "timezone": "Europe/London",
+        "iso_week": None,
+    }
+    assert index["data_through"] == "2026-11-16T00:05:00"
+    names = [line["line_name"] for line in index["lines"]]
+    assert names == sorted(names) and len(names) == 20
+    victoria = next(line for line in index["lines"] if line["line_id"] == "victoria")
+    assert victoria == {
+        "line_id": "victoria",
+        "line_name": "Victoria",
+        "mode": "tube",
+        "colour": "#00A3E0",
+        "is_low_volume": False,
+        "path": "lines/victoria.json",
+    }
+
+
+def test_index_before_the_first_complete_week(marts: RecordedMarts) -> None:
+    _, outputs = export.build_outputs(marts, WEEK, STAMP, allow_incomplete=True)
+    index = next(o.document for o in outputs if o.path == "meta/index.json")
+    validate(index, "index")
+    # The partial week is written under its own name but not archived.
+    assert index["latest_week"] is None and index["weeks"] == []
+    assert index["data_window"]["iso_week"] == "2026-W45"
+    assert index["completeness"] is None
 
 
 def test_git_sha_marks_a_dirty_checkout(monkeypatch: pytest.MonkeyPatch) -> None:
