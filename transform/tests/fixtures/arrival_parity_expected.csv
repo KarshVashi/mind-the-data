@@ -29,7 +29,8 @@ request_path,naptan_id,line_id,platform_name,direction,arrival_time,rule,last_po
 /StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,victoria,Southbound - Platform 5,inbound,2026-11-06 08:06:26,at_platform,poll-007,-727108040,0,46
 /StopPoint/940GZZLUOXC/Arrivals,940GZZLUOXC,victoria,Southbound - Platform 5,inbound,2026-11-06 08:08:31,left_board,poll-009,-727435720,6,48
 /StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Due,outbound,2026-11-06 09:01:50,at_platform,poll-903,u1,0,30
-/StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Dup,outbound,2026-11-06 09:02:00,left_board,poll-901,d3,120,160
+/StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Dup,outbound,2026-11-06 09:01:30,left_board,poll-901,d1,90,130
+/StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Edge,outbound,2026-11-06 09:02:00,left_board,poll-901,e1,120,160
 /StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Match,outbound,2026-11-06 09:05:00,at_platform,poll-906,m2,0,40
 /StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Match,outbound,2026-11-06 09:06:45,left_board,poll-906,m1,104,141
 /StopPoint/940GZZTEST/Arrivals,940GZZTEST,victoria,Two,outbound,2026-11-06 09:06:05,left_board,poll-906,x1,64,105

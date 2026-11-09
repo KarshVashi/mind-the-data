@@ -3,12 +3,12 @@
 -- prediction id alone, staging lost 84% of DLR rows and up to 38% at Tube
 -- termini (docs/data-quality/2026-11-08-week-one.md, Q5). Raw predictions
 -- are counted per line and day, a prediction being the id plus line, stop,
--- platform, direction, vehicle, destination and expected arrival (D44), and
+-- platform, direction, vehicle, destination and expected arrival (D45), and
 -- compared with staged rows. TfL does list one prediction twice (8% of
 -- Piccadilly rows overnight, one copy without currentLocation), so raw
 -- rows are not counted one for one. Fewer staged rows means a key narrower
 -- than a prediction; more means rows left behind by an older key (a merge
--- after a key change without a full refresh, D44).
+-- after a key change without a full refresh, D45).
 -- Today and the two UTC days before it are checked, read as literal `dt` values so
 -- partition projection prunes the raw scan (about 50 MB a day). Polls from
 -- the last 15 minutes are skipped: within one build, raw can hold a poll
@@ -64,14 +64,14 @@ raw_rows as (
 staged_rows as (
     select
         dt,
-        line_id,
+        coalesce(line_id, '<null>') as line_id,
         count(*) as staged_predictions
     from {{ ref('stg_arrivals') }}
     where
         dt >= date '{{ first_day }}'
         and polled_at
         < date_add('minute', -15, cast(current_timestamp at time zone 'UTC' as timestamp(6)))
-    group by dt, line_id
+    group by dt, coalesce(line_id, '<null>')
 )
 
 select

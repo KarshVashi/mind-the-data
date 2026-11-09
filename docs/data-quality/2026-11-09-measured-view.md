@@ -1,6 +1,6 @@
 # Measured view on dev, first build (M4)
 
-Date: 2026-11-09. Data: dev, 2026-11-04 to 2026-11-08, after the `stg_arrivals` key fix (D44). Models: `int_inferred_arrivals`, `int_headways`, `int_measured_hours`, `fct_line_weekly`. Settings as recommended by the [week-one review](2026-11-08-week-one.md) and pending the owner: vehicle-id linking on Victoria only (D27), time to go from the poll (D39), DLR, tram, Waterloo & City and Suffragette not measured (D42).
+Date: 2026-11-09. Data: dev, 2026-11-04 to 2026-11-08, after the `stg_arrivals` key fix (D45). Models: `int_inferred_arrivals`, `int_headways`, `int_measured_hours`, `fct_line_weekly`. Settings as recommended by the [week-one review](2026-11-08-week-one.md) and pending the owner: vehicle-id linking on Victoria only (D27), time to go from the poll (D40), DLR, tram, Waterloo & City and Suffragette not measured (D43).
 
 ## Staging fix
 
@@ -50,14 +50,14 @@ Core-station hours on measured Tube lines, observed hours only:
 | Thu 5 to Sat 7 Nov | 3,693 | 65.6% |
 | Mon 2 to Sun 8 Nov | 6,057 | 66.2% |
 
-Per line, 5 to 7 November, core stations: Jubilee 88.3%, Northern 87.5%, Central 80.9%, Piccadilly 72.3%, Bakerloo 71.1%, Victoria 70.7%, Metropolitan 62.6%, District 54.4%, Circle 48.0%, Hammersmith & City 30.8%. The target is 80%. `assert_measured_hours_pass_the_gate` reports this as a warning (D43).
+Per line, 5 to 7 November, core stations: Jubilee 88.3%, Northern 87.5%, Central 80.9%, Piccadilly 72.3%, Bakerloo 71.1%, Victoria 70.7%, Metropolitan 62.6%, District 54.4%, Circle 48.0%, Hammersmith & City 30.8%. The target is 80%. `assert_measured_hours_pass_the_gate` reports this as a warning (D44).
 
 The remaining shortfall is mostly undercounting on lines that do not yet link by vehicle id, and the Circle, Hammersmith & City and Metropolitan boards, which share platforms and do not line up with their timetables. Next steps: the Monday 9 November check for the other Tube lines (D27), then re-run this page.
 
 ## Excluded lines
 
-DLR, tram, Waterloo & City and Suffragette: `not_measured` in `fct_line_weekly` (D42). The Elizabeth line and Overground are measured against fallback frequencies (D33); a pass there is weak evidence.
+DLR, tram, Waterloo & City and Suffragette: `not_measured` in `fct_line_weekly` (D43). The Elizabeth line and Overground are measured against fallback frequencies (D33); a pass there is weak evidence.
 
 ## Caution on long gaps and the Honesty Gap
 
-A train the inference misses joins two gaps into one. With the gate at 80% to 90% of the timetable, long gaps read high: 19 to 99 per 100 measured hours on Tube lines for the week of 2 November, and the Honesty Gap at 35% to 81% of Good Service hours. Excess wait is plausible (Tube lines 0.5 to 1.2 minutes). None of these are results until the gate passes (D41).
+A train the inference misses joins two gaps into one. With the gate at 80% to 90% of the timetable, long gaps read high: 19 to 99 per 100 measured hours on Tube lines for the week of 2 November, and the Honesty Gap at 35% to 81% of Good Service hours. Excess wait is plausible (Tube lines 0.5 to 1.2 minutes). None of these are results until the gate passes (D42).

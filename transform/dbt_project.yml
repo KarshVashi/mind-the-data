@@ -45,7 +45,7 @@ vars:
   # The M4 gate test fails when more than this share of core-station hours
   # on measured Tube lines fall outside the band.
   gate_max_out_of_band_share: 0.3
-  # `warn` until the M4 acceptance passes (DECISIONS.md D43), then `error`.
+  # `warn` until the M4 acceptance passes (DECISIONS.md D44), then `error`.
   gate_test_severity: warn
   # A headway is dropped, not read as a long gap, when the station went
   # longer than this between successful arrivals polls inside it (D28).

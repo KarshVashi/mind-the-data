@@ -342,10 +342,10 @@ models:
       the next successful poll does not carry it on, or when it is due at the
       end of the input; two arrivals on a board within 45 s are one (board
       flicker). Time to go is `expected_arrival - polled_at`, not TfL's
-      stale `time_to_station` (D39). Placeholder vehicle ids (var
+      stale `time_to_station` (D40). Placeholder vehicle ids (var
       `placeholder_vehicle_ids`) count as no id. Arrivals at the end of the
       data are provisional until the next build. Rebuilt in full each run
-      (ADR-012, D24, D40).
+      (ADR-012, D24, D41).
     columns:
       - name: arrival_key
         description: Row key, a hash of (board_key, last_poll_id, arrival_time).
@@ -464,7 +464,7 @@ models:
       previous day's Night Tube hour (D30). An hour is observed with at least
       54 successful arrivals polls and no collection gap; only observed hours
       are gated. An hour counts for Experienced Reliability when its line is
-      measured (seed_measured_lines, D42) and it is inside the band.
+      measured (seed_measured_lines, D43) and it is inside the band.
     columns:
       - name: measured_hour_key
         description: Row key, a hash of (line_id, naptan_id, direction, london_date, london_hour).

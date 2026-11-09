@@ -269,7 +269,7 @@ seeds:
       week-one review's recommendation (docs/data-quality/2026-11-08-week-one.md):
       the DLR, trams, Waterloo & City and the Suffragette line are not
       measured. Waiting for the owner, as `decision_status` shows
-      (DECISIONS.md D42).
+      (DECISIONS.md D43).
     columns:
       - name: line_id
         description: TfL line id.
@@ -286,5 +286,5 @@ seeds:
       - name: reason
         description: Why a line is not measured; empty when it is.
       - name: decision_status
-        description: "`pending_owner` until the owner settles D42; then the date and outcome."
+        description: "`pending_owner` until the owner settles D43; then the date and outcome."
         data_tests: [not_null]

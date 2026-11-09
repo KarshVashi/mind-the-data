@@ -65,8 +65,12 @@ def test_fixture_exercises_every_rule() -> None:
         for r in expected
         if "940GZZTEST" in r["request_path"]
     }
-    # 120 s to go exactly is an arrival; the 14 s duplicate is gone.
-    assert synthetic[("Dup", "d3")]["last_seconds_to_arrival"] == "120"
+    # Exactly 15 s apart is a duplicate: d2 (15 s after d1) is dropped, and
+    # so is d3 (15 s after d2), because each row is compared with the row
+    # before it. d1 is the arrival.
+    assert {key for key in synthetic if key[0] == "Dup"} == {("Dup", "d1")}
+    # 120 s to go exactly is an arrival.
+    assert synthetic[("Edge", "e1")]["last_seconds_to_arrival"] == "120"
     # Due 10 s before the poll: floored to 0, at the platform.
     assert synthetic[("Due", "u1")]["rule"] == "at_platform"
     # A 45 s move links, so m1 ends once, in the later poll.

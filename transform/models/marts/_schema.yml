@@ -170,7 +170,7 @@ models:
       - name: rank_movement
         description: previous rank minus this rank; positive means the line climbed.
       - name: is_measured
-        description: seed_measured_lines scores the line in the measured view (D42).
+        description: seed_measured_lines scores the line in the measured view (D43).
         data_tests: [not_null]
       - name: measurement_status
         description: >
@@ -187,7 +187,7 @@ models:
       - name: measured_share
         description: measured_hours / scheduled_measurement_hours; the measured view's coverage.
       - name: is_measured_provisional
-        description: measured_share below `min_measured_share` (0.5); the line gets no experienced_rank (D41).
+        description: measured_share below `min_measured_share` (0.5), so the line gets no experienced_rank (D42); null when the line is not measured.
       - name: excess_wait_hours
         description: Measured hours with at least one in-service headway, the denominator of excess_wait_minutes.
       - name: observed_measurement_hours
@@ -202,7 +202,7 @@ models:
       - name: long_gaps
         description: Headways over twice the longest scheduled gap of their hour (D34), in measured hours.
       - name: long_gaps_per_100_hours
-        description: long_gaps per 100 measured station-direction-hours (D41).
+        description: long_gaps per 100 measured station-direction-hours (D42).
       - name: honesty_gap_hours
         description: >
           PLAN 7.3 Honesty Gap: London hours in which the line's declared

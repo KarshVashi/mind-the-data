@@ -7,7 +7,7 @@
 -- Measured-view metrics (PLAN 7.3) come from int_measured_hours, using only
 -- station-direction-hours that pass the quality gate on measured lines
 -- (PLAN 7.2). A line seed_measured_lines leaves out is flagged
--- `not_measured` and carries no measured numbers (D42).
+-- `not_measured` and carries no measured numbers (D43).
 
 with weekly as (
     select
@@ -54,7 +54,7 @@ recovery_medians as (
 measured_weekly as (
     -- Each station-direction-hour is one hour of service at one platform
     -- pair, so a plain mean over hours is the mean weighted by service
-    -- hours (D41).
+    -- hours (D42).
     select
         line_id,
         week_start,
@@ -178,8 +178,11 @@ ranked as (
     select
         *,
         completeness < {{ var('provisional_completeness') }} as is_provisional,
-        -- Too few gated hours to rank the line on the measured view (D41).
-        coalesce(measured_share, 0) < {{ var('min_measured_share') }} as is_measured_provisional,
+        -- Too few gated hours to rank the line on the measured view (D42).
+        if(
+            is_measured,
+            coalesce(measured_share, 0) < {{ var('min_measured_share') }}
+        ) as is_measured_provisional,
         -- Lowest Disruption Index first; equal indexes are split by the
         -- higher Good Service %, and still-equal lines share a rank.
         if(

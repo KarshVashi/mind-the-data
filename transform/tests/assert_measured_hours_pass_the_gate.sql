@@ -7,7 +7,7 @@
 -- a poller gap is missing data, not a failed hour.
 --
 -- Severity comes from the var `gate_test_severity`, `warn` until the M4
--- acceptance passes and the owner settles D43; a failing gate then shows in
+-- acceptance passes and the owner settles D44; a failing gate then shows in
 -- every build without stopping the daily transform.
 
 with recent as (

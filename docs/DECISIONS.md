@@ -238,8 +238,8 @@ These come from the M4 bundle (`feat/m4-measured-view`). They are readings of PL
   - link held trains when vehicle ids agree only (D27);
   - cap the arrival time at the first 0 s sighting, which needs the whole chain and is not set-based.
 - **Recommendation:** use vehicle-id linking on the Tube lines where the review finds ids stable. It removes the held-train bias. Settle the rest after the review measures expected-arrival drift in the last 120 s.
-- **Week-one review (2026-11-08):** keep the mutual-nearest and standing links, link by vehicle id on enabled lines, and read time to go from the poll (D39). Keep the 45 s collapse and 60 s polling (ADR-002).
-- **Code now (2026-11-09):** the review's recommendation, in the reference and in `int_inferred_arrivals`: vehicle-id linking on the lines `seed_vehicle_id_lines` enables (Victoria only, D27), time to go from the poll (D39), the 45 s rules unchanged. Pending the owner.
+- **Week-one review (2026-11-08):** keep the mutual-nearest and standing links, link by vehicle id on enabled lines, and read time to go from the poll (D40). Keep the 45 s collapse and 60 s polling (ADR-002).
+- **Code now (2026-11-09):** the review's recommendation, in the reference and in `int_inferred_arrivals`: vehicle-id linking on the lines `seed_vehicle_id_lines` enables (Victoria only, D27), time to go from the poll (D40), the 45 s rules unchanged. Pending the owner.
 
 ### D27. Which lines link sightings by vehicle id
 
@@ -322,21 +322,21 @@ These come from the M4 bundle (`feat/m4-measured-view`). They are readings of PL
 - **Recommendation for `int_headways`:** use the longest scheduled gap in the hour. Then a long gap is one that no scheduled gap that hour comes near, which is the conservative reading for the Honesty Gap headline.
 - **Alternative:** the mean, which flags more gaps.
 
-### D39. Time to go is read from the poll, not TfL's `time_to_station`
+### D40. Time to go is read from the poll, not TfL's `time_to_station`
 
 - **Context:** the week-one review (Q4) found `time_to_station` counts from the prediction's own timestamp, about 40 s before the poll, and repeats between polls. A train whose last sighting shows 121 s can be 16 s from the platform, so the 120 s arrival rule dropped it.
 - **Implemented:** every time-to-go rule (the 120 s threshold, "shows 0", the standing link) reads `expected_arrival - polled_at` in whole seconds, truncated as Athena's `date_diff` does and floored at 0. TfL's figure stays on the output as `last_time_to_station`. On the Victoria check this is the review's variant C (+2.7 points over variant B).
 - **Alternatives:** keep `time_to_station` and raise the threshold to 180 s (variant B gains 2.5 points).
 - **Class:** `never-default` (metric semantics). **Recommendation:** keep.
 
-### D40. Measured-view models rebuild in full
+### D41. Measured-view models rebuild in full
 
 - **Context:** PLAN 6.1 makes intermediate models incremental merges. An inferred arrival depends only on its poll and the station's next one, but an arrival at the end of the data is provisional, and a merge cannot remove one that a later poll turns into a moving train.
 - **Implemented:** `int_inferred_arrivals`, `int_headways` and `int_measured_hours` are tables rebuilt each run, as D24 did for the declared view (ADR-012, proposed). On dev, `int_inferred_arrivals` builds in about 20 s from five days of staging.
 - **Cost:** the build reads ten columns of `stg_arrivals` over all history, about 1.4 million rows a day; a year is about 0.5 billion rows. Once the scan passes about 5 GB a run, switch to an incremental merge that rewrites whole days and trims the last 30 minutes of each run.
 - **Class:** `never-default` (deviates from the plan). **Recommendation:** accept for now, revisit in M7.
 
-### D41. How the measured view aggregates
+### D42. How the measured view aggregates
 
 - **Context:** PLAN 7.2 and 7.3 leave the grain of the gate and the denominators open.
 - **Implemented:**
@@ -351,21 +351,21 @@ These come from the M4 bundle (`feat/m4-measured-view`). They are readings of PL
 - **Alternatives:** gate per line-hour pooled over stations; long gaps per 100 scheduled service hours from `dim_service_hours`.
 - **Class:** `never-default` (metric semantics). **Recommendation:** keep the grain; do not publish the Honesty Gap before the gate passes.
 
-### D42. Lines that are not measured
+### D43. Lines that are not measured
 
 - **Context:** the week-one review found four lines that cannot be measured as things stand.
 - **Implemented:** `seed_measured_lines` sets `is_measured = false` for the DLR (no vehicle ids, minute-quantised estimates, 30% to 135% of the timetable), the tram (closures and unscheduled directions), Waterloo & City (both stations are termini) and the Suffragette line (closed at both stations during the review). `fct_line_weekly` shows them as `not_measured` with no measured numbers or rank. Every row is `pending_owner`; flip the flag and rebuild to change one.
 - **Alternatives:** measure the DLR at Canning Town only; keep the tram and Suffragette in once their closures end (after 10 November).
 - **Class:** `never-default` (metric semantics, publishing). **Recommendation:** keep until the review is re-run on fixed staging and after the closures.
 
-### D43. The M4 gate test warns until the acceptance passes
+### D44. The M4 gate test warns until the acceptance passes
 
 - **Context:** PLAN M4 asks for a test that fails when more than 30% of core-station line-hours fall outside 80% to 120%. On 5 to 7 November 65.6% of core-station hours on measured Tube lines are in band (34.4% out); over 2 to 8 November 66.2%. If no hour is observed in the window, the test also reports it, rather than passing. A failing test would stop every daily prod transform.
 - **Implemented:** `assert_measured_hours_pass_the_gate` takes its severity from the var `gate_test_severity`, `warn` for now. Every build shows the shortfall without blocking the declared view.
 - **Alternatives:** `error` now, which stops `transform-daily` until the gate passes.
 - **Class:** `never-default` (deviates from the plan). **Recommendation:** set it to `error` once the gate passes.
 
-### D44. `stg_arrivals` keys on the prediction, and prod needs a full refresh
+### D45. `stg_arrivals` keys on the prediction, and prod needs a full refresh
 
 - **Context:** the week-one review (Q5) found `stg_arrivals` keyed on `(poll_id, request_path, prediction_id)`. TfL's id is not unique on a board: every DLR prediction at a station shares one id, and a train that terminates and leaves again keeps its id on two platforms. On 6 November staging dropped 83.7% of DLR rows and up to 38% at Tube termini. This is a bug fix to merged M2 staging.
 - **Implemented:** the key adds line, stop, platform, direction, vehicle, destination and expected arrival. On dev, 6 November goes from 1,250,353 to 1,444,004 rows against 1,444,816 raw (the 812 left are the same prediction listed twice). `assert_staged_arrivals_match_raw` fails when staged rows differ from the distinct raw predictions of any line-day, either way: fewer means a key narrower than a prediction, more means rows left by an older key. TfL does list one prediction twice (8% of Piccadilly rows overnight), so raw rows are not compared one for one.

@@ -8,14 +8,14 @@
 -- twin of src/mind_the_data/analysis/arrivals.py, which is the oracle: both
 -- must give the same arrivals on the same input (tests/unit/test_arrival_parity.py
 -- and the unit test int_inferred_arrivals_matches_the_reference). Each step
--- below names the rule it mirrors; DECISIONS.md D25 to D28 and D39 explain
+-- below names the rule it mirrors; DECISIONS.md D25 to D28 and D40 explain
 -- the readings.
 --
 -- Every comparison runs on integer milliseconds, as the reference does, so a
 -- value exactly on a tolerance falls the same side in both.
 --
 -- Rebuilt in full each run, like the other intermediate models (ADR-012,
--- D24; DECISIONS.md D40): an arrival depends only on its poll and the
+-- D24; DECISIONS.md D41): an arrival depends only on its poll and the
 -- station's next successful poll, but an arrival at the end of the input is
 -- provisional, and a merge could not remove one that a later poll turns
 -- into a moving train.
@@ -74,7 +74,7 @@ predictions as (
             else arrivals.vehicle_id
         end as vehicle_id,
         vehicle_id_lines.line_id is not null as links_by_vehicle_id,
-        -- Time to go as of the poll, not TfL's stale time_to_station (D39).
+        -- Time to go as of the poll, not TfL's stale time_to_station (D40).
         greatest(0, date_diff('second', polls.polled_at, arrivals.expected_arrival))
             as seconds_to_arrival,
         {{ row_key([

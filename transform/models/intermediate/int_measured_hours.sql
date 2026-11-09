@@ -18,7 +18,7 @@
 -- gate is scored on observed hours only: a poller gap is missing data,
 -- never a failed hour. An observed hour counts toward
 -- Experienced Reliability when its line is measured (seed_measured_lines,
--- D42) and inferred trains are within the gate band of the scheduled ones.
+-- D43) and inferred trains are within the gate band of the scheduled ones.
 
 with stations as (
     select

@@ -52,7 +52,7 @@ chain-derived fields of ``InferredArrival`` (``first_seen_at``,
 not TfL's ``time_to_station``. That is relative to the prediction's own
 timestamp, about 40 s older than the poll, and repeats between polls, so a
 train whose last sighting shows 121 s may be 16 s from the platform
-(week-one review, Q4; DECISIONS.md D39). ``time_to_station`` is kept on the
+(week-one review, Q4; DECISIONS.md D40). ``time_to_station`` is kept on the
 output for diagnosis only.
 
 "Next poll" means the station's next *successful* poll. When polls failed in
