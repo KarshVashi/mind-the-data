@@ -170,3 +170,25 @@ def test_vehicle_id_lines_cover_every_line_once() -> None:
     assert sorted(row["line_id"] for row in rows) == sorted(line_ids)
     assert {row["link_by_vehicle_id"] for row in rows} <= {"true", "false"}
     assert all(row["decision_status"] for row in rows)
+
+
+def test_measurement_stations_seed_matches_config() -> None:
+    expected = [
+        {
+            "line_id": station.line_id,
+            "naptan_id": station.naptan_id,
+            "station_name": station.name,
+            "role": station.role.value,
+        }
+        for station in load_stations(ROOT / "config" / "stations.yaml")
+    ]
+    assert read_seed("seed_measurement_stations") == expected
+
+
+def test_measured_lines_cover_every_line_and_give_a_reason_when_off() -> None:
+    rows = read_seed("seed_measured_lines")
+    line_ids = [line.id for line in load_lines(ROOT / "config" / "lines.yaml")]
+    assert sorted(row["line_id"] for row in rows) == sorted(line_ids)
+    for row in rows:
+        assert row["is_measured"] in {"true", "false"}
+        assert (row["is_measured"] == "false") == bool(row["reason"]), row

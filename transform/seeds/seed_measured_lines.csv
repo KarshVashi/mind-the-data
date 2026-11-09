@@ -1,0 +1,21 @@
+line_id,is_measured,reason,decision_status
+bakerloo,true,,pending_owner
+central,true,,pending_owner
+circle,true,,pending_owner
+district,true,,pending_owner
+hammersmith-city,true,,pending_owner
+jubilee,true,,pending_owner
+metropolitan,true,,pending_owner
+northern,true,,pending_owner
+piccadilly,true,,pending_owner
+victoria,true,,pending_owner
+waterloo-city,false,both measurement stations are termini: no timetable for arriving trains and nothing to measure,pending_owner
+elizabeth,true,,pending_owner
+dlr,false,no vehicle ids and minute-quantised estimates; inferred counts 30% to 135% of timetable,pending_owner
+tram,false,closures and unscheduled directions leave too few hours,pending_owner
+liberty,true,,pending_owner
+lioness,true,,pending_owner
+mildmay,true,,pending_owner
+suffragette,false,line closed at both measurement stations during the review,pending_owner
+weaver,true,,pending_owner
+windrush,true,,pending_owner

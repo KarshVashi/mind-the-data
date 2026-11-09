@@ -239,3 +239,52 @@ seeds:
         data_tests: [not_null]
       - name: review_recommendation
         description: The week-one review's advice for the line.
+
+  - name: seed_measurement_stations
+    description: >
+      Measurement stations per line with their role (core, branch,
+      terminus), copied from config/stations.yaml; a unit test keeps the two
+      in step. The M4 quality gate is judged on core stations (PLAN M4).
+    columns:
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Station-level NaPTAN id whose board is polled.
+        data_tests: [not_null]
+      - name: station_name
+        description: Station name.
+      - name: role
+        description: "`core`, `branch` or `terminus` (config/stations.yaml)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [core, branch, terminus]
+
+  - name: seed_measured_lines
+    description: >
+      Which lines the measured view scores. A line set to false gets a
+      "not measured" flag in fct_line_weekly instead of numbers. Set to the
+      week-one review's recommendation (docs/data-quality/2026-11-08-week-one.md):
+      the DLR, trams, Waterloo & City and the Suffragette line are not
+      measured. Waiting for the owner, as `decision_status` shows
+      (DECISIONS.md D42).
+    columns:
+      - name: line_id
+        description: TfL line id.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('lines')
+                field: line_id
+      - name: is_measured
+        description: True to score the line in the measured view.
+        data_tests: [not_null]
+      - name: reason
+        description: Why a line is not measured; empty when it is.
+      - name: decision_status
+        description: "`pending_owner` until the owner settles D42; then the date and outcome."
+        data_tests: [not_null]

@@ -38,6 +38,18 @@ vars:
   # Vehicle ids several trains share at once (week-one review, Q2): read as
   # no id by int_inferred_arrivals, as by the Python reference.
   placeholder_vehicle_ids: ["000", "001"]
+  # PLAN 7.2 quality gate: a station-direction-hour counts only when its
+  # inferred trains are within this share of the scheduled trains.
+  gate_low_ratio: 0.8
+  gate_high_ratio: 1.2
+  # The M4 gate test fails when more than this share of core-station hours
+  # on measured Tube lines fall outside the band.
+  gate_max_out_of_band_share: 0.3
+  # `warn` until the M4 acceptance passes (DECISIONS.md D43), then `error`.
+  gate_test_severity: warn
+  # A headway is dropped, not read as a long gap, when the station went
+  # longer than this between successful arrivals polls inside it (D28).
+  collection_gap_seconds: 150
   # analyses/league_preview.sql: a week to show instead of the latest
   # complete one ('YYYY-MM-DD', a Monday).
   preview_week_start: null
@@ -104,6 +116,18 @@ seeds:
       +column_types:
         schedule_name: varchar
         day_type: varchar
+    seed_measurement_stations:
+      +column_types:
+        line_id: varchar
+        naptan_id: varchar
+        station_name: varchar
+        role: varchar
+    seed_measured_lines:
+      +column_types:
+        line_id: varchar
+        is_measured: boolean
+        reason: varchar
+        decision_status: varchar
     seed_vehicle_id_lines:
       +column_types:
         line_id: varchar

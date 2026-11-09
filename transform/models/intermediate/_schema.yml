@@ -405,3 +405,129 @@ models:
       - name: dt
         description: UTC date of arrival_time.
         data_tests: [not_null]
+
+  - name: int_headways
+    description: >
+      Gaps between consecutive inferred arrivals per line, measurement
+      station and direction (PLAN 6.2, 7.3), platforms pooled (D29). Only the
+      lines each station is measured for, and only boards with a direction:
+      null-direction boards list trains arriving to terminate, which have no
+      timetable. A gap belongs to the London hour of the arrival that ends
+      it (D30). A gap across a collection gap at the station is flagged and
+      left out of the metrics (D28).
+    columns:
+      - name: headway_key
+        description: arrival_key of the arrival that ends the gap.
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Measurement station.
+        data_tests: [not_null]
+      - name: request_path
+        description: TfL path requested for the station.
+        data_tests: [not_null]
+      - name: direction
+        description: "`inbound` or `outbound`."
+        data_tests: [not_null]
+      - name: previous_arrival_time
+        description: Arrival that starts the gap, UTC.
+        data_tests: [not_null]
+      - name: arrival_time
+        description: Arrival that ends the gap, UTC.
+        data_tests: [not_null]
+      - name: headway_seconds
+        description: Gap in seconds.
+        data_tests: [not_null]
+      - name: spans_collection_gap
+        description: The station went more than `collection_gap_seconds` between successful polls inside the gap.
+        data_tests: [not_null]
+      - name: london_ts
+        description: arrival_time in London time.
+      - name: london_date
+        description: London date of arrival_time.
+      - name: london_hour
+        description: London hour of arrival_time, which owns the gap (D30).
+      - name: week_start
+        description: Monday of the London ISO week.
+
+  - name: int_measured_hours
+    description: >
+      The measured view per line x measurement station x direction x London
+      date x London hour, for every hour with scheduled service on a day the
+      collector ran (PLAN 7.2, 7.3). Holds the PLAN 7.2 quality gate
+      (inferred against scheduled trains), headway sums, long gaps and
+      excess wait. Scheduled service adds the day's service hour and the
+      previous day's Night Tube hour (D30). An hour is observed with at least
+      54 successful arrivals polls and no collection gap; only observed hours
+      are gated. An hour counts for Experienced Reliability when its line is
+      measured (seed_measured_lines, D42) and it is inside the band.
+    columns:
+      - name: measured_hour_key
+        description: Row key, a hash of (line_id, naptan_id, direction, london_date, london_hour).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Measurement station.
+        data_tests: [not_null]
+      - name: request_path
+        description: TfL path requested for the station.
+      - name: direction
+        description: "`inbound` or `outbound`."
+        data_tests: [not_null]
+      - name: role
+        description: Station role from config/stations.yaml; the M4 gate is judged on `core`.
+        data_tests: [not_null]
+      - name: london_date
+        description: London date.
+        data_tests: [not_null]
+      - name: london_hour
+        description: London hour, 0 to 23.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London ISO week.
+      - name: is_line_measured
+        description: seed_measured_lines scores the line.
+        data_tests: [not_null]
+      - name: is_fallback
+        description: Scheduled service comes from seed_line_frequencies (D33); a gate pass is weak evidence.
+      - name: successful_polls
+        description: Successful arrivals polls of the station in the hour.
+      - name: is_observed
+        description: At least 54 successful polls and no collection gap in the hour.
+        data_tests: [not_null]
+      - name: scheduled_departures
+        description: Scheduled trains in the hour.
+        data_tests: [not_null]
+      - name: inferred_arrivals
+        description: Inferred arrivals in the hour, platforms pooled.
+        data_tests: [not_null]
+      - name: arrival_ratio
+        description: inferred_arrivals / scheduled_departures.
+      - name: is_in_band
+        description: Observed and arrival_ratio within `gate_low_ratio` to `gate_high_ratio` (0.8 to 1.2).
+        data_tests: [not_null]
+      - name: counts_for_reliability
+        description: The line is measured and the hour is in band; only these hours feed fct_line_weekly's measured metrics.
+        data_tests: [not_null]
+      - name: headways
+        description: Observed headways ending in the hour, gaps across collection gaps left out.
+      - name: sum_headway_seconds
+        description: Sum of those headways.
+      - name: sum_headway_squared_seconds
+        description: Sum of their squares.
+      - name: max_headway_seconds
+        description: Longest observed headway in the hour.
+      - name: long_gaps
+        description: Headways over twice scheduled_max_headway_seconds (D34).
+      - name: scheduled_max_headway_seconds
+        description: Longest scheduled gap in the hour.
+      - name: actual_average_wait_seconds
+        description: PLAN 7.3 sum(h squared) / (2 x sum(h)) over observed headways.
+      - name: scheduled_average_wait_seconds
+        description: The same over scheduled headways.
+      - name: excess_wait_seconds
+        description: actual minus scheduled average wait; negative kept.
