@@ -1,12 +1,15 @@
--- stg_arrivals must keep (almost) every prediction TfL sent. Column tests
--- pass on a table that silently drops rows: keyed on the prediction id alone,
--- staging lost 84% of DLR rows and up to 38% at Tube termini
--- (docs/data-quality/2026-11-08-week-one.md, Q5). Raw predictions are
--- counted per line and day and compared with staged rows for the same
--- successful requests. The only rows staging may drop are the same
--- prediction listed twice, which the week-one data puts under 0.3% of a
--- line-day, so more than 1% missing fails.
--- The last two UTC days are checked, read as literal `dt` values so
+-- stg_arrivals must hold exactly one row per distinct raw prediction.
+-- Column tests pass on a table that silently drops rows: keyed on the
+-- prediction id alone, staging lost 84% of DLR rows and up to 38% at Tube
+-- termini (docs/data-quality/2026-11-08-week-one.md, Q5). Raw predictions
+-- are counted per line and day, a prediction being the id plus line, stop,
+-- platform, direction, vehicle, destination and expected arrival (D44), and
+-- compared with staged rows. TfL does list one prediction twice (8% of
+-- Piccadilly rows overnight, one copy without currentLocation), so raw
+-- rows are not counted one for one. Fewer staged rows means a key narrower
+-- than a prediction; more means rows left behind by an older key (a merge
+-- after a key change without a full refresh, D44).
+-- Today and the two UTC days before it are checked, read as literal `dt` values so
 -- partition projection prunes the raw scan (about 50 MB a day). Polls from
 -- the last 15 minutes are skipped: within one build, raw can hold a poll
 -- that staging has not read yet.
@@ -35,8 +38,19 @@ with envelopes as (
 raw_rows as (
     select
         envelopes.dt,
-        json_extract_scalar(prediction.prediction_json, '$.lineId') as line_id,
-        count(*) as raw_predictions
+        coalesce(json_extract_scalar(prediction.prediction_json, '$.lineId'), '<null>')
+            as line_id,
+        count(distinct row(
+            envelopes.poll_id,
+            envelopes.request_path,
+            json_extract_scalar(prediction.prediction_json, '$.id'),
+            json_extract_scalar(prediction.prediction_json, '$.naptanId'),
+            nullif(json_extract_scalar(prediction.prediction_json, '$.platformName'), ''),
+            nullif(json_extract_scalar(prediction.prediction_json, '$.direction'), ''),
+            nullif(json_extract_scalar(prediction.prediction_json, '$.vehicleId'), ''),
+            nullif(json_extract_scalar(prediction.prediction_json, '$.destinationNaptanId'), ''),
+            json_extract_scalar(prediction.prediction_json, '$.expectedArrival')
+        )) as raw_predictions
     from envelopes
     cross join
         unnest(cast(json_parse(envelopes.payload) as array(json)))
@@ -44,7 +58,7 @@ raw_rows as (
     where envelopes.envelope_rank = 1
     group by
         envelopes.dt,
-        json_extract_scalar(prediction.prediction_json, '$.lineId')
+        coalesce(json_extract_scalar(prediction.prediction_json, '$.lineId'), '<null>')
 ),
 
 staged_rows as (
@@ -61,13 +75,13 @@ staged_rows as (
 )
 
 select
-    raw_rows.dt,
-    raw_rows.line_id,
-    raw_rows.raw_predictions,
+    coalesce(raw_rows.dt, staged_rows.dt) as dt,
+    coalesce(raw_rows.line_id, staged_rows.line_id) as line_id,
+    coalesce(raw_rows.raw_predictions, 0) as raw_predictions,
     coalesce(staged_rows.staged_predictions, 0) as staged_predictions
 from raw_rows
-left join staged_rows
+full outer join staged_rows
     on
         raw_rows.dt = staged_rows.dt
         and raw_rows.line_id = staged_rows.line_id
-where coalesce(staged_rows.staged_predictions, 0) < 0.99 * raw_rows.raw_predictions
+where coalesce(staged_rows.staged_predictions, 0) != coalesce(raw_rows.raw_predictions, 0)

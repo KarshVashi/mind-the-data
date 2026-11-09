@@ -48,8 +48,10 @@ summary as (
 select
     observed_hours,
     out_of_band_hours,
-    1e0 * out_of_band_hours / observed_hours as out_of_band_share
+    1e0 * out_of_band_hours / nullif(observed_hours, 0) as out_of_band_share
 from summary
+-- No observed hour at all (a collector outage, or every line switched
+-- off) is a failure too, not a silent pass.
 where
-    observed_hours > 0
-    and 1e0 * out_of_band_hours / observed_hours > {{ var('gate_max_out_of_band_share') }}
+    observed_hours = 0
+    or 1e0 * out_of_band_hours / observed_hours > {{ var('gate_max_out_of_band_share') }}
