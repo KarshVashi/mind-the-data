@@ -26,6 +26,9 @@ dev = [
     "respx>=0.22",
     "boto3-stubs[cloudwatch,s3,ssm]>=1.40",
     "hypothesis>=6.170",
+    "playwright>=1.50",
+    "jsonschema>=4.23",
+    "types-jsonschema>=4.23",
 ]
 
 [build-system]

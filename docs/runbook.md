@@ -591,6 +591,19 @@ gh variable set AUTOMERGE_ENABLED --body true    # off again: gh variable delete
 
 ---
 
+## Snapshot for a post
+
+The numbers and share cards for a window of London dates that is not an ISO week (the first post runs Wednesday to Tuesday). Read-only: it queries the prod marts through the dev Athena workgroup as `mtd-dev`, and writes nothing to AWS.
+
+```sh
+AWS_PROFILE=mtd-dev uv run python scripts/post_snapshot.py \
+  --start 2026-11-04 --end 2026-11-10 --out-dir ~/mtd-snapshots/2026-11-11
+```
+
+It writes `numbers.md` (league, Disruption Index, Good Service %, completeness per line, longest incidents, and how far the data reaches), `league.json` (the league contract) and `card.png` / `card-1080x1350.png`. Check `numbers.md` before posting: the provisional flags and the open decisions are listed there. The cards render with Playwright: run `uv run playwright install chromium` once, or pass `--browser-channel chrome` to use a local Google Chrome. A card whose content does not fit is refused, not written.
+
+The weekly files for an ISO week (`league/`, `lines/`, `meta/`, `cards/`) come from `uv run python -m mind_the_data.publish.export --week 2026-W46 --out-dir build/publish`; `--dry-run` validates them against `src/mind_the_data/publish/contract/` and writes nothing. A week that has not finished, or that the data does not yet reach past, is refused; `--allow-incomplete` writes it flagged `is_window_complete: false` and never as `league/latest.json`. Every run also rewrites the league file of every complete week with data, `league/latest.json` (always the newest complete week) and `meta/index.json`, the list of archived weeks and line files that the website reads first (D39, `docs/site-integration.md`). `git_sha` is the publishing checkout's commit, suffixed `-dirty` when it has uncommitted changes. Upload waits for H12.
+
 ## Merge gate
 
 Low-risk pull requests can be merged by the project's engineer without the owner, through a gate (ADR-011). Everything else waits for the owner, as before.
