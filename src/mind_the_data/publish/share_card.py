@@ -30,13 +30,22 @@ class CardSize:
     insight_size: int
 
 
-LANDSCAPE = CardSize("1200x675", 1200, 675, 2, 35, 15, 30, 21)
-PORTRAIT = CardSize("1080x1350", 1080, 1350, 1, 40, 20, 44, 28)
+LANDSCAPE = CardSize("1200x675", 1200, 675, 2, 34, 15, 30, 21)
+PORTRAIT = CardSize("1080x1350", 1080, 1350, 1, 39, 20, 44, 28)
 SIZES = (LANDSCAPE, PORTRAIT)
 
 # Card text is plain ASCII, so no font on any runner can lack a glyph for it
 # (M5 acceptance: no missing glyphs). A test checks the rendered text.
 PROVISIONAL_MARK = "*"
+
+# The card travels without its methodology page, so it names the measure
+# and its direction itself.
+SUBTITLE = (
+    "Ranked by Disruption Index: severity-weighted disruption per 100 service hours. "
+    "Lower is better."
+)
+GOOD_SERVICE_HEADER = "% time reported Good Service"
+INDEX_HEADER = "Disruption Index"
 
 
 class CardOverflow(RuntimeError):
@@ -89,8 +98,9 @@ def _row(standing: Standing) -> str:
 
 def _head() -> str:
     return (
-        '<div class="head"><div></div><div>Line</div><div>Good Service</div>'
-        '<div></div><div class="num">Index</div></div>'
+        '<div class="head"><div></div><div>Line</div>'
+        f'<div class="gs">{escape(GOOD_SERVICE_HEADER)}</div>'
+        f'<div class="num">{escape(INDEX_HEADER)}</div></div>'
     )
 
 
@@ -107,8 +117,8 @@ def footer_lines(league: League) -> list[str]:
         data += f" {completeness:.1%} of scheduled minutes observed."
     notes.append(data)
     notes.append(
-        "Disruption Index: severity-weighted disrupted minutes per 100 service hours "
-        "(peaks x2, weekends x0.75); lower is better. Closures and missing data are left out."
+        "Disruption Index weights: peaks x2, weekends x0.75. "
+        "Closures and missing data are left out."
     )
     if not league.is_complete:
         through = league.latest_data_london
@@ -151,7 +161,7 @@ def card_html(league: League, insight: Insight | None, size: CardSize) -> str:
     )
     insight_text = insight.text if insight is not None else "Weekly reliability, line by line."
     footer = "".join(f"<p>{escape(n)}</p>" for n in footer_lines(league))
-    name_width = 190 if size.columns == 2 else 290
+    name_width = 180 if size.columns == 2 else 280
     values = {
         "width": size.width,
         "height": size.height,
@@ -168,11 +178,13 @@ def card_html(league: League, insight: Insight | None, size: CardSize) -> str:
         "row_size": size.row_size,
         "chip_height": size.row_size + 2,
         "bar_height": 10 if size.columns == 2 else 14,
-        "grid": f"22px {name_width}px 1fr 44px 62px"
+        "grid": f"22px {name_width}px 1fr 44px 84px"
         if size.columns == 2
-        else f"30px {name_width}px 1fr 64px 90px",
+        else f"30px {name_width}px 1fr 64px 120px",
         "kicker": escape("London rail league | " + window_label(*_window(league))),
         "title": escape("How reliable was each line?"),
+        "subtitle": escape(SUBTITLE),
+        "subtitle_size": 15 if size.columns == 2 else 22,
         "insight": escape(insight_text),
         "table": table,
         "footer": footer,
@@ -193,7 +205,8 @@ _OVERFLOW_JS = """
   if (card.scrollHeight > window.innerHeight) {
     problems.push(`card ${card.scrollHeight}px tall > ${window.innerHeight}px`);
   }
-  for (const el of document.querySelectorAll('.name, .num, .table, footer, .insight')) {
+  const checked = '.name, .num, .head > div, .subtitle, .table, footer, .insight';
+  for (const el of document.querySelectorAll(checked)) {
     if (el.scrollWidth > el.clientWidth + 1) {
       problems.push(`${el.className}: "${el.textContent.trim().slice(0, 40)}" is cut off`);
     }

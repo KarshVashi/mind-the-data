@@ -23,6 +23,7 @@ from mind_the_data.publish.share_card import (
     LANDSCAPE,
     PORTRAIT,
     PROVISIONAL_MARK,
+    SUBTITLE,
     CardOverflow,
     card_html,
     footer_lines,
@@ -126,6 +127,21 @@ def test_card_html_has_every_line_and_marks_provisional(league: League) -> None:
     assert "$" not in html.replace("$$", "")  # every placeholder filled
     assert 'class="col"' in html and html.count('class="col"') == 2
     assert card_html(league, None, PORTRAIT).count('class="col"') == 1
+
+
+def test_card_names_the_measure_and_its_direction(league: League) -> None:
+    """A card seen on its own says what is ranked and that lower is better."""
+    assert SUBTITLE == (
+        "Ranked by Disruption Index: severity-weighted disruption per 100 service hours. "
+        "Lower is better."
+    )
+    for size in (LANDSCAPE, PORTRAIT):
+        html = card_html(league, None, size)
+        assert f'<p class="subtitle">{SUBTITLE}</p>' in html
+        columns = html.count('class="col"')
+        assert html.count('<div class="gs">% time reported Good Service</div>') == columns
+        assert html.count('<div class="num">Disruption Index</div>') == columns
+        assert ">Index<" not in html and ">Good Service<" not in html
 
 
 def test_card_html_escapes_text(league: League) -> None:
