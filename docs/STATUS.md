@@ -1,6 +1,6 @@
 # Status
 
-Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in [DECISIONS.md](DECISIONS.md).
+Updated: 2026-11-09. Every PR updates this page. Pending decisions are listed in [DECISIONS.md](DECISIONS.md).
 
 ## Milestones
 
@@ -10,7 +10,7 @@ Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in
 | M1 Collector live | Done, with one gap | Polling since 2026-11-04. The poller's reserved concurrency of 1 is in the M3 bundle (Part 0, ADR-006), now that the quota is 1,000. The deployed acceptance output (`completeness.py --hours 24`, alarm test) is not recorded in the repo yet. |
 | M2 Raw catalog, week-one review | In progress | Staging verified on real data: a dev full refresh passed 114 of 114 (2026-11-08). The autonomy bundle (#23) merged. Left: `dbt source freshness` in the record, and the week-one review. |
 | M3 Disruption Index | In review | All four tasks in one bundle, #27 (`feat/m3-line-minute-metrics`). The four M3 boxes in the local plan are to be ticked in the main checkout (the copy is local-only). Decisions D16 to D24 wait for the owner. The league preview needs a complete week of data, the first being 2 to 8 November (complete at Monday 9 November 00:00 London). |
-| M4 Experienced Reliability | In progress | Branch `feat/m4-measured-view`, one bundled PR later. Done: the arrival inference reference (task 1) and `int_scheduled_headways` with the fallback seed (task 3), built on dev. Left: `int_inferred_arrivals`, `int_headways` and the metrics, the quality gate. They wait for the week-one review. Decisions D25 to D34. |
+| M4 Experienced Reliability | In progress | Branch `feat/m4-measured-view`, one bundled PR later. All five tasks are built on dev: the reference, `int_inferred_arrivals` (identical to the reference on every arrival of 6 and 7 November), `int_scheduled_headways`, `int_headways` with excess wait, long gaps and the Honesty Gap in `fct_line_weekly`, and the quality gate. The week-one review is in `docs/data-quality/`. The acceptance is not met: 65.6% of core-station Tube hours are in band against 80% ([measured view](data-quality/2026-11-09-measured-view.md)). The branch also fixes the `stg_arrivals` key (D44). Decisions D25 to D34 and D39 to D44. |
 | M5 Publish pipeline | Not started | Needs H12 (Cloudflare). |
 | M6 League mechanics | Not started | |
 | M7 Hardening and docs | Not started | |
@@ -22,6 +22,8 @@ Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in
 
 ## Blockers
 
+- **M4 acceptance:** the quality gate is at 65.6% of core-station Tube hours (target 80%). Next: the Monday 9 November check to switch on vehicle-id linking for more Tube lines (D27), then re-run `docs/data-quality/2026-11-09-measured-view.md`.
+
 - **M3 metric definitions:** D16 to D23 are `never-default`. The models implement the recommended reading of each; nothing is published until M5, so they can change with a seed edit and a rebuild.
 - **M3 league preview:** returns a useful week only after Monday 9 November 00:00 London. Re-run it then (below).
 - **M2 acceptance:** about 7 days of data for the week-one review, around 2026-11-11.
@@ -29,6 +31,15 @@ Updated: 2026-11-08. Every PR updates this page. Pending decisions are listed in
 - **ADRs and decisions D1 to D15:** each needs an explicit answer (DECISIONS.md).
 
 ## Owner steps outstanding
+
+0. **After the M4 bundle merges**, rebuild prod `stg_arrivals` on the new key (D44), or it keeps short days and duplicate rows:
+
+   ```sh
+   cd transform
+   AWS_PROFILE=mtd-admin uv run dbt build --target prod --profiles-dir . --full-refresh --select stg_arrivals+
+   ```
+
+   Needs the `DBT_ATHENA_*_PROD` settings in the shell (docs/runbook.md, dbt connection settings). Then answer D39 to D44 and the M4 parts of D25 to D28: the code runs the review's recommendations until then.
 
 1. **Decisions.** Answer the items in DECISIONS.md, in particular D16 to D23 for M3. The `never-default` items wait for you.
 2. **After the M3 bundle merges**, in order:
