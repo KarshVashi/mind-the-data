@@ -443,6 +443,8 @@ models:
       - name: spans_collection_gap
         description: The station went more than `collection_gap_seconds` between successful polls inside the gap.
         data_tests: [not_null]
+      - name: previous_london_ts
+        description: previous_arrival_time in London time.
       - name: london_ts
         description: arrival_time in London time.
       - name: london_date
@@ -497,7 +499,7 @@ models:
       - name: successful_polls
         description: Successful arrivals polls of the station in the hour.
       - name: is_observed
-        description: At least 54 successful polls and no collection gap in the hour.
+        description: At least `min_polls_per_hour` (54) successful polls, no collection gap touching the hour, and one UTC hour (not the October fall-back hour).
         data_tests: [not_null]
       - name: scheduled_departures
         description: Scheduled trains in the hour.

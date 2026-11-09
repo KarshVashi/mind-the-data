@@ -11,14 +11,14 @@
 -- day type (Night Tube), each from the timetable version valid on its own
 -- service day (D30, D32). The sums are additive, so both are added.
 --
--- An hour is observed when the station had at least
--- `min_polls_per_hour` successful arrivals polls in it and no collection
--- gap inside it. The gate is scored on observed hours only: a poller gap
--- is missing data, never a failed hour. An observed hour counts toward
+-- An hour is observed when the station had at least `min_polls_per_hour`
+-- successful arrivals polls in it, no collection gap touches it, and it is
+-- one UTC hour: the October fall-back hour 01:00 happens twice in London
+-- time and would hold two hours of trains against one of timetable. The
+-- gate is scored on observed hours only: a poller gap is missing data,
+-- never a failed hour. An observed hour counts toward
 -- Experienced Reliability when its line is measured (seed_measured_lines,
 -- D42) and inferred trains are within the gate band of the scheduled ones.
-
-{%- set min_polls_per_hour = 54 %}
 
 with stations as (
     select
@@ -36,6 +36,7 @@ polls as (
     select
         request_path,
         polled_at,
+        {{ london_local('polled_at') }} as london_ts,
         lead(polled_at) over (
             partition by request_path order by polled_at, poll_id
         ) as next_polled_at
@@ -49,17 +50,41 @@ polls as (
 poll_hours as (
     select
         request_path,
-        cast({{ london_local('polled_at') }} as date) as london_date,
-        hour({{ london_local('polled_at') }}) as london_hour,
+        cast(london_ts as date) as london_date,
+        hour(london_ts) as london_hour,
         count(*) as successful_polls,
-        coalesce(
-            max(date_diff('millisecond', polled_at, next_polled_at)), 0
-        ) > {{ var('collection_gap_seconds') }} * 1000 as has_collection_gap
+        count(distinct date_trunc('hour', polled_at)) as utc_hours
     from polls
-    group by
-        request_path,
-        cast({{ london_local('polled_at') }} as date),
-        hour({{ london_local('polled_at') }})
+    group by request_path, cast(london_ts as date), hour(london_ts)
+),
+
+gap_hours as (
+    -- Every London hour a collection gap touches, not only the one it
+    -- starts in: a gap from 09:59 to 10:02 leaves both 09:00 and 10:00
+    -- short of trains. least/greatest keep the range ascending across the
+    -- fall-back hour.
+    select distinct
+        gaps.request_path,
+        cast(touched.hour_start as date) as london_date,
+        hour(touched.hour_start) as london_hour
+    from (
+        select
+            request_path,
+            london_ts,
+            {{ london_local('next_polled_at') }} as next_london_ts
+        from polls
+        where
+            date_diff('millisecond', polled_at, next_polled_at)
+            > {{ var('collection_gap_seconds') }} * 1000
+    ) as gaps
+    cross join
+        unnest(
+            sequence(
+                date_trunc('hour', least(gaps.london_ts, gaps.next_london_ts)),
+                date_trunc('hour', greatest(gaps.london_ts, gaps.next_london_ts)),
+                interval '1' hour
+            )
+        ) as touched (hour_start)
 ),
 
 collected_days as (
@@ -154,6 +179,8 @@ in_service_headways as (
     -- A gap counts only when every London hour it spans has scheduled
     -- service at the station and direction, so the overnight break between
     -- the last train and the first is not read as a five-hour gap (D30).
+    -- Each gap is expanded into the hours it spans and equi-joined, so the
+    -- join stays linear in the number of gaps.
     select
         headways.headway_key,
         headways.line_id,
@@ -163,14 +190,21 @@ in_service_headways as (
         headways.london_hour,
         headways.headway_seconds
     from {{ ref('int_headways') }} as headways
-    inner join scheduled
+    cross join
+        unnest(
+            sequence(
+                date_trunc('hour', least(headways.previous_london_ts, headways.london_ts)),
+                date_trunc('hour', greatest(headways.previous_london_ts, headways.london_ts)),
+                interval '1' hour
+            )
+        ) as spanned (hour_start)
+    left join scheduled
         on
             headways.line_id = scheduled.line_id
             and headways.naptan_id = scheduled.naptan_id
             and headways.direction = scheduled.direction
-            and date_add('hour', scheduled.london_hour, cast(scheduled.london_date as timestamp))
-            between date_trunc('hour', {{ london_local('headways.previous_arrival_time') }})
-            and date_trunc('hour', headways.london_ts)
+            and cast(spanned.hour_start as date) = scheduled.london_date
+            and hour(spanned.hour_start) = scheduled.london_hour
     where not headways.spans_collection_gap
     group by
         headways.headway_key,
@@ -179,16 +213,8 @@ in_service_headways as (
         headways.direction,
         headways.london_date,
         headways.london_hour,
-        headways.headway_seconds,
-        headways.previous_arrival_time,
-        headways.london_ts
-    having
-        count(*)
-        = date_diff(
-            'hour',
-            date_trunc('hour', {{ london_local('headways.previous_arrival_time') }}),
-            date_trunc('hour', headways.london_ts)
-        ) + 1
+        headways.headway_seconds
+    having count(scheduled.line_id) = count(*)
 ),
 
 headway_hours as (
@@ -230,8 +256,9 @@ hours as (
         stations.request_path,
         stations.is_line_measured,
         coalesce(poll_hours.successful_polls, 0) as successful_polls,
-        coalesce(poll_hours.successful_polls, 0) >= {{ min_polls_per_hour }}
-        and not coalesce(poll_hours.has_collection_gap, true) as is_observed,
+        coalesce(poll_hours.successful_polls, 0) >= {{ var('min_polls_per_hour') }}
+        and poll_hours.utc_hours = 1
+        and gap_hours.request_path is null as is_observed,
         coalesce(inferred.inferred_arrivals, 0) as inferred_arrivals,
         coalesce(headway_hours.headways, 0) as headways,
         headway_hours.sum_headway_seconds,
@@ -248,6 +275,11 @@ hours as (
             stations.request_path = poll_hours.request_path
             and scheduled.london_date = poll_hours.london_date
             and scheduled.london_hour = poll_hours.london_hour
+    left join gap_hours
+        on
+            stations.request_path = gap_hours.request_path
+            and scheduled.london_date = gap_hours.london_date
+            and scheduled.london_hour = gap_hours.london_hour
     left join inferred
         on
             scheduled.line_id = inferred.line_id

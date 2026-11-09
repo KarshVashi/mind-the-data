@@ -332,3 +332,212 @@ unit_tests:
         - {line_id: victoria, naptan_id: 940GZZLUOXC, direction: inbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 30, headway_count: 30, sum_headway_seconds: 3600, sum_headway_squared_seconds: 432000, mean_headway_seconds: 120, max_headway_seconds: 120, scheduled_average_wait_seconds: 60, is_fallback: true, source_detail: estimate_test}
         - {line_id: liberty, naptan_id: 910GUPMNSTR, direction: inbound, day_type: mon_thu, service_hour: 7, london_hour: 7, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 2, headway_count: 2, sum_headway_seconds: 3600, sum_headway_squared_seconds: 6480000, mean_headway_seconds: 1800, max_headway_seconds: 1800, scheduled_average_wait_seconds: 900, is_fallback: true, source_detail: estimate_test}
         - {line_id: elizabeth, naptan_id: 910GTOTCTRD, direction: outbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 24, headway_count: 24, sum_headway_seconds: 3600, sum_headway_squared_seconds: 540000, mean_headway_seconds: 150, max_headway_seconds: 150, scheduled_average_wait_seconds: 75, is_fallback: true, source_detail: estimate_test}
+
+  - name: int_measured_hours_gate_observation_and_excess_wait
+    description: >
+      Station X (Victoria outbound, core) on Wednesday 4 November 2026, GMT,
+      so London time is UTC. Scheduled: service hour 24 of Tuesday's
+      mon_thu timetable (6 trains, gaps of 600 s) is London hour 0 on the
+      4th (Night Tube rule, D30); hour 5 has 10 trains (gaps 360 s); hours 8
+      and 9 have 30 each (gaps 120 s). Polls every minute from 00:00:10 to
+      05:58:10, then 06:01:10 to 09:52:10.
+      Hour 0: 60 polls, observed; 8 arrivals, 8/6 = 1.33, out of band. One
+      600 s gap: actual wait 600^2/(2 x 600) = 300 s, scheduled 300 s,
+      excess 0. Hour 5: 59 polls and the 05:58:10 to 06:01:10 gap (180 s
+      over 150) touches it, so not observed and never in band. Its gap from
+      00:55 to 05:10 spans unscheduled hours 1 to 4 and is dropped; the 360 s
+      gap counts: excess 180 - 180 = 0. Hour 8: 60 polls, 24 arrivals, 24/30
+      = 0.8 exactly, in band. Gaps 120, 120 and 300 s count (sum 540, squares
+      118,800: actual 110 s, scheduled 60 s, excess 50 s); 300 > 2 x 120 is
+      one long gap; a 600 s gap across a collection gap is left out. Hour 9:
+      53 polls, not observed; its gap from 08:59 to 09:01 spans two scheduled
+      hours and counts. Station Y on Sunday 25 October, the fall-back day:
+      London 01:00 to 01:59 happens twice, 120 polls over two UTC hours and
+      12 arrivals against 6 scheduled (Saturday service hour 25): not
+      observed, so not a gate failure.
+    model: int_measured_hours
+    overrides:
+      vars:
+        raw_start_date: "2026-10-01"
+        collection_gap_seconds: 150
+        min_polls_per_hour: 54
+        gate_low_ratio: 0.8
+        gate_high_ratio: 1.2
+    given:
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: victoria, naptan_id: X, station_name: X, role: core}
+          - {line_id: victoria, naptan_id: Y, station_name: Y, role: core}
+      - input: ref('seed_measured_lines')
+        rows:
+          - {line_id: victoria, is_measured: true}
+      - input: ref('day_types')
+        rows:
+          - {iso_day_of_week: 1, day_type: mon_thu}
+          - {iso_day_of_week: 2, day_type: mon_thu}
+          - {iso_day_of_week: 3, day_type: mon_thu}
+          - {iso_day_of_week: 4, day_type: mon_thu}
+          - {iso_day_of_week: 5, day_type: fri}
+          - {iso_day_of_week: 6, day_type: sat}
+          - {iso_day_of_week: 7, day_type: sun}
+      - input: ref('stg_polls')
+        format: sql
+        rows: |
+          select
+              request_path || format_datetime(polled_at, 'yyyyMMddHHmmss') as poll_id,
+              'arrivals' as feed,
+              request_path,
+              polled_at,
+              200 as http_status,
+              100 as latency_ms,
+              cast(null as varchar) as error,
+              true as is_ok,
+              cast(polled_at as date) as dt,
+              'k' as poll_key,
+              date_trunc('minute', polled_at) as poll_minute
+          from (
+              select '/StopPoint/X/Arrivals' as request_path, polled_at
+              from unnest(
+                  sequence(
+                      timestamp '2026-11-04 00:00:10', timestamp '2026-11-04 05:58:10', interval '1' minute
+                  )
+                  || sequence(
+                      timestamp '2026-11-04 06:01:10', timestamp '2026-11-04 09:52:10', interval '1' minute
+                  )
+              ) as t (polled_at)
+              union all
+              select '/StopPoint/Y/Arrivals', polled_at
+              from unnest(
+                  sequence(
+                      timestamp '2026-10-25 00:00:10', timestamp '2026-10-25 01:59:10', interval '1' minute
+                  )
+              ) as t (polled_at)
+          )
+      - input: ref('int_scheduled_headways')
+        rows:
+          - {line_id: victoria, naptan_id: X, direction: outbound, day_type: mon_thu, service_hour: 24, london_hour: 0, is_next_calendar_day: true, scheduled_departures: 6, sum_headway_seconds: 3600, sum_headway_squared_seconds: 2160000, max_headway_seconds: 600, is_fallback: false}
+          - {line_id: victoria, naptan_id: X, direction: outbound, day_type: mon_thu, service_hour: 5, london_hour: 5, is_next_calendar_day: false, scheduled_departures: 10, sum_headway_seconds: 3600, sum_headway_squared_seconds: 1296000, max_headway_seconds: 360, is_fallback: false}
+          - {line_id: victoria, naptan_id: X, direction: outbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, scheduled_departures: 30, sum_headway_seconds: 3600, sum_headway_squared_seconds: 432000, max_headway_seconds: 120, is_fallback: false}
+          - {line_id: victoria, naptan_id: X, direction: outbound, day_type: mon_thu, service_hour: 9, london_hour: 9, is_next_calendar_day: false, scheduled_departures: 30, sum_headway_seconds: 3600, sum_headway_squared_seconds: 432000, max_headway_seconds: 120, is_fallback: false}
+          - {line_id: victoria, naptan_id: Y, direction: outbound, day_type: sat, service_hour: 25, london_hour: 1, is_next_calendar_day: true, scheduled_departures: 6, sum_headway_seconds: 3600, sum_headway_squared_seconds: 2160000, max_headway_seconds: 600, is_fallback: false}
+      - input: ref('int_inferred_arrivals')
+        rows:
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 00:01:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 00:08:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 00:15:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 00:22:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 00:29:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 00:36:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 00:43:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 00:50:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 05:02:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 05:07:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 05:12:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 05:17:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 05:22:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 05:27:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 05:32:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 05:37:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 05:42:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 05:47:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:00:30"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:03:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:05:30"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:08:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:10:30"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:13:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:15:30"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:18:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:20:30"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:23:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:25:30"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:28:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:30:30"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:33:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:35:30"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:38:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:40:30"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:43:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:45:30"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:48:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:50:30"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:53:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:55:30"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 08:58:00"}
+          - {line_id: victoria, naptan_id: X, direction: outbound, arrival_time: "2026-11-04 09:01:00"}
+          - {line_id: victoria, naptan_id: Y, direction: outbound, arrival_time: "2026-10-25 00:05:00"}
+          - {line_id: victoria, naptan_id: Y, direction: outbound, arrival_time: "2026-10-25 00:15:00"}
+          - {line_id: victoria, naptan_id: Y, direction: outbound, arrival_time: "2026-10-25 00:25:00"}
+          - {line_id: victoria, naptan_id: Y, direction: outbound, arrival_time: "2026-10-25 00:35:00"}
+          - {line_id: victoria, naptan_id: Y, direction: outbound, arrival_time: "2026-10-25 00:45:00"}
+          - {line_id: victoria, naptan_id: Y, direction: outbound, arrival_time: "2026-10-25 00:55:00"}
+          - {line_id: victoria, naptan_id: Y, direction: outbound, arrival_time: "2026-10-25 01:05:00"}
+          - {line_id: victoria, naptan_id: Y, direction: outbound, arrival_time: "2026-10-25 01:15:00"}
+          - {line_id: victoria, naptan_id: Y, direction: outbound, arrival_time: "2026-10-25 01:25:00"}
+          - {line_id: victoria, naptan_id: Y, direction: outbound, arrival_time: "2026-10-25 01:35:00"}
+          - {line_id: victoria, naptan_id: Y, direction: outbound, arrival_time: "2026-10-25 01:45:00"}
+          - {line_id: victoria, naptan_id: Y, direction: outbound, arrival_time: "2026-10-25 01:55:00"}
+      - input: ref('int_headways')
+        rows:
+          - {headway_key: h0, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 00:05:00", london_ts: "2026-11-04 00:15:00", london_date: "2026-11-04", london_hour: 0, headway_seconds: 600, spans_collection_gap: false}
+          - {headway_key: h5a, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 00:55:00", london_ts: "2026-11-04 05:10:00", london_date: "2026-11-04", london_hour: 5, headway_seconds: 15300, spans_collection_gap: false}
+          - {headway_key: h5b, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 05:10:00", london_ts: "2026-11-04 05:16:00", london_date: "2026-11-04", london_hour: 5, headway_seconds: 360, spans_collection_gap: false}
+          - {headway_key: h8a, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 08:10:00", london_ts: "2026-11-04 08:12:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 120, spans_collection_gap: false}
+          - {headway_key: h8b, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 08:12:00", london_ts: "2026-11-04 08:14:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 120, spans_collection_gap: false}
+          - {headway_key: h8c, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 08:14:00", london_ts: "2026-11-04 08:19:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 300, spans_collection_gap: false}
+          - {headway_key: h8d, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 08:19:00", london_ts: "2026-11-04 08:29:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 600, spans_collection_gap: true}
+          - {headway_key: h9, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 08:59:00", london_ts: "2026-11-04 09:01:00", london_date: "2026-11-04", london_hour: 9, headway_seconds: 120, spans_collection_gap: false}
+    expect:
+      rows:
+        - {naptan_id: X, london_date: "2026-11-04", london_hour: 0, scheduled_departures: 6, inferred_arrivals: 8, successful_polls: 60, is_observed: true, is_in_band: false, counts_for_reliability: false, headways: 1, long_gaps: 0, excess_wait_seconds: 0}
+        - {naptan_id: X, london_date: "2026-11-04", london_hour: 5, scheduled_departures: 10, inferred_arrivals: 10, successful_polls: 59, is_observed: false, is_in_band: false, counts_for_reliability: false, headways: 1, long_gaps: 0, excess_wait_seconds: 0}
+        - {naptan_id: X, london_date: "2026-11-04", london_hour: 8, scheduled_departures: 30, inferred_arrivals: 24, successful_polls: 60, is_observed: true, is_in_band: true, counts_for_reliability: true, headways: 3, long_gaps: 1, excess_wait_seconds: 50}
+        - {naptan_id: X, london_date: "2026-11-04", london_hour: 9, scheduled_departures: 30, inferred_arrivals: 1, successful_polls: 53, is_observed: false, is_in_band: false, counts_for_reliability: false, headways: 1, long_gaps: 0, excess_wait_seconds: 0}
+        - {naptan_id: Y, london_date: "2026-10-25", london_hour: 1, scheduled_departures: 6, inferred_arrivals: 12, successful_polls: 120, is_observed: false, is_in_band: false, counts_for_reliability: false, headways: 0, long_gaps: 0, excess_wait_seconds: null}
+
+  - name: int_headways_pools_platforms_and_flags_collection_gaps
+    description: >
+      Station X, Victoria outbound, Wednesday 4 November (GMT). Arrivals at
+      08:00:00, 08:02:00, 08:06:00, 08:08:30 and 08:10:30 on two platforms,
+      pooled into one sequence. A null-direction arrival at 08:01 (a train
+      arriving to terminate) and a Central arrival (X is not a Central
+      measurement station) are left out. Polls skip from 08:03 to 08:07
+      (240 s, over 150 s). Gaps: 120 s; 240 s and 150 s both overlap the
+      collection gap and are flagged; 120 s. Each gap is in the hour of the
+      arrival that ends it.
+    model: int_headways
+    overrides:
+      vars:
+        raw_start_date: "2026-10-01"
+        collection_gap_seconds: 150
+    given:
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: victoria, naptan_id: X, station_name: X, role: core}
+      - input: ref('int_inferred_arrivals')
+        rows:
+          - {line_id: victoria, naptan_id: X, request_path: /StopPoint/X/Arrivals, direction: outbound, platform_name: P1, arrival_time: "2026-11-04 08:00:00", arrival_key: a1}
+          - {line_id: victoria, naptan_id: X, request_path: /StopPoint/X/Arrivals, direction: null, platform_name: P3, arrival_time: "2026-11-04 08:01:00", arrival_key: t1}
+          - {line_id: central, naptan_id: X, request_path: /StopPoint/X/Arrivals, direction: outbound, platform_name: P9, arrival_time: "2026-11-04 08:01:30", arrival_key: c1}
+          - {line_id: victoria, naptan_id: X, request_path: /StopPoint/X/Arrivals, direction: outbound, platform_name: P2, arrival_time: "2026-11-04 08:02:00", arrival_key: a2}
+          - {line_id: victoria, naptan_id: X, request_path: /StopPoint/X/Arrivals, direction: outbound, platform_name: P1, arrival_time: "2026-11-04 08:06:00", arrival_key: a3}
+          - {line_id: victoria, naptan_id: X, request_path: /StopPoint/X/Arrivals, direction: outbound, platform_name: P2, arrival_time: "2026-11-04 08:08:30", arrival_key: a4}
+          - {line_id: victoria, naptan_id: X, request_path: /StopPoint/X/Arrivals, direction: outbound, platform_name: P1, arrival_time: "2026-11-04 08:10:30", arrival_key: a5}
+      - input: ref('stg_polls')
+        rows:
+          - {poll_id: p0, feed: arrivals, request_path: /StopPoint/X/Arrivals, polled_at: "2026-11-04 08:00:10", is_ok: true, dt: "2026-11-04"}
+          - {poll_id: p1, feed: arrivals, request_path: /StopPoint/X/Arrivals, polled_at: "2026-11-04 08:01:10", is_ok: true, dt: "2026-11-04"}
+          - {poll_id: p2, feed: arrivals, request_path: /StopPoint/X/Arrivals, polled_at: "2026-11-04 08:02:10", is_ok: true, dt: "2026-11-04"}
+          - {poll_id: p3, feed: arrivals, request_path: /StopPoint/X/Arrivals, polled_at: "2026-11-04 08:03:10", is_ok: true, dt: "2026-11-04"}
+          - {poll_id: p4, feed: arrivals, request_path: /StopPoint/X/Arrivals, polled_at: "2026-11-04 08:05:10", is_ok: false, dt: "2026-11-04"}
+          - {poll_id: p7, feed: arrivals, request_path: /StopPoint/X/Arrivals, polled_at: "2026-11-04 08:07:10", is_ok: true, dt: "2026-11-04"}
+          - {poll_id: p8, feed: arrivals, request_path: /StopPoint/X/Arrivals, polled_at: "2026-11-04 08:08:10", is_ok: true, dt: "2026-11-04"}
+          - {poll_id: p9, feed: arrivals, request_path: /StopPoint/X/Arrivals, polled_at: "2026-11-04 08:09:10", is_ok: true, dt: "2026-11-04"}
+          - {poll_id: p10, feed: arrivals, request_path: /StopPoint/X/Arrivals, polled_at: "2026-11-04 08:10:10", is_ok: true, dt: "2026-11-04"}
+          - {poll_id: p11, feed: arrivals, request_path: /StopPoint/X/Arrivals, polled_at: "2026-11-04 08:11:10", is_ok: true, dt: "2026-11-04"}
+    expect:
+      rows:
+        - {headway_key: a2, previous_arrival_time: "2026-11-04 08:00:00", headway_seconds: 120, spans_collection_gap: false, london_hour: 8}
+        - {headway_key: a3, previous_arrival_time: "2026-11-04 08:02:00", headway_seconds: 240, spans_collection_gap: true, london_hour: 8}
+        - {headway_key: a4, previous_arrival_time: "2026-11-04 08:06:00", headway_seconds: 150, spans_collection_gap: true, london_hour: 8}
+        - {headway_key: a5, previous_arrival_time: "2026-11-04 08:08:30", headway_seconds: 120, spans_collection_gap: false, london_hour: 8}

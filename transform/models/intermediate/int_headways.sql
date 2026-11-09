@@ -56,14 +56,40 @@ polls as (
 ),
 
 collection_gaps as (
+    -- One row per UTC date a gap touches, so headways join on an equality
+    -- (station and date) and the join stays linear as history grows.
     select
-        request_path,
-        polled_at as gap_start,
-        next_polled_at as gap_end
+        polls.request_path,
+        polls.polled_at as gap_start,
+        polls.next_polled_at as gap_end,
+        gap_dates.gap_date
     from polls
+    cross join
+        unnest(
+            sequence(
+                cast(polls.polled_at as date), cast(polls.next_polled_at as date), interval '1' day
+            )
+        )
+            as gap_dates (gap_date)
     where
-        date_diff('millisecond', polled_at, next_polled_at)
+        date_diff('millisecond', polls.polled_at, polls.next_polled_at)
         > {{ var('collection_gap_seconds') }} * 1000
+),
+
+headway_dates as (
+    select
+        paired.*,
+        spanned.headway_date
+    from paired
+    cross join
+        unnest(
+            sequence(
+                cast(paired.previous_arrival_time as date),
+                cast(paired.arrival_time as date),
+                interval '1' day
+            )
+        ) as spanned (headway_date)
+    where paired.previous_arrival_time is not null
 ),
 
 headways as (
@@ -77,15 +103,16 @@ headways as (
         paired.arrival_key,
         date_diff('millisecond', paired.previous_arrival_time, paired.arrival_time) / 1e3
             as headway_seconds,
+        {{ london_local('paired.previous_arrival_time') }} as previous_london_ts,
         {{ london_local('paired.arrival_time') }} as london_ts,
         count(collection_gaps.gap_start) > 0 as spans_collection_gap
-    from paired
+    from headway_dates as paired
     left join collection_gaps
         on
             paired.request_path = collection_gaps.request_path
+            and paired.headway_date = collection_gaps.gap_date
             and paired.arrival_time > collection_gaps.gap_start
             and paired.previous_arrival_time < collection_gaps.gap_end
-    where paired.previous_arrival_time is not null
     group by
         paired.line_id,
         paired.naptan_id,
@@ -105,6 +132,7 @@ select
     arrival_time,
     headway_seconds,
     spans_collection_gap,
+    previous_london_ts,
     london_ts,
     cast(london_ts as date) as london_date,
     arrival_key as headway_key,
