@@ -203,7 +203,7 @@ These come from the M3 bundle (`feat/m3-line-minute-metrics`). D16 to D23 are me
 
 ### M4 decisions (D25 to D34, D40 to D45)
 
-These come from the M4 bundle (`feat/m4-measured-view`). They are readings of PLAN 7.2 and 7.3 where the plan is ambiguous. Each is implemented as the most conservative reading available: missing data is never read as either good or bad service, and where the boards are ambiguous the error should not create a long gap that did not happen. Where a reading still carries a bias, the decision names it. They entered on 2026-11-08, so the reminder date is 2026-11-11 18:00 UTC. All are `never-default` (metric semantics). Several depend on the week-one data review (due from 2026-11-11). Those carry a recommendation to revisit once the review is in.
+These come from the M4 work in the M4/M5 bundle. They are readings of PLAN 7.2 and 7.3 where the plan is ambiguous. Each is implemented as the most conservative reading available: missing data is never read as either good or bad service, and where the boards are ambiguous the error should not create a long gap that did not happen. Where a reading still carries a bias, the decision names it. They entered on 2026-11-08, so the reminder date is 2026-11-11 18:00 UTC. All are `never-default` (metric semantics). Several depend on the week-one data review (due from 2026-11-11). Those carry a recommendation to revisit once the review is in.
 
 ### D25. What counts as a duplicate prediction
 
@@ -324,7 +324,7 @@ These come from the M4 bundle (`feat/m4-measured-view`). They are readings of PL
 
 ### M5 decisions (D35 to D39)
 
-These come from the M5 publish work (`feat/m5-publish`). D35 to D38 entered on 2026-11-08, so the reminder date is 2026-11-11 22:00 UTC; D39 entered on 2026-11-09, reminder 2026-11-12 22:00 UTC. All are `never-default`. D35, D37 and D38 are listed in every published file's `open_decisions`.
+These come from the M5 publish work in the M4/M5 bundle. D35 to D38 entered on 2026-11-08, so the reminder date is 2026-11-11 22:00 UTC; D39 entered on 2026-11-09, reminder 2026-11-12 22:00 UTC. All are `never-default`. D35, D37 and D38 are listed in every published file's `open_decisions`.
 
 ### D35. Mark lines scored on a small share of their hours as provisional
 
@@ -363,7 +363,7 @@ These come from the M5 publish work (`feat/m5-publish`). D35 to D38 entered on 2
 
 ### M4 decisions, continued (D40 to D45)
 
-These came out of the week-one review and the measured-view review, after D35 to D39 had been taken by the M5 work. They entered on 2026-11-09 and are `never-default`.
+These came out of the week-one review and the measured-view review, after D35 to D39 had been taken by the M5 work. They entered on 2026-11-09, so the reminder date is 2026-11-12 18:00 UTC. All are `never-default`.
 
 ### D40. Time to go is read from the poll, not TfL's `time_to_station`
 

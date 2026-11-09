@@ -520,6 +520,8 @@ uv run --locked dbt build --target dev --profiles-dir . --select stg_arrivals --
 
 A merge never deletes rows, so a logic change that drops rows needs `--full-refresh`. Never combine `--full-refresh` with `start_date`/`end_date`: the table would keep only that window, so dbt refuses to compile it.
 
+A change to a staging model's merge key (D45 for `stg_arrivals`) needs the same full refresh in prod, before the next daily run. Until then the daily run rereads its days under the new key beside the old rows, `assert_staged_arrivals_match_raw` fails, and everything downstream of `stg_arrivals` is skipped, `fct_line_weekly` included: it keeps its last build until the refresh. The prod command is in docs/STATUS.md, "Owner steps outstanding".
+
 ---
 
 ## Ops workflows

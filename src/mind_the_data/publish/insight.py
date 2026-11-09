@@ -1,7 +1,8 @@
 """The one-sentence insight on a share card.
 
 The plan fills it from the week's biggest Honesty Gap (PLAN 7.3). Until the
-measured view exists, or when no line has a gap, it falls back to a
+M4 acceptance passes and the measured view is published (D44), or when no
+line has a gap, it falls back to a
 declared-view fact: the lowest Good Service % among lines whose numbers are
 not provisional (D38). Good Service % is over scored minutes, which leave out
 closures, Service Closed and missing minutes, hence "scored service time".

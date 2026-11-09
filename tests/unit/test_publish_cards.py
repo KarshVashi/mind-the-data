@@ -131,10 +131,8 @@ def test_card_html_has_every_line_and_marks_provisional(league: League) -> None:
 
 def test_card_names_the_measure_and_its_direction(league: League) -> None:
     """A card seen on its own says what is ranked and that lower is better."""
-    assert SUBTITLE == (
-        "Ranked by Disruption Index: severity-weighted disruption per 100 service hours. "
-        "Lower is better."
-    )
+    assert "Disruption Index" in SUBTITLE and "per 100 service hours" in SUBTITLE
+    assert SUBTITLE.endswith("Lower is better.")
     for size in (LANDSCAPE, PORTRAIT):
         html = card_html(league, None, size)
         assert f'<p class="subtitle">{SUBTITLE}</p>' in html

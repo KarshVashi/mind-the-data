@@ -49,7 +49,9 @@ def numbers_sheet(
             "so the numbers will change."
         )
     out.append(f"- Open decisions behind these numbers: {', '.join(league.open_decisions)}")
-    out.append("- Measured view (Honesty Gap): not measured yet (M4)")
+    out.append(
+        "- Measured view (Honesty Gap): not published; the M4 quality gate has not passed (D44)"
+    )
     if bytes_scanned is not None:
         out.append(f"- Athena scanned: {bytes_scanned:,} bytes")
     out.append("")

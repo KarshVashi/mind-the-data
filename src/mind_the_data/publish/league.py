@@ -88,7 +88,7 @@ class ProvisionalReason:
 
 @dataclass(frozen=True)
 class MeasuredView:
-    """Experienced Reliability (PLAN 7.3). Filled once M4's marts exist."""
+    """Experienced Reliability (PLAN 7.3). Filled once the M4 acceptance passes (D44)."""
 
     excess_wait_minutes: float | None
     long_gaps_per_100_hours: float | None

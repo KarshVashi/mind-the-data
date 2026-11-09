@@ -15,7 +15,7 @@ The rule from PLAN 8 holds throughout: the website only reads the published file
 - **Projects:** `src/content/projects/<slug>.mdx` renders at `/projects/<slug>/` with a metadata rail (status, stack, published, repo and docs links). The live projects are `wiki-stream-lake` and `movie-ratings-analytics`, written as architecture plus measured findings, with build-time `BarChart` tables and animated `FlowDiagram`s.
 - **Share images:** every page gets a 1200×630 PNG rendered at build time by Satori (`src/lib/og.ts`, served from `/og/...png`).
 - **Checks in CI:** `astro check`, build, link check, axe (pa11y) and Lighthouse.
-- **Voice and content rules** (the site's `CLAUDE.md`): first person, plain, a builder sharing work; no invented claims (`TODO(Karsh)` where substance is missing); project facts must match the project's repo.
+- **Voice and content rules** (the site repo's contributor rules): first person, plain, a builder sharing work; no invented claims (`TODO(Karsh)` where substance is missing); project facts must match the project's repo.
 
 ## 2. Recommended architecture
 
@@ -157,7 +157,7 @@ All in the website repo under `src/components/tube/`, using tokens, Plex Mono la
 - **Partial window** (`is_window_complete: false`, custom windows from `post_snapshot.py`): banner, and "partial" in the title.
 - **Custom window** (`data_window.iso_week: null`): title from the dates ("4 to 10 November"), no movement column.
 - **Provisional lines**: still ranked (D20), marked, reasons listed.
-- **Not measured**: the measured columns say so (v0 and v1, until M4).
+- **Not measured**: the measured columns say so (v0 and v1, until the M4 acceptance passes, D44).
 - **Open decisions**: listed on every data page while `open_decisions` is non-empty, with the methodology version line the cards use.
 - **No complete week yet** (`latest_week: null`): `/tube/` says the first table is published on the first Monday after a full week of data.
 
@@ -165,9 +165,9 @@ All in the website repo under `src/components/tube/`, using tokens, Plex Mono la
 
 ### Already in the files
 
-Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_name`), TfL line colours (`colour`), `mode`, `is_low_volume`, ranks with movement, provisional flags with reasons, the measured-view slots (null until M4), the worst incident, the insight line, line histories, typical bad hours, methodology weights and thresholds.
+Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_name`), TfL line colours (`colour`), `mode`, `is_low_volume`, ranks with movement, provisional flags with reasons, the measured-view slots (null until the M4 acceptance passes, D44), the worst incident, the insight line, line histories, typical bad hours, methodology weights and thresholds.
 
-### Changed on `feat/m5-publish`
+### Changed in this bundle
 
 - **`meta/index.json`** (new, `contract/index.schema.json`): the site's entry point. `latest_week`, `weeks[]` (every complete week with a league file, newest first, with its path), `lines[]` (line_id, line_name, mode, colour, is_low_volume, path, sorted by name), `data_through`, `views`, `open_decisions`, and the common envelope.
 - **Archive written every run** (D39): `export.py` now writes `league/{iso_week}.json` for every complete week with data, and `league/latest.json` is always the newest complete week. The archive, the line histories and the index therefore come from the same marts and code in the same run.
@@ -181,7 +181,7 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
 | Per-day values per line in the league file (`days[]`: date, Good Service %, Disruption Index, scored minutes) | Line × day heatmap on week pages | M6 task: a `daily` block in `league/{iso_week}.json` from `fct_line_daily` (one more Athena query per run) |
 | Card paths in `meta/index.json` | Linking each archived week to its card | After the R2 upload exists: the upload step knows which cards are in the bucket. Until then the site uses `cards/{iso_week}.png` for the latest week only |
 | Post snapshots (custom windows) in the index | Archiving the Wednesday post's table | Optional: `post_snapshot.py` could upload to `snapshots/{start}_{end}/` with an index entry. v0 vendors it instead |
-| Measured view (`measured` fields, `honesty_gap` insight) | v2 | M4; the schema slots exist |
+| Measured view (`measured` fields, `honesty_gap` insight) | v2 | The M4 acceptance (D44); the schema slots exist |
 | `divisions/`, `season/`, `open-data/` | Later pages | M6, M7 |
 | Public methodology prose | `/tube/methodology/` | M7 `docs/methodology.md` |
 
@@ -210,7 +210,7 @@ Measured columns in the league table (excess wait, long gaps per 100 hours, Hone
 
 ## 8. Tasks in the website repo
 
-Carried out there by the owner or a later session, following that repo's `CLAUDE.md` (its owner handles git; content rules 2.1 to 2.3 apply; checks: `npm run check`, `build`, `check:links`, `check:a11y`, `check:lighthouse`).
+Carried out there by the owner, following that repo's contributor rules (its owner handles git; content rules 2.1 to 2.3 apply; checks: `npm run check`, `build`, `check:links`, `check:a11y`, `check:lighthouse`).
 
 **v0 (for Wednesday 11 November)**
 
