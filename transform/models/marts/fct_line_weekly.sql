@@ -3,6 +3,11 @@
 -- Declared-view metrics per line and ISO week (Monday to Sunday, London
 -- time), with the week's rank and the movement since the previous week.
 -- Ratios are recomputed from summed minutes, never averaged across days.
+--
+-- Measured-view metrics (PLAN 7.3) come from int_measured_hours, using only
+-- station-direction-hours that pass the quality gate on measured lines
+-- (PLAN 7.2). A line seed_measured_lines leaves out is flagged
+-- `not_measured` and carries no measured numbers (D42).
 
 with weekly as (
     select
@@ -46,11 +51,87 @@ recovery_medians as (
     group by line_id, start_week_start
 ),
 
+measured_weekly as (
+    -- Each station-direction-hour is one hour of service at one platform
+    -- pair, so a plain mean over hours is the mean weighted by service
+    -- hours (D41).
+    select
+        line_id,
+        week_start,
+        count_if(is_observed) as observed_measurement_hours,
+        count_if(counts_for_reliability) as measured_hours,
+        avg(if(counts_for_reliability, excess_wait_seconds)) / 60 as excess_wait_minutes,
+        sum(if(counts_for_reliability, long_gaps, 0)) as long_gaps
+    from {{ ref('int_measured_hours') }}
+    where is_line_measured
+    group by line_id, week_start
+),
+
+measured_line_hours as (
+    select
+        line_id,
+        week_start,
+        london_date,
+        london_hour,
+        sum(long_gaps) as long_gaps
+    from {{ ref('int_measured_hours') }}
+    where counts_for_reliability
+    group by line_id, week_start, london_date, london_hour
+),
+
+good_service_hours as (
+    -- PLAN 7.3 Honesty Gap: the worst declared status was Good Service for
+    -- the whole hour. A missing minute breaks the hour.
+    select
+        line_id,
+        london_date,
+        hour(london_ts) as london_hour
+    from {{ ref('int_line_minute_status') }}
+    group by line_id, london_date, hour(london_ts)
+    having count(*) = count_if(not is_missing and status_severity = 10)
+),
+
+honesty as (
+    select
+        measured_line_hours.line_id,
+        measured_line_hours.week_start,
+        count(*) as good_service_measured_hours,
+        count_if(measured_line_hours.long_gaps > 0) as honesty_gap_hours
+    from measured_line_hours
+    inner join good_service_hours
+        on
+            measured_line_hours.line_id = good_service_hours.line_id
+            and measured_line_hours.london_date = good_service_hours.london_date
+            and measured_line_hours.london_hour = good_service_hours.london_hour
+    group by measured_line_hours.line_id, measured_line_hours.week_start
+),
+
 scored as (
     select
         weekly.*,
         in_scope_lines.is_low_volume,
         recovery_medians.median_recovery_minutes,
+        coalesce(measured_lines.is_measured, false) as is_measured,
+        measured_weekly.observed_measurement_hours,
+        measured_weekly.measured_hours,
+        if(measured_lines.is_measured, measured_weekly.excess_wait_minutes) as excess_wait_minutes,
+        if(measured_lines.is_measured, measured_weekly.long_gaps) as long_gaps,
+        if(
+            measured_lines.is_measured and measured_weekly.measured_hours > 0,
+            100e0 * measured_weekly.long_gaps / measured_weekly.measured_hours
+        ) as long_gaps_per_100_hours,
+        if(measured_lines.is_measured, honesty.honesty_gap_hours) as honesty_gap_hours,
+        if(measured_lines.is_measured, honesty.good_service_measured_hours)
+            as good_service_measured_hours,
+        if(
+            measured_lines.is_measured and honesty.good_service_measured_hours > 0,
+            1e0 * honesty.honesty_gap_hours / honesty.good_service_measured_hours
+        ) as honesty_gap_share,
+        case
+            when not coalesce(measured_lines.is_measured, false) then 'not_measured'
+            when coalesce(measured_weekly.measured_hours, 0) = 0 then 'no_measured_hours'
+            else 'measured'
+        end as measurement_status,
         1e0 * weekly.observed_minutes / weekly.scheduled_minutes as completeness,
         {{ per_100_hours('weekly.weighted_disruption_minutes', 'weekly.scored_minutes') }}
             as disruption_index,
@@ -71,6 +152,16 @@ scored as (
         on
             weekly.line_id = recovery_medians.line_id
             and weekly.week_start = recovery_medians.start_week_start
+    left join {{ ref('seed_measured_lines') }} as measured_lines
+        on weekly.line_id = measured_lines.line_id
+    left join measured_weekly
+        on
+            weekly.line_id = measured_weekly.line_id
+            and weekly.week_start = measured_weekly.week_start
+    left join honesty
+        on
+            weekly.line_id = honesty.line_id
+            and weekly.week_start = honesty.week_start
 ),
 
 ranked as (
@@ -86,7 +177,16 @@ ranked as (
                 partition by week_start
                 order by disruption_index asc nulls last, good_service_pct desc nulls last
             )
-        ) as disruption_rank
+        ) as disruption_rank,
+        -- PLAN 7.3: lowest excess wait first, ties to fewer long gaps.
+        if(
+            excess_wait_minutes is null,
+            null,
+            rank() over (
+                partition by week_start
+                order by excess_wait_minutes asc nulls last, long_gaps_per_100_hours asc nulls last
+            )
+        ) as experienced_rank
     from scored
 )
 
@@ -117,6 +217,17 @@ select
     previous_week.disruption_rank as previous_disruption_rank,
     -- Positive means the line climbed the table.
     previous_week.disruption_rank - ranked.disruption_rank as rank_movement,
+    ranked.is_measured,
+    ranked.measurement_status,
+    ranked.observed_measurement_hours,
+    ranked.measured_hours,
+    ranked.excess_wait_minutes,
+    ranked.long_gaps,
+    ranked.long_gaps_per_100_hours,
+    ranked.honesty_gap_hours,
+    ranked.good_service_measured_hours,
+    ranked.honesty_gap_share,
+    ranked.experienced_rank,
     {{ row_key(['ranked.line_id', 'ranked.week_start']) }} as line_weekly_key
 from ranked
 left join ranked as previous_week
