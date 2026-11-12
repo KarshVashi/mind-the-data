@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Published index",
+  "description": "meta/index.json: the entry point for readers of the published files. Lists every complete week with a league file, the week league/latest.json holds, and every line with a history file. data_window spans the archived weeks.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "data_window",
+    "completeness",
+    "git_sha",
+    "data_through",
+    "latest_week",
+    "weeks",
+    "lines",
+    "views",
+    "open_decisions"
+  ],
+  "properties": {
+    "schema_version": {"$ref": "league.schema.json#/$defs/schema_version"},
+    "generated_at": {"$ref": "league.schema.json#/$defs/utc_timestamp"},
+    "data_window": {"$ref": "league.schema.json#/$defs/data_window"},
+    "completeness": {"$ref": "league.schema.json#/$defs/nullable_share"},
+    "git_sha": {"$ref": "league.schema.json#/$defs/git_sha"},
+    "data_through": {
+      "description": "The newest minute in the data, London wall-clock time.",
+      "oneOf": [{"type": "null"}, {"$ref": "league.schema.json#/$defs/london_timestamp"}]
+    },
+    "latest_week": {
+      "description": "The ISO week league/latest.json holds; null before the first complete week.",
+      "oneOf": [{"type": "null"}, {"$ref": "league.schema.json#/$defs/iso_week"}]
+    },
+    "weeks": {
+      "description": "Every complete ISO week with observed data, newest first. Each league file is rewritten on every run from the current marts and code (D39).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["iso_week", "week_start", "week_end", "path"],
+        "properties": {
+          "iso_week": {"$ref": "league.schema.json#/$defs/iso_week"},
+          "week_start": {"$ref": "league.schema.json#/$defs/london_date"},
+          "week_end": {"$ref": "league.schema.json#/$defs/london_date"},
+          "path": {"type": "string", "pattern": "^league/\\d{4}-W\\d{2}\\.json$"}
+        }
+      }
+    },
+    "lines": {
+      "description": "Every line with a history file, by line_name. line_id is the stable slug used in every path.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["line_id", "line_name", "mode", "colour", "is_low_volume", "path"],
+        "properties": {
+          "line_id": {"$ref": "league.schema.json#/$defs/line_id"},
+          "line_name": {"type": "string", "minLength": 1},
+          "mode": {"type": "string", "minLength": 1},
+          "colour": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+          "is_low_volume": {"type": "boolean"},
+          "path": {"type": "string", "pattern": "^lines/[a-z-]+\\.json$"}
+        }
+      }
+    },
+    "views": {"$ref": "league.schema.json#/$defs/views"},
+    "open_decisions": {
+      "type": "array",
+      "items": {"$ref": "league.schema.json#/$defs/decision_id"},
+      "uniqueItems": true
+    }
+  }
+}

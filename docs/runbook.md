@@ -520,6 +520,8 @@ uv run --locked dbt build --target dev --profiles-dir . --select stg_arrivals --
 
 A merge never deletes rows, so a logic change that drops rows needs `--full-refresh`. Never combine `--full-refresh` with `start_date`/`end_date`: the table would keep only that window, so dbt refuses to compile it.
 
+A change to a staging model's merge key (D45 for `stg_arrivals`) needs the same full refresh in prod, before the next daily run. Until then the daily run rereads its days under the new key beside the old rows, `assert_staged_arrivals_match_raw` fails, and everything downstream of `stg_arrivals` is skipped, `fct_line_weekly` included: it keeps its last build until the refresh. The prod command is in docs/STATUS.md, "Owner steps outstanding".
+
 ---
 
 ## Ops workflows
@@ -590,6 +592,19 @@ gh variable set AUTOMERGE_ENABLED --body true    # off again: gh variable delete
 ```
 
 ---
+
+## Snapshot for a post
+
+The numbers and share cards for a window of London dates that is not an ISO week (the first post runs Wednesday to Tuesday). Read-only: it queries the prod marts through the dev Athena workgroup as `mtd-dev`, and writes nothing to AWS.
+
+```sh
+AWS_PROFILE=mtd-dev uv run python scripts/post_snapshot.py \
+  --start 2026-11-04 --end 2026-11-10 --out-dir ~/mtd-snapshots/2026-11-11
+```
+
+It writes `numbers.md` (league, Disruption Index, Good Service %, completeness per line, longest incidents, and how far the data reaches), `league.json` (the league contract) and `card.png` / `card-1080x1350.png`. Check `numbers.md` before posting: the provisional flags and the open decisions are listed there. The cards render with Playwright: run `uv run playwright install chromium` once, or pass `--browser-channel chrome` to use a local Google Chrome. A card whose content does not fit is refused, not written.
+
+The weekly files for an ISO week (`league/`, `lines/`, `meta/`, `cards/`) come from `uv run python -m mind_the_data.publish.export --week 2026-W46 --out-dir build/publish`; `--dry-run` validates them against `src/mind_the_data/publish/contract/` and writes nothing. A week that has not finished, or that the data does not yet reach past, is refused; `--allow-incomplete` writes it flagged `is_window_complete: false` and never as `league/latest.json`. Every run also rewrites the league file of every complete week with data, `league/latest.json` (always the newest complete week) and `meta/index.json`, the list of archived weeks and line files that the website reads first (D39, `docs/site-integration.md`). `git_sha` is the publishing checkout's commit, suffixed `-dirty` when it has uncommitted changes. Upload waits for H12.
 
 ## Merge gate
 

@@ -1,0 +1,42 @@
+version: 2
+
+# The SQL half of the parity test PLAN M4 asks for. The fixtures in
+# tests/fixtures/arrival_parity_*.csv are 10 minutes of real boards
+# (2026-11-06 08:00 to 08:10 UTC, Oxford Circus Victoria and Central,
+# Canning Town DLR; predictions more than 4 minutes out left off to keep the
+# test small; poll ids shortened), plus a synthetic station 940GZZTEST at
+# 09:00 built on the rules' boundaries: a failed poll, an empty board, a
+# placeholder vehicle id, two vehicle-id candidates, an expected arrival
+# before the poll, and values exactly on 15 s, 45 s and 120 s. The expected arrivals are the Python
+# reference's output on the same input, and tests/unit/test_arrival_parity.py
+# checks the reference still produces exactly them. So the two
+# implementations agree on this input or one of the two tests fails.
+# scripts/check_arrival_parity.py runs the same comparison on a whole day of
+# dev data.
+
+unit_tests:
+  - name: int_inferred_arrivals_matches_the_reference
+    description: >
+      Same input, same arrivals as src/mind_the_data/analysis/arrivals.py
+      with vehicle-id linking on Victoria only and placeholder ids 000 and
+      001 read as no id.
+    model: int_inferred_arrivals
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+        placeholder_vehicle_ids: ["000", "001"]
+    given:
+      - input: ref('stg_polls')
+        format: csv
+        fixture: arrival_parity_polls
+      - input: ref('stg_arrivals')
+        format: csv
+        fixture: arrival_parity_predictions
+      - input: ref('seed_vehicle_id_lines')
+        rows:
+          - {line_id: victoria, link_by_vehicle_id: true}
+          - {line_id: central, link_by_vehicle_id: false}
+          - {line_id: dlr, link_by_vehicle_id: false}
+    expect:
+      format: csv
+      fixture: arrival_parity_expected

@@ -197,9 +197,223 @@ These come from the M3 bundle (`feat/m3-line-minute-metrics`). D16 to D23 are me
 ### D24. Declared-view intermediate models rebuild in full
 
 - **Context:** PLAN 6.1 lists intermediate models as incremental merges. A status run or an incident can start before any incremental window, and the minute model applies seeds that D16 to D22 expect to change. A windowed merge would split runs and leave older weeks on old definitions, silently.
-- **Implemented:** `int_line_minute_status`, `int_status_intervals`, `int_incidents`, `dim_service_hours` and the marts are Iceberg tables rebuilt from `raw_start_date` each run. Staging stays incremental. The cost is a few hundred MB scanned a year at most. See ADR-012 (proposed).
+- **Implemented:** `int_line_minute_status`, `int_status_intervals`, `int_incidents`, `dim_service_hours` and the marts are Iceberg tables rebuilt from `raw_start_date` each run. The M4 bundle adds `int_scheduled_headways` on the same terms: it applies the seeds of D33 and reads only the weekly timetables. Staging stays incremental. The cost is a few hundred MB scanned a year at most. See ADR-012 (proposed).
 - **Default:** none: it deviates from the plan. Accept ADR-012, or ask for a seed-free incremental layer under a table that applies the seeds.
 - **Class:** `never-default`.
+
+### M4 decisions (D25 to D34, D40 to D45)
+
+These come from the M4 work in the M4/M5 bundle. They are readings of PLAN 7.2 and 7.3 where the plan is ambiguous. Each is implemented as the most conservative reading available: missing data is never read as either good or bad service, and where the boards are ambiguous the error should not create a long gap that did not happen. Where a reading still carries a bias, the decision names it. They entered on 2026-11-08, so the reminder date is 2026-11-11 18:00 UTC. All are `never-default` (metric semantics). Several depend on the week-one data review (due from 2026-11-11). Those carry a recommendation to revisit once the review is in.
+
+### D25. What counts as a duplicate prediction
+
+- **Context:** PLAN 7.2 says to collapse duplicate predictions with different ids but "near-identical" `expected_arrival`, without a threshold.
+- **Implemented** (`analysis/arrivals.py`, `duplicate_tolerance_seconds = 15`): within one board (station request, platform, direction) in one poll, predictions are ordered by expected arrival, then id. A prediction within 15 s of the row before it is dropped, and the earliest is kept. The comparison is with the previous row, not the previous kept row, so SQL can do it with `lag`.
+- **Alternatives:** use the 45 s matching tolerance (two trains cannot share a platform 45 s apart, but that also merges real close pairs at platforms that serve two routes); keep the duplicate with the smallest `time_to_station`.
+- **Recommendation:** keep 15 s until the review measures how far apart real duplicates sit.
+- **Week-one review (2026-11-08):** keep 15 s and add a same-destination condition (Central close pairs are 93% two trains). **Code now:** 15 s, no destination condition, in both the reference and `int_inferred_arrivals`. It makes no difference on the Victoria line.
+
+### D26. How sightings link, when a train has arrived, and the held-train bias
+
+- **Context:** PLAN 7.2 rule 2 says a train has arrived when it is within 120 s in poll *t* and absent in *t+1*, "or shows `time_to_station` = 0". Rule 1 links sightings whose expected arrivals are within 45 s across consecutive polls. TfL's `expected_arrival` is its timestamp plus `time_to_station`, so a train that is not moving pushes its expected arrival on by about a minute every minute, and the literal 45 s rule cannot follow it.
+- **Implemented** (`analysis/arrivals.py`):
+  - Links are mutual nearest pairs between a station's consecutive successful polls. That keeps them one to one and computable in SQL without recursion.
+  - A moving link is the plan's rule: expected arrivals within 45 s.
+  - A standing link is an addition to the plan, for a train at the platform. It applies when the later sighting shows 0 s, the earlier at most 45 s, and the expected arrival moved by the poll gap give or take 45 s. It ranks after every moving link. Without it, a train standing at 0 s for two polls counted twice.
+  - A train held short of the platform is not linked this way. Tried on real boards, a standing link at any time to station merged consecutive trains: at Oxford Circus the next train regularly shows, a poll later, the time to station the previous one had. Victoria inbound fell to 24 an hour at peak against 36 scheduled.
+  - A train's last sighting is an arrival if the station's next successful poll exists and the sighting is at most 120 s out, or if no later poll exists and it shows 0 s. The arrival time is that sighting's expected arrival, the plan's rule 3. For a train that stood at the platform, that is the last poll it was seen there, up to its dwell after it arrived.
+  - Two arrivals on one board within 45 s are one train that dropped off the board for a poll (flicker), and the later is kept.
+- **Known bias:** a train held short of the platform for several polls counts once per poll while it is within 120 s. That puts short headways into exactly the delays the measured view exists to catch, and hides long gaps. It is a bias against showing delays, not a safe side.
+- **Real data** (2026-11-05, Victoria line at Oxford Circus and King's Cross, both directions, against about 36 scheduled an hour at peak and 26 to 27 at midday):
+
+  | Linking | Arrivals | Notes |
+  | --- | --- | --- |
+  | Plan-literal | 2,225 | |
+  | As implemented | 2,147 | The flicker rule removes 78. King's Cross inbound shows 42 to 43 an hour at peak, which is 119%. |
+  | By `vehicle_id` (D27) | 1,838 | About 30 to 32 an hour at peak and 22 to 24 at midday, 85% to 90% of the timetable. |
+
+  The boards also give `expected_arrival` in 30 s steps from a timestamp about 40 s older than the poll.
+- **Alternatives:**
+  - link on order, since trains cannot overtake on one platform;
+  - link held trains when vehicle ids agree only (D27);
+  - cap the arrival time at the first 0 s sighting, which needs the whole chain and is not set-based.
+- **Recommendation:** use vehicle-id linking on the Tube lines where the review finds ids stable. It removes the held-train bias. Settle the rest after the review measures expected-arrival drift in the last 120 s.
+- **Week-one review (2026-11-08):** keep the mutual-nearest and standing links, link by vehicle id on enabled lines, and read time to go from the poll (D40). Keep the 45 s collapse and 60 s polling (ADR-002).
+- **Code now (2026-11-09):** the review's recommendation, in the reference and in `int_inferred_arrivals`: vehicle-id linking on the lines `seed_vehicle_id_lines` enables (Victoria only, D27), time to go from the poll (D40), the 45 s rules unchanged. Pending the owner.
+
+### D27. Which lines link sightings by vehicle id
+
+- **Context:** PLAN 7.2 rule 1 uses `vehicle_id` "where it is stable", which is a week-one review question.
+- **Implemented:** `InferenceParams.vehicle_id_lines` is empty, so every line uses the expected-arrival rule until the review names lines. On a listed line, two sightings with vehicle ids link only if the ids match and the expected arrival moved by no more than the poll gap plus 45 s. Without that bound, a placeholder id shared by several trains would chain them. Sightings without an id fall back to expected arrival. DLR boards send no vehicle id at all.
+- **Alternatives:** trust vehicle ids on all Tube lines now, since the D26 figures suggest they are stable on the Victoria line.
+- **Recommendation:** fill the list from the review, line by line.
+- **Week-one review (2026-11-08):** Victoria now; Northern, Jubilee, Piccadilly, Central, Bakerloo, District, Hammersmith & City, Circle and Metropolitan after the Monday 9 November check; Elizabeth and Overground (trip ids) can switch on; not DLR, Waterloo & City or tram.
+- **Code now (2026-11-09):** `seed_vehicle_id_lines` enables **Victoria only**, every row `decision_status = pending_owner_d26_d27`, with the review's advice per line in `review_recommendation`. To change a line, flip `link_by_vehicle_id` and rebuild. Placeholder ids `000` and `001` count as no id (var `placeholder_vehicle_ids`, and `InferenceParams.placeholder_vehicle_ids` in the reference).
+
+### D28. A board is a platform, and absence needs a successful poll
+
+- **Context:** the plan says "for each platform and direction" and "absent in poll *t+1*", but not what a failed poll means.
+- **Implemented:**
+  - A board is (station request, NaPTAN id, line, platform name, direction). A null direction is its own board, which is common on Overground boards.
+  - "Next poll" is the station's next successful arrivals poll. A failed poll neither confirms nor denies an arrival.
+  - Each arrival carries `confirmed_at`, so a headway that spans a collection gap can be dropped in `int_headways` rather than read as a long gap.
+  - After a lost poll, a train last seen 45 to 120 s out and next seen standing at the platform has two sightings neither link joins. It counts twice unless the flicker rule merges them.
+  - A train that moves platform mid-approach ends on the first platform. If it is within 120 s there, it counts as an arrival there too: a double count.
+  - Arrivals at the end of the input are provisional (a 0 s sighting at the last poll can link onward later). So an incremental `int_inferred_arrivals` must read at least one poll past the window it writes, and the oracle comparison must give both sides the same input.
+- **Alternatives:** follow trains per station and direction, across platforms.
+- **Recommendation:** keep it, and count platform changes in the review.
+- **Week-one review (2026-11-08):** keep the platform as the board at core stations (2% change platform), but pool platforms by vehicle id for Metropolitan and District (14% and 6.5%). **Code now:** platform boards on every line; the pooling is not built, since neither line links by vehicle id yet. Headways pool platforms per station and direction (D29).
+
+### D29. Scheduled service is per station and direction, not per platform
+
+- **Context:** PLAN 7.3 compares headways "at a platform and direction" with `int_scheduled_headways` "for that line, station, direction". TfL timetables have no platforms. At Earl's Court, the District inbound timetable lists two departures in the same minute 21 times on weekdays, one per eastbound platform.
+- **Implemented:** `int_scheduled_headways` is per station and direction, pooling every timetable route.
+- **Consequence for `int_headways` (not built yet):** pool a station-direction's platforms before forming headways. Per-platform headways at a two-platform station would read as about twice the scheduled ones, and become false long gaps.
+- **Alternatives:** split scheduled departures across platforms using board history.
+- **Recommendation:** pool, as implemented.
+
+### D30. Which hour a gap belongs to, and service-day hours
+
+- **Context:** PLAN 7.3 uses headways "in the hour" without saying which end of a gap sets the hour.
+- **Implemented:**
+  - A gap belongs to the hour of the departure that ends it, which is the train a waiting passenger boards. `int_headways` must use the same rule.
+  - Hours are TfL's service-day clock (0 to 27). Hour 24 and later are the next calendar morning (`london_hour`, `is_next_calendar_day`).
+  - Gaps are not formed across schedules: Friday's last Night Tube train and Saturday's first are in different schedules.
+  - The sums of gaps and squared gaps are kept, so `int_headways` can add Friday hour 27 and Saturday hour 3, which fall in the same London hour.
+- **Alternatives:** split a gap across the hours it spans; give it to the hour it starts in.
+- **Recommendation:** keep it.
+
+### D31. Two departures in one minute both count
+
+- **Context:** TfL gives departure times to the minute. In the 2026-11-05 fetch, 127 journeys share their minute with another journey of the same route at the same station and direction, across all schedules. They are on the Jubilee, District, Victoria and Waterloo & City lines and the tram.
+- At DLR Canning Town, each departure of route 1 is also listed in route 2 at the same minute (120 inbound on weekdays). That could be one train listed twice, or the Stratford International and Bank services leaving their two platforms together.
+- **Implemented:** every listed journey counts, entered as a 0-minute gap. A 0 gap adds nothing to the sums in the average-wait formula, but it adds a scheduled train.
+- If the Canning Town pairs are duplicates, scheduled trains there are overstated by about half. The quality gate would then exclude those hours rather than score them.
+- **Alternatives:** collapse same-minute departures listed under different routes.
+- **Recommendation:** decide Canning Town from its boards in the review. DLR boards there carry no vehicle ids and few predictions (see open questions in STATUS.md).
+
+### D32. Timetable versions
+
+- **Context:** the plan doesn't say which weekly timetable applies to which days.
+- **Implemented:** the latest fetch of each UTC day is a version, valid from that date until the next version's date. The first version also covers the days collected before it (data starts 2026-11-01, the first fetch was 2026-11-05).
+- If a later fetch fails, the last good version stays in force; `timetable_fetched_at` shows its age.
+- **Alternatives:** use only the latest timetable for all history (a December timetable change would then rewrite November); treat a failed week as no timetable (unmeasured).
+- **Recommendation:** keep it.
+
+### D33. Fallback frequencies for the Elizabeth line and the Overground
+
+- **Context:** TfL returns 404 for every Elizabeth line and Overground timetable request: 46 station-directions across 7 lines, the same set as D17.
+- **Implemented:** `seed_line_frequencies` holds per-station trains per hour for those 23 stations, 33 station-directions in all. A terminus has only the direction its board labels trains with (for example Watford Junction `inbound` and Euston `outbound`); the others have `both`. Barking Riverside's direction is assumed, since its board showed no Suffragette trains during the closure. There are weekday peak (07:00 to 10:00, 16:00 to 19:00) and off-peak values, and Saturday and Sunday values, all `source = estimate_2026_11_08` and flagged `is_fallback`.
+  - Values come from published service patterns. At mid-line stations they were checked against inferred arrivals on 2026-11-05 (vehicle-id linking). For example, Tottenham Court Road showed about 24 an hour per direction at peak and about 16 off-peak; Romford about 12 and 8; Canada Water about 16.
+  - Where the two sources disagreed, the lower figure was used. A lower scheduled frequency means a longer scheduled headway, so service is never judged against a timetable busier than the real one.
+  - Terminus boards over-count badly (for example, Watford Junction showed 41 at 21:00 against 3 an hour), so they were not used.
+  - Only whole hours inside `line_operating_hours` are covered. A station-direction takes the fallback only if no fetch ever returned a timetable for it, so a direction TfL starts serving moves to its timetable.
+- **Not covered by the fallback:**
+  - Tube termini in the direction TfL returns 404 for. Trains end there, so there is nothing to wait for.
+  - Tram at New Addington (both directions) and East Croydon inbound, which also return 404 while the rest of the tram timetable works. They stay unscheduled and unmeasured.
+- **Caveat:** the fallback lines' quality gate compares boards with estimates partly checked against the same boards. A pass for these lines is weak evidence.
+- **Alternatives:** take frequencies from TfL's published working timetables; leave these lines out of the measured view until real timetables exist; add tram rows.
+- **Recommendation:** confirm or replace the 23 stations' values (owner). Report the fallback lines separately in the M4 acceptance figure.
+
+### D34. Scheduled headway for long gaps when gaps are uneven
+
+- **Context:** PLAN 7.3 counts a long gap when a headway exceeds 2 x the scheduled headway, but the scheduled headway is ambiguous when an hour's gaps are uneven. On weekdays at 12:00, Victoria at Oxford Circus has a mean of 134 s and a longest gap of 180 s.
+- **Implemented here:** `int_scheduled_headways` exposes both `mean_headway_seconds` and `max_headway_seconds`; `int_headways` will choose.
+- **Recommendation for `int_headways`:** use the longest scheduled gap in the hour. Then a long gap is one that no scheduled gap that hour comes near, which is the conservative reading for the Honesty Gap headline.
+- **Alternative:** the mean, which flags more gaps.
+
+### M5 decisions (D35 to D39)
+
+These come from the M5 publish work in the M4/M5 bundle. D35 to D38 entered on 2026-11-08, so the reminder date is 2026-11-11 22:00 UTC; D39 entered on 2026-11-09, reminder 2026-11-12 22:00 UTC. All are `never-default`. D35, D37 and D38 are listed in every published file's `open_decisions`.
+
+### D35. Mark lines scored on a small share of their hours as provisional
+
+- **Context:** under D22, a line with long closures is scored only on the minutes left, and delays on top of a part closure stay in while the Good Service around them drops out. For 4 to 8 November, Suffragette had 94% of its scheduled minutes under closures and was ranked last on 5 scored hours; Tram had 42% and Mildmay 36%.
+- **Implemented:** display only. A line with at least 25% of its scheduled minutes under closures (`CLOSURE_SHARE_PROVISIONAL` in `src/mind_the_data/publish/league.py`) gets a provisional marker on the cards, in the JSON (`provisional_reasons`, code `mostly_engineering_works`, decisions `D22` and `D35`) and in the numbers sheet. Its rank is unchanged (D20). A provisional line is never named in the insight line (D38), so this threshold also decides which line the headline can name.
+- **Alternatives:** a different threshold (50% marks only Suffragette); leave such lines unranked; settle D22 so the marker is not needed.
+- **Default:** none. **Class:** `never-default` (metric semantics and publishing).
+
+### D36. Publish while D16 to D23 are open
+
+- **Context:** the first post is planned for Wednesday 11 November, on a custom window (Wednesday 4 to Tuesday 10 November) made with `scripts/post_snapshot.py`. The M3 metric definitions it rests on are still open.
+- **Implemented:** nothing is published by code: there is no upload until H12. The cards say "Methodology v0.1: weights and definitions are provisional and may be revised", mark provisional lines, and the JSON lists the open decisions in `open_decisions`.
+- **Alternatives:** wait for D16 to D23; publish only the lines not marked provisional.
+- **Default:** none. Publishing is the owner's call. **Class:** `never-default` (publishing).
+
+### D37. Typical bad hours on each line page
+
+- **Context:** PLAN 8 names "typical bad hours" in `lines/{line_id}.json` without defining them.
+- **Implemented:** the London hours of day with the highest share of scored minutes that carried a weight above 0, over the line's whole history, unweighted by time band; at most three, worst first, ties to the earlier hour. An hour needs at least 300 scored minutes (`MIN_BAD_HOUR_SCORED_MINUTES` in `documents.py`), so one disrupted quarter-hour on a mostly closed line is not called a pattern. Planned Reduced Service counts as disrupted (D22).
+- **Alternatives:** weight by time band or severity; count only unplanned statuses; a rolling window (the last 12 weeks) instead of the whole history, which also bounds the scan as data grows.
+- **Default:** none. **Class:** `never-default` (metric semantics).
+
+### D38. The share card's insight line without the measured view
+
+- **Context:** M5 fills the insight line from the week's biggest Honesty Gap, which needs M4.
+- **Implemented:** the biggest Honesty Gap when any line has one; otherwise the lowest Good Service % among lines that are not provisional, worded "showed Good Service for only X% of its scored service time" (scored time leaves out closures, Service Closed and missing minutes). With every line provisional there is no insight, and the card shows a neutral line.
+- **Alternatives:** the highest Disruption Index; the longest incident; write the insight by hand for each post.
+- **Default:** none. **Class:** `never-default` (publishing and metric wording).
+
+### D39. Rewrite every archived week on each publish
+
+- **Context:** the website needs an archive index (`meta/index.json`, see `docs/site-integration.md`). `lines/{line_id}.json` is already rebuilt from the current marts on every run, so a league file written once and never touched again would drift from the line pages after any metric change or backfill.
+- **Implemented:** each export run writes `league/{iso_week}.json` for every complete week with observed data, `league/latest.json` for the newest complete week (whichever week was asked for), and `meta/index.json` listing exactly those weeks and the line files. Past weeks therefore always show the current methodology; `generated_at` and `git_sha` say which. Share cards are still rendered only for the week asked for, so a card is a record of what was posted.
+- **Alternatives:** write each week once and freeze it (the archive then shows the methodology of its day, and the index must be built from an R2 listing at upload time); freeze weeks only after D16 to D23 are settled.
+- **Default:** none. **Class:** `never-default` (publishing).
+
+### M4 decisions, continued (D40 to D45)
+
+These came out of the week-one review and the measured-view review, after D35 to D39 had been taken by the M5 work. They entered on 2026-11-09, so the reminder date is 2026-11-12 18:00 UTC. All are `never-default`.
+
+### D40. Time to go is read from the poll, not TfL's `time_to_station`
+
+- **Context:** the week-one review (Q4) found `time_to_station` counts from the prediction's own timestamp, about 40 s before the poll, and repeats between polls. A train whose last sighting shows 121 s can be 16 s from the platform, so the 120 s arrival rule dropped it.
+- **Implemented:** every time-to-go rule (the 120 s threshold, "shows 0", the standing link) reads `expected_arrival - polled_at` in whole seconds, truncated as Athena's `date_diff` does and floored at 0. TfL's figure stays on the output as `last_time_to_station`. On the Victoria check this is the review's variant C (+2.7 points over variant B).
+- **Alternatives:** keep `time_to_station` and raise the threshold to 180 s (variant B gains 2.5 points).
+- **Class:** `never-default` (metric semantics). **Recommendation:** keep.
+
+### D41. Measured-view models rebuild in full
+
+- **Context:** PLAN 6.1 makes intermediate models incremental merges. An inferred arrival depends only on its poll and the station's next one, but an arrival at the end of the data is provisional, and a merge cannot remove one that a later poll turns into a moving train.
+- **Implemented:** `int_inferred_arrivals`, `int_headways` and `int_measured_hours` are tables rebuilt each run, as D24 did for the declared view (ADR-012, proposed). On dev, `int_inferred_arrivals` builds in about 20 s from five days of staging.
+- **Cost:** the build reads ten columns of `stg_arrivals` over all history, about 1.4 million rows a day; a year is about 0.5 billion rows. Once the scan passes about 5 GB a run, switch to an incremental merge that rewrites whole days and trims the last 30 minutes of each run.
+- **Class:** `never-default` (deviates from the plan). **Recommendation:** accept for now, revisit in M7.
+
+### D42. How the measured view aggregates
+
+- **Context:** PLAN 7.2 and 7.3 leave the grain of the gate and the denominators open.
+- **Implemented:**
+  - The gate is judged per line, station, direction and London hour (the review's station-direction-hour), platforms pooled (D29). Null-direction boards are left out.
+  - An hour is observed when the station had at least 54 successful arrivals polls (var `min_polls_per_hour`), no gap over 150 s between polls touches it, and it is a single UTC hour. The October fall-back 01:00 happens twice in London time and would hold two hours of trains against one of timetable, so it is not observed. Only observed hours are gated; a poller gap is missing data, not a failed hour.
+  - A headway counts only when every London hour it spans has scheduled service at that station and direction, so the overnight break is not a gap.
+  - Weekly excess wait is the mean over gated hours with at least one counted headway (`excess_wait_hours`; each is one service hour at one station-direction). Long gaps per 100 hours divide by all gated station-direction-hours (`measured_hours`).
+  - A line is ranked on the measured view only when at least half its scheduled station-direction-hours pass the gate (`measured_share`, var `min_measured_share`); below that it is `is_measured_provisional` and unranked, like the declared view's 90% completeness rule.
+  - The Honesty Gap's denominator is whole-hour Good Service hours with at least one gated measurement of the line. A long gap belongs to the hour of the arrival that ends it (D30), and only that hour's declared status is checked: a gap that began in a minute of declared delay in the previous hour still counts if the ending hour was all Good Service. That reads the Honesty Gap slightly high; requiring Good Service over the gap's whole span is the alternative.
+  - The gate's exclusion takes the worst hours out: a suspension leaves an hour under 80% of the timetable, so it drops out of excess wait, long gaps and the Honesty Gap. This follows PLAN 7.2 literally; under-band hours are kept in `int_measured_hours` for a separate count if wanted.
+- **Known bias:** a train the inference misses joins two gaps into one, so long gaps and the Honesty Gap read high while the gate sits at 80% to 90% of the timetable. On 2 to 8 November the Tube lines show 19 to 99 long gaps per 100 measured hours, and the Honesty Gap 35% to 81% of Good Service hours. These are not results.
+- **Alternatives:** gate per line-hour pooled over stations; long gaps per 100 scheduled service hours from `dim_service_hours`.
+- **Class:** `never-default` (metric semantics). **Recommendation:** keep the grain; do not publish the Honesty Gap before the gate passes.
+
+### D43. Lines that are not measured
+
+- **Context:** the week-one review found four lines that cannot be measured as things stand.
+- **Implemented:** `seed_measured_lines` sets `is_measured = false` for the DLR (no vehicle ids, minute-quantised estimates, 30% to 135% of the timetable), the tram (closures and unscheduled directions), Waterloo & City (both stations are termini) and the Suffragette line (closed at both stations during the review). `fct_line_weekly` shows them as `not_measured` with no measured numbers or rank. Every row is `pending_owner`; flip the flag and rebuild to change one.
+- **Alternatives:** measure the DLR at Canning Town only; keep the tram and Suffragette in once their closures end (after 10 November).
+- **Class:** `never-default` (metric semantics, publishing). **Recommendation:** keep until the review is re-run on fixed staging and after the closures.
+
+### D44. The M4 gate test warns until the acceptance passes
+
+- **Context:** PLAN M4 asks for a test that fails when more than 30% of core-station line-hours fall outside 80% to 120%. On 5 to 7 November 65.6% of core-station hours on measured Tube lines are in band (34.4% out); over 2 to 8 November 66.2%. If no hour is observed in the window, the test also reports it, rather than passing. A failing test would stop every daily prod transform.
+- **Implemented:** `assert_measured_hours_pass_the_gate` takes its severity from the var `gate_test_severity`, `warn` for now. Every build shows the shortfall without blocking the declared view.
+- **Alternatives:** `error` now, which stops `transform-daily` until the gate passes.
+- **Class:** `never-default` (deviates from the plan). **Recommendation:** set it to `error` once the gate passes.
+
+### D45. `stg_arrivals` keys on the prediction, and prod needs a full refresh
+
+- **Context:** the week-one review (Q5) found `stg_arrivals` keyed on `(poll_id, request_path, prediction_id)`. TfL's id is not unique on a board: every DLR prediction at a station shares one id, and a train that terminates and leaves again keeps its id on two platforms. On 6 November staging dropped 83.7% of DLR rows and up to 38% at Tube termini. This is a bug fix to merged M2 staging.
+- **Implemented:** the key adds line, stop, platform, direction, vehicle, destination and expected arrival. On dev, 6 November goes from 1,250,353 to 1,444,004 rows against 1,444,816 raw (the 812 left are the same prediction listed twice). `assert_staged_arrivals_match_raw` fails when staged rows differ from the distinct raw predictions of any line-day, either way: fewer means a key narrower than a prediction, more means rows left by an older key. TfL does list one prediction twice (8% of Piccadilly rows overnight), so raw rows are not compared one for one.
+- **Prod:** the merge key changed, so an incremental run would keep the old rows beside the new ones for the days it rereads, and older days stay short. Prod needs `dbt build --full-refresh --select stg_arrivals+` once after merge (owner step in STATUS.md). The dev table was rebuilt this way.
+- **Class:** `never-default` (data rewrite). **Recommendation:** accept, and run the full refresh straight after merge.
 
 ## Settled
 
