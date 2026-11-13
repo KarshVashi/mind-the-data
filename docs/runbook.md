@@ -379,6 +379,65 @@ Then fill in the dev values in `.env` (next section) and run `make dbt-build-dev
 
 ---
 
+## H12: Cloudflare R2 and the Pages deploy hook
+
+What `publish-weekly.yml` needs before it publishes. Background and the reasons for each setting are in `docs/site-integration.md` (sections 2 and 9). All in the Cloudflare dashboard, signed in to the account that holds the `karshvashi.com` zone and the `karsh-vashi-website` Pages project.
+
+**Before you start:** adding the secrets in step 6 switches on public publishing every Monday. Answer D36 (publish while D16 to D23 are open) first.
+
+1. **Bucket.** R2 Object Storage → Create bucket → name `mind-the-data-public`, location hint Western Europe (WEUR), default storage class Standard. Only published files go in it.
+2. **Custom domain.** The bucket → Settings → Custom Domains → Add → `data.karshvashi.com` → Connect. Cloudflare adds the DNS record. Leave the public `r2.dev` URL disabled: it is rate-limited and meant for development.
+3. **CORS.** The bucket → Settings → CORS policy → Add, and paste:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["*"],
+       "AllowedMethods": ["GET", "HEAD"],
+       "AllowedHeaders": [],
+       "ExposeHeaders": ["ETag", "Content-Type"],
+       "MaxAgeSeconds": 86400
+     }
+   ]
+   ```
+
+   The site itself fetches at build time and needs no CORS. This rule is for anyone reading the files from a browser.
+4. **API token.** R2 Object Storage → Manage API tokens → Create Account API token → name `mind-the-data publish`, permission **Object Read & Write**, "Apply to specific buckets only" → `mind-the-data-public`, no expiry or a dated one you will rotate. Keep the page open: it shows the access key id and secret once. The account id is on the R2 overview page (32 hex characters).
+5. **Deploy hook.** Workers & Pages → `karsh-vashi-website` → Settings → Builds → Deploy hooks → Add → name `mind-the-data weekly`, branch `main` → Save, and copy the URL. Anyone holding it can start builds, so treat it as a secret.
+6. **GitHub secrets** on this repository. Each command prompts for the value, so nothing lands in shell history:
+
+   ```sh
+   gh secret set R2_ACCOUNT_ID
+   gh secret set R2_ACCESS_KEY_ID
+   gh secret set R2_SECRET_ACCESS_KEY
+   gh secret set R2_BUCKET               # mind-the-data-public
+   gh secret set PAGES_DEPLOY_HOOK_URL
+   gh secret list                        # all five listed
+   ```
+
+7. **Dry run, then a real run,** both on `main`:
+
+   ```sh
+   gh workflow run publish-weekly.yml --ref main -f dry_run=true
+   gh run watch "$(gh run list --workflow publish-weekly.yml --limit 1 --json databaseId -q '.[0].databaseId')"
+   gh run download --name "publish-$(gh run list --workflow publish-weekly.yml --limit 1 --json databaseId -q '.[0].databaseId')" --dir ~/mtd-publish
+   # check the cards in ~/mtd-publish/cards/, then:
+   gh workflow run publish-weekly.yml --ref main -f dry_run=false
+   ```
+
+8. **Check** the bucket and the headers:
+
+   ```sh
+   curl -sI https://data.karshvashi.com/meta/index.json | grep -iE '^(HTTP|cache-control|content-type)'
+   curl -sI -H 'Origin: https://example.com' https://data.karshvashi.com/league/latest.json | grep -i access-control-allow-origin
+   ```
+
+   Expect `200`, `cache-control: public, max-age=300`, `content-type: application/json; charset=utf-8` and `access-control-allow-origin: *`. Then check that a new production deployment of the site started (Workers & Pages → `karsh-vashi-website` → Deployments).
+
+**Rotating the token.** Create a new token as in step 4, `gh secret set R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` with its values, run step 7's dry run and a real run, then delete the old token. A leaked deploy hook URL: delete the hook, add a new one, and `gh secret set PAGES_DEPLOY_HOOK_URL`.
+
+---
+
 ## dbt connection settings
 
 Terraform outputs every dbt connection setting as `dbt_athena_env`. Reading outputs needs the state, so initialise first (read-only, as in "Planning locally"):
@@ -414,6 +473,27 @@ terraform -chdir=infra/envs/prod output -json dbt_athena_env \
 **Why two cron lines.** GitHub's cron runs in UTC only. 03:30 London is 02:30 UTC in summer (BST) and 03:30 UTC in winter (GMT), so the workflow is scheduled at both. Its first step ends the run early unless the slot that fired matches London's current UTC offset: the 02:30 UTC slot builds only while London is on BST, the 03:30 UTC slot only while it is on GMT. Exactly one of the two builds each day. The check uses the slot that fired, not the time the job starts, so a run GitHub starts late under load still builds. The clocks change at 01:00 UTC, before either slot.
 
 **Re-running by hand.** Actions → transform-daily → Run workflow on `main`. A manual run skips the clock check.
+
+---
+
+## Weekly publish
+
+`.github/workflows/publish-weekly.yml` publishes the league every Monday at 06:30 London time, three hours after `transform-daily` has built Sunday. It runs as `mtd-ci-publish` (read-only on the prod marts, queries through the `mind-the-data-prod` workgroup) and:
+
+1. exports the latest complete ISO week with `python -m mind_the_data.publish.export --publish-workgroup` (every JSON file validated against its schema, plus the two share cards rendered in Chromium);
+2. keeps the export as the workflow artifact `publish-<run id>` for 30 days;
+3. uploads to R2 with `python -m mind_the_data.publish.upload`: content types and `Cache-Control` per file as in `docs/site-integration.md`, `league/latest.json` and `meta/index.json` last;
+4. calls the Pages deploy hook, only after every upload succeeded.
+
+The two cron lines and the clock check work as in the daily transform: 05:30 UTC runs only on BST, 06:30 UTC only on GMT. The clocks change on Sundays.
+
+**Manual runs.** Actions → publish-weekly → Run workflow on `main`. `dry_run` is on by default: the run exports and keeps the artifact, and sends nothing to R2. `week` (for example `2026-W46`) picks a week other than the latest complete one. The publish role trusts only this file on `main` (ADR-010), so a run from any other branch stops with an error.
+
+**When it skips.** Without `AWS_PUBLISH_ROLE_ARN` or `AWS_ACCOUNT_ID` it skips with a notice. Without the five R2 and Pages secrets (H12) a scheduled or non-dry run skips with a notice naming the missing ones; a dry run still exports.
+
+**When it fails.** The site keeps serving last week's build. A failed export (week not complete, a schema error, a card that overflows) uploads nothing. A failed upload stops before `league/latest.json` and `meta/index.json`, so the site never points at a file that is not there; re-run the workflow, as every upload overwrites. A failed hook call after a good upload leaves the files in R2: re-run, or start a build from the Pages dashboard.
+
+**Locally,** with the dev identity: `uv run python -m mind_the_data.publish.export --out-dir build/publish` then `uv run python -m mind_the_data.publish.upload --dir build/publish --dry-run` lists what would be sent. A real upload from a laptop is not part of the process.
 
 ---
 
@@ -604,7 +684,7 @@ AWS_PROFILE=mtd-dev uv run python scripts/post_snapshot.py \
 
 It writes `numbers.md` (league, Disruption Index, Good Service %, completeness per line, longest incidents, and how far the data reaches), `league.json` (the league contract) and `card.png` / `card-1080x1350.png`. Check `numbers.md` before posting: the provisional flags and the open decisions are listed there. The cards render with Playwright: run `uv run playwright install chromium` once, or pass `--browser-channel chrome` to use a local Google Chrome. A card whose content does not fit is refused, not written.
 
-The weekly files for an ISO week (`league/`, `lines/`, `meta/`, `cards/`) come from `uv run python -m mind_the_data.publish.export --week 2026-W46 --out-dir build/publish`; `--dry-run` validates them against `src/mind_the_data/publish/contract/` and writes nothing. A week that has not finished, or that the data does not yet reach past, is refused; `--allow-incomplete` writes it flagged `is_window_complete: false` and never as `league/latest.json`. Every run also rewrites the league file of every complete week with data, `league/latest.json` (always the newest complete week) and `meta/index.json`, the list of archived weeks and line files that the website reads first (D39, `docs/site-integration.md`). `git_sha` is the publishing checkout's commit, suffixed `-dirty` when it has uncommitted changes. Upload waits for H12.
+The weekly files for an ISO week (`league/`, `lines/`, `meta/`, `cards/`) come from `uv run python -m mind_the_data.publish.export --week 2026-W46 --out-dir build/publish`; `--dry-run` validates them against `src/mind_the_data/publish/contract/` and writes nothing. A week that has not finished, or that the data does not yet reach past, is refused; `--allow-incomplete` writes it flagged `is_window_complete: false` and never as `league/latest.json`. Every run also rewrites the league file of every complete week with data, `league/latest.json` (always the newest complete week) and `meta/index.json`, the list of archived weeks and line files that the website reads first (D39, `docs/site-integration.md`). `git_sha` is the publishing checkout's commit, suffixed `-dirty` when it has uncommitted changes. Uploading is the weekly workflow's job ("Weekly publish").
 
 ## Merge gate
 

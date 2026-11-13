@@ -336,7 +336,7 @@ These come from the M5 publish work in the M4/M5 bundle. D35 to D38 entered on 2
 ### D36. Publish while D16 to D23 are open
 
 - **Context:** the first post is planned for Wednesday 11 November, on a custom window (Wednesday 4 to Tuesday 10 November) made with `scripts/post_snapshot.py`. The M3 metric definitions it rests on are still open.
-- **Implemented:** nothing is published by code: there is no upload until H12. The cards say "Methodology v0.1: weights and definitions are provisional and may be revised", mark provisional lines, and the JSON lists the open decisions in `open_decisions`.
+- **Implemented:** nothing is published by code until the R2 secrets exist (H12). `publish-weekly.yml` is built and skips with a notice without them, so setting the secrets is the act of publishing; the runbook's H12 steps say to answer this first. The cards say "Methodology v0.1: weights and definitions are provisional and may be revised", mark provisional lines, and the JSON lists the open decisions in `open_decisions`.
 - **Alternatives:** wait for D16 to D23; publish only the lines not marked provisional.
 - **Default:** none. Publishing is the owner's call. **Class:** `never-default` (publishing).
 
