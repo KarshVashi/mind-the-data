@@ -347,3 +347,10 @@ def test_post_snapshot_custom_window(tmp_path: Path) -> None:
     sheet = (tmp_path / "numbers.md").read_text()
     assert "| 18 | District | 6,420 | 33.8 |" in sheet
     assert "Suffragette" in sheet and "(D22, D35)" in sheet
+
+
+def test_only_the_publish_flag_reaches_the_prod_workgroup() -> None:
+    assert export.workgroup_for("mind-the-data-dev", publish=False) == "mind-the-data-dev"
+    assert export.workgroup_for("mind-the-data-dev", publish=True) == export.PUBLISH_WORKGROUP
+    with pytest.raises(ValueError, match="dev workgroup"):
+        export.workgroup_for("mind-the-data-prod", publish=False)

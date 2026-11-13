@@ -1,0 +1,195 @@
+name: publish-weekly
+
+# The weekly league (PLAN 8, M5): export the latest complete ISO week from
+# the prod marts as mtd-ci-publish, render the share cards, upload both to
+# Cloudflare R2 and call the Pages deploy hook (docs/site-integration.md).
+#
+# Mondays 06:30 Europe/London, three hours after transform-daily has built
+# Sunday. GitHub cron is UTC only, so both 05:30 and 06:30 UTC are scheduled
+# and the gate keeps the one that is 06:30 in London today, as
+# transform-daily does (docs/runbook.md, Weekly publish).
+#
+# A manual run with dry_run (the default) uploads the files as a workflow
+# artifact and sends nothing to R2. Until the R2 secrets exist (H12) the
+# scheduled run skips with a notice. The publish role trusts this file by
+# name on main (ADR-010), so do not rename it.
+
+on:
+  schedule:
+    - cron: "30 5 * * 1" # 06:30 BST
+    - cron: "30 6 * * 1" # 06:30 GMT
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Export and keep the files as an artifact; upload nothing"
+        type: boolean
+        default: true
+      week:
+        description: "ISO week, e.g. 2026-W46 (default: latest complete week)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: eu-west-2
+  PUBLISH_ROLE_ARN: ${{ vars.AWS_PUBLISH_ROLE_ARN || (vars.AWS_ACCOUNT_ID && format('arn:aws:iam::{0}:role/mtd-ci-publish', vars.AWS_ACCOUNT_ID)) || '' }}
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.clock.outputs.run }}
+      dry_run: ${{ steps.clock.outputs.dry_run }}
+      ready: ${{ steps.config.outputs.ready }}
+    steps:
+      # Decided by the slot that fired, not the start time, so a run GitHub
+      # starts late still publishes. Clocks change on Sundays at 01:00 UTC.
+      - id: clock
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          DRY_RUN_INPUT: ${{ inputs.dry_run }}
+        run: |
+          offset=$(TZ=Europe/London date +%z)
+          if [ "$EVENT" != "schedule" ]; then
+            run=true
+          else
+            case "$SCHEDULE|$offset" in
+              "30 5 * * 1|+0100" | "30 6 * * 1|+0000") run=true ;;
+              *) run=false ;;
+            esac
+          fi
+          dry_run=false
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$DRY_RUN_INPUT" != "false" ]; then
+            dry_run=true
+          fi
+          echo "London UTC offset $offset, event $EVENT, slot '${SCHEDULE}': run=$run dry_run=$dry_run"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "dry_run=$dry_run" >> "$GITHUB_OUTPUT"
+
+      # Secrets cannot appear in job conditions, so only their presence
+      # leaves this step. Values are never printed.
+      - id: config
+        if: steps.clock.outputs.run == 'true'
+        env:
+          DRY_RUN: ${{ steps.clock.outputs.dry_run }}
+          REF: ${{ github.ref }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          PAGES_DEPLOY_HOOK_URL: ${{ secrets.PAGES_DEPLOY_HOOK_URL }}
+        run: |
+          ready=true
+          if [ -z "$PUBLISH_ROLE_ARN" ]; then
+            echo "::notice title=publish skipped::Set AWS_PUBLISH_ROLE_ARN or AWS_ACCOUNT_ID; make bootstrap-apply sets both (docs/runbook.md, H6)."
+            ready=false
+          fi
+          # The publish role trusts main only (ADR-010); fail early with a reason.
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error title=publish needs main::Run publish-weekly on main; the publish role refuses $REF."
+            exit 1
+          fi
+          if [ "$DRY_RUN" != "true" ]; then
+            missing=""
+            for v in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET PAGES_DEPLOY_HOOK_URL; do
+              [ -n "${!v}" ] || missing="$missing $v"
+            done
+            if [ -n "$missing" ]; then
+              echo "::notice title=publish skipped::R2 and Pages secrets not set:$missing. Blocked on H12 (docs/runbook.md, H12). A manual run with dry_run still exports."
+              ready=false
+            fi
+          fi
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: gate
+    if: needs.gate.outputs.run == 'true' && needs.gate.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # One publish at a time, never cancelled half way through an upload.
+    concurrency:
+      group: publish-weekly
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DRY_RUN: ${{ needs.gate.outputs.dry_run }}
+      OUT_DIR: build/publish
+    steps:
+      - name: check week
+        id: week
+        env:
+          WEEK: ${{ inputs.week }}
+        run: |
+          if [ -n "$WEEK" ] && ! [[ "$WEEK" =~ ^[0-9]{4}-W[0-9]{2}$ ]]; then
+            echo "::error title=Bad week::week must look like 2026-W46."
+            exit 1
+          fi
+          echo "week=$WEEK" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.11.16"
+
+      # Downloads happen before AWS credentials exist in the job.
+      - name: install
+        run: uv sync --locked
+
+      - name: install chromium
+        run: uv run --locked playwright install --with-deps chromium
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ env.PUBLISH_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: publish-${{ github.run_id }}
+
+      - name: export
+        env:
+          WEEK: ${{ steps.week.outputs.week }}
+        run: |
+          args=(--publish-workgroup --out-dir "$OUT_DIR")
+          if [ -n "$WEEK" ]; then args+=(--week "$WEEK"); fi
+          uv run --locked python -m mind_the_data.publish.export "${args[@]}"
+
+      - name: list uploads
+        run: uv run --locked python -m mind_the_data.publish.upload --dir "$OUT_DIR" --dry-run
+
+      # Every run keeps what it exported: a dry run in place of R2, a real run
+      # as the record of what was published.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: publish-${{ github.run_id }}
+          path: ${{ env.OUT_DIR }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: upload to R2 and rebuild the site
+        if: env.DRY_RUN != 'true'
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          PAGES_DEPLOY_HOOK_URL: ${{ secrets.PAGES_DEPLOY_HOOK_URL }}
+        run: |
+          # R2 gets only its own token; the AWS session is not needed here.
+          unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+          uv run --locked python -m mind_the_data.publish.upload --dir "$OUT_DIR"
+
+      - name: summary
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run: files kept as the workflow artifact, nothing sent to R2." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Published to R2 and the Pages deploy hook called (see the upload step)." >> "$GITHUB_STEP_SUMMARY"
+          fi
