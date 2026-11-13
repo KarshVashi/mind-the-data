@@ -5,7 +5,9 @@
     uv run python -m mind_the_data.publish.export --dry-run
 
 Reads the prod marts read-only through Athena (profile mtd-dev, the dev
-workgroup) unless --recorded points at saved query results. Every document
+workgroup) unless --recorded points at saved query results. publish-weekly.yml
+passes --publish-workgroup instead: the publish role (mtd-ci-publish) may
+query only through the prod workgroup. Every document
 is validated against its schema before anything is written; --dry-run
 validates and lists the files without writing them.
 
@@ -43,6 +45,8 @@ from mind_the_data.publish.schemas import validate
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_WORKGROUP = "mind-the-data-dev"
 DEFAULT_DATABASE = "mind_the_data_prod"
+# The only workgroup the publish role's policy allows (infra/modules/ci_role).
+PUBLISH_WORKGROUP = "mind-the-data-prod"
 
 
 class IncompleteWeek(RuntimeError):
@@ -200,6 +204,20 @@ def write_outputs(out_dir: Path, outputs: Sequence[Output]) -> list[Path]:
     return written
 
 
+def workgroup_for(requested: str, *, publish: bool) -> str:
+    """The workgroup to query through; the prod workgroup only for the publish role.
+
+    Every statement is a single SELECT either way (run_query). The guard
+    keeps local runs, which use the dev identity, off the prod workgroup's
+    query history and scan budget.
+    """
+    if publish:
+        return PUBLISH_WORKGROUP
+    if not requested.endswith("-dev"):
+        raise ValueError("queries run only through a dev workgroup (read-only)")
+    return requested
+
+
 def marts_from_args(args: argparse.Namespace) -> Marts:
     if args.recorded is not None:
         return RecordedMarts(args.recorded)
@@ -222,6 +240,11 @@ def main(argv: list[str] | None = None) -> int:
     source.add_argument("--record", type=Path, help="also save the query results here")
     parser.add_argument("--workgroup", default=DEFAULT_WORKGROUP)
     parser.add_argument("--database", default=DEFAULT_DATABASE)
+    parser.add_argument(
+        "--publish-workgroup",
+        action="store_true",
+        help=f"query through {PUBLISH_WORKGROUP}, as the publish role in publish-weekly.yml",
+    )
     parser.add_argument("--no-cards", action="store_true", help="skip the PNG share cards")
     parser.add_argument("--browser-channel", help="Playwright channel, e.g. chrome")
     parser.add_argument(
@@ -233,8 +256,10 @@ def main(argv: list[str] | None = None) -> int:
         help="write a week that has not finished (flagged; never as latest.json)",
     )
     args = parser.parse_args(argv)
-    if not args.workgroup.endswith("-dev"):
-        parser.error("queries run only through a dev workgroup (read-only)")
+    try:
+        args.workgroup = workgroup_for(args.workgroup, publish=args.publish_workgroup)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     marts = marts_from_args(args)
     weekly = marts.weekly()
@@ -272,7 +297,7 @@ def main(argv: list[str] | None = None) -> int:
             league, insight, args.out_dir / "cards", iso_week, channel=args.browser_channel
         ):
             print(f"wrote {path}")
-    # Upload to R2 and the Pages deploy hook follow once H12 (Cloudflare) is done.
+    # Upload and the site rebuild are a separate step: mind_the_data.publish.upload.
     return 0
 
 

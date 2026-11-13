@@ -171,12 +171,12 @@ def test_new_trust_is_always_bound_to_workflows() -> None:
 
 def test_bound_workflow_files_exist_or_are_contracted() -> None:
     # The names are a contract with .github/workflows. Files that other work
-    # adds later (health checks, weekly publish) are listed here explicitly.
+    # adds later (health checks) are listed here explicitly.
     text = CI_ROLE.read_text()
     files = set(
         re.findall(r'"([a-z0-9-]+\.yml)"', text.split("workflow_files = {")[1].split("}")[0])
     )
-    pending = {"ops-daily.yml", "ops-daytime.yml", "publish-weekly.yml"}
+    pending = {"ops-daily.yml", "ops-daytime.yml"}
     workflows = INFRA.parent / ".github" / "workflows"
     assert pending <= files, files
     for name in files - pending:

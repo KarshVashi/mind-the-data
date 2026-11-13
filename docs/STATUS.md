@@ -1,6 +1,6 @@
 # Status
 
-Updated: 2026-11-09. Every PR updates this page. Pending decisions are listed in [DECISIONS.md](DECISIONS.md).
+Updated: 2026-11-13. Every PR updates this page. Pending decisions are listed in [DECISIONS.md](DECISIONS.md).
 
 ## Milestones
 
@@ -10,20 +10,20 @@ Updated: 2026-11-09. Every PR updates this page. Pending decisions are listed in
 | M1 Collector live | Done, with one gap | Polling since 2026-11-04. The poller's reserved concurrency of 1 shipped with M3 (#27, ADR-006). The deployed acceptance output (`completeness.py --hours 24`, alarm test) is not recorded in the repo yet. |
 | M2 Raw catalog, week-one review | In progress | Staging verified on real data. The early cut of the week-one review is in [docs/data-quality/2026-11-08-week-one.md](data-quality/2026-11-08-week-one.md) and answers the M4 questions (Q2 to Q7). Left: the full-week re-run on fixed staging (D45) and `dbt source freshness` in the record. |
 | M3 Disruption Index | Done | Merged as #27 on 2026-11-08; the deploy and a `transform-daily` run in prod succeeded the same evening. Decisions D16 to D24 wait for the owner. The first complete London week is 2 to 8 November. |
-| M4 Experienced Reliability | Built, gate not passed | In the M4/M5 bundle (`feat/m4-m5-measured-view-and-publish`). All five tasks are built on dev: the reference, `int_inferred_arrivals` (identical to the reference on every arrival of 6 and 7 November), `int_scheduled_headways`, `int_headways` with excess wait, long gaps and the Honesty Gap in `fct_line_weekly`, and the quality gate. The week-one review is in `docs/data-quality/`. The acceptance is not met: 65.6% of core-station Tube hours are in band against 80% ([measured view](data-quality/2026-11-09-measured-view.md)), so the gate test warns (D44) and the measured view is not published. The bundle also fixes the `stg_arrivals` key (D45). Decisions D25 to D34 and D40 to D45. |
-| M5 Publish pipeline | Offline parts built, blocked on H12 | In the same bundle: JSON contract and `export.py` (with dry run), `meta/index.json`, share cards, `scripts/post_snapshot.py` for custom windows, and the website plan in `docs/site-integration.md`. Exports carry the declared view only. Not built: the R2 upload, the Pages deploy hook and `publish-weekly.yml`, which need H12 (Cloudflare). Decisions D35 to D39. |
+| M4 Experienced Reliability | Built, gate not passed | Merged in the M4/M5 bundle (#28). All five tasks are built on dev: the reference, `int_inferred_arrivals` (identical to the reference on every arrival of 6 and 7 November), `int_scheduled_headways`, `int_headways` with excess wait, long gaps and the Honesty Gap in `fct_line_weekly`, and the quality gate. The week-one review is in `docs/data-quality/`. The acceptance is not met: 65.6% of core-station Tube hours are in band against 80% ([measured view](data-quality/2026-11-09-measured-view.md)), so the gate test warns (D44) and the measured view is not published. The bundle also fixes the `stg_arrivals` key (D45). Decisions D25 to D34 and D40 to D45. |
+| M5 Publish pipeline | Built, blocked on H12 | The contract, `export.py`, `meta/index.json`, share cards, `scripts/post_snapshot.py` and `docs/site-integration.md` merged in #28. The R2 upload (`publish/upload.py`), the Pages deploy hook call and `publish-weekly.yml` are in the M5/M7 bundle (`feat/m5-m7-publish-and-docs`). Exports carry the declared view only. Left: H12 (Cloudflare) and the acceptance's `dry_run` run on `main`. Decisions D35 to D39. |
 | M6 League mechanics | Not started | |
-| M7 Hardening and docs | Not started | |
+| M7 Hardening and docs | In progress | In the M5/M7 bundle: `docs/methodology.md`, `docs/architecture.md`, the README, and runbook sections for H12 and the weekly publish. Left: weekly Iceberg maintenance, the monthly open dataset, `docs/cost.md` after the first full month, and the rest of the runbook (re-runs, backfilling marts, key rotation). |
 
 ## Open PRs and merge order
 
-- **M4/M5 bundle** (`feat/m4-m5-measured-view-and-publish`): the measured view (M4, gate not passed), the `stg_arrivals` key fix (D45), and the offline M5 publish work. Nothing else is open, so it merges on its own. It changes no Terraform resources, but `src/`, `pyproject.toml` and `uv.lock` change, so `infra.yml` rebuilds the Lambda package and updates the poller and reference Lambdas in place (same handlers), then runs the smoke test (D12). The next `transform-daily` run builds the M4 models in prod, after the full refresh below.
-- Merged: #17, #18, #22 (bootstrap hardening), #23 (autonomy bundle) and #27 (M3, 2026-11-08).
+- **M5/M7 bundle** (`feat/m5-m7-publish-and-docs`): the R2 upload, deploy hook and `publish-weekly.yml` (M5), and the methodology, architecture and README docs (M7). No Terraform change: it reuses `mtd-ci-publish`, which the bootstrap already created and bound to `publish-weekly.yml`. `src/` changes, so `infra.yml` rebuilds the Lambda package and updates both Lambdas in place. It touches `.github/`, so it needs the owner to merge.
+- Merged: #17, #18, #22, #23, #27 (M3, 2026-11-08) and #28 (M4/M5 bundle).
 
 ## Blockers
 
 - **M4 acceptance:** the quality gate is at 65.6% of core-station Tube hours (target 80%). The measured view is not published until it passes. Next: the check to switch on vehicle-id linking for more Tube lines (D27), then re-run `docs/data-quality/2026-11-09-measured-view.md`.
-- **M5 upload and deploy:** blocked on H12 (Cloudflare account, R2 bucket and token, Pages deploy hook). Until then exports and cards are written locally only.
+- **M5 upload and deploy:** blocked on H12 (Cloudflare R2 bucket, token and custom domain, Pages deploy hook, five GitHub secrets; runbook, H12) and on D36. Until then `publish-weekly.yml` skips with a notice, and a manual `dry_run` run keeps the export as an artifact. The schedule publishes only once `PUBLISH_ENABLED` is set (runbook, H12 step 9).
 - **M3 metric definitions:** D16 to D23 are `never-default`. The models implement the recommended reading of each, so they can change with a seed edit and a rebuild. The first post (D36) rests on them.
 - **M2 acceptance:** the full-week re-run of the week-one review on fixed staging, from 2026-11-11.
 - **Prod staging may still hold null-keyed rows** from runs before #17. See decision D8; the D45 full refresh below rebuilds `stg_arrivals` from raw anyway.
