@@ -9,7 +9,7 @@ The table ranks every line two ways:
 
 The gap between the two, hours in which TfL said Good Service while the boards showed a long gap, is the **Honesty Gap**.
 
-**Status, methodology v0.1.** The declared view is built and published. The measured view is built but **not published**: its quality gate has not passed (see "Quality gate"). Most definitions below are readings of an ambiguous rule and are waiting for a final decision. Each is tagged with its decision number (`D16`) from [DECISIONS.md](DECISIONS.md) or its record (`ADR-004`) in [adr/](adr/), and the table at the end says which are provisional. Every published file lists the open decisions it rests on in `open_decisions`.
+**Status, methodology v0.1.** The declared view is built and runs daily; the weekly files that carry it are ready, and public publishing starts once the Cloudflare setup is done and the owner has decided to publish while these definitions are open (D36). The measured view is built but **will not be published** until its quality gate passes (see "Quality gate"). Most definitions below are readings of an ambiguous rule and are waiting for a final decision. Each is tagged with its decision number (`D16`) from [DECISIONS.md](DECISIONS.md) or its record (`ADR-004`) in [adr/](adr/), and the table at the end says which are provisional. Every published file lists the open decisions it rests on in `open_decisions`.
 
 ---
 
@@ -33,7 +33,7 @@ Failed requests are stored too, with their HTTP status and an empty payload. Tha
 
 ### Measurement stations
 
-`config/stations.yaml` lists 3 to 5 stations per line: busy core stations every train calls at, plus stations that see every train for a branch. One Arrivals call returns every line serving a station, so interchanges count for several lines. The choice of each station is justified in that file.
+`config/stations.yaml` lists 2 to 5 stations per line (2 only where a line is that short): busy core stations every train calls at, plus stations that see every train for a branch. One Arrivals call returns every line serving a station, so interchanges count for several lines. The choice of each station is justified in that file.
 
 ### Time
 
@@ -116,7 +116,7 @@ A line with at least 25% of its scheduled minutes under closures is marked provi
 
 ## 3. Measured view: Experienced Reliability
 
-**Not published yet.** Every published file carries the measured-view fields as `null` with `measured_status: not_measured`, and the site shows "not measured yet" rather than a number (D44).
+**Not published yet.** Every published file carries the measured-view fields as `null` with `measured_status: not_measured`, and the site shows "not measured yet" rather than a number, until the quality gate below passes (D42, D44).
 
 ### Inferring arrivals
 
@@ -177,6 +177,8 @@ Four lines are marked `not_measured`, with no measured numbers or rank: the DLR 
 
 An hour counts towards the Honesty Gap when the line's worst declared status was **Good Service for the whole hour** and at least one gated measurement in that hour recorded a **long gap**. It is reported as hours per week and as a share of the line's Good Service hours with at least one gated measurement (D42).
 
+Only the hour in which the long gap ends is checked for Good Service. A gap that began during declared delays in the previous hour still counts if the hour it ends in was all Good Service, so the Honesty Gap reads slightly high; requiring Good Service over the gap's whole span is the alternative under consideration (D42).
+
 ---
 
 ## 4. What is published
@@ -213,7 +215,7 @@ The card's insight line names the week's biggest Honesty Gap once the measured v
 
 ## 6. Decisions behind this methodology
 
-All of these are implemented as described and are waiting for a final decision, so every one is **provisional** and may change. A change is a seed or variable edit and a rebuild; past weeks are rebuilt with it (D39).
+ADR-004 is accepted. Every other entry is implemented as described and is waiting for a final decision, so it is **provisional** and may change. A change is a seed or variable edit and a rebuild; past weeks are rebuilt with it (D39).
 
 | Decision | Subject | Affects |
 | --- | --- | --- |
@@ -241,6 +243,6 @@ All of these are implemented as described and are waiting for a final decision, 
 | D43 | Lines not measured | measured |
 | D44 | Gate test warns until the gate passes | measured |
 
-The severity weights and time bands themselves are the build plan's values, and no open decision changes them. Sensitivity checks under alternative weight sets are planned, and will be reported here with their rank correlations.
+The weights for the status codes the plan names, and the time-band weights, are the build plan's values. D16 adds Service Closed to the weights, and D21 decides how the bands map onto calendar days. Sensitivity checks under alternative weight sets are planned, and will be reported here with their rank correlations.
 
 Powered by TfL Open Data.

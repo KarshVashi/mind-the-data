@@ -12,7 +12,11 @@ deploy hook is called only after every upload succeeded.
 Settings come from the environment, set from GitHub secrets in
 publish-weekly.yml (runbook, H12): R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
 R2_SECRET_ACCESS_KEY, R2_BUCKET and PAGES_DEPLOY_HOOK_URL. None of them is
-ever printed.
+ever printed, including in errors.
+
+Nothing is ever deleted from the bucket: a key that drops out of
+meta/index.json (an old card, a line no longer listed) stays readable at its
+old URL. The site reads only what the index lists, so this is deliberate.
 """
 
 import argparse
@@ -56,6 +60,10 @@ RULES: tuple[tuple[re.Pattern[str], str, str], ...] = (
     (re.compile(rf"cards/{_WEEK}(-1080x1350)?\.png"), PNG, CARD_CACHE),
 )
 
+# Pages deploy hooks are all served from Cloudflare's API host; anything else
+# is a mis-pasted secret.
+DEPLOY_HOOK_HOST = "api.cloudflare.com"
+
 SETTING_NAMES = (
     "R2_ACCOUNT_ID",
     "R2_ACCESS_KEY_ID",
@@ -97,8 +105,9 @@ class R2Settings:
         settings = cls(*(env[name].strip() for name in SETTING_NAMES))
         if not re.fullmatch(r"[0-9a-f]{32}", settings.account_id):
             raise UploadError("R2_ACCOUNT_ID must be the 32-character Cloudflare account id")
-        if urlsplit(settings.deploy_hook_url).scheme != "https":
-            raise UploadError("PAGES_DEPLOY_HOOK_URL must be an https URL")
+        hook = urlsplit(settings.deploy_hook_url)
+        if hook.scheme != "https" or hook.hostname != DEPLOY_HOOK_HOST:
+            raise UploadError(f"PAGES_DEPLOY_HOOK_URL must be an https URL on {DEPLOY_HOOK_HOST}")
         return settings
 
 
@@ -153,16 +162,28 @@ def r2_client(settings: R2Settings) -> "S3Client":
 
 
 def upload(client: "S3Client", bucket: str, planned: Sequence[PlannedObject]) -> list[str]:
-    """Put each object in order; stops at the first failure."""
+    """Put each object in order; stops at the first failure.
+
+    SDK errors become UploadError naming the key and the error class or
+    code only, since botocore's messages can carry the account endpoint.
+    """
+    from botocore.exceptions import BotoCoreError, ClientError
+
     done = []
     for obj in planned:
-        client.put_object(
-            Bucket=bucket,
-            Key=obj.key,
-            Body=obj.path.read_bytes(),
-            ContentType=obj.content_type,
-            CacheControl=obj.cache_control,
-        )
+        try:
+            client.put_object(
+                Bucket=bucket,
+                Key=obj.key,
+                Body=obj.path.read_bytes(),
+                ContentType=obj.content_type,
+                CacheControl=obj.cache_control,
+            )
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "unknown")
+            raise UploadError(f"upload of {obj.key} failed: {code}") from None
+        except BotoCoreError as exc:
+            raise UploadError(f"upload of {obj.key} failed: {type(exc).__name__}") from None
         done.append(obj.key)
     return done
 

@@ -45,7 +45,7 @@ flowchart LR
 
 1. **Collect.** EventBridge Scheduler invokes the poller Lambda every minute. It calls TfL for line status, line disruption and the Arrivals board of every measurement station (about 52 calls, bounded concurrency, finished in seconds), and writes each feed's responses as one gzipped NDJSON object to the raw bucket under `raw/{feed}/dt=YYYY-MM-DD/hour=HH/`. Each line is an envelope with the poll id, UTC poll time, request, HTTP status, latency and TfL's payload unchanged. Failed calls are written too, so missing data is visible (ADR-003). The poller runs with reserved concurrency 1, so polls never overlap (ADR-006). A second Lambda fetches timetables, route sequences and severity codes weekly (ADR-007). Both read the TfL app key from SSM at cold start.
 2. **Catalogue.** Glue tables with partition projection expose the raw prefixes to Athena. There are no crawlers: partitions resolve from the path.
-3. **Transform.** `transform-daily.yml` runs `dbt build --target prod` at 03:30 London time with `dbt-athena`. Staging models flatten, type and deduplicate the raw envelopes into Iceberg tables, merging whole days on a row key (ADR-008). Intermediate models compute the status of every line-minute, incidents, inferred arrivals and headways; they rebuild in full from the seeds each run, so a definition change applies to all history at once (ADR-012). Marts hold daily and weekly scores per line. Tests (generic, singular and unit tests against hand-computed cases) run in the same build. Raw is kept indefinitely; everything downstream can be rebuilt from it.
+3. **Transform.** `transform-daily.yml` runs `dbt build --target prod` at 03:30 London time with `dbt-athena`. Staging models flatten, type and deduplicate the raw envelopes into Iceberg tables, merging whole days on a row key (ADR-008). Intermediate models compute the status of every line-minute, incidents, inferred arrivals and headways; they rebuild in full from the seeds each run, so a definition change applies to all history at once (ADR-012, proposed). Marts hold daily and weekly scores per line. Tests (generic, singular and unit tests against hand-computed cases) run in the same build. Raw is kept indefinitely; everything downstream can be rebuilt from it.
 4. **Export.** `publish-weekly.yml` runs on Mondays at 06:30 London time. It reads the marts through Athena, builds every JSON file in the published contract (`src/mind_the_data/publish/contract/`), validates each against its JSON Schema, and renders the share cards from an HTML template in headless Chromium.
 5. **Publish.** The same job uploads the files to a Cloudflare R2 bucket served at `data.karshvashi.com`, with per-file content types and cache headers, `league/latest.json` and `meta/index.json` last. It then calls the Cloudflare Pages deploy hook.
 6. **Site.** The website (its own repository) fetches `meta/index.json` and the files it lists at build time, validates them, and renders static pages. If anything fails, Pages keeps serving the previous build ([site-integration.md](site-integration.md)).
@@ -82,24 +82,24 @@ A job that names a GitHub environment gets a different subject and is refused, s
 ### The pipeline cannot change its own access
 
 - The CI roles and the boundary policy are defined in `infra/modules/ci_role` and applied only from `infra/bootstrap`, by a person, as an MFA-protected admin identity (ADR-005). They are named `mtd-*`, outside the `mind-the-data-*` prefix the deploy role may manage.
-- **Permissions boundary.** Every IAM role the pipeline creates (the Lambda roles) must carry `mtd-workload-boundary`. It allows only project buckets in this account, the project's log groups, metrics in the project namespace, and the project's SSM parameters. The deploy role cannot create a role without it, remove it, or publish a new version of it.
+- **Permissions boundary.** Every IAM role the pipeline creates (the Lambda roles) must carry `mtd-workload-boundary`. It allows reading and writing project buckets in this account, writing the project's log groups and metrics in the project namespace, reading the project's SSM parameters (with KMS decrypt through SSM), publishing to project SNS topics and invoking project Lambda functions, and nothing else. The deploy role cannot create a role without it, remove it, or publish a new version of it.
 - The deploy role cannot delete buckets or object versions, change versioning, set ACLs, delete raw objects, create Lambda function URLs or add resource policies to functions. The account-level S3 public access block, which CI cannot change, is the control for public access.
 
 ### Merging is the approval
 
 - Pull requests only plan. The plan is reviewed on the pull request; merging to `main` deploys it (ADR-005). Deletes need an explicit marker.
 - `main` requires a pull request and the `ci` check, and refuses force pushes.
-- **Merge gate (ADR-011).** Low-risk pull requests may be merged by the project's engineer through `make merge`, and only when a gate allows it. The gate always runs `main`'s copy of its code and policy, so a branch cannot loosen it. It refuses any change to protected paths (the bootstrap, the CI role module, `.github/`, ADRs, the gate itself), any IAM change, delete, replace or import in the pull request's own CI plan, and any resource type not on its allowlist. Everything else waits for the owner.
+- **Merge gate (ADR-011, proposed).** Low-risk pull requests may be merged by the project's engineer through `make merge`, and only when a gate allows it. The gate always runs `main`'s copy of its code and policy, so a branch cannot loosen it. It refuses any change to protected paths (the bootstrap, the CI role module, `.github/`, ADRs, the gate itself), any IAM change, delete, replace or import in the pull request's own CI plan, and any resource type not on its allowlist. Everything else waits for the owner.
 
 ### Secrets
 
 - The **TfL app key** is a SecureString in SSM. Lambdas read it at runtime; Terraform refers to it by ARN only, so it never lands in state that plan jobs can read. It is stripped from recorded test fixtures, and a pre-commit hook refuses it in committed files.
-- The **R2 token** (object read and write on one bucket) and the **Pages deploy hook URL** are GitHub secrets. Only the upload step of `publish-weekly.yml` receives them, with the job's AWS session removed from its environment first, and the code never prints them, including in errors.
+- The **R2 token** (object read and write on one bucket) and the **Pages deploy hook URL** are GitHub secrets. Only the upload step of `publish-weekly.yml` receives their values, with the job's AWS session removed from its environment first; the gate job sees only whether each one is set. The code never prints them, including in errors.
 - The local **dev identity** is read-only, plus Athena queries in the dev workgroup.
 
 ### Cost guards
 
-Every Athena workgroup enforces a per-query scan cap that clients cannot lift. Lambdas run outside a VPC, so there is no NAT gateway. An AWS Budget alerts at 50%, 80% and 100% of £5 a month.
+Every Athena workgroup enforces a per-query scan cap that clients cannot lift. Lambdas run outside a VPC, so there is no NAT gateway. An AWS Budget on the project's tagged spend (6.50 USD, about £5 a month) alerts at 50%, 80% and 100%.
 
 ## Repository map
 

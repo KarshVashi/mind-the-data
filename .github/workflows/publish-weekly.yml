@@ -10,8 +10,9 @@ name: publish-weekly
 # transform-daily does (docs/runbook.md, Weekly publish).
 #
 # A manual run with dry_run (the default) uploads the files as a workflow
-# artifact and sends nothing to R2. Until the R2 secrets exist (H12) the
-# scheduled run skips with a notice. The publish role trusts this file by
+# artifact and sends nothing to R2. Until the R2 secrets exist (H12) every
+# non-dry run skips with a notice, and the schedule publishes only once the
+# PUBLISH_ENABLED repository variable is true (D36). The publish role trusts this file by
 # name on main (ADR-010), so do not rename it.
 
 on:
@@ -44,6 +45,7 @@ jobs:
       run: ${{ steps.clock.outputs.run }}
       dry_run: ${{ steps.clock.outputs.dry_run }}
       ready: ${{ steps.config.outputs.ready }}
+      week: ${{ steps.config.outputs.week }}
     steps:
       # Decided by the slot that fired, not the start time, so a run GitHub
       # starts late still publishes. Clocks change on Sundays at 01:00 UTC.
@@ -70,18 +72,21 @@ jobs:
           echo "run=$run" >> "$GITHUB_OUTPUT"
           echo "dry_run=$dry_run" >> "$GITHUB_OUTPUT"
 
-      # Secrets cannot appear in job conditions, so only their presence
-      # leaves this step. Values are never printed.
+      # Secrets cannot appear in job conditions, and their values are not
+      # needed here: only whether each is set reaches this step.
       - id: config
         if: steps.clock.outputs.run == 'true'
         env:
+          EVENT: ${{ github.event_name }}
           DRY_RUN: ${{ steps.clock.outputs.dry_run }}
           REF: ${{ github.ref }}
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          PAGES_DEPLOY_HOOK_URL: ${{ secrets.PAGES_DEPLOY_HOOK_URL }}
+          WEEK_INPUT: ${{ inputs.week }}
+          PUBLISH_ENABLED: ${{ vars.PUBLISH_ENABLED }}
+          HAVE_R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID != '' }}
+          HAVE_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID != '' }}
+          HAVE_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY != '' }}
+          HAVE_R2_BUCKET: ${{ secrets.R2_BUCKET != '' }}
+          HAVE_PAGES_DEPLOY_HOOK_URL: ${{ secrets.PAGES_DEPLOY_HOOK_URL != '' }}
         run: |
           ready=true
           if [ -z "$PUBLISH_ROLE_ARN" ]; then
@@ -93,16 +98,34 @@ jobs:
             echo "::error title=publish needs main::Run publish-weekly on main; the publish role refuses $REF."
             exit 1
           fi
+          # A scheduled run publishes exactly the London week that just ended.
+          # If the overnight transform has not built it, the export refuses
+          # the week and the run fails, rather than republishing an older one.
+          if [ "$EVENT" = "schedule" ]; then
+            week=$(python3 -c 'from datetime import datetime, timedelta; from zoneinfo import ZoneInfo; y, w, _ = (datetime.now(ZoneInfo("Europe/London")) - timedelta(days=7)).isocalendar(); print(f"{y}-W{w:02d}")')
+          else
+            week="$WEEK_INPUT"
+          fi
+          if [ -n "$week" ] && ! [[ "$week" =~ ^[0-9]{4}-W[0-9]{2}$ ]]; then
+            echo "::error title=Bad week::week must look like 2026-W46."
+            exit 1
+          fi
           if [ "$DRY_RUN" != "true" ]; then
             missing=""
             for v in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET PAGES_DEPLOY_HOOK_URL; do
-              [ -n "${!v}" ] || missing="$missing $v"
+              have="HAVE_$v"
+              [ "${!have}" = "true" ] || missing="$missing $v"
             done
             if [ -n "$missing" ]; then
               echo "::notice title=publish skipped::R2 and Pages secrets not set:$missing. Blocked on H12 (docs/runbook.md, H12). A manual run with dry_run still exports."
               ready=false
+            elif [ "$EVENT" = "schedule" ] && [ "$PUBLISH_ENABLED" != "true" ]; then
+              echo "::notice title=publish skipped::Scheduled publishing is off. Set the PUBLISH_ENABLED repository variable to true to publish every Monday (D36; docs/runbook.md, H12)."
+              ready=false
             fi
           fi
+          echo "week=${week} ready=${ready}"
+          echo "week=$week" >> "$GITHUB_OUTPUT"
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
 
   publish:
@@ -121,17 +144,6 @@ jobs:
       DRY_RUN: ${{ needs.gate.outputs.dry_run }}
       OUT_DIR: build/publish
     steps:
-      - name: check week
-        id: week
-        env:
-          WEEK: ${{ inputs.week }}
-        run: |
-          if [ -n "$WEEK" ] && ! [[ "$WEEK" =~ ^[0-9]{4}-W[0-9]{2}$ ]]; then
-            echo "::error title=Bad week::week must look like 2026-W46."
-            exit 1
-          fi
-          echo "week=$WEEK" >> "$GITHUB_OUTPUT"
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -155,7 +167,7 @@ jobs:
 
       - name: export
         env:
-          WEEK: ${{ steps.week.outputs.week }}
+          WEEK: ${{ needs.gate.outputs.week }}
         run: |
           args=(--publish-workgroup --out-dir "$OUT_DIR")
           if [ -n "$WEEK" ]; then args+=(--week "$WEEK"); fi

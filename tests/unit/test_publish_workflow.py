@@ -1,9 +1,14 @@
 """publish-weekly.yml against the upload code and the London clock."""
 
+import os
 import re
+import subprocess
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
+import pytest
 import yaml
 
 from mind_the_data.publish.export import PUBLISH_WORKGROUP
@@ -70,3 +75,127 @@ def test_downloads_come_before_aws_credentials() -> None:
     creds = next(i for i, n in enumerate(names) if "configure-aws-credentials" in n)
     assert names.index("install") < creds
     assert names.index("install chromium") < creds
+
+
+def test_only_presence_of_secrets_reaches_the_gate() -> None:
+    config = next(step for step in steps("gate") if step.get("id") == "config")
+    for name in SETTING_NAMES:
+        assert config["env"][f"HAVE_{name}"] == f"${{{{ secrets.{name} != '' }}}}"
+        assert name not in config["env"]
+
+
+def run_step(step_id: str, env: dict[str, str], tmp_path: Path) -> tuple[int, dict[str, str], str]:
+    """Run a gate step's shell as Actions would, returning its outputs."""
+    script = next(step for step in steps("gate") if step.get("id") == step_id)["run"]
+    output = tmp_path / f"{step_id}.out"
+    output.write_text("")
+    done = subprocess.run(
+        ["bash", "-e", "-c", script],
+        env={"PATH": os.environ["PATH"], "GITHUB_OUTPUT": str(output), **env},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    pairs = dict(line.split("=", 1) for line in output.read_text().splitlines() if line)
+    return done.returncode, pairs, done.stdout + done.stderr
+
+
+def london_offset() -> str:
+    return datetime.now(ZoneInfo("Europe/London")).strftime("%z")
+
+
+@pytest.mark.parametrize("slot", ["30 5 * * 1", "30 6 * * 1"])
+def test_clock_keeps_the_slot_that_is_0630_in_london(slot: str, tmp_path: Path) -> None:
+    code, out, _ = run_step("clock", {"EVENT": "schedule", "SCHEDULE": slot}, tmp_path)
+    assert code == 0
+    expected = {"+0100": "30 5 * * 1", "+0000": "30 6 * * 1"}[london_offset()]
+    assert out == {"run": str(slot == expected).lower(), "dry_run": "false"}
+
+
+@pytest.mark.parametrize(
+    ("dry_run_input", "expected"), [("true", "true"), ("", "true"), ("false", "false")]
+)
+def test_manual_runs_are_dry_unless_asked(
+    dry_run_input: str, expected: str, tmp_path: Path
+) -> None:
+    env = {"EVENT": "workflow_dispatch", "DRY_RUN_INPUT": dry_run_input}
+    code, out, _ = run_step("clock", env, tmp_path)
+    assert (code, out) == (0, {"run": "true", "dry_run": expected})
+
+
+ALL_SECRETS = {f"HAVE_{name}": "true" for name in SETTING_NAMES}
+BASE = {
+    "PUBLISH_ROLE_ARN": "arn:aws:iam::123456789012:role/mtd-ci-publish",
+    "REF": "refs/heads/main",
+}
+
+
+def previous_london_week() -> str:
+    year, week, _ = (datetime.now(ZoneInfo("Europe/London")) - timedelta(days=7)).isocalendar()
+    return f"{year}-W{week:02d}"
+
+
+@pytest.mark.parametrize(
+    ("env", "ready", "notice"),
+    [
+        # Before H12: nothing to publish to.
+        ({"EVENT": "schedule", "DRY_RUN": "false"}, "false", "Blocked on H12"),
+        # Secrets set, but the owner has not switched the schedule on (D36).
+        ({"EVENT": "schedule", "DRY_RUN": "false", **ALL_SECRETS}, "false", "PUBLISH_ENABLED"),
+        (
+            {"EVENT": "schedule", "DRY_RUN": "false", "PUBLISH_ENABLED": "true", **ALL_SECRETS},
+            "true",
+            None,
+        ),
+        # A manual real run needs the secrets but not the variable.
+        ({"EVENT": "workflow_dispatch", "DRY_RUN": "false", **ALL_SECRETS}, "true", None),
+        (
+            {
+                "EVENT": "workflow_dispatch",
+                "DRY_RUN": "false",
+                **ALL_SECRETS,
+                "HAVE_R2_BUCKET": "false",
+            },
+            "false",
+            "not set: R2_BUCKET.",
+        ),
+        # A dry run needs neither.
+        ({"EVENT": "workflow_dispatch", "DRY_RUN": "true"}, "true", None),
+        # No publish role configured yet.
+        (
+            {"EVENT": "workflow_dispatch", "DRY_RUN": "true", "PUBLISH_ROLE_ARN": ""},
+            "false",
+            "AWS_PUBLISH_ROLE_ARN",
+        ),
+    ],
+)
+def test_config_decides_whether_to_publish(
+    env: dict[str, str], ready: str, notice: str | None, tmp_path: Path
+) -> None:
+    code, out, log = run_step("config", {**BASE, **env}, tmp_path)
+    assert code == 0, log
+    assert out["ready"] == ready
+    if notice:
+        assert notice in log
+    else:
+        assert "::notice" not in log
+    if env["EVENT"] == "schedule":
+        assert out["week"] == previous_london_week()
+    else:
+        assert out["week"] == ""
+
+
+def test_config_passes_a_valid_week_and_refuses_others(tmp_path: Path) -> None:
+    env = {**BASE, "EVENT": "workflow_dispatch", "DRY_RUN": "true"}
+    code, out, _ = run_step("config", {**env, "WEEK_INPUT": "2026-W46"}, tmp_path)
+    assert (code, out["week"]) == (0, "2026-W46")
+    code, _, log = run_step("config", {**env, "WEEK_INPUT": "2026-W46; echo hi"}, tmp_path)
+    assert code == 1
+    assert "Bad week" in log
+
+
+def test_config_refuses_a_branch_the_role_does_not_trust(tmp_path: Path) -> None:
+    env = {**BASE, "EVENT": "workflow_dispatch", "DRY_RUN": "true", "REF": "refs/heads/feat/x"}
+    code, _, log = run_step("config", env, tmp_path)
+    assert code == 1
+    assert "publish needs main" in log

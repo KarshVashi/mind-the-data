@@ -23,7 +23,7 @@ Updated: 2026-11-13. Every PR updates this page. Pending decisions are listed in
 ## Blockers
 
 - **M4 acceptance:** the quality gate is at 65.6% of core-station Tube hours (target 80%). The measured view is not published until it passes. Next: the check to switch on vehicle-id linking for more Tube lines (D27), then re-run `docs/data-quality/2026-11-09-measured-view.md`.
-- **M5 upload and deploy:** blocked on H12 (Cloudflare R2 bucket, token and custom domain, Pages deploy hook, five GitHub secrets; runbook, H12) and on D36. Until then `publish-weekly.yml` skips with a notice, and a manual `dry_run` run keeps the export as an artifact.
+- **M5 upload and deploy:** blocked on H12 (Cloudflare R2 bucket, token and custom domain, Pages deploy hook, five GitHub secrets; runbook, H12) and on D36. Until then `publish-weekly.yml` skips with a notice, and a manual `dry_run` run keeps the export as an artifact. The schedule publishes only once `PUBLISH_ENABLED` is set (runbook, H12 step 9).
 - **M3 metric definitions:** D16 to D23 are `never-default`. The models implement the recommended reading of each, so they can change with a seed edit and a rebuild. The first post (D36) rests on them.
 - **M2 acceptance:** the full-week re-run of the week-one review on fixed staging, from 2026-11-11.
 - **Prod staging may still hold null-keyed rows** from runs before #17. See decision D8; the D45 full refresh below rebuilds `stg_arrivals` from raw anyway.

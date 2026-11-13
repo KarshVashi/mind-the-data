@@ -7,6 +7,7 @@ from typing import Any
 import boto3
 import httpx
 import pytest
+from botocore.exceptions import ClientError, EndpointConnectionError
 from moto import mock_aws
 
 from mind_the_data.publish import upload
@@ -123,6 +124,9 @@ def test_settings_check_shapes_without_echoing_values() -> None:
     with pytest.raises(UploadError, match="https") as info:
         R2Settings.from_env({**ENV, "PAGES_DEPLOY_HOOK_URL": "http://example.com/hook"})
     assert "example.com" not in str(info.value)
+    with pytest.raises(UploadError, match="api.cloudflare.com") as info:
+        R2Settings.from_env({**ENV, "PAGES_DEPLOY_HOOK_URL": "https://example.com/hook"})
+    assert "example.com/hook" not in str(info.value)
     assert R2Settings.from_env(ENV).endpoint_url == ENDPOINT
 
 
@@ -133,14 +137,14 @@ class RecordingClient:
 
     def put_object(self, **kwargs: Any) -> None:
         if kwargs["Key"] == self.fail_on:
-            raise RuntimeError("boom")
+            raise ClientError({"Error": {"Code": "AccessDenied"}}, "PutObject")
         self.calls.append(kwargs)
 
 
 def test_upload_stops_at_the_first_failure(tmp_path: Path) -> None:
     planned = plan_uploads(export_dir(tmp_path))
     client = RecordingClient(fail_on="league/latest.json")
-    with pytest.raises(RuntimeError):
+    with pytest.raises(UploadError, match=r"league/latest\.json failed: AccessDenied"):
         upload.upload(client, "b", planned)  # type: ignore[arg-type]
     sent = [c["Key"] for c in client.calls]
     assert "league/latest.json" not in sent
@@ -243,3 +247,51 @@ def test_main_dry_run_needs_no_settings(tmp_path: Path, capsys: pytest.CaptureFi
     lines = capsys.readouterr().out.splitlines()
     assert len(lines) == len(EXPORT)
     assert lines[-1].startswith("would upload meta/index.json")
+
+
+def test_connection_errors_name_the_key_not_the_endpoint(tmp_path: Path) -> None:
+    class Unreachable:
+        def put_object(self, **kwargs: Any) -> None:
+            raise EndpointConnectionError(endpoint_url=ENDPOINT)
+
+    planned = plan_uploads(export_dir(tmp_path))
+    with pytest.raises(UploadError) as info:
+        upload.upload(Unreachable(), "b", planned)  # type: ignore[arg-type]
+    assert "EndpointConnectionError" in str(info.value)
+    assert ACCOUNT not in str(info.value)
+
+
+def test_main_skips_the_hook_when_an_upload_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    client = RecordingClient(fail_on="lines/bakerloo.json")
+    monkeypatch.setattr(upload, "r2_client", lambda settings: client)
+    called: list[str] = []
+
+    def hook(url: str, http: httpx.Client) -> int:
+        called.append(url)
+        return 200
+
+    monkeypatch.setattr(upload, "call_deploy_hook", hook)
+    assert upload.main(["--dir", str(export_dir(tmp_path))], env=ENV) == 1
+    assert called == []
+    assert "lines/bakerloo.json failed: AccessDenied" in capsys.readouterr().err
+    assert "meta/index.json" not in [c["Key"] for c in client.calls]
+
+
+def test_main_fails_when_the_hook_refuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    client = RecordingClient()
+    monkeypatch.setattr(upload, "r2_client", lambda settings: client)
+    real_client = httpx.Client
+
+    def refusing(**kwargs: Any) -> httpx.Client:
+        return real_client(transport=httpx.MockTransport(lambda r: httpx.Response(500)), **kwargs)
+
+    monkeypatch.setattr(httpx, "Client", refusing)
+    assert upload.main(["--dir", str(export_dir(tmp_path))], env=ENV) == 1
+    assert len(client.calls) == len(EXPORT)
+    err = capsys.readouterr().err
+    assert "HTTP 500" in err
+    assert "deploy_hooks" not in err

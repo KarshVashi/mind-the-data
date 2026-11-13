@@ -383,7 +383,7 @@ Then fill in the dev values in `.env` (next section) and run `make dbt-build-dev
 
 What `publish-weekly.yml` needs before it publishes. Background and the reasons for each setting are in `docs/site-integration.md` (sections 2 and 9). All in the Cloudflare dashboard, signed in to the account that holds the `karshvashi.com` zone and the `karsh-vashi-website` Pages project.
 
-**Before you start:** adding the secrets in step 6 switches on public publishing every Monday. Answer D36 (publish while D16 to D23 are open) first.
+**Before you start:** the real run in step 7 is the first public publish, and step 9 makes it weekly. Answer D36 (publish while D16 to D23 are open) before either.
 
 1. **Bucket.** R2 Object Storage → Create bucket → name `mind-the-data-public`, location hint Western Europe (WEUR), default storage class Standard. Only published files go in it.
 2. **Custom domain.** The bucket → Settings → Custom Domains → Add → `data.karshvashi.com` → Connect. Cloudflare adds the DNS record. Leave the public `r2.dev` URL disabled: it is rate-limited and meant for development.
@@ -419,13 +419,22 @@ What `publish-weekly.yml` needs before it publishes. Background and the reasons 
 
    ```sh
    gh workflow run publish-weekly.yml --ref main -f dry_run=true
-   gh run watch "$(gh run list --workflow publish-weekly.yml --limit 1 --json databaseId -q '.[0].databaseId')"
-   gh run download --name "publish-$(gh run list --workflow publish-weekly.yml --limit 1 --json databaseId -q '.[0].databaseId')" --dir ~/mtd-publish
-   # check the cards in ~/mtd-publish/cards/, then:
+   sleep 10   # let the run register before looking it up
+   run=$(gh run list --workflow publish-weekly.yml --event workflow_dispatch --limit 1 --json databaseId -q '.[0].databaseId')
+   gh run watch "$run" --exit-status
+   gh run download "$run" --name "publish-$run" --dir ~/mtd-publish
+   # check the JSON and the cards in ~/mtd-publish/, then the real run:
    gh workflow run publish-weekly.yml --ref main -f dry_run=false
    ```
 
-8. **Check** the bucket and the headers:
+   The real run uploads and calls the deploy hook, so it is the first public publish.
+9. **Switch on the Monday schedule.** Scheduled runs publish only when this repository variable is `true`, so the secrets can be set and checked before anything goes out on its own (D36):
+
+   ```sh
+   gh variable set PUBLISH_ENABLED --body true    # off again: gh variable delete PUBLISH_ENABLED
+   ```
+
+8. **Check** the bucket and the headers after the real run:
 
    ```sh
    curl -sI https://data.karshvashi.com/meta/index.json | grep -iE '^(HTTP|cache-control|content-type)'
@@ -480,7 +489,7 @@ terraform -chdir=infra/envs/prod output -json dbt_athena_env \
 
 `.github/workflows/publish-weekly.yml` publishes the league every Monday at 06:30 London time, three hours after `transform-daily` has built Sunday. It runs as `mtd-ci-publish` (read-only on the prod marts, queries through the `mind-the-data-prod` workgroup) and:
 
-1. exports the latest complete ISO week with `python -m mind_the_data.publish.export --publish-workgroup` (every JSON file validated against its schema, plus the two share cards rendered in Chromium);
+1. exports the ISO week that ended on Sunday with `python -m mind_the_data.publish.export --publish-workgroup --week <that week>` (every JSON file validated against its schema, plus the two share cards rendered in Chromium);
 2. keeps the export as the workflow artifact `publish-<run id>` for 30 days;
 3. uploads to R2 with `python -m mind_the_data.publish.upload`: content types and `Cache-Control` per file as in `docs/site-integration.md`, `league/latest.json` and `meta/index.json` last;
 4. calls the Pages deploy hook, only after every upload succeeded.
@@ -489,9 +498,9 @@ The two cron lines and the clock check work as in the daily transform: 05:30 UTC
 
 **Manual runs.** Actions → publish-weekly → Run workflow on `main`. `dry_run` is on by default: the run exports and keeps the artifact, and sends nothing to R2. `week` (for example `2026-W46`) picks a week other than the latest complete one. The publish role trusts only this file on `main` (ADR-010), so a run from any other branch stops with an error.
 
-**When it skips.** Without `AWS_PUBLISH_ROLE_ARN` or `AWS_ACCOUNT_ID` it skips with a notice. Without the five R2 and Pages secrets (H12) a scheduled or non-dry run skips with a notice naming the missing ones; a dry run still exports.
+**When it skips.** Without `AWS_PUBLISH_ROLE_ARN` or `AWS_ACCOUNT_ID` it skips with a notice. Without the five R2 and Pages secrets (H12) a scheduled or non-dry run skips with a notice naming the missing ones; a dry run still exports. A scheduled run also skips with a notice until the `PUBLISH_ENABLED` repository variable is `true` (H12 step 9, D36).
 
-**When it fails.** The site keeps serving last week's build. A failed export (week not complete, a schema error, a card that overflows) uploads nothing. A failed upload stops before `league/latest.json` and `meta/index.json`, so the site never points at a file that is not there; re-run the workflow, as every upload overwrites. A failed hook call after a good upload leaves the files in R2: re-run, or start a build from the Pages dashboard.
+**When it fails.** The site keeps serving last week's build. A failed export uploads nothing: a schema error, a card that overflows, or a week the data does not yet reach past, which on a schedule means Monday's `transform-daily` has not built Sunday (re-run it, then this). The scheduled run never falls back to an older week. A failed upload stops at the failing file, before `meta/index.json` at the latest, so the index never lists a file that is not there; re-run the workflow, as every upload overwrites. A failed hook call after a good upload leaves the files in R2: re-run, or start a build from the Pages dashboard.
 
 **Locally,** with the dev identity: `uv run python -m mind_the_data.publish.export --out-dir build/publish` then `uv run python -m mind_the_data.publish.upload --dir build/publish --dry-run` lists what would be sent. A real upload from a laptop is not part of the process.
 

@@ -27,7 +27,7 @@ TfL API ──every minute──► Lambda poller ──► S3 raw (gzipped NDJS
 2. A daily GitHub Actions job runs dbt on Athena, turning raw snapshots into Iceberg tables: the status of every line in every minute, incidents, inferred train arrivals, headways against the timetable, and daily and weekly scores per line.
 3. Every Monday a second job exports the latest complete week as schema-validated JSON, renders share cards in headless Chromium, uploads both to Cloudflare R2 and triggers a rebuild of the website.
 
-Everything runs for a few pounds a month, unattended, with CloudWatch alarms and daily health checks.
+It is designed to run for under £5 a month, unattended, with CloudWatch alarms and daily health checks.
 
 - [docs/architecture.md](docs/architecture.md): the components, data flow and security model.
 - [docs/methodology.md](docs/methodology.md): how every number is computed, and its known limits.
@@ -83,8 +83,8 @@ Each has a short record in [docs/adr/](docs/adr/). The main ones:
 | Overlapping statuses: the highest weight wins | [ADR-004](docs/adr/004-multiple-statuses.md) |
 | CI roles owned by a human-applied bootstrap; merging to `main` is the deploy approval | [ADR-005](docs/adr/005-ci-role-ownership.md) |
 | OIDC trust on the repository's immutable id, bound to each workflow file | [ADR-009](docs/adr/009-oidc-immutable-subjects.md), [ADR-010](docs/adr/010-workflow-bound-ci-roles.md) |
-| Low-risk pull requests merge through a gate that always runs `main`'s rules | [ADR-011](docs/adr/011-merge-gate.md) |
-| Metric models rebuild in full from the seeds, so a definition change applies to all history | [ADR-012](docs/adr/012-run-models-rebuild-in-full.md) |
+| Low-risk pull requests merge through a gate that always runs `main`'s rules | [ADR-011](docs/adr/011-merge-gate.md) (proposed) |
+| Metric models rebuild in full from the seeds, so a definition change applies to all history | [ADR-012](docs/adr/012-run-models-rebuild-in-full.md) (proposed) |
 
 Metric definitions that the plan left open are listed in [docs/DECISIONS.md](docs/DECISIONS.md) with what was implemented and the alternatives. The methodology marks which ones are still provisional.
 
