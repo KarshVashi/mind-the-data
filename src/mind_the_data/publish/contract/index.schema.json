@@ -15,7 +15,9 @@
     "weeks",
     "lines",
     "views",
-    "open_decisions"
+    "open_decisions",
+    "months",
+    "seasons"
   ],
   "properties": {
     "schema_version": {"$ref": "league.schema.json#/$defs/schema_version"},
@@ -68,6 +70,54 @@
       "type": "array",
       "items": {"$ref": "league.schema.json#/$defs/decision_id"},
       "uniqueItems": true
+    },
+    "months": {
+      "description": "Every month with a divisions file, newest first, with its state.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "month",
+          "status",
+          "path"
+        ],
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}$"
+          },
+          "status": {
+            "$ref": "division.schema.json#/$defs/status"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^divisions/\\d{4}-\\d{2}\\.json$"
+          }
+        }
+      }
+    },
+    "seasons": {
+      "description": "Every season with a season file, newest first.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "season",
+          "path"
+        ],
+        "properties": {
+          "season": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}$"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^season/\\d{4}-\\d{2}\\.json$"
+          }
+        }
+      }
     }
   }
 }

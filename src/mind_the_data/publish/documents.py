@@ -25,7 +25,14 @@ from mind_the_data.publish.league import (
     Standing,
     Window,
 )
-from mind_the_data.publish.marts import BadHourRow, LineInfo, WeeklyRow
+from mind_the_data.publish.marts import BadHourRow, LineInfo, SeasonRow, WeeklyRow
+from mind_the_data.publish.mechanics import (
+    DIVISION_NAMES,
+    RECOVERY_DEFINITION_STATUS,
+    DivisionState,
+    IndustrialAction,
+    month_end,
+)
 from mind_the_data.publish.schemas import SCHEMA_VERSION
 
 TYPICAL_BAD_HOURS = 3
@@ -183,6 +190,75 @@ def engineering_works_document(league: League) -> list[dict[str, Any]]:
     ]
 
 
+def recovery_document(league: League) -> dict[str, Any]:
+    """The Recovery Time table (D59), labelled provisional while D18 is open."""
+    return {
+        "definition_status": RECOVERY_DEFINITION_STATUS,
+        "decisions": ["D18", "D59"],
+        "lines": [
+            {
+                "line_id": e.line.line_id,
+                "line_name": e.line.line_name,
+                "rank": e.rank,
+                "unranked_reason": e.unranked_reason,
+                "incidents": e.incidents,
+                "recovered_incidents": e.recovered_incidents,
+                "open_incidents": e.open_incidents,
+                "median_recovery_minutes": _round(e.median_recovery_minutes, 1),
+                "mean_recovery_minutes": _round(e.mean_recovery_minutes, 1),
+                "longest_recovery_minutes": e.longest_recovery_minutes,
+            }
+            for e in league.recovery_time
+        ],
+    }
+
+
+def action_document(action: IndustrialAction) -> dict[str, Any]:
+    return {
+        "action_id": action.action_id,
+        "union": action.union_name,
+        "applies_to": action.applies_to,
+        "applies_to_id": action.applies_to_id,
+        "start_london_date": action.start_london_date.isoformat(),
+        "end_london_date": action.end_london_date.isoformat(),
+        "status": action.status,
+        "excludes_days": action.excludes_days,
+        "description": action.description,
+        "source": {
+            "publisher": action.source_publisher,
+            "title": action.source_title,
+            "date": action.source_date.isoformat(),
+            "url": action.source_url,
+        },
+    }
+
+
+def strikes_excluded_document(league: League) -> dict[str, Any] | None:
+    """The strikes-excluded league (PLAN 7.4, D60); None for a custom window or before dbt built it."""
+    variant = league.strikes_excluded
+    if variant is None:
+        return None
+    names = {s.line.line_id: s.line.line_name for s in league.standings}
+    return {
+        "is_same_as_main": variant.is_same_as_main,
+        "lines": [
+            {
+                "line_id": r.line_id,
+                "line_name": names.get(r.line_id, r.line_id),
+                "rank": r.disruption_rank,
+                "unranked_reason": r.unranked_reason,
+                "disruption_index": _round(r.disruption_index, 1),
+                "good_service_pct": _round(r.good_service_pct, 2),
+                "strike_days": r.strike_days,
+                "completeness": _round(r.completeness, 4),
+                "is_provisional": r.is_provisional,
+            }
+            for r in variant.rows
+            if r.line_id in names
+        ],
+    }
+
+
 def league_document(league: League, insight: Insight | None, stamp: Stamp) -> dict[str, Any]:
     worst = league.worst_incident
     return {
@@ -200,6 +276,9 @@ def league_document(league: League, insight: Insight | None, stamp: Stamp) -> di
         "highlights": highlights_document(league),
         "monday_morning": [_monday(m) for m in league.monday_morning],
         "engineering_works": engineering_works_document(league),
+        "recovery_time": recovery_document(league),
+        "industrial_action": [action_document(a) for a in league.industrial_action],
+        "strikes_excluded": strikes_excluded_document(league),
         "worst_incident": None
         if worst is None
         else {
@@ -303,8 +382,19 @@ def dbt_vars(transform_dir: Path) -> dict[str, Any]:
     return variables
 
 
-def methodology_document(transform_dir: Path, league: League, stamp: Stamp) -> dict[str, Any]:
-    """Weights and thresholds read from the seeds and dbt vars this commit builds with."""
+def methodology_document(
+    transform_dir: Path,
+    league: League,
+    stamp: Stamp,
+    *,
+    sensitivity: dict[str, Any] | None = None,
+    industrial_action: Sequence[IndustrialAction] = (),
+) -> dict[str, Any]:
+    """Weights and thresholds read from the seeds and dbt vars this commit builds with.
+
+    `sensitivity` is the PLAN 7.5 block (publish.sensitivity); without it the
+    weight sets are listed with no weeks.
+    """
     seeds = transform_dir / "seeds"
     with (seeds / "severity_weights.csv").open() as f:
         severity = [
@@ -354,8 +444,144 @@ def methodology_document(transform_dir: Path, league: League, stamp: Stamp) -> d
             "declared": "published",
             "measured": "published" if measured_published(league) else "not_measured",
         },
+        "divisions": {
+            "seeding_weeks": int(variables["division_seeding_weeks"]),
+            "full_seeding_weeks": int(variables["division_full_seeding_weeks"]),
+            "division_one_size": int(variables["division_one_size"]),
+            "moves_per_month": int(variables["division_moves"]),
+            "definition": (
+                "Seeded by Disruption Index over the first complete weeks (ADR-015); "
+                "each month the bottom ranked lines of Division One swap with the top "
+                "ranked lines of Division Two; unranked lines do not move (D56, D57)"
+            ),
+        },
+        "season": {
+            "starts": "04-01",
+            "definition": "Declared-view standings from 1 April to 31 March, London dates (D58)",
+        },
+        "recovery_time": {
+            "definition_status": RECOVERY_DEFINITION_STATUS,
+            "definition": (
+                "Minutes from an incident's first to its last incident minute; open "
+                "incidents are left out of the median. Provisional while D18 is open (D59)"
+            ),
+        },
+        "industrial_action": [action_document(a) for a in industrial_action],
+        "sensitivity": sensitivity
+        if sensitivity is not None
+        else {"method": "not computed", "weight_sets": [], "weeks": []},
         "open_decisions": list(OPEN_METRIC_DECISIONS),
         "settled_decisions": list(SETTLED_METRIC_DECISIONS),
+    }
+
+
+def divisions_document(
+    state: DivisionState, lines: Sequence[LineInfo], stamp: Stamp
+) -> dict[str, Any]:
+    """divisions/{yyyy-mm}.json: the month's divisions, or the explicit state before them."""
+    names = {line.line_id: line.line_name for line in lines}
+    window = Window(start=state.month, end=month_end(state.month))
+    scheduled = sum(r.scheduled_minutes for r in state.rows)
+    observed = sum(r.observed_minutes for r in state.rows)
+    seeding = state.seeding
+    first = seeding[0] if seeding else None
+    return {
+        **envelope(stamp, window, observed / scheduled if scheduled else None),
+        "month": state.month.strftime("%Y-%m"),
+        "status": state.status,
+        "complete_weeks_available": state.complete_weeks_available,
+        "seeding": None
+        if first is None
+        else {
+            "status": first.seeding_status,
+            "weeks": first.seeding_weeks,
+            "start": first.seeding_start.isoformat(),
+            "end": first.seeding_end.isoformat(),
+            "first_division_month": first.first_division_month.strftime("%Y-%m"),
+            "lines": [
+                {
+                    "line_id": r.line_id,
+                    "line_name": names.get(r.line_id, r.line_id),
+                    "seed_position": r.seed_position,
+                    "division": r.division,
+                    "disruption_index": _round(r.disruption_index, 1),
+                    "good_service_pct": _round(r.good_service_pct, 2),
+                    "unranked_reason": r.unranked_reason,
+                }
+                for r in seeding
+            ],
+        },
+        "divisions": [
+            {
+                "division": division,
+                "name": DIVISION_NAMES[division],
+                "lines": [
+                    {
+                        "line_id": r.line_id,
+                        "line_name": names.get(r.line_id, r.line_id),
+                        "rank": r.division_rank,
+                        "unranked_reason": r.unranked_reason,
+                        "joined_by": r.joined_by,
+                        "disruption_index": _round(r.disruption_index, 1),
+                        "good_service_pct": _round(r.good_service_pct, 2),
+                        "completeness": _round(r.completeness, 4),
+                        "is_provisional": r.is_provisional,
+                        "movement": r.movement,
+                        "next_division": r.next_division,
+                    }
+                    for r in state.rows
+                    if r.division == division
+                ],
+            }
+            for division in sorted({r.division for r in state.rows})
+        ],
+        "open_decisions": list(OPEN_METRIC_DECISIONS),
+    }
+
+
+def season_document(
+    season: str, rows: Sequence[SeasonRow], lines: Sequence[LineInfo], stamp: Stamp
+) -> dict[str, Any]:
+    """season/{season}.json: the season's standings so far (D58)."""
+    by_id = {line.line_id: line for line in lines}
+    own = sorted(
+        (r for r in rows if r.season == season and r.line_id in by_id),
+        key=lambda r: (r.season_rank is None, r.season_rank or 0, by_id[r.line_id].line_name),
+    )
+    if not own:
+        raise ValueError(f"no rows for season {season}")
+    observed_dates = [r.first_observed_date for r in own if r.first_observed_date] + [
+        r.last_observed_date for r in own if r.last_observed_date
+    ]
+    window = Window(
+        start=min(observed_dates, default=own[0].season_start),
+        end=max(observed_dates, default=own[0].season_start),
+    )
+    scheduled = sum(r.scheduled_minutes for r in own)
+    observed = sum(r.observed_minutes for r in own)
+    return {
+        **envelope(stamp, window, observed / scheduled if scheduled else None),
+        "season": season,
+        "season_start": own[0].season_start.isoformat(),
+        "season_end": own[0].season_end.isoformat(),
+        "is_season_complete": all(r.is_season_complete for r in own),
+        "lines": [
+            {
+                "line_id": r.line_id,
+                "line_name": by_id[r.line_id].line_name,
+                "rank": r.season_rank,
+                "unranked_reason": r.unranked_reason,
+                "disruption_index": _round(r.disruption_index, 1),
+                "good_service_pct": _round(r.good_service_pct, 2),
+                "incidents": r.incidents,
+                "incidents_per_100_hours": _round(r.incidents_per_100_hours, 2),
+                "engineering_works_hours": round(r.engineering_works_minutes / 60, 1),
+                "completeness": _round(r.completeness, 4),
+                "is_provisional": r.is_provisional,
+            }
+            for r in own
+        ],
+        "open_decisions": list(OPEN_METRIC_DECISIONS),
     }
 
 
@@ -366,6 +592,8 @@ def index_document(
     *,
     fallback_window: Window,
     latest_data_london: datetime | None,
+    division_months: Sequence[DivisionState] = (),
+    seasons: Sequence[str] = (),
 ) -> dict[str, Any]:
     """meta/index.json: the archived weeks, the latest week and the lines with history files.
 
@@ -405,6 +633,18 @@ def index_document(
                 "path": f"lines/{line.line_id}.json",
             }
             for line in sorted(lines, key=lambda line: (line.line_name, line.line_id))
+        ],
+        "months": [
+            {
+                "month": state.month.strftime("%Y-%m"),
+                "status": state.status,
+                "path": f"divisions/{state.month.strftime('%Y-%m')}.json",
+            }
+            for state in sorted(division_months, key=lambda s: s.month, reverse=True)
+        ],
+        "seasons": [
+            {"season": season, "path": f"season/{season}.json"}
+            for season in sorted(seasons, reverse=True)
         ],
         "views": {
             "declared": "published",

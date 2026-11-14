@@ -15,8 +15,13 @@ Written: league/{iso_week}.json for the week and for every complete week
 before it, league/latest.json, lines/{line_id}.json, meta/methodology.json,
 meta/index.json and cards/{iso_week}.png plus the 1080x1350 variant.
 Each league file carries the week's highlights (Wooden Spoon, Line of the
-Week, worst incident), Monday Morning Index and Engineering Works table.
-divisions/ and season/ wait for the rest of M6, and open-data/ for M7.
+Week, worst incident), Monday Morning Index, Engineering Works and Recovery
+Time tables, the industrial action in the week and the strikes-excluded
+league. divisions/{yyyy-mm}.json is written for every month from the first
+observed week to the latest data (an explicit "not_seeded" state before the
+divisions are seeded), season/{season}.json for every season with data, and
+meta/methodology.json carries the sensitivity analysis (PLAN 7.5).
+open-data/ waits for M7.
 """
 
 import argparse
@@ -32,16 +37,34 @@ from typing import Any
 
 from mind_the_data.publish.documents import (
     Stamp,
+    divisions_document,
     index_document,
     iso_week_of,
     league_document,
     line_document,
     methodology_document,
+    season_document,
 )
 from mind_the_data.publish.insight import pick_insight
-from mind_the_data.publish.league import League, Window, league_from_weekly
+from mind_the_data.publish.league import (
+    PROVISIONAL_COMPLETENESS,
+    League,
+    Window,
+    league_from_weekly,
+)
 from mind_the_data.publish.marts import AthenaMarts, Marts, RecordedMarts, WeeklyRow
+from mind_the_data.publish.mechanics import (
+    complete_weeks,
+    division_state,
+    load_industrial_action,
+    months_between,
+)
 from mind_the_data.publish.schemas import validate
+from mind_the_data.publish.sensitivity import (
+    RankedLine,
+    load_weight_sets,
+    sensitivity_document,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_WORKGROUP = "mind-the-data-dev"
@@ -124,9 +147,22 @@ def build_outputs(
     # One query for every week's incidents; each league keeps its own window's.
     incidents = marts.incidents(history_start, history_end)
     monday_morning = marts.monday_morning(history_start, history_end)
-    league = league_from_weekly(
-        window.start, lines, weekly, incidents, latest_minute, monday_morning
-    )
+    actions = load_industrial_action(transform_dir)
+    strikes_excluded = marts.strikes_excluded()
+
+    def weekly_league(start: date) -> League:
+        return league_from_weekly(
+            start,
+            lines,
+            weekly,
+            incidents,
+            latest_minute,
+            monday_morning,
+            industrial_action=actions,
+            strikes_excluded=strikes_excluded,
+        )
+
+    league = weekly_league(window.start)
     if not league.is_complete and not allow_incomplete:
         raise IncompleteWeek(
             f"{iso_week_of(window.start)} is not complete (data through "
@@ -134,10 +170,7 @@ def build_outputs(
         )
 
     archive = [
-        league
-        if start == window.start
-        else league_from_weekly(start, lines, weekly, incidents, latest_minute, monday_morning)
-        for start in observed_weeks
+        league if start == window.start else weekly_league(start) for start in observed_weeks
     ]
     archive = [week for week in archive if week.is_complete]
     if league.is_complete and league not in archive:
@@ -173,10 +206,64 @@ def build_outputs(
         if doc is not None:
             outputs.append(Output(f"lines/{line.line_id}.json", doc, "line"))
             with_history.append(line)
+    # Divisions: every month from the first observed week to the newest data,
+    # so the site always has the current month's file, seeded or not.
+    seeding = marts.division_seeding()
+    division_rows = marts.divisions()
+    available = len(complete_weeks(weekly, PROVISIONAL_COMPLETENESS))
+    last_day = latest_minute.date() if latest_minute is not None else window.end
+    states = [
+        division_state(month, seeding, division_rows, available)
+        for month in months_between(observed_weeks[0] if observed_weeks else window.start, last_day)
+    ]
+    for state in states:
+        outputs.append(
+            Output(
+                f"divisions/{state.month.strftime('%Y-%m')}.json",
+                divisions_document(state, lines, stamp),
+                "division",
+            )
+        )
+    season_rows = marts.seasons()
+    seasons = sorted({r.season for r in season_rows if r.observed_minutes > 0})
+    for season in seasons:
+        outputs.append(
+            Output(
+                f"season/{season}.json",
+                season_document(season, season_rows, lines, stamp),
+                "season",
+            )
+        )
+
+    _, weight_sets = load_weight_sets(transform_dir / "seeds")
+    sensitivity = sensitivity_document(
+        [
+            (
+                week.window.start,
+                iso_week_of(week.window.start),
+                [
+                    RankedLine(s.line.line_id, s.disruption_index, s.good_service_pct)
+                    for s in week.standings
+                    if s.rank is not None
+                    and s.disruption_index is not None
+                    and s.good_service_pct is not None
+                ],
+            )
+            for week in archive
+        ],
+        marts.status_mix(),
+        weight_sets,
+    )
     outputs.append(
         Output(
             "meta/methodology.json",
-            methodology_document(transform_dir, league, stamp),
+            methodology_document(
+                transform_dir,
+                league,
+                stamp,
+                sensitivity=sensitivity,
+                industrial_action=actions,
+            ),
             "methodology",
         )
     )
@@ -189,6 +276,8 @@ def build_outputs(
                 stamp,
                 fallback_window=window,
                 latest_data_london=latest_minute,
+                division_months=states,
+                seasons=seasons,
             ),
             "index",
         )

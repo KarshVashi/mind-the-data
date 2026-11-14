@@ -28,8 +28,16 @@ from mind_the_data.publish.marts import (
     IncidentRow,
     LineInfo,
     MondayMorningRow,
+    StrikesExcludedRow,
     WeeklyRow,
     rows_by_line,
+)
+from mind_the_data.publish.mechanics import (
+    IndustrialAction,
+    RecoveryEntry,
+    StrikesExcluded,
+    recovery_table,
+    strikes_excluded_for_week,
 )
 
 # PLAN 7.4: a line-week under 90% completeness is provisional. Mirrors the
@@ -65,6 +73,12 @@ OPEN_METRIC_DECISIONS: tuple[str, ...] = (
     "D48",
     "D49",
     "D50",
+    "D56",
+    "D57",
+    "D58",
+    "D59",
+    "D60",
+    "D61",
 )
 
 # Owner decisions settled since publishing began, listed in meta/methodology.json.
@@ -237,6 +251,12 @@ class League:
         default_factory=lambda: LineOfTheWeek(None, null_reason="custom_window")
     )
     monday_morning: tuple[MondayMorning, ...] = ()
+    # Provisional on D18 (D59).
+    recovery_time: tuple[RecoveryEntry, ...] = ()
+    # Actions in seed_industrial_action that touch the window (D60).
+    industrial_action: tuple[IndustrialAction, ...] = ()
+    # The strikes-excluded variant (D60); None for a custom window.
+    strikes_excluded: StrikesExcluded | None = None
 
     @property
     def wooden_spoon(self) -> WoodenSpoon | None:
@@ -452,6 +472,7 @@ def league_from_daily(
     incidents: Sequence[IncidentRow],
     latest_minute_london: datetime | None = None,
     monday_morning: Sequence[MondayMorningRow] = (),
+    industrial_action: Sequence[IndustrialAction] = (),
 ) -> League:
     """Sum fct_line_daily over a custom window and rank it (D20, D22).
 
@@ -486,6 +507,19 @@ def league_from_daily(
         latest_data_london=latest_minute_london,
         line_of_the_week=LineOfTheWeek(None, null_reason="custom_window"),
         monday_morning=monday_mornings(window, lines, monday_morning),
+        recovery_time=recovery_table(lines, window_incidents),
+        industrial_action=_actions_in(window, industrial_action),
+    )
+
+
+def _actions_in(
+    window: Window, actions: Sequence[IndustrialAction]
+) -> tuple[IndustrialAction, ...]:
+    return tuple(
+        sorted(
+            (a for a in actions if a.overlaps(window.start, window.end)),
+            key=lambda a: (a.start_london_date, a.action_id),
+        )
     )
 
 
@@ -496,6 +530,8 @@ def league_from_weekly(
     incidents: Sequence[IncidentRow],
     latest_minute_london: datetime | None = None,
     monday_morning: Sequence[MondayMorningRow] = (),
+    industrial_action: Sequence[IndustrialAction] = (),
+    strikes_excluded: Sequence[StrikesExcludedRow] = (),
 ) -> League:
     """The ISO week as fct_line_weekly ranked and flagged it."""
     window = Window(start=week_start, end=week_start + timedelta(days=6))
@@ -537,4 +573,7 @@ def league_from_weekly(
         latest_data_london=latest_minute_london,
         line_of_the_week=line_of_the_week(week_start, lines, weekly),
         monday_morning=monday_mornings(window, lines, monday_morning),
+        recovery_time=recovery_table(lines, week_incidents),
+        industrial_action=_actions_in(window, industrial_action),
+        strikes_excluded=strikes_excluded_for_week(week_start, strikes_excluded),
     )
