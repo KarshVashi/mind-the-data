@@ -220,8 +220,7 @@ models:
           observed_trains / observed_hours_scheduled_trains: trains run
           against the timetable (ADR-014). The boards may omit trains, so it
           is a lower bound. Withheld (null) for the lines in
-          `trains_run_withheld_lines`, whose boards misfile trains. Not
-          published until the owner settles D42.
+          `trains_run_withheld_lines`, whose boards misfile trains.
       - name: is_measured_provisional
         description: measured_share below `min_measured_share` (0.5), so the line gets no experienced_rank (D42); null when the line is not measured.
       - name: excess_wait_hours
@@ -251,8 +250,99 @@ models:
       - name: experienced_rank
         description: >
           PLAN 7.3 Experienced Reliability rank within the week: lowest excess
-          wait first, ties to fewer long gaps per 100 hours. Null when not
-          measured or measured-provisional. Not published until the M4 acceptance passes.
+          wait first, ties to fewer long gaps per 100 hours, among line-weeks
+          whose measured numbers are published (measured_withheld_reason
+          null, D51) and that are not weak evidence (D53). Null otherwise.
+      - name: sum_excess_wait_seconds
+        description: Sum of excess wait over excess_wait_hours, seconds; the numerator of excess_wait_minutes.
+      - name: fallback_measured_hours
+        description: Measured hours judged against the fallback frequencies of seed_line_frequencies (D33).
+      - name: is_weak_evidence
+        description: >
+          At least one measured hour was judged against an estimated
+          timetable (D33; today only the Elizabeth line and the Overground). Their gate compares
+          boards with estimates partly checked against the same boards.
+        data_tests: [not_null]
+      - name: gate_judged_hours
+        description: Judged station-direction-hours (ADR-014) at the line's core and branch stations; the line-week gate's denominator (D51).
+      - name: gate_in_band_hours
+        description: Of those, hours inside the gate band.
+      - name: gate_pass_share
+        description: gate_in_band_hours / gate_judged_hours.
+      - name: measured_withheld_reason
+        description: >
+          Why the line-week's measured numbers are not published, the first
+          that applies: `line_not_measured` (D43), `shared_section_misfiled`
+          (`measured_view_withheld_lines`, D52), `no_measured_hours`,
+          `gate_not_judged` (no judged hour at a core or branch station),
+          `gate_failed` (more than `gate_max_out_of_band_share` of judged
+          hours out of band, D51), `too_few_measured_hours` (measured_share
+          under `min_measured_share`, D42). Null when published.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - line_not_measured
+                  - shared_section_misfiled
+                  - no_measured_hours
+                  - gate_not_judged
+                  - gate_failed
+                  - too_few_measured_hours
+      - name: is_measured_published
+        description: >
+          measured_withheld_reason is null; the export publishes the measured
+          numbers (D42, settled 2026-11-14). The measured columns keep their
+          values for withheld line-weeks, for checking; any reader that shows
+          them must filter on this flag.
+        data_tests: [not_null]
+
+  - name: fct_line_measured_daily
+    description: >
+      Measured-view sums per line and London date from int_measured_hours,
+      measured lines only (D43). Every column adds up over days, so
+      fct_line_weekly sums it for the ISO week and the publish code sums it
+      for a custom window.
+    columns:
+      - name: line_measured_daily_key
+        description: Row key, a hash of (line_id, london_date).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: london_date
+        description: London calendar date.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: scheduled_measurement_hours
+        description: Station-direction-hours with scheduled service.
+        data_tests: [not_null]
+      - name: observed_measurement_hours
+        description: Of those, hours with complete arrivals polling.
+      - name: observed_trains
+        description: Trains on the boards in observed hours (ADR-014).
+      - name: observed_hours_scheduled_trains
+        description: Scheduled trains in observed hours.
+      - name: measured_hours
+        description: Hours inside the quality gate, which feed the measured metrics.
+        data_tests: [not_null]
+      - name: excess_wait_hours
+        description: Measured hours with at least one in-service headway.
+      - name: sum_excess_wait_seconds
+        description: Sum of excess wait over those hours, seconds.
+      - name: long_gaps
+        description: Long gaps in measured hours (D34).
+      - name: fallback_measured_hours
+        description: Measured hours judged against fallback frequencies (D33).
+      - name: gate_judged_hours
+        description: Judged hours at core and branch stations (D51).
+      - name: gate_in_band_hours
+        description: Of those, hours inside the gate band.
+      - name: good_service_measured_hours
+        description: London hours of whole-hour Good Service with at least one measured hour of the line.
+      - name: honesty_gap_hours
+        description: Of those, hours with at least one long gap (PLAN 7.3 Honesty Gap).
 
   - name: rpt_weekly_highlights
     description: >

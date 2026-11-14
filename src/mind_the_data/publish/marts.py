@@ -28,6 +28,47 @@ class LineInfo:
     mode_name: str
     colour: str
     is_low_volume: bool
+    # seed_measured_lines scores the line in the measured view (D43).
+    is_measured: bool = False
+
+
+@dataclass(frozen=True)
+class MeasuredSums:
+    """Additive measured-view counts (fct_line_measured_daily), for a day or any window."""
+
+    scheduled_measurement_hours: int = 0
+    observed_measurement_hours: int = 0
+    observed_trains: int = 0
+    observed_hours_scheduled_trains: int = 0
+    measured_hours: int = 0
+    excess_wait_hours: int = 0
+    sum_excess_wait_seconds: float = 0.0
+    long_gaps: int = 0
+    fallback_measured_hours: int = 0
+    gate_judged_hours: int = 0
+    gate_in_band_hours: int = 0
+    good_service_measured_hours: int = 0
+    honesty_gap_hours: int = 0
+
+    def __add__(self, other: "MeasuredSums") -> "MeasuredSums":
+        return MeasuredSums(
+            **{
+                name: getattr(self, name) + getattr(other, name)
+                for name in self.__dataclass_fields__
+            }
+        )
+
+
+MEASURED_SUM_FIELDS = tuple(MeasuredSums.__dataclass_fields__)
+
+
+@dataclass(frozen=True)
+class MeasuredDailyRow:
+    """One row of fct_line_measured_daily: a measured line's sums for a London date."""
+
+    line_id: str
+    london_date: date
+    sums: MeasuredSums
 
 
 @dataclass(frozen=True)
@@ -75,6 +116,11 @@ class WeeklyRow:
     unranked_reason: str | None
     disruption_rank: int | None
     rank_movement: int | None
+    # The measured view as dbt summed and judged it (D42, D51 to D53); None
+    # for a line seed_measured_lines leaves out, or a recording without it.
+    measured_sums: MeasuredSums | None = None
+    measured_withheld_reason: str | None = None
+    experienced_rank: int | None = None
 
 
 @dataclass(frozen=True)
@@ -129,6 +175,7 @@ class Marts(Protocol):
     def incidents(self, start: date, end: date) -> list[IncidentRow]: ...
     def bad_hours(self, start: date, end: date) -> list[BadHourRow]: ...
     def monday_morning(self, start: date, end: date) -> list[MondayMorningRow]: ...
+    def measured_daily(self, start: date, end: date) -> list[MeasuredDailyRow]: ...
 
 
 # ---- Parsing ---------------------------------------------------------------
@@ -191,6 +238,25 @@ def parse_line(cells: Cells) -> LineInfo:
         mode_name=_req(cells, "mode_name"),
         colour=_req(cells, "colour"),
         is_low_volume=_bool(cells, "is_low_volume"),
+        is_measured=_opt(cells, "is_measured") == "true",
+    )
+
+
+def _measured_sums(cells: Cells) -> MeasuredSums:
+    values: dict[str, int | float] = {}
+    for name in MEASURED_SUM_FIELDS:
+        if name == "sum_excess_wait_seconds":
+            values[name] = _float(cells, name)
+        else:
+            values[name] = _int(cells, name)
+    return MeasuredSums(**values)  # type: ignore[arg-type]
+
+
+def parse_measured_daily(cells: Cells) -> MeasuredDailyRow:
+    return MeasuredDailyRow(
+        line_id=_req(cells, "line_id"),
+        london_date=_date(cells, "london_date"),
+        sums=_measured_sums(cells),
     )
 
 
@@ -234,6 +300,11 @@ def parse_weekly(cells: Cells) -> WeeklyRow:
         unranked_reason=_opt(cells, "unranked_reason"),
         disruption_rank=_opt_int(cells, "disruption_rank"),
         rank_movement=_opt_int(cells, "rank_movement"),
+        # A not-measured line, and a recording made before the measured
+        # columns, have no sums.
+        measured_sums=None if _opt(cells, "measured_hours") is None else _measured_sums(cells),
+        measured_withheld_reason=_opt(cells, "measured_withheld_reason"),
+        experienced_rank=_opt_int(cells, "experienced_rank"),
     )
 
 
@@ -291,8 +362,11 @@ WEEKLY_COLUMNS = (
     "scored_minutes, good_service_minutes, weighted_disruption_minutes, "
     "time_weighted_scored_minutes, incidents, median_recovery_minutes, completeness, "
     "disruption_index, good_service_pct, incidents_per_100_hours, is_week_complete, "
-    "is_provisional, unranked_reason, disruption_rank, rank_movement"
+    "is_provisional, unranked_reason, disruption_rank, rank_movement, "
+    + ", ".join(MEASURED_SUM_FIELDS)
+    + ", measured_withheld_reason, experienced_rank"
 )
+MEASURED_DAILY_COLUMNS = "line_id, london_date, " + ", ".join(MEASURED_SUM_FIELDS)
 INCIDENT_COLUMNS = (
     "incidents.line_id, incidents.started_at, minutes.london_ts as started_at_london, "
     "incidents.start_london_date, incidents.duration_minutes, incidents.is_open, "
@@ -312,8 +386,11 @@ def queries(database: str, start: date, end: date) -> dict[str, str]:
     window = f"date '{start.isoformat()}' and date '{end.isoformat()}'"
     return {
         "lines": (
-            "select line_id, line_name, mode_name, colour, is_low_volume "
-            f"from {database}.dim_lines order by line_id"
+            "select lines.line_id, lines.line_name, lines.mode_name, lines.colour, "
+            "lines.is_low_volume, coalesce(measured.is_measured, false) as is_measured "
+            f"from {database}.dim_lines as lines "
+            f"left join {database}.seed_measured_lines as measured "
+            "on lines.line_id = measured.line_id order by lines.line_id"
         ),
         "daily": (
             f"select {DAILY_COLUMNS} from {database}.fct_line_daily "
@@ -350,6 +427,10 @@ def queries(database: str, start: date, end: date) -> dict[str, str]:
         "monday_morning": (
             f"select {MONDAY_MORNING_COLUMNS} from {database}.rpt_monday_morning "
             f"where week_start between {window} order by week_start, line_id"
+        ),
+        "measured_daily": (
+            f"select {MEASURED_DAILY_COLUMNS} from {database}.fct_line_measured_daily "
+            f"where london_date between {window} order by line_id, london_date"
         ),
     }
 
@@ -412,6 +493,13 @@ class RecordedMarts:
             return []
         rows = [parse_monday_morning(c) for c in self._cells("monday_morning")]
         return [r for r in rows if start <= r.week_start <= end]
+
+    def measured_daily(self, start: date, end: date) -> list[MeasuredDailyRow]:
+        path = self.directory / "measured_daily.json"
+        if not path.exists():
+            return []
+        rows = [parse_measured_daily(c) for c in self._cells("measured_daily")]
+        return [r for r in rows if start <= r.london_date <= end]
 
 
 class AthenaMarts:
@@ -477,8 +565,13 @@ class AthenaMarts:
     def monday_morning(self, start: date, end: date) -> list[MondayMorningRow]:
         return [parse_monday_morning(c) for c in self._run("monday_morning", start, end)]
 
+    def measured_daily(self, start: date, end: date) -> list[MeasuredDailyRow]:
+        return [parse_measured_daily(c) for c in self._run("measured_daily", start, end)]
 
-def rows_by_line[T: (DailyRow, IncidentRow, WeeklyRow, BadHourRow, MondayMorningRow)](
+
+def rows_by_line[
+    T: (DailyRow, IncidentRow, WeeklyRow, BadHourRow, MondayMorningRow, MeasuredDailyRow)
+](
     rows: Sequence[T],
 ) -> dict[str, list[T]]:
     grouped: dict[str, list[T]] = {}

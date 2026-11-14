@@ -9,9 +9,9 @@
 -- data, not a failed hour, and an hour with no train on the boards has
 -- nothing to infer.
 --
--- Severity comes from the var `gate_test_severity`, `warn` until the owner
--- settles D44 (and D46, which accepts ADR-014); a failing gate then shows
--- in every build without stopping the daily transform.
+-- Severity comes from the var `gate_test_severity`: `error` since the owner
+-- settled D44 and D46 (2026-11-14), so a failing gate stops the daily
+-- transform rather than publishing measured numbers from a bad inference.
 
 with recent as (
     select

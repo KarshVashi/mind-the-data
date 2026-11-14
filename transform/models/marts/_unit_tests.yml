@@ -110,12 +110,9 @@ unit_tests:
       - input: ref('seed_measured_lines')
         rows:
           - {line_id: victoria, is_measured: true}
-      - input: ref('int_measured_hours')
+      - input: ref('fct_line_measured_daily')
         rows:
-          - {line_id: unused, week_start: "2026-10-19", is_line_measured: false, is_observed: false, counts_for_reliability: false}
-      - input: ref('int_line_minute_status')
-        rows:
-          - {line_id: unused, london_date: "2026-10-19", london_ts: "2026-10-19 08:00:00", is_missing: true}
+          - {line_id: unused, week_start: "2026-10-19", measured_hours: 0}
     expect:
       rows:
         - {line_id: victoria, week_start: "2026-10-19", week_end: "2026-10-25", scored_minutes: 120, time_weighted_scored_minutes: 90, disruption_index: 50, good_service_pct: 75, incidents_per_100_hours: 50, completeness: 1, median_recovery_minutes: 12, is_week_complete: true, is_provisional: false, engineering_works_share: 0, is_ranked: true, unranked_reason: null, disruption_rank: 1, previous_disruption_rank: null, rank_movement: null, previous_disruption_index: null}
@@ -127,66 +124,40 @@ unit_tests:
         - {line_id: northern, week_start: "2026-10-26", week_end: "2026-11-01", scored_minutes: 0, time_weighted_scored_minutes: 0, disruption_index: null, good_service_pct: null, incidents_per_100_hours: null, completeness: 1, median_recovery_minutes: null, is_week_complete: true, is_provisional: false, engineering_works_share: 1, is_ranked: false, unranked_reason: engineering_works, disruption_rank: null, previous_disruption_rank: null, rank_movement: null, previous_disruption_index: null}
         - {line_id: jubilee, week_start: "2026-10-26", week_end: "2026-11-01", scored_minutes: 50, time_weighted_scored_minutes: 50, disruption_index: 100, good_service_pct: 50, incidents_per_100_hours: 0, completeness: 1, median_recovery_minutes: null, is_week_complete: true, is_provisional: false, engineering_works_share: 0.5, is_ranked: true, unranked_reason: null, disruption_rank: 2, previous_disruption_rank: null, rank_movement: null, previous_disruption_index: null}
 
-  - name: fct_line_weekly_measured_view_and_honesty_gap
+  - name: fct_line_measured_daily_by_hand
     description: >
-      Week of 26 October 2026. Victoria has five observed station-direction-
-      hours on Tuesday 27th; four are in the gate band and count: 08:00 at
-      two stations (excess wait 60 s with 1 long gap, and 0 s) and 09:00 at
-      two (30 s and 30 s). The 10:00 hour is out of band (600 s, 5 long
-      gaps) and is left out. Excess wait = (60 + 0 + 30 + 30) / 4 = 30 s =
-      0.5 min; long gaps 1, per 100 measured hours 100 x 1 / 4 = 25.
-      Declared status: 08:00 is Good Service in every minute, 09:00 has a
-      Minor Delays minute. So 1 Good Service hour with a measurement, and it
-      has a long gap: Honesty Gap 1 hour, share 1.
-      Bakerloo: one counted hour at 08:00, excess -30 s (kept, not clipped)
-      = -0.5 min, no long gap; 08:00 is Good Service: 1 hour, Honesty Gap 0,
-      share 0. Bakerloo ranks 1 (-0.5 min), Victoria 2.
-      Coverage: Victoria 4 of 5 scheduled hours gated (0.8), Bakerloo 1 of
-      1. Central has 4 scheduled hours, 2 observed and 1 gated (excess 0 s):
-      share 0.25, under 0.5, so it is measured-provisional and gets no rank.
-      DLR is not measured: its hours are ignored and it shows
-      `not_measured` with no measured numbers or rank.
-      Trains run (ADR-014), over observed hours only: Victoria's two 08:00
-      hours saw 30 + 30 trains on the boards against 40 + 40 scheduled
-      (its other observed hours carry no counts here): 60 / 80 = 0.75.
-      Central's only counted hour (10:00, 5 of 30) is not observed, so it
-      has 0 against 0 and no share. Bakerloo has no counts at all.
-    model: fct_line_weekly
+      Tuesday 27 October 2026. Victoria has five observed station-direction-
+      hours; four are in the gate band and count: 08:00 at two stations
+      (excess wait 60 s with 1 long gap, and 0 s) and 09:00 at two (30 s and
+      30 s). The 10:00 hour is out of band (600 s, 5 long gaps) and is left
+      out. Measured hours 4, excess-wait hours 4, excess wait summed 120 s,
+      long gaps 1. Trains run sums observed hours only: 30 + 30 = 60 on the
+      boards against 40 + 40 + 10 + 10 + 10 = 110 scheduled. Station b is a
+      terminus, so the line-week gate (D51) judges station a only: 3 judged
+      hours, 2 in band. Declared status: 08:00 is Good Service in every
+      minute, 09:00 has a Minor Delays minute, so 1 Good Service hour with a
+      measurement, and it has a long gap: Honesty Gap 1.
+      Bakerloo: one counted hour, excess -30 s (kept, not clipped), judged
+      against fallback frequencies (D33), Good Service: Honesty Gap 0 of 1.
+      Central: 4 scheduled hours, 2 observed, 1 counted; 10:00 has 5 trains
+      on the boards but is not observed, so trains run is 0 of 20. 2 judged,
+      1 in band; no declared minutes, so no Good Service hour.
+      DLR is not measured (D43) and gets no row.
+    model: fct_line_measured_daily
     given:
-      - input: ref('fct_line_daily')
-        rows:
-          - {line_id: victoria, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, incidents: 0}
-          - {line_id: bakerloo, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, incidents: 0}
-          - {line_id: dlr, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, incidents: 0}
-          - {line_id: central, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, incidents: 0}
-      - input: ref('int_incidents')
-        rows:
-          - {line_id: unused, start_week_start: "2026-10-26", recovery_minutes: null}
-      - input: ref('dim_lines')
-        rows:
-          - {line_id: victoria, is_low_volume: false}
-          - {line_id: bakerloo, is_low_volume: false}
-          - {line_id: dlr, is_low_volume: false}
-          - {line_id: central, is_low_volume: false}
-      - input: ref('seed_measured_lines')
-        rows:
-          - {line_id: victoria, is_measured: true}
-          - {line_id: bakerloo, is_measured: true}
-          - {line_id: dlr, is_measured: false}
-          - {line_id: central, is_measured: true}
       - input: ref('int_measured_hours')
         rows:
-          - {line_id: victoria, naptan_id: a, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 60, long_gaps: 1, observed_trains: 30, scheduled_departures: 40}
-          - {line_id: victoria, naptan_id: b, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 0, observed_trains: 30, scheduled_departures: 40}
-          - {line_id: victoria, naptan_id: a, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 30, long_gaps: 0, observed_trains: null, scheduled_departures: null}
-          - {line_id: victoria, naptan_id: b, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 30, long_gaps: 0, observed_trains: null, scheduled_departures: null}
-          - {line_id: victoria, naptan_id: a, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 10, is_line_measured: true, is_observed: true, counts_for_reliability: false, excess_wait_seconds: 600, long_gaps: 5, observed_trains: null, scheduled_departures: null}
-          - {line_id: bakerloo, naptan_id: a, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: -30, long_gaps: 0, observed_trains: null, scheduled_departures: null}
-          - {line_id: dlr, naptan_id: c, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: false, is_observed: true, counts_for_reliability: false, excess_wait_seconds: 900, long_gaps: 9, observed_trains: null, scheduled_departures: null}
-          - {line_id: central, naptan_id: d, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 0, observed_trains: null, scheduled_departures: null}
-          - {line_id: central, naptan_id: d, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_observed: true, counts_for_reliability: false, excess_wait_seconds: 0, long_gaps: 0, observed_trains: null, scheduled_departures: null}
-          - {line_id: central, naptan_id: d, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 10, is_line_measured: true, is_observed: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0, observed_trains: 5, scheduled_departures: 30}
-          - {line_id: central, naptan_id: d, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 11, is_line_measured: true, is_observed: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0, observed_trains: null, scheduled_departures: null}
+          - {line_id: victoria, naptan_id: a, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 60, long_gaps: 1, observed_trains: 30, scheduled_departures: 40}
+          - {line_id: victoria, naptan_id: b, role: terminus, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 0, observed_trains: 30, scheduled_departures: 40}
+          - {line_id: victoria, naptan_id: a, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 30, long_gaps: 0, observed_trains: 0, scheduled_departures: 10}
+          - {line_id: victoria, naptan_id: b, role: terminus, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 30, long_gaps: 0, observed_trains: 0, scheduled_departures: 10}
+          - {line_id: victoria, naptan_id: a, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 10, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: 600, long_gaps: 5, observed_trains: 0, scheduled_departures: 10}
+          - {line_id: bakerloo, naptan_id: a, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: true, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: -30, long_gaps: 0, observed_trains: 0, scheduled_departures: 0}
+          - {line_id: dlr, naptan_id: c, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: false, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: 900, long_gaps: 9, observed_trains: 3, scheduled_departures: 10}
+          - {line_id: central, naptan_id: d, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 0, observed_trains: 0, scheduled_departures: 10}
+          - {line_id: central, naptan_id: d, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: 0, long_gaps: 0, observed_trains: 0, scheduled_departures: 10}
+          - {line_id: central, naptan_id: d, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 10, is_line_measured: true, is_fallback: false, is_observed: false, is_gate_judged: false, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0, observed_trains: 5, scheduled_departures: 30}
+          - {line_id: central, naptan_id: d, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 11, is_line_measured: true, is_fallback: false, is_observed: false, is_gate_judged: false, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0, observed_trains: 0, scheduled_departures: 30}
       - input: ref('int_line_minute_status')
         rows:
           - {line_id: victoria, london_date: "2026-10-27", london_ts: "2026-10-27 08:00:00", is_missing: false, status_severity: 10}
@@ -197,10 +168,98 @@ unit_tests:
           - {line_id: dlr, london_date: "2026-10-27", london_ts: "2026-10-27 08:00:00", is_missing: false, status_severity: 10}
     expect:
       rows:
-        - {line_id: victoria, week_start: "2026-10-26", is_measured: true, measurement_status: measured, observed_measurement_hours: 5, measured_hours: 4, measured_share: 0.8, observed_trains: 60, observed_hours_scheduled_trains: 80, trains_run_share: 0.75, is_measured_provisional: false, excess_wait_hours: 4, excess_wait_minutes: 0.5, long_gaps: 1, long_gaps_per_100_hours: 25, honesty_gap_hours: 1, good_service_measured_hours: 1, honesty_gap_share: 1, experienced_rank: 2}
-        - {line_id: bakerloo, week_start: "2026-10-26", is_measured: true, measurement_status: measured, observed_measurement_hours: 1, measured_hours: 1, measured_share: 1, observed_trains: null, observed_hours_scheduled_trains: null, trains_run_share: null, is_measured_provisional: false, excess_wait_hours: 1, excess_wait_minutes: -0.5, long_gaps: 0, long_gaps_per_100_hours: 0, honesty_gap_hours: 0, good_service_measured_hours: 1, honesty_gap_share: 0, experienced_rank: 1}
-        - {line_id: dlr, week_start: "2026-10-26", is_measured: false, measurement_status: not_measured, observed_measurement_hours: null, measured_hours: null, measured_share: null, observed_trains: null, observed_hours_scheduled_trains: null, trains_run_share: null, is_measured_provisional: null, excess_wait_hours: null, excess_wait_minutes: null, long_gaps: null, long_gaps_per_100_hours: null, honesty_gap_hours: null, good_service_measured_hours: null, honesty_gap_share: null, experienced_rank: null}
-        - {line_id: central, week_start: "2026-10-26", is_measured: true, measurement_status: measured, observed_measurement_hours: 2, measured_hours: 1, measured_share: 0.25, observed_trains: 0, observed_hours_scheduled_trains: 0, trains_run_share: null, is_measured_provisional: true, excess_wait_hours: 1, excess_wait_minutes: 0, long_gaps: 0, long_gaps_per_100_hours: 0, honesty_gap_hours: null, good_service_measured_hours: null, honesty_gap_share: null, experienced_rank: null}
+        - {line_id: victoria, london_date: "2026-10-27", scheduled_measurement_hours: 5, observed_measurement_hours: 5, observed_trains: 60, observed_hours_scheduled_trains: 110, measured_hours: 4, excess_wait_hours: 4, sum_excess_wait_seconds: 120, long_gaps: 1, fallback_measured_hours: 0, gate_judged_hours: 3, gate_in_band_hours: 2, good_service_measured_hours: 1, honesty_gap_hours: 1}
+        - {line_id: bakerloo, london_date: "2026-10-27", scheduled_measurement_hours: 1, observed_measurement_hours: 1, observed_trains: 0, observed_hours_scheduled_trains: 0, measured_hours: 1, excess_wait_hours: 1, sum_excess_wait_seconds: -30, long_gaps: 0, fallback_measured_hours: 1, gate_judged_hours: 1, gate_in_band_hours: 1, good_service_measured_hours: 1, honesty_gap_hours: 0}
+        - {line_id: central, london_date: "2026-10-27", scheduled_measurement_hours: 4, observed_measurement_hours: 2, observed_trains: 0, observed_hours_scheduled_trains: 20, measured_hours: 1, excess_wait_hours: 1, sum_excess_wait_seconds: 0, long_gaps: 0, fallback_measured_hours: 0, gate_judged_hours: 2, gate_in_band_hours: 1, good_service_measured_hours: 0, honesty_gap_hours: 0}
+
+  - name: fct_line_weekly_measured_view_and_publish_rule
+    description: >
+      Week of 26 October 2026, from fct_line_measured_daily sums over two
+      days. Victoria: excess wait (90 + 30) s over 4 hours = 0.5 min; long
+      gaps 1 per 4 measured hours = 25 per 100; Honesty Gap 1 of 1; trains
+      run 60 / 80 = 0.75; coverage 4 of 5 = 0.8; gate 3 of 4 judged hours in
+      band = 0.75, inside the 0.7 limit (D51): published.
+      Bakerloo: excess -30 s = -0.5 min (kept, not clipped), measured
+      against fallback frequencies, so weak evidence (D33); trains run has
+      no scheduled trains, so none: published, but weak evidence is not ranked (D53): Victoria
+      ranks 1 although Bakerloo has the lower excess wait.
+      Central passes its gate (1 of 1) but only 1 of 4 hours is measured
+      (0.25 < 0.5): too_few_measured_hours and measured-provisional.
+      Metropolitan: 6 of 10 judged hours in band (0.6 < 0.7): gate_failed.
+      Liberty: measured hours, but none judged at a core or branch station:
+      gate_not_judged. Elizabeth line: no measured hour: no_measured_hours.
+      Circle passes everything but is in `measured_view_withheld_lines` and
+      `trains_run_withheld_lines`: shared_section_misfiled, no trains run.
+      DLR is not measured: line_not_measured, no measured numbers.
+      Jubilee sits exactly on the limit, 7 of 10 judged hours in band (30%
+      out): published, excess 120 s over 2 hours = 1 min, rank 2.
+      Piccadilly has 1 of its 2 measured hours on fallback frequencies:
+      one is enough to make it weak evidence, published and unranked.
+    model: fct_line_weekly
+    given:
+      - input: ref('fct_line_daily')
+        rows:
+          - {line_id: victoria, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
+          - {line_id: bakerloo, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
+          - {line_id: dlr, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
+          - {line_id: central, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
+          - {line_id: metropolitan, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
+          - {line_id: liberty, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
+          - {line_id: elizabeth, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
+          - {line_id: circle, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
+          - {line_id: jubilee, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
+          - {line_id: piccadilly, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
+      - input: ref('int_incidents')
+        rows:
+          - {line_id: unused, start_week_start: "2026-10-26", recovery_minutes: null}
+      - input: ref('dim_lines')
+        rows:
+          - {line_id: victoria, is_low_volume: false}
+          - {line_id: bakerloo, is_low_volume: false}
+          - {line_id: dlr, is_low_volume: false}
+          - {line_id: central, is_low_volume: false}
+          - {line_id: metropolitan, is_low_volume: false}
+          - {line_id: liberty, is_low_volume: true}
+          - {line_id: elizabeth, is_low_volume: false}
+          - {line_id: circle, is_low_volume: false}
+          - {line_id: jubilee, is_low_volume: false}
+          - {line_id: piccadilly, is_low_volume: false}
+      - input: ref('seed_measured_lines')
+        rows:
+          - {line_id: victoria, is_measured: true}
+          - {line_id: bakerloo, is_measured: true}
+          - {line_id: dlr, is_measured: false}
+          - {line_id: central, is_measured: true}
+          - {line_id: metropolitan, is_measured: true}
+          - {line_id: liberty, is_measured: true}
+          - {line_id: elizabeth, is_measured: true}
+          - {line_id: circle, is_measured: true}
+          - {line_id: jubilee, is_measured: true}
+          - {line_id: piccadilly, is_measured: true}
+      - input: ref('fct_line_measured_daily')
+        rows:
+          - {line_id: victoria, week_start: "2026-10-26", scheduled_measurement_hours: 3, observed_measurement_hours: 3, observed_trains: 30, observed_hours_scheduled_trains: 40, measured_hours: 2, excess_wait_hours: 2, sum_excess_wait_seconds: 90, long_gaps: 1, fallback_measured_hours: 0, gate_judged_hours: 2, gate_in_band_hours: 1, good_service_measured_hours: 1, honesty_gap_hours: 1}
+          - {line_id: victoria, week_start: "2026-10-26", scheduled_measurement_hours: 2, observed_measurement_hours: 2, observed_trains: 30, observed_hours_scheduled_trains: 40, measured_hours: 2, excess_wait_hours: 2, sum_excess_wait_seconds: 30, long_gaps: 0, fallback_measured_hours: 0, gate_judged_hours: 2, gate_in_band_hours: 2, good_service_measured_hours: 0, honesty_gap_hours: 0}
+          - {line_id: bakerloo, week_start: "2026-10-26", scheduled_measurement_hours: 1, observed_measurement_hours: 1, observed_trains: 0, observed_hours_scheduled_trains: 0, measured_hours: 1, excess_wait_hours: 1, sum_excess_wait_seconds: -30, long_gaps: 0, fallback_measured_hours: 1, gate_judged_hours: 1, gate_in_band_hours: 1, good_service_measured_hours: 1, honesty_gap_hours: 0}
+          - {line_id: central, week_start: "2026-10-26", scheduled_measurement_hours: 4, observed_measurement_hours: 2, observed_trains: 0, observed_hours_scheduled_trains: 20, measured_hours: 1, excess_wait_hours: 1, sum_excess_wait_seconds: 0, long_gaps: 0, fallback_measured_hours: 0, gate_judged_hours: 1, gate_in_band_hours: 1, good_service_measured_hours: 0, honesty_gap_hours: 0}
+          - {line_id: metropolitan, week_start: "2026-10-26", scheduled_measurement_hours: 2, observed_measurement_hours: 2, observed_trains: 20, observed_hours_scheduled_trains: 20, measured_hours: 2, excess_wait_hours: 2, sum_excess_wait_seconds: 60, long_gaps: 0, fallback_measured_hours: 0, gate_judged_hours: 10, gate_in_band_hours: 6, good_service_measured_hours: 0, honesty_gap_hours: 0}
+          - {line_id: liberty, week_start: "2026-10-26", scheduled_measurement_hours: 1, observed_measurement_hours: 1, observed_trains: 4, observed_hours_scheduled_trains: 4, measured_hours: 1, excess_wait_hours: 1, sum_excess_wait_seconds: 0, long_gaps: 0, fallback_measured_hours: 1, gate_judged_hours: 0, gate_in_band_hours: 0, good_service_measured_hours: 0, honesty_gap_hours: 0}
+          - {line_id: elizabeth, week_start: "2026-10-26", scheduled_measurement_hours: 2, observed_measurement_hours: 0, observed_trains: 0, observed_hours_scheduled_trains: 0, measured_hours: 0, excess_wait_hours: 0, sum_excess_wait_seconds: 0, long_gaps: 0, fallback_measured_hours: 0, gate_judged_hours: 0, gate_in_band_hours: 0, good_service_measured_hours: 0, honesty_gap_hours: 0}
+          - {line_id: circle, week_start: "2026-10-26", scheduled_measurement_hours: 1, observed_measurement_hours: 1, observed_trains: 10, observed_hours_scheduled_trains: 10, measured_hours: 1, excess_wait_hours: 1, sum_excess_wait_seconds: 0, long_gaps: 0, fallback_measured_hours: 0, gate_judged_hours: 1, gate_in_band_hours: 1, good_service_measured_hours: 0, honesty_gap_hours: 0}
+          - {line_id: jubilee, week_start: "2026-10-26", scheduled_measurement_hours: 2, observed_measurement_hours: 2, observed_trains: 20, observed_hours_scheduled_trains: 20, measured_hours: 2, excess_wait_hours: 2, sum_excess_wait_seconds: 120, long_gaps: 0, fallback_measured_hours: 0, gate_judged_hours: 10, gate_in_band_hours: 7, good_service_measured_hours: 0, honesty_gap_hours: 0}
+          - {line_id: piccadilly, week_start: "2026-10-26", scheduled_measurement_hours: 2, observed_measurement_hours: 2, observed_trains: 20, observed_hours_scheduled_trains: 20, measured_hours: 2, excess_wait_hours: 2, sum_excess_wait_seconds: 0, long_gaps: 0, fallback_measured_hours: 1, gate_judged_hours: 2, gate_in_band_hours: 2, good_service_measured_hours: 0, honesty_gap_hours: 0}
+    expect:
+      rows:
+        - {line_id: victoria, is_measured: true, measurement_status: measured, measured_share: 0.8, trains_run_share: 0.75, is_measured_provisional: false, excess_wait_minutes: 0.5, long_gaps_per_100_hours: 25, honesty_gap_hours: 1, good_service_measured_hours: 1, honesty_gap_share: 1, gate_pass_share: 0.75, is_weak_evidence: false, measured_withheld_reason: null, is_measured_published: true, experienced_rank: 1}
+        - {line_id: bakerloo, is_measured: true, measurement_status: measured, measured_share: 1, trains_run_share: null, is_measured_provisional: false, excess_wait_minutes: -0.5, long_gaps_per_100_hours: 0, honesty_gap_hours: 0, good_service_measured_hours: 1, honesty_gap_share: 0, gate_pass_share: 1, is_weak_evidence: true, measured_withheld_reason: null, is_measured_published: true, experienced_rank: null}
+        - {line_id: dlr, is_measured: false, measurement_status: not_measured, measured_share: null, trains_run_share: null, is_measured_provisional: null, excess_wait_minutes: null, long_gaps_per_100_hours: null, honesty_gap_hours: null, good_service_measured_hours: null, honesty_gap_share: null, gate_pass_share: null, is_weak_evidence: false, measured_withheld_reason: line_not_measured, is_measured_published: false, experienced_rank: null}
+        - {line_id: central, is_measured: true, measurement_status: measured, measured_share: 0.25, trains_run_share: 0, is_measured_provisional: true, excess_wait_minutes: 0, long_gaps_per_100_hours: 0, honesty_gap_hours: 0, good_service_measured_hours: 0, honesty_gap_share: null, gate_pass_share: 1, is_weak_evidence: false, measured_withheld_reason: too_few_measured_hours, is_measured_published: false, experienced_rank: null}
+        - {line_id: metropolitan, is_measured: true, measurement_status: measured, measured_share: 1, trains_run_share: 1, is_measured_provisional: false, excess_wait_minutes: 0.5, long_gaps_per_100_hours: 0, honesty_gap_hours: 0, good_service_measured_hours: 0, honesty_gap_share: null, gate_pass_share: 0.6, is_weak_evidence: false, measured_withheld_reason: gate_failed, is_measured_published: false, experienced_rank: null}
+        - {line_id: liberty, is_measured: true, measurement_status: measured, measured_share: 1, trains_run_share: 1, is_measured_provisional: false, excess_wait_minutes: 0, long_gaps_per_100_hours: 0, honesty_gap_hours: 0, good_service_measured_hours: 0, honesty_gap_share: null, gate_pass_share: null, is_weak_evidence: true, measured_withheld_reason: gate_not_judged, is_measured_published: false, experienced_rank: null}
+        - {line_id: elizabeth, is_measured: true, measurement_status: no_measured_hours, measured_share: 0, trains_run_share: null, is_measured_provisional: true, excess_wait_minutes: null, long_gaps_per_100_hours: null, honesty_gap_hours: 0, good_service_measured_hours: 0, honesty_gap_share: null, gate_pass_share: null, is_weak_evidence: false, measured_withheld_reason: no_measured_hours, is_measured_published: false, experienced_rank: null}
+        - {line_id: circle, is_measured: true, measurement_status: measured, measured_share: 1, trains_run_share: null, is_measured_provisional: false, excess_wait_minutes: 0, long_gaps_per_100_hours: 0, honesty_gap_hours: 0, good_service_measured_hours: 0, honesty_gap_share: null, gate_pass_share: 1, is_weak_evidence: false, measured_withheld_reason: shared_section_misfiled, is_measured_published: false, experienced_rank: null}
+        - {line_id: jubilee, is_measured: true, measurement_status: measured, measured_share: 1, trains_run_share: 1, is_measured_provisional: false, excess_wait_minutes: 1, long_gaps_per_100_hours: 0, honesty_gap_hours: 0, good_service_measured_hours: 0, honesty_gap_share: null, gate_pass_share: 0.7, is_weak_evidence: false, measured_withheld_reason: null, is_measured_published: true, experienced_rank: 2}
+        - {line_id: piccadilly, is_measured: true, measurement_status: measured, measured_share: 1, trains_run_share: 1, is_measured_provisional: false, excess_wait_minutes: 0, long_gaps_per_100_hours: 0, honesty_gap_hours: 0, good_service_measured_hours: 0, honesty_gap_share: null, gate_pass_share: 1, is_weak_evidence: true, measured_withheld_reason: null, is_measured_published: true, experienced_rank: null}
 
   - name: rpt_weekly_highlights_by_hand
     description: >

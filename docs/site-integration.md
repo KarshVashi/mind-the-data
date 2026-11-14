@@ -157,7 +157,7 @@ All in the website repo under `src/components/tube/`, using tokens, Plex Mono la
 - **Partial window** (`is_window_complete: false`, custom windows from `post_snapshot.py`): banner, and "partial" in the title.
 - **Custom window** (`data_window.iso_week: null`): title from the dates ("4 to 10 November"), no movement column.
 - **Provisional lines**: still ranked (D20), marked, reasons listed.
-- **Not measured**: the measured columns say so (v0 and v1, until the owner publishes the measured view, D42).
+- **Not measured**: the measured columns say why, from `measured_withheld_reason` (see the contract changes for 0.4.0).
 - **Open decisions**: listed on every data page while `open_decisions` is non-empty, with the methodology version line the cards use.
 - **No complete week yet** (`latest_week: null`): `/tube/` says the first table is published on the first Monday after a full week of data.
 
@@ -165,7 +165,7 @@ All in the website repo under `src/components/tube/`, using tokens, Plex Mono la
 
 ### Already in the files
 
-Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_name`), TfL line colours (`colour`), `mode`, `is_low_volume`, ranks with movement, provisional flags with reasons, the measured-view slots (null until the M4 acceptance passes, D44), the worst incident, the insight line, line histories, typical bad hours, methodology weights and thresholds.
+Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_name`), TfL line colours (`colour`), `mode`, `is_low_volume`, ranks with movement, provisional flags with reasons, the measured view per line (filled when the line-week's gate passes, D42, D51), the worst incident, the insight line, line histories, typical bad hours, methodology weights and thresholds.
 
 ### Changed in this bundle
 
@@ -181,9 +181,26 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
 - **`monday_morning`**: the Monday Morning Index (07:00 to 10:00) per line for each Monday in the window, ranked, unranked lines last (D49).
 - **`engineering_works`**: lines with hours closed for works in the window, most first (D50).
 - **`worst_incident`** is now the most severity-weighted incident, not the longest, and carries `severity_weighted_minutes` (D48).
-- **`measured.trains_run_share`**: trains on the boards over scheduled trains (ADR-014). `null`, like every measured field, until the owner publishes the measured view (D42).
+- **`measured.trains_run_share`**: trains on the boards over scheduled trains (ADR-014). Published from 0.4.0.
 - **`meta/methodology.json`** gains `disruption_index` (definition, `min`, `max`), `thresholds.min_open_share_to_rank` and `settled_decisions`.
 - The share card title is now "Which lines did TfL report as most disrupted?", and its subtitle gives the 0 to 800 scale.
+
+### Changed for the measured view (`schema_version` 0.4.0, additive)
+
+- **The measured view is published** (D42, settled 2026-11-14). `views.measured` is `published` when any line has measured numbers. Each standing, and each week in `lines/{line_id}.json` history, has `measured` filled or `null`, and a new `measured_withheld_reason`, `null` when measured:
+
+  | Reason | Show |
+  |---|---|
+  | `line_not_measured` | "Not measured" (DLR, tram, Waterloo & City, Suffragette; D43) |
+  | `shared_section_misfiled` | "Not measured: shared boards" (Circle, Hammersmith & City; D52) |
+  | `no_measured_hours`, `gate_not_judged`, `gate_failed`, `too_few_measured_hours` | "Not enough reliable data this week" (D42, D51) |
+
+- **`measured`** gains `trains_run_withheld_reason`, `measured_hours`, `measured_share`, `gate_pass_share`, `good_service_measured_hours` and `is_weak_evidence`. Show weak-evidence lines (the Elizabeth line and the Overground, D33) with a mark and a note "measured against estimated frequencies"; they have no `experienced_rank` (D53). Trains run is a lower bound ("trains shown on TfL's boards"), and can exceed 100% on weak-evidence lines.
+- **`measured_status`** gains `withheld`: a measured line whose week did not qualify. `not_measured` now means only the four lines the measured view leaves out.
+- **The Honesty Gap needs its caveat beside it** wherever it is shown, line pages included: "Long gaps are measured from TfL's arrival boards, which list about 85% of timetabled trains; if the rest ran, some gaps exist only on the boards." (methodology, section 3).
+- **`insight.kind`** adds `trains_run`. The insight is the biggest Honesty Gap, then the lowest trains run, then the lowest Good Service % (D38).
+- **`meta/methodology.json`** gains the gate thresholds (`gate_low_ratio`, `gate_high_ratio`, `gate_max_out_of_band_share`, `min_measured_share`), `measured_view_withheld_lines` and `trains_run_withheld_lines`.
+- **`lines/{line_id}.json`** `measured_status` is `measured` when any week in the history has measured numbers.
 
 ### Still needed
 
@@ -193,7 +210,6 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
 | Per-day values per line in the league file (`days[]`: date, Good Service %, Disruption Index, scored minutes) | Line × day heatmap on week pages | M6 task: a `daily` block in `league/{iso_week}.json` from `fct_line_daily` (one more Athena query per run) |
 | Card paths in `meta/index.json` | Linking each archived week to its card | After the R2 upload exists: the upload step knows which cards are in the bucket. Until then the site uses `cards/{iso_week}.png` for the latest week only |
 | Post snapshots (custom windows) in the index | Archiving the Wednesday post's table | Optional: `post_snapshot.py` could upload to `snapshots/{start}_{end}/` with an index entry. v0 vendors it instead |
-| Measured view (`measured` fields, `honesty_gap` insight) | v2 | The gate passes under ADR-014; publishing waits for the owner (D42). The schema slots exist |
 | `divisions/`, `season/`, `open-data/` | Later pages | The rest of M6 (divisions need four weeks), M7 |
 | Public methodology prose | `/tube/methodology/` | M7 `docs/methodology.md` |
 

@@ -50,7 +50,7 @@ GOOD_SERVICE_HEADER = "% time reported Good Service"
 INDEX_HEADER = "Disruption Index"
 # D22: shown in place of the numbers for a line that ran under half its hours.
 NOT_RANKED_WORKS = "Not ranked: engineering works"
-METHODOLOGY_NOTE = "Methodology v0.2: some definitions are provisional and may be revised."
+METHODOLOGY_NOTE = "Methodology v0.3: some definitions are provisional and may be revised."
 
 
 class CardOverflow(RuntimeError):

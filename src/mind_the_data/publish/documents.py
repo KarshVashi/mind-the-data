@@ -21,9 +21,11 @@ from mind_the_data.publish.league import (
     OPEN_METRIC_DECISIONS,
     SETTLED_METRIC_DECISIONS,
     League,
+    MeasuredView,
     MondayMorning,
     Standing,
     Window,
+    measured_view,
 )
 from mind_the_data.publish.marts import BadHourRow, LineInfo, WeeklyRow
 from mind_the_data.publish.schemas import SCHEMA_VERSION
@@ -82,6 +84,35 @@ def measured_published(league: League) -> bool:
     return any(s.measured is not None for s in league.standings)
 
 
+def measured_document(measured: MeasuredView | None) -> dict[str, Any] | None:
+    """The published measured numbers (PLAN 7.3, D42), or None when withheld."""
+    if measured is None:
+        return None
+    return {
+        "excess_wait_minutes": _round(measured.excess_wait_minutes, 2),
+        "long_gaps_per_100_hours": _round(measured.long_gaps_per_100_hours, 2),
+        "honesty_gap_hours": _round(measured.honesty_gap_hours, 1),
+        "honesty_gap_share": _round(measured.honesty_gap_share, 4),
+        "experienced_rank": measured.experienced_rank,
+        "trains_run_share": _round(measured.trains_run_share, 4),
+        "trains_run_withheld_reason": measured.trains_run_withheld_reason,
+        "measured_hours": measured.measured_hours,
+        "measured_share": _round(measured.measured_share, 4),
+        "gate_pass_share": _round(measured.gate_pass_share, 4),
+        "good_service_measured_hours": measured.good_service_measured_hours,
+        "is_weak_evidence": measured.is_weak_evidence,
+    }
+
+
+def measured_status(standing: Standing) -> str:
+    """`measured`, `withheld` (a measured line whose week did not qualify) or `not_measured` (D43)."""
+    if standing.measured is not None:
+        return "measured"
+    if standing.measured_withheld_reason in (None, "line_not_measured"):
+        return "not_measured"
+    return "withheld"
+
+
 def _standing(standing: Standing) -> dict[str, Any]:
     measured = standing.measured
     return {
@@ -108,17 +139,11 @@ def _standing(standing: Standing) -> dict[str, Any]:
             {"code": r.code, "decisions": list(r.decisions), "detail": r.detail}
             for r in standing.provisional_reasons
         ],
-        "measured_status": "not_measured" if measured is None else "measured",
-        "measured": None
-        if measured is None
-        else {
-            "excess_wait_minutes": _round(measured.excess_wait_minutes, 2),
-            "long_gaps_per_100_hours": _round(measured.long_gaps_per_100_hours, 2),
-            "honesty_gap_hours": _round(measured.honesty_gap_hours, 1),
-            "honesty_gap_share": _round(measured.honesty_gap_share, 4),
-            "experienced_rank": measured.experienced_rank,
-            "trains_run_share": _round(measured.trains_run_share, 4),
-        },
+        "measured_status": measured_status(standing),
+        "measured_withheld_reason": None
+        if measured is not None
+        else standing.measured_withheld_reason,
+        "measured": measured_document(measured),
     }
 
 
@@ -220,7 +245,14 @@ def league_document(league: League, insight: Insight | None, stamp: Stamp) -> di
     }
 
 
-def _week(row: WeeklyRow) -> dict[str, Any]:
+def _week_measured(line: LineInfo, row: WeeklyRow) -> MeasuredView | None:
+    if row.measured_withheld_reason is not None or row.measured_sums is None:
+        return None
+    return measured_view(line, row.measured_sums, row.experienced_rank)
+
+
+def _week(line: LineInfo, row: WeeklyRow) -> dict[str, Any]:
+    measured = _week_measured(line, row)
     return {
         "iso_week": iso_week_of(row.week_start),
         "week_start": row.week_start.isoformat(),
@@ -235,6 +267,10 @@ def _week(row: WeeklyRow) -> dict[str, Any]:
         "completeness": _round(row.completeness, 4),
         "is_week_complete": row.is_week_complete,
         "is_provisional": row.is_provisional,
+        "measured_withheld_reason": None
+        if measured is not None
+        else row.measured_withheld_reason or "line_not_measured",
+        "measured": measured_document(measured),
     }
 
 
@@ -261,8 +297,6 @@ def line_document(
     weekly: Sequence[WeeklyRow],
     bad_hours: Sequence[BadHourRow],
     stamp: Stamp,
-    *,
-    measured: bool = False,
 ) -> dict[str, Any] | None:
     """lines/{line_id}.json, or None when the line has no weeks yet."""
     # Weeks before the collector started have scheduled minutes but nothing observed.
@@ -286,10 +320,12 @@ def line_document(
             "colour": line.colour,
             "is_low_volume": line.is_low_volume,
         },
-        "history": [_week(w) for w in history],
-        "worst_week": None if worst is None else _week(worst),
+        "history": [_week(line, w) for w in history],
+        "worst_week": None if worst is None else _week(line, worst),
         "typical_bad_hours": typical_bad_hours([r for r in bad_hours if r.line_id == line.line_id]),
-        "measured_status": "measured" if measured else "not_measured",
+        "measured_status": "measured"
+        if any(_week_measured(line, w) is not None for w in history)
+        else "not_measured",
     }
 
 
@@ -349,7 +385,13 @@ def methodology_document(transform_dir: Path, league: League, stamp: Stamp) -> d
             "closure_share_provisional": CLOSURE_SHARE_PROVISIONAL,
             "min_open_share_to_rank": MIN_OPEN_SHARE_TO_RANK,
             "incident_merge_gap_minutes": int(variables["incident_merge_gap_minutes"]),
+            "gate_low_ratio": float(variables["gate_low_ratio"]),
+            "gate_high_ratio": float(variables["gate_high_ratio"]),
+            "gate_max_out_of_band_share": float(variables["gate_max_out_of_band_share"]),
+            "min_measured_share": float(variables["min_measured_share"]),
         },
+        "measured_view_withheld_lines": list(variables["measured_view_withheld_lines"]),
+        "trains_run_withheld_lines": list(variables["trains_run_withheld_lines"]),
         "views": {
             "declared": "published",
             "measured": "published" if measured_published(league) else "not_measured",

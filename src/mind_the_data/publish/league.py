@@ -14,6 +14,11 @@ The week's highlights (M6) are worked out here for both paths, mirroring
 rpt_weekly_highlights: the Wooden Spoon, Line of the Week and the single
 worst incident.
 
+The measured view (PLAN 7.3, published since D42 was settled) follows the
+same pattern: an ISO week takes fct_line_weekly's sums, withheld reason and
+experienced rank; a custom window sums fct_line_measured_daily and applies
+the same rules here (D51 to D53).
+
 Nothing here changes a metric. Flags only mark numbers that rest on a
 decision the owner has not made yet.
 """
@@ -27,6 +32,8 @@ from mind_the_data.publish.marts import (
     DailyRow,
     IncidentRow,
     LineInfo,
+    MeasuredDailyRow,
+    MeasuredSums,
     MondayMorningRow,
     WeeklyRow,
     rows_by_line,
@@ -50,6 +57,19 @@ MIN_OPEN_SHARE_TO_RANK = 0.5
 UNRANKED_NO_SCORED_MINUTES = "no_scored_minutes"
 UNRANKED_ENGINEERING_WORKS = "engineering_works"
 
+# Measured view. Each mirrors a dbt var; a test reads both and compares.
+# A line-week's gate fails when more than this share of its judged hours at
+# core and branch stations is out of band (D51; the M4 test's limit).
+GATE_MAX_OUT_OF_BAND_SHARE = 0.3
+# Below this share of scheduled station-direction-hours measured, the line's
+# measured numbers are withheld (D42, `min_measured_share`).
+MIN_MEASURED_SHARE = 0.5
+# Lines whose boards misfile trains on the shared section (ADR-014): the
+# whole measured view is withheld (D52), and trains run with it.
+MEASURED_VIEW_WITHHELD_LINES: tuple[str, ...] = ("circle", "hammersmith-city")
+TRAINS_RUN_WITHHELD_LINES: tuple[str, ...] = ("circle", "hammersmith-city")
+WITHHELD_SHARED_SECTION = "shared_section_misfiled"
+
 # Open owner decisions that change published numbers or flags (docs/DECISIONS.md).
 OPEN_METRIC_DECISIONS: tuple[str, ...] = (
     "D16",
@@ -58,17 +78,40 @@ OPEN_METRIC_DECISIONS: tuple[str, ...] = (
     "D20",
     "D21",
     "D23",
+    # The measured view's definitions, published since D42 was settled.
+    "D25",
+    "D26",
+    "D27",
+    "D28",
+    "D29",
+    "D30",
+    "D31",
+    "D32",
+    "D33",
+    "D34",
     "D35",
     "D37",
     "D38",
+    "D40",
+    "D43",
+    "D51",
+    "D52",
+    "D53",
+)
+
+# Owner decisions settled since publishing began, listed in meta/methodology.json.
+SETTLED_METRIC_DECISIONS: tuple[str, ...] = (
+    "D19",
+    "D22",
+    "D36",
+    "D42",
+    "D44",
+    "D46",
     "D47",
     "D48",
     "D49",
     "D50",
 )
-
-# Owner decisions settled since publishing began, listed in meta/methodology.json.
-SETTLED_METRIC_DECISIONS: tuple[str, ...] = ("D19", "D22", "D36")
 
 
 @dataclass(frozen=True)
@@ -107,7 +150,7 @@ class ProvisionalReason:
 
 @dataclass(frozen=True)
 class MeasuredView:
-    """Experienced Reliability (PLAN 7.3). Filled once the owner publishes the measured view (D42)."""
+    """Experienced Reliability (PLAN 7.3) for a line whose measured numbers are published (D42)."""
 
     excess_wait_minutes: float | None
     long_gaps_per_100_hours: float | None
@@ -116,6 +159,106 @@ class MeasuredView:
     experienced_rank: int | None
     # Trains on the boards over scheduled trains (ADR-014); the boards may omit trains.
     trains_run_share: float | None = None
+    measured_hours: int = 0
+    measured_share: float | None = None
+    gate_pass_share: float | None = None
+    good_service_measured_hours: int = 0
+    # Judged against the fallback frequencies of D33: weak evidence, unranked (D53).
+    is_weak_evidence: bool = False
+    trains_run_withheld_reason: str | None = None
+
+
+def measured_withheld_reason(line: LineInfo, sums: MeasuredSums | None) -> str | None:
+    """Why a line-week's measured numbers are not published; None when they are.
+
+    The first that applies, as fct_line_weekly.measured_withheld_reason.
+    """
+    if not line.is_measured:
+        return "line_not_measured"
+    if line.line_id in MEASURED_VIEW_WITHHELD_LINES:
+        return WITHHELD_SHARED_SECTION
+    if sums is None or sums.measured_hours == 0:
+        return "no_measured_hours"
+    if sums.gate_judged_hours == 0:
+        return "gate_not_judged"
+    if sums.gate_in_band_hours < (1 - GATE_MAX_OUT_OF_BAND_SHARE) * sums.gate_judged_hours:
+        return "gate_failed"
+    if sums.measured_hours < MIN_MEASURED_SHARE * sums.scheduled_measurement_hours:
+        return "too_few_measured_hours"
+    return None
+
+
+def measured_view(line: LineInfo, sums: MeasuredSums, experienced_rank: int | None) -> MeasuredView:
+    """The published measured numbers from a window's sums, as fct_line_weekly computes them."""
+    trains_run_withheld = (
+        WITHHELD_SHARED_SECTION if line.line_id in TRAINS_RUN_WITHHELD_LINES else None
+    )
+    return MeasuredView(
+        excess_wait_minutes=sums.sum_excess_wait_seconds / sums.excess_wait_hours / 60
+        if sums.excess_wait_hours
+        else None,
+        long_gaps_per_100_hours=100 * sums.long_gaps / sums.measured_hours
+        if sums.measured_hours
+        else None,
+        honesty_gap_hours=float(sums.honesty_gap_hours),
+        honesty_gap_share=sums.honesty_gap_hours / sums.good_service_measured_hours
+        if sums.good_service_measured_hours
+        else None,
+        experienced_rank=experienced_rank,
+        trains_run_share=sums.observed_trains / sums.observed_hours_scheduled_trains
+        if sums.observed_hours_scheduled_trains and trains_run_withheld is None
+        else None,
+        measured_hours=sums.measured_hours,
+        measured_share=sums.measured_hours / sums.scheduled_measurement_hours
+        if sums.scheduled_measurement_hours
+        else None,
+        gate_pass_share=sums.gate_in_band_hours / sums.gate_judged_hours
+        if sums.gate_judged_hours
+        else None,
+        good_service_measured_hours=sums.good_service_measured_hours,
+        is_weak_evidence=sums.fallback_measured_hours > 0,
+        trains_run_withheld_reason=trains_run_withheld,
+    )
+
+
+def rank_measured(standings: Sequence["Standing"]) -> list["Standing"]:
+    """Experienced Reliability rank (PLAN 7.3) over published, strong-evidence lines.
+
+    Lowest excess wait first, ties to fewer long gaps per 100 hours, equal
+    lines sharing a rank, as SQL rank() in fct_line_weekly (D51, D53).
+    """
+
+    def key(s: Standing) -> tuple[float, float]:
+        assert s.measured is not None and s.measured.excess_wait_minutes is not None
+        # excess_wait_hours > 0 implies measured_hours > 0, so long gaps is never null here.
+        assert s.measured.long_gaps_per_100_hours is not None
+        return (s.measured.excess_wait_minutes, s.measured.long_gaps_per_100_hours)
+
+    rankable = sorted(
+        (
+            s
+            for s in standings
+            if s.measured is not None
+            and s.measured.excess_wait_minutes is not None
+            and not s.measured.is_weak_evidence
+        ),
+        key=key,
+    )
+    ranks: dict[str, int] = {}
+    previous: tuple[float, float] | None = None
+    current = 0
+    for position, standing in enumerate(rankable, start=1):
+        if key(standing) != previous:
+            current, previous = position, key(standing)
+        ranks[standing.line.line_id] = current
+    out = []
+    for s in standings:
+        if s.measured is None:
+            out.append(s)
+        else:
+            measured = replace(s.measured, experienced_rank=ranks.get(s.line.line_id))
+            out.append(replace(s, measured=measured))
+    return out
 
 
 @dataclass(frozen=True)
@@ -134,6 +277,8 @@ class Standing:
     rank_movement: int | None = None
     provisional_reasons: tuple[ProvisionalReason, ...] = ()
     measured: MeasuredView | None = None
+    # Why measured is None (D42, D43, D51, D52); "line_not_measured" by default.
+    measured_withheld_reason: str | None = "line_not_measured"
 
     @property
     def completeness(self) -> float | None:
@@ -452,8 +597,12 @@ def league_from_daily(
     incidents: Sequence[IncidentRow],
     latest_minute_london: datetime | None = None,
     monday_morning: Sequence[MondayMorningRow] = (),
+    measured_daily: Sequence[MeasuredDailyRow] = (),
 ) -> League:
     """Sum fct_line_daily over a custom window and rank it (D20, D22).
+
+    The measured view sums fct_line_measured_daily over the same dates and
+    applies fct_line_weekly's rules (D51 to D53).
 
     Rank movement and Line of the Week are left empty: there is no earlier
     window of the same shape to compare with.
@@ -462,6 +611,9 @@ def league_from_daily(
     window_incidents = [i for i in incidents if window.start <= i.start_london_date <= window.end]
     daily_by_line = rows_by_line(in_window)
     incidents_by_line = rows_by_line(window_incidents)
+    measured_by_line = rows_by_line(
+        [m for m in measured_daily if window.start <= m.london_date <= window.end]
+    )
     standings = []
     for line in lines:
         rows = daily_by_line.get(line.line_id, [])
@@ -477,10 +629,22 @@ def league_from_daily(
             incidents=sum(r.incidents for r in rows),
             median_recovery_minutes=_median_recovery(incidents_by_line.get(line.line_id, [])),
         )
-        standings.append(replace(standing, provisional_reasons=provisional_reasons(standing)))
+        measured_rows = measured_by_line.get(line.line_id, [])
+        sums = sum((m.sums for m in measured_rows), MeasuredSums()) if measured_rows else None
+        withheld = measured_withheld_reason(line, sums)
+        standings.append(
+            replace(
+                standing,
+                provisional_reasons=provisional_reasons(standing),
+                measured=None
+                if withheld is not None or sums is None
+                else measured_view(line, sums, None),
+                measured_withheld_reason=withheld,
+            )
+        )
     return League(
         window=window,
-        standings=tuple(rank_standings(standings)),
+        standings=tuple(rank_standings(rank_measured(standings))),
         worst_incident=worst_incident(lines, window_incidents),
         is_complete=data_reaches_past(window, latest_minute_london),
         latest_data_london=latest_minute_london,
@@ -519,6 +683,12 @@ def league_from_weekly(
                 median_recovery_minutes=row.median_recovery_minutes,
                 rank=row.disruption_rank,
                 rank_movement=row.rank_movement,
+                measured=None
+                if row.measured_withheld_reason is not None or row.measured_sums is None
+                else measured_view(line, row.measured_sums, row.experienced_rank),
+                measured_withheld_reason=row.measured_withheld_reason
+                if row.measured_sums is not None or row.measured_withheld_reason is not None
+                else "line_not_measured",
             )
         flagged = provisional_reasons(
             standing, low_completeness=None if row is None else row.is_provisional

@@ -9,7 +9,7 @@ import pytest
 
 from mind_the_data.ops.athena import QueryResult
 from mind_the_data.publish import marts as marts_module
-from mind_the_data.publish.insight import line_label, pick_insight
+from mind_the_data.publish.insight import line_label, pick_insight, possessive
 from mind_the_data.publish.league import League, MeasuredView, Window, league_from_daily
 from mind_the_data.publish.marts import (
     AthenaMarts,
@@ -79,6 +79,62 @@ def test_honesty_gap_wins_when_measured(league: League) -> None:
     assert insight is not None and insight.kind == "honesty_gap"
     assert insight.line_id == standings[5].line.line_id
     assert "9 hours" in insight.text
+
+
+def _strong(standing: Any) -> bool:
+    return not standing.is_provisional and standing.rank is not None
+
+
+def test_measured_insight_skips_weak_evidence_and_provisional(league: League) -> None:
+    """D38 with the measured view: weak evidence (D53) and provisional lines are never named."""
+    standings = list(league.standings)
+    strong = [i for i, s in enumerate(standings) if _strong(s)]
+    provisional = next(i for i, s in enumerate(standings) if s.is_provisional)
+    weak = MeasuredView(None, None, 40.0, 0.5, None, measured_hours=10, is_weak_evidence=True)
+    standings[strong[0]] = replace(standings[strong[0]], measured=weak)
+    standings[provisional] = replace(
+        standings[provisional], measured=MeasuredView(None, None, 30.0, 0.4, None)
+    )
+    standings[strong[1]] = replace(
+        standings[strong[1]], measured=MeasuredView(None, None, 1.0, 0.02, None)
+    )
+    insight = pick_insight(replace(league, standings=tuple(standings)))
+    assert insight is not None and insight.kind == "honesty_gap"
+    assert insight.line_id == standings[strong[1]].line.line_id
+    assert "for 1 hour in which" in insight.text
+
+
+def test_trains_run_insight_when_no_honesty_gap(league: League) -> None:
+    standings = list(league.standings)
+    strong = [i for i, s in enumerate(standings) if _strong(s)]
+    standings[strong[0]] = replace(
+        standings[strong[0]], measured=MeasuredView(None, None, 0.0, 0.0, None, 0.81)
+    )
+    standings[strong[1]] = replace(
+        standings[strong[1]], measured=MeasuredView(None, None, 0.0, 0.0, None, 0.72)
+    )
+    # Near the timetable is not a headline; the declared fallback applies.
+    standings[strong[2]] = replace(
+        standings[strong[2]], measured=MeasuredView(None, None, 0.0, 0.0, None, 0.97)
+    )
+    insight = pick_insight(replace(league, standings=tuple(standings)))
+    assert insight is not None and insight.kind == "trains_run"
+    name = standings[strong[1]].line.line_name
+    assert insight.text == (
+        f"Only 72% of {possessive(name)} timetabled trains showed on TfL's arrival boards."
+    )
+    only_near = list(league.standings)
+    only_near[strong[2]] = standings[strong[2]]
+    fallback = pick_insight(replace(league, standings=tuple(only_near)))
+    assert fallback is not None and fallback.kind == "lowest_good_service"
+
+
+@pytest.mark.parametrize(
+    ("name", "label"),
+    [("Central", "the Central line's"), ("DLR", "the DLR's"), ("Tram", "trams'")],
+)
+def test_possessive(name: str, label: str) -> None:
+    assert possessive(name) == label
 
 
 def test_no_insight_when_everything_is_provisional(league: League) -> None:
