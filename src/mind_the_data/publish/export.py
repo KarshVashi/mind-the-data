@@ -16,7 +16,8 @@ before it, league/latest.json, lines/{line_id}.json, meta/methodology.json,
 meta/index.json and cards/{iso_week}.png plus the 1080x1350 variant.
 Each league file carries the week's highlights (Wooden Spoon, Line of the
 Week, worst incident), Monday Morning Index and Engineering Works table.
-divisions/ and season/ wait for the rest of M6, and open-data/ for M7.
+divisions/ and season/ wait for the rest of M6; open-data/ is
+mind_the_data.publish.open_data, monthly.
 """
 
 import argparse

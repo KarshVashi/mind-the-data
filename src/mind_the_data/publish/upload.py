@@ -14,6 +14,10 @@ publish-weekly.yml (runbook, H12): R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
 R2_SECRET_ACCESS_KEY, R2_BUCKET and PAGES_DEPLOY_HOOK_URL. None of them is
 ever printed, including in errors.
 
+The monthly open dataset (open-data/{yyyy-mm}/, mind_the_data.publish.open_data)
+is uploaded the same way, as a directory of its own: the Parquet files and
+README.md first, manifest.json last. The two kinds are never mixed in one run.
+
 Nothing is ever deleted from the bucket: a key that drops out of
 meta/index.json (an old card, a line no longer listed) stays readable at its
 old URL. The site reads only what the index lists, so this is deliberate.
@@ -36,6 +40,8 @@ if TYPE_CHECKING:
 
 JSON = "application/json; charset=utf-8"
 PNG = "image/png"
+PARQUET = "application/vnd.apache.parquet"
+MARKDOWN = "text/markdown; charset=utf-8"
 
 # Overwritten every Monday.
 SHORT_CACHE = "public, max-age=300"
@@ -43,6 +49,8 @@ SHORT_CACHE = "public, max-age=300"
 WEEK_CACHE = "public, max-age=3600"
 # Rendered once for the week.
 CARD_CACHE = "public, max-age=86400"
+# Written once a month; a re-export after a fix replaces them.
+OPEN_DATA_CACHE = "public, max-age=3600"
 
 LATEST = "league/latest.json"
 INDEX = "meta/index.json"
@@ -50,6 +58,12 @@ INDEX = "meta/index.json"
 FINAL_KEYS = (LATEST, INDEX)
 
 _WEEK = r"\d{4}-W\d{2}"
+_MONTH = r"\d{4}-\d{2}"
+OPEN_DATA = "open-data/"
+# The datasets mind_the_data.publish.open_data writes (a test keeps the two in step).
+OPEN_DATASETS = ("line_minute_status", "line_daily", "line_weekly")
+# Each month's manifest lists its files, so it goes up after them.
+OPEN_DATA_MANIFEST = re.compile(rf"open-data/{_MONTH}/manifest\.json")
 # (pattern, content type, cache control). Anything else in the directory is
 # refused rather than published.
 RULES: tuple[tuple[re.Pattern[str], str, str], ...] = (
@@ -58,6 +72,13 @@ RULES: tuple[tuple[re.Pattern[str], str, str], ...] = (
     (re.compile(r"lines/[a-z-]+\.json"), JSON, SHORT_CACHE),
     (re.compile(r"meta/(index|methodology)\.json"), JSON, SHORT_CACHE),
     (re.compile(rf"cards/{_WEEK}(-1080x1350)?\.png"), PNG, CARD_CACHE),
+    (
+        re.compile(rf"open-data/{_MONTH}/({'|'.join(OPEN_DATASETS)})(-\d{{3}})?\.parquet"),
+        PARQUET,
+        OPEN_DATA_CACHE,
+    ),
+    (re.compile(rf"open-data/{_MONTH}/README\.md"), MARKDOWN, OPEN_DATA_CACHE),
+    (OPEN_DATA_MANIFEST, JSON, OPEN_DATA_CACHE),
 )
 
 # Pages deploy hooks are all served from Cloudflare's API host; anything else
@@ -129,10 +150,20 @@ def plan_uploads(directory: Path) -> list[PlannedObject]:
         content_type, cache_control = classify(key)
         planned.append(PlannedObject(key, path, content_type, cache_control))
     keys = {p.key for p in planned}
-    missing = [key for key in FINAL_KEYS if key not in keys]
+    open_data = {key for key in keys if key.startswith(OPEN_DATA)}
+    if open_data and open_data != keys:
+        raise UploadError("upload the league files and the open dataset separately")
+    if open_data:
+        months = sorted({k.split("/")[1] for k in keys})
+        final_keys = tuple(f"open-data/{m}/manifest.json" for m in months)
+        required = [*(f"open-data/{m}/README.md" for m in months), *final_keys]
+    else:
+        final_keys = FINAL_KEYS
+        required = list(FINAL_KEYS)
+    missing = [key for key in required if key not in keys]
     if missing:
         raise UploadError("export incomplete, missing: " + ", ".join(missing))
-    rank = {key: i + 1 for i, key in enumerate(FINAL_KEYS)}
+    rank = {key: i + 1 for i, key in enumerate(final_keys)}
     # sorted() is stable, so everything else keeps its path order.
     return sorted(planned, key=lambda p: rank.get(p.key, 0))
 
@@ -217,7 +248,7 @@ def main(argv: list[str] | None = None, env: Mapping[str, str] | None = None) ->
             return 0
         settings = R2Settings.from_env(os.environ if env is None else env)
         keys = upload(r2_client(settings), settings.bucket, planned)
-        print(f"uploaded {len(keys)} objects, {', '.join(FINAL_KEYS)} last")
+        print(f"uploaded {len(keys)} objects, {keys[-1]} last")
         if args.no_hook:
             print("deploy hook not called (--no-hook)")
             return 0
