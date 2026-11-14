@@ -40,3 +40,4 @@ What gets easier, what gets harder, what to revisit and when.
 | [011](011-merge-gate.md) | The engineer may merge low-risk pull requests through a gate | proposed |
 | [012](012-run-models-rebuild-in-full.md) | Declared-view intermediate models rebuild in full each run | proposed |
 | [013](013-poll-per-line-minute.md) | Read the latest poll that lists the line, and only current entries (amends ADR-004) | proposed |
+| [014](014-gate-tests-inference-fidelity.md) | The quality gate tests inference fidelity (inferred against trains on the boards); trains run is its own measure (amends PLAN 7.2) | proposed |

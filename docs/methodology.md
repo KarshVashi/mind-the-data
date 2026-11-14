@@ -9,7 +9,7 @@ The table ranks every line two ways:
 
 The gap between the two, hours in which TfL said Good Service while the boards showed a long gap, is the **Honesty Gap**.
 
-**Status, methodology v0.1.** The declared view is built and runs daily; the weekly files that carry it are ready, and public publishing starts once the Cloudflare setup is done and the owner has decided to publish while these definitions are open (D36). The measured view is built but **will not be published** until its quality gate passes (see "Quality gate"). Most definitions below are readings of an ambiguous rule and are waiting for a final decision. Each is tagged with its decision number (`D16`) from [DECISIONS.md](DECISIONS.md) or its record (`ADR-004`) in [adr/](adr/), and the table at the end says which are provisional. Every published file lists the open decisions it rests on in `open_decisions`.
+**Status, methodology v0.2.** The declared view is built and runs daily; the weekly files that carry it are ready. On 14 November 2026 the owner settled three decisions: the Disruption Index is a time-weighted mean severity on a 0 to 800 scale (D19), a line is ranked only if it ran at least half its scheduled hours (D22), and publishing goes ahead while other definitions are open, with provisional labels (D36). Public publishing starts once the Cloudflare setup is done. The measured view is built and its quality gate now passes on the definition in ADR-014 (proposed), but it **will not be published** until the owner decides to (D42). Most definitions below are readings of an ambiguous rule and are waiting for a final decision. Each is tagged with its decision number (`D16`) from [DECISIONS.md](DECISIONS.md) or its record (`ADR-004`) in [adr/](adr/), and the table at the end says which are provisional. Every published file lists the open decisions it rests on in `open_decisions`.
 
 ---
 
@@ -72,7 +72,7 @@ From `transform/seeds/severity_weights.csv`:
 
 An unknown status code fails a test and stops the build. It is never given a default weight.
 
-Planned statuses other than closures keep their weight: a planned Reduced Service scores 1.5 (D22).
+Planned statuses other than closures keep their weight: a planned Reduced Service scores 1.5.
 
 ### Time weights
 
@@ -94,10 +94,12 @@ A minute is **scored** when it is scheduled, observed, and not under a closure o
 
 ```
 Disruption Index = 100 × Σ (severity weight × time weight) over scored minutes
-                   ÷ scored hours
+                       ÷ Σ (time weight) over the same minutes
 ```
 
-That is weighted disruption minutes per 100 service hours. Lower is better; 0 is Good Service in every scored minute. The denominator is plain scored hours, not time-weighted hours (D19). A line suspended for a whole weekday peak scores far higher than one with minor delays all weekend, by design.
+That is the time-weighted average severity of the line's scored minutes, times 100, on a scale from **0** (Good Service in every scored minute) to **800** (Suspended in every scored minute). Lower is better. A peak minute counts twice in both the top and the bottom, so a line with more peak service is not favoured by a larger denominator, and a disrupted peak still moves the average twice as much as an off-peak minute (D19, decided 2026-11-14).
+
+Worked example: a weekday with 60 scored peak minutes (weight 2) and 120 off-peak minutes (weight 1), of which 30 peak minutes were Severe Delays (3). Σ (severity × time) = 30 × 3 × 2 = 180; Σ time weight = 60 × 2 + 120 × 1 = 240; index = 100 × 180 / 240 = 75.
 
 ### Supporting numbers
 
@@ -110,7 +112,15 @@ That is weighted disruption minutes per 100 service hours. Lower is better; 0 is
 
 Lines are ranked by Disruption Index, lowest first. Ties go to the higher Good Service %, and lines still equal share a rank. A line with no scored minutes is unranked (D20).
 
-A line with at least 25% of its scheduled minutes under closures is marked provisional, because it is ranked on what is left of its week (D35, D22). A provisional line is never named in the card's headline (D38).
+**Engineering works.** A line is ranked only if it ran at least 50% of its scheduled hours; engineering works took the rest. Otherwise it keeps its index but shows as **"Not ranked: engineering works"** (D22, decided 2026-11-14). Between 25% and 50% under closures, a line is ranked and marked provisional, because it is ranked on what is left of its week (D35). A provisional or unranked line is never named in the card's headline (D38).
+
+### Weekly highlights
+
+- **Wooden Spoon:** the bottom-ranked line of the week. Lines sharing the bottom rank are split by line id, and the file says how many share it (D48).
+- **Line of the Week:** the largest fall in Disruption Index since the previous week, among lines ranked and not provisional in both weeks. There is none, with a stated reason, when the previous week has no data, was not complete or was under 90% observed, or when no line improved (D47). The first full week, 9 to 15 November, has none, because the week before began on a Wednesday.
+- **Worst incident:** the incident starting in the week with the most severity-weighted minutes, each incident minute counted at its severity weight. Ties go to the longer, then the earlier (D48).
+- **Monday Morning Index:** the Disruption Index over Monday 07:00 to 10:00 for each line, ranked the same way (D49).
+- **Engineering Works:** hours each line's worst status was a closure, per week, most first (D50).
 
 ---
 
@@ -158,16 +168,21 @@ A **long gap** is a headway more than twice the longest scheduled gap in that ho
 
 ### Quality gate
 
-An hour of inferred arrivals is only trusted when it looks like the timetable. For each line, station, direction and London hour (D42):
+An hour of inferred arrivals is only trusted when the inference agrees with what the boards showed (ADR-014, proposed, D46). For each line, station, direction and London hour (D42):
 
 - the hour must be **observed**: at least 54 successful polls at the station, no gap over 150 s between polls, and a single UTC hour (the repeated hour at the October clock change is left out);
-- inferred trains must be **between 80% and 120%** of scheduled trains.
+- trains **on the boards** are counted by vehicle id: each visit of an id to the station and direction that came within 120 s of it, plus inferred arrivals whose train had no id. An hour with no train on the boards and none inferred is not judged; one with inferred trains but none on the boards fails;
+- inferred trains must be **between 80% and 120%** of the trains on the boards.
 
-Hours outside the band are excluded from excess wait, long gaps and the Honesty Gap. That also removes the worst hours, since a suspension leaves an hour under 80% of its timetable; those hours stay in the declared view (D42).
+The plan first compared inferred trains with the timetable. The boards list only about 85% of timetabled trains, while the inference finds almost exactly the trains the boards list, so that band failed hours where the inference was right ([gate recheck](data-quality/2026-11-12-gate-recheck.md)). The band's width is kept: at 5 trains an hour, ±20% is one train.
 
-A line is ranked on the measured view only when at least half its scheduled station-direction-hours pass the gate (D42).
+Hours outside the band are excluded from excess wait, long gaps and the Honesty Gap. A line is ranked on the measured view only when at least half its scheduled station-direction-hours pass the gate (D42).
 
-**Current result.** On 5 to 7 November 65.6% of core-station hours on measured Tube lines were in band, against a target of 80% ([data-quality/2026-11-09-measured-view.md](data-quality/2026-11-09-measured-view.md)). Until it passes, the gate test warns instead of failing the build, and the measured view is not published (D44). The main known cause is the linking rule on lines without vehicle-id linking (D26, D27).
+**Current result.** On 9 to 13 November 87.1% of judged core-station hours on measured Tube lines were in band, against a target of 80% ([data-quality/2026-11-14-fidelity-gate.md](data-quality/2026-11-14-fidelity-gate.md)); under the old band the same hours scored 65.4%. Failing hours are almost all above 120%: on lines that do not link by vehicle id, a train held short of the platform can count once per poll (D26, D27). The gate test still warns rather than fails (D44), and the measured view is still not published (D42).
+
+### Trains run against the timetable
+
+Trains on the boards divided by scheduled trains, over observed station-direction-hours: **0.85** across the measured Tube lines on 9 to 13 November, from 0.72 (District) to 0.92 (Bakerloo). The boards may leave trains out, so this is a lower bound on what ran, not a count of cancellations. On the shared section of the Circle and Hammersmith & City lines the boards file every westbound train under Hammersmith & City, so both lines' figures are withheld until trains there can be assigned by vehicle-id history (ADR-014). Like the rest of the measured view it is not published yet (D42).
 
 ### Lines not measured
 
@@ -185,8 +200,8 @@ Only the hour in which the long gap ends is checked for Good Service. A gap that
 
 Every Monday the latest complete week is exported as JSON and two share card images (PLAN 8, [site-integration.md](site-integration.md)):
 
-- `league/{iso_week}.json` and `league/latest.json`: the ranked table, provisional flags with reasons, the worst incident, and one insight line;
-- `lines/{line_id}.json`: each line's weekly history and typical bad hours;
+- `league/{iso_week}.json` and `league/latest.json`: the ranked table, provisional flags and unranked reasons, the week's highlights (Wooden Spoon, Line of the Week, worst incident), the Monday Morning Index, the Engineering Works table, and one insight line;
+- `lines/{line_id}.json`: each line's weekly history, with unranked reasons and hours under works, and typical bad hours;
 - `meta/methodology.json`: the weights, thresholds and open decisions actually used, from the same seeds as the build;
 - `meta/index.json`: every published week and line file;
 - `cards/{iso_week}.png`: 1200×675 and 1080×1350 share cards.
@@ -202,11 +217,12 @@ The card's insight line names the week's biggest Honesty Gap once the measured v
 - **One-minute resolution.** A disruption shorter than a minute between polls can be missed, and every status is held for the whole minute it was seen.
 - **Declared status is TfL's word.** The declared view measures what TfL said, not what ran. That is the point of the measured view.
 - **Flat weights for partial suspensions.** A Part Suspended line scores 5 whether one station or half the line is shut. Scaling by the affected section is planned for later.
-- **Long closures distort small denominators.** A line mostly under engineering works is ranked on the few hours left, where delays on top of a part closure count while the Good Service around them does not (D22). These lines are marked provisional (D35).
+- **Long closures distort small denominators.** A line under engineering works is scored on the hours left, where delays on top of a part closure count while the Good Service around them does not. Over half its hours closed, it is not ranked (D22); a quarter to a half, it is marked provisional (D35).
 - **No passenger weighting.** A minute on the Central line counts the same as a minute on the Waterloo & City.
 - **Estimated hours and frequencies.** Seven lines' service hours (D17) and the Elizabeth line and Overground frequencies (D33) are estimates. For those lines the gate compares boards with estimates partly checked against the same boards, so a pass is weak evidence.
-- **Held trains.** Without vehicle-id linking, a train held just outside a platform can count once per poll, which shortens headways exactly when there is a delay. This biases the measured view against showing delays (D26).
-- **Missed trains join gaps.** A train the inference misses turns two gaps into one, so long gaps and the Honesty Gap read high while the gate is below target (D42). This is why they are not published.
+- **Held trains.** Without vehicle-id linking, a train held just outside a platform can count once per poll, which shortens headways exactly when there is a delay. This biases the measured view against showing delays (D26). It is most of what the gate now catches.
+- **Boards are not a train register.** Trains run is what the boards listed; a train the boards never showed counts as not run.
+- **Circle and Hammersmith & City share boards that misfile trains** on the section from Baker Street to Liverpool Street, which distorts both lines' measured numbers there (ADR-014).
 - **Platform changes.** A train that switches platform during its approach can count at both (D28).
 - **Strikes** are kept in. A "strikes excluded" variant is planned (PLAN 7.4).
 - **No external validation yet.** Once three 4-week periods exist, the ranking will be compared with TfL's own share of scheduled trips operated, and the rank correlation reported here.
@@ -215,7 +231,7 @@ The card's insight line names the week's biggest Honesty Gap once the measured v
 
 ## 6. Decisions behind this methodology
 
-ADR-004 is accepted. Every other entry is implemented as described and is waiting for a final decision, so it is **provisional** and may change. A change is a seed or variable edit and a rebuild; past weeks are rebuilt with it (D39).
+ADR-004 is accepted, and D19, D22 and D36 were decided by the owner on 14 November 2026. Every other entry is implemented as described and is waiting for a final decision, so it is **provisional** and may change. A change is a seed or variable edit and a rebuild; past weeks are rebuilt with it (D39).
 
 | Decision | Subject | Affects |
 | --- | --- | --- |
@@ -224,10 +240,10 @@ ADR-004 is accepted. Every other entry is implemented as described and is waitin
 | D16 | Service Closed is left out of the score | declared |
 | D17 | Scheduled hours; estimates for 7 lines | both |
 | D18 | Incidents and recovery | declared |
-| D19 | Disruption Index denominator | declared |
+| D19 | Disruption Index: time-weighted mean severity, 0 to 800 | declared (decided) |
 | D20 | Ties, unranked and provisional lines | declared |
 | D21 | Time bands follow the London calendar day | declared |
-| D22 | Planned statuses other than closures still score | declared |
+| D22 | Ranked only if open at least half the scheduled hours | declared (decided) |
 | D25 | Duplicate predictions (15 s) | measured |
 | D26, D40 | Linking sightings, arrival rule, time to go | measured |
 | D27 | Vehicle-id linking (Victoria only) | measured |
@@ -236,12 +252,18 @@ ADR-004 is accepted. Every other entry is implemented as described and is waitin
 | D33 | Fallback frequencies (Elizabeth line, Overground) | measured |
 | D34 | Long gap against the longest scheduled gap | measured |
 | D35 | Provisional when 25% or more is closures | declared, publishing |
+| D36 | Publish with provisional labels while decisions are open | publishing (decided) |
 | D37 | Typical bad hours | publishing |
 | D38 | The card's insight line | publishing |
 | D39 | Past weeks rewritten each run | publishing |
 | D42 | Gate grain, denominators, Honesty Gap | measured |
 | D43 | Lines not measured | measured |
 | D44 | Gate test warns until the gate passes | measured |
+| [ADR-014](adr/014-gate-tests-inference-fidelity.md), D46 | Gate tests inference against trains on the boards; trains run reported | measured |
+| D47 | Line of the Week | declared, publishing |
+| D48 | Wooden Spoon and worst incident | declared, publishing |
+| D49 | Monday Morning Index | declared, publishing |
+| D50 | Engineering Works table per week | declared, publishing |
 
 The weights for the status codes the plan names, and the time-band weights, are the build plan's values. D16 adds Service Closed to the weights, and D21 decides how the bands map onto calendar days. Sensitivity checks under alternative weight sets are planned, and will be reported here with their rank correlations.
 

@@ -157,7 +157,7 @@ All in the website repo under `src/components/tube/`, using tokens, Plex Mono la
 - **Partial window** (`is_window_complete: false`, custom windows from `post_snapshot.py`): banner, and "partial" in the title.
 - **Custom window** (`data_window.iso_week: null`): title from the dates ("4 to 10 November"), no movement column.
 - **Provisional lines**: still ranked (D20), marked, reasons listed.
-- **Not measured**: the measured columns say so (v0 and v1, until the M4 acceptance passes, D44).
+- **Not measured**: the measured columns say so (v0 and v1, until the owner publishes the measured view, D42).
 - **Open decisions**: listed on every data page while `open_decisions` is non-empty, with the methodology version line the cards use.
 - **No complete week yet** (`latest_week: null`): `/tube/` says the first table is published on the first Monday after a full week of data.
 
@@ -173,6 +173,18 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
 - **Archive written every run** (D39): `export.py` now writes `league/{iso_week}.json` for every complete week with data, and `league/latest.json` is always the newest complete week. The archive, the line histories and the index therefore come from the same marts and code in the same run.
 - **`schema_version` 0.2.0** (additive).
 
+### Changed in the M6 and gate bundle (`schema_version` 0.3.0)
+
+- **Disruption Index scale (D19, decided 2026-11-14).** It is now the time-weighted mean severity x 100, from 0 to 800. Values are about 1/(60 x the mean time weight) of the old ones, roughly a sixtieth to a seventieth (Bakerloo on 4 to 8 November: 141.5), and the schema caps the index at 800. Every archived week is rewritten on the next export (D39), so the site never mixes the two scales; show it with no thousands separator and one decimal at most. This is a change of meaning, so the minor version moves even though no field was removed (pre-1.0).
+- **Unranked lines (D22).** Each standing and each line-history week has `unranked_reason`: `null` when ranked, `no_scored_minutes`, or `engineering_works` for a line that ran under half its scheduled hours. Show the latter as "Not ranked: engineering works" in place of the rank, as the card does. Standings also carry `engineering_works_hours`; history weeks carry it too.
+- **`highlights`** in league files: `wooden_spoon` (line, rank, index, `is_provisional`, `shared_by`), `line_of_the_week` (line, index, previous index, improvement) and `line_of_the_week_null_reason` (`custom_window`, `no_previous_week`, `previous_week_incomplete`, `no_line_improved`). W46 has no Line of the Week; W47 is the first that can.
+- **`monday_morning`**: the Monday Morning Index (07:00 to 10:00) per line for each Monday in the window, ranked, unranked lines last (D49).
+- **`engineering_works`**: lines with hours closed for works in the window, most first (D50).
+- **`worst_incident`** is now the most severity-weighted incident, not the longest, and carries `severity_weighted_minutes` (D48).
+- **`measured.trains_run_share`**: trains on the boards over scheduled trains (ADR-014). `null`, like every measured field, until the owner publishes the measured view (D42).
+- **`meta/methodology.json`** gains `disruption_index` (definition, `min`, `max`), `thresholds.min_open_share_to_rank` and `settled_decisions`.
+- The share card title is now "Which lines did TfL report as most disrupted?", and its subtitle gives the 0 to 800 scale.
+
 ### Still needed
 
 | Gap | Needed for | Where |
@@ -181,8 +193,8 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
 | Per-day values per line in the league file (`days[]`: date, Good Service %, Disruption Index, scored minutes) | Line × day heatmap on week pages | M6 task: a `daily` block in `league/{iso_week}.json` from `fct_line_daily` (one more Athena query per run) |
 | Card paths in `meta/index.json` | Linking each archived week to its card | After the R2 upload exists: the upload step knows which cards are in the bucket. Until then the site uses `cards/{iso_week}.png` for the latest week only |
 | Post snapshots (custom windows) in the index | Archiving the Wednesday post's table | Optional: `post_snapshot.py` could upload to `snapshots/{start}_{end}/` with an index entry. v0 vendors it instead |
-| Measured view (`measured` fields, `honesty_gap` insight) | v2 | The M4 acceptance (D44); the schema slots exist |
-| `divisions/`, `season/`, `open-data/` | Later pages | M6, M7 |
+| Measured view (`measured` fields, `honesty_gap` insight) | v2 | The gate passes under ADR-014; publishing waits for the owner (D42). The schema slots exist |
+| `divisions/`, `season/`, `open-data/` | Later pages | The rest of M6 (divisions need four weeks), M7 |
 | Public methodology prose | `/tube/methodology/` | M7 `docs/methodology.md` |
 
 ### How far back trends go
