@@ -1,9 +1,14 @@
 """The one-sentence insight on a share card.
 
 The plan fills it from the week's biggest Honesty Gap (PLAN 7.3). With the
-measured view published (D42), the insight is, in order (D38):
+measured view published (D42), the insight is, in order (D38, D54):
 
-1. the most Honesty Gap hours on a line;
+1. the most Honesty Gap hours on a line, only while
+   `HONESTY_GAP_HEADLINE` is on. It is off by default (D54): until
+   ADR-014's open item 2 is resolved, boards that leave trains out can
+   create long gaps that did not happen, so neither Honesty Gap hours nor
+   long-gap counts head the card. The Honesty Gap stays in the files, with
+   its caveat;
 2. otherwise the lowest trains-run share, when it is under
    `TRAINS_RUN_HEADLINE_BELOW`;
 3. otherwise a declared-view fact: the lowest Good Service % among ranked
@@ -18,6 +23,10 @@ estimated timetable is not a basis for a claim on the card.
 from dataclasses import dataclass
 
 from mind_the_data.publish.league import League, Standing
+
+# D54 (open): the Honesty Gap heads the card only once ADR-014's open item 2
+# (boards omitting trains inflate long gaps) is resolved. Flip to True then.
+HONESTY_GAP_HEADLINE = False
 
 # Trains run near the timetable is not news; a share under this is.
 TRAINS_RUN_HEADLINE_BELOW = 0.95
@@ -38,15 +47,21 @@ def _measured_candidates(league: League) -> list[Standing]:
     ]
 
 
-def pick_insight(league: League) -> Insight | None:
+def pick_insight(
+    league: League, *, honesty_gap_headline: bool = HONESTY_GAP_HEADLINE
+) -> Insight | None:
     measured = _measured_candidates(league)
-    gaps = [
-        (s.measured.honesty_gap_hours, s)
-        for s in measured
-        if s.measured is not None
-        and s.measured.honesty_gap_hours is not None
-        and s.measured.honesty_gap_hours > 0
-    ]
+    gaps = (
+        []
+        if not honesty_gap_headline
+        else [
+            (s.measured.honesty_gap_hours, s)
+            for s in measured
+            if s.measured is not None
+            and s.measured.honesty_gap_hours is not None
+            and s.measured.honesty_gap_hours > 0
+        ]
+    )
     if gaps:
         hours, standing = max(gaps, key=lambda g: (g[0], g[1].line.line_name))
         unit = "hour" if round(hours) == 1 else "hours"

@@ -75,10 +75,29 @@ def test_honesty_gap_wins_when_measured(league: League) -> None:
     standings = list(league.standings)
     standings[3] = replace(standings[3], measured=MeasuredView(None, None, 4.0, 0.05, None))
     standings[5] = replace(standings[5], measured=MeasuredView(None, None, 9.0, 0.1, None))
-    insight = pick_insight(replace(league, standings=tuple(standings)))
+    insight = pick_insight(replace(league, standings=tuple(standings)), honesty_gap_headline=True)
     assert insight is not None and insight.kind == "honesty_gap"
     assert insight.line_id == standings[5].line.line_id
     assert "9 hours" in insight.text
+
+
+def test_honesty_gap_is_off_the_card_by_default(league: League) -> None:
+    """D54: until ADR-014 open item 2 is resolved, gaps never head the card."""
+    standings = list(league.standings)
+    strong = [i for i, s in enumerate(standings) if _strong(s)]
+    standings[strong[0]] = replace(
+        standings[strong[0]], measured=MeasuredView(None, 50.0, 9.0, 0.1, None, 0.99)
+    )
+    standings[strong[1]] = replace(
+        standings[strong[1]], measured=MeasuredView(None, 1.0, 0.0, 0.0, None, 0.8)
+    )
+    insight = pick_insight(replace(league, standings=tuple(standings)))
+    assert insight is not None and insight.kind == "trains_run"
+    assert insight.line_id == standings[strong[1]].line.line_id
+    no_trains_run = list(league.standings)
+    no_trains_run[strong[0]] = standings[strong[0]]
+    fallback = pick_insight(replace(league, standings=tuple(no_trains_run)))
+    assert fallback is not None and fallback.kind == "lowest_good_service"
 
 
 def _strong(standing: Any) -> bool:
@@ -98,7 +117,7 @@ def test_measured_insight_skips_weak_evidence_and_provisional(league: League) ->
     standings[strong[1]] = replace(
         standings[strong[1]], measured=MeasuredView(None, None, 1.0, 0.02, None)
     )
-    insight = pick_insight(replace(league, standings=tuple(standings)))
+    insight = pick_insight(replace(league, standings=tuple(standings)), honesty_gap_headline=True)
     assert insight is not None and insight.kind == "honesty_gap"
     assert insight.line_id == standings[strong[1]].line.line_id
     assert "for 1 hour in which" in insight.text

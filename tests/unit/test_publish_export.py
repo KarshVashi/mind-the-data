@@ -209,8 +209,9 @@ def test_measured_view_validates_when_present(marts: RecordedMarts) -> None:
     standings[0] = replace(standings[0], measured=measured, measured_withheld_reason=None)
     standings[1] = replace(standings[1], measured=partly, measured_withheld_reason=None)
     league = replace(league, standings=tuple(standings))
+    # The Honesty Gap is off the card by default (D54); trains run leads.
     insight = pick_insight(league)
-    assert insight is not None and insight.kind == "honesty_gap"
+    assert insight is not None and insight.kind == "trains_run"
     doc = league_document(league, insight, STAMP)
     validate(doc, "league")
     assert doc["views"]["measured"] == "published"
@@ -299,6 +300,7 @@ def test_methodology_thresholds_follow_dbt(marts: RecordedMarts) -> None:
         "D48",
         "D49",
         "D50",
+        "D55",
     ]
     assert not set(doc["settled_decisions"]) & set(doc["open_decisions"])
     # The measured view's thresholds and withheld lines mirror the dbt vars.
