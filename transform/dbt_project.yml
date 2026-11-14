@@ -35,15 +35,30 @@ vars:
   incident_merge_gap_minutes: 5
   # PLAN 7.4: a line-week under this completeness is provisional.
   provisional_completeness: 0.9
+  # D22 (decided 2026-11-14): a line is ranked only when it ran at least
+  # this share of its scheduled minutes, engineering works taking the rest.
+  # Mirrored by MIN_OPEN_SHARE_TO_RANK in src/mind_the_data/publish/league.py.
+  min_open_share_to_rank: 0.5
   # Vehicle ids several trains share at once (week-one review, Q2): read as
   # no id by int_inferred_arrivals, as by the Python reference.
   placeholder_vehicle_ids: ["000", "001"]
-  # PLAN 7.2 quality gate: a station-direction-hour counts only when its
-  # inferred trains are within this share of the scheduled trains.
+  # Quality gate (ADR-014, amending PLAN 7.2): a station-direction-hour
+  # counts only when its inferred trains are within this share of the
+  # trains observed on the boards (int_vehicle_passes, plus inferred
+  # arrivals without a vehicle id).
   gate_low_ratio: 0.8
   gate_high_ratio: 1.2
+  # int_vehicle_passes: sightings of one vehicle id at a station and
+  # direction more than this far apart are separate visits, and a visit is
+  # a pass when it came within this many seconds of the station.
+  vehicle_pass_visit_gap_seconds: 600
+  vehicle_pass_threshold_seconds: 120
+  # Lines whose trains-run share fct_line_weekly withholds: the Circle and
+  # Hammersmith & City boards file one line's trains under the other on the
+  # shared section (ADR-014).
+  trains_run_withheld_lines: ["circle", "hammersmith-city"]
   # The M4 gate test fails when more than this share of core-station hours
-  # on measured Tube lines fall outside the band.
+  # on measured Tube lines with trains on the boards fall outside the band.
   gate_max_out_of_band_share: 0.3
   # `warn` until the M4 acceptance passes (DECISIONS.md D44), then `error`.
   gate_test_severity: warn

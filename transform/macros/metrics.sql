@@ -12,3 +12,14 @@
 {% macro percent_of(part, whole) %}
     if({{ whole }} > 0, 100e0 * {{ part }} / {{ whole }}, null)
 {%- endmacro %}
+
+
+{#
+  PLAN 7.1 Disruption Index with the time-weighted denominator (D19, decided
+  2026-11-14): 100 x the time-weighted mean severity weight of the scored
+  minutes, so 0 is Good Service throughout and 800 is Suspended throughout.
+  Null when there are no scored minutes.
+#}
+{% macro disruption_index(weighted_disruption_minutes, time_weighted_minutes) %}
+    if({{ time_weighted_minutes }} > 0, 100e0 * {{ weighted_disruption_minutes }} / {{ time_weighted_minutes }}, null)
+{%- endmacro %}

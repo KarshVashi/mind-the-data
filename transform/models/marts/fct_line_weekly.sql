@@ -3,6 +3,8 @@
 -- Declared-view metrics per line and ISO week (Monday to Sunday, London
 -- time), with the week's rank and the movement since the previous week.
 -- Ratios are recomputed from summed minutes, never averaged across days.
+-- A line that ran under `min_open_share_to_rank` of its scheduled minutes
+-- because of engineering works keeps its index but is not ranked (D22).
 --
 -- Measured-view metrics (PLAN 7.3) come from int_measured_hours, using only
 -- station-direction-hours that pass the quality gate on measured lines
@@ -23,6 +25,7 @@ with weekly as (
         sum(good_service_minutes) as good_service_minutes,
         sum(disrupted_minutes) as disrupted_minutes,
         sum(weighted_disruption_minutes) as weighted_disruption_minutes,
+        sum(time_weighted_scored_minutes) as time_weighted_scored_minutes,
         sum(incidents) as incidents
     from {{ ref('fct_line_daily') }}
     group by line_id, week_start
@@ -60,6 +63,10 @@ measured_weekly as (
         week_start,
         count(*) as scheduled_measurement_hours,
         count_if(is_observed) as observed_measurement_hours,
+        -- Trains run against the timetable (ADR-014): trains seen on the
+        -- boards over scheduled trains, in observed hours.
+        sum(if(is_observed, observed_trains, 0)) as observed_trains,
+        sum(if(is_observed, scheduled_departures, 0)) as observed_hours_scheduled_trains,
         count_if(counts_for_reliability) as measured_hours,
         -- A gated hour with no in-service gap ending in it has no excess
         -- wait, so excess wait has its own denominator.
@@ -119,6 +126,21 @@ scored as (
         measured_weekly.scheduled_measurement_hours,
         measured_weekly.observed_measurement_hours,
         measured_weekly.measured_hours,
+        if(measured_lines.is_measured, measured_weekly.observed_trains) as observed_trains,
+        if(measured_lines.is_measured, measured_weekly.observed_hours_scheduled_trains)
+            as observed_hours_scheduled_trains,
+        -- Circle and Hammersmith & City share boards that file one line's
+        -- trains under the other, so their share is withheld (ADR-014).
+        if(
+            measured_lines.is_measured
+            and measured_weekly.observed_hours_scheduled_trains > 0
+            and weekly.line_id not in (
+                {%- for line in var('trains_run_withheld_lines') %}
+                    '{{ line }}'{{ ',' if not loop.last }}
+                {%- endfor %}
+            ),
+            1e0 * measured_weekly.observed_trains / measured_weekly.observed_hours_scheduled_trains
+        ) as trains_run_share,
         measured_weekly.excess_wait_hours,
         if(
             measured_lines.is_measured and measured_weekly.scheduled_measurement_hours > 0,
@@ -143,8 +165,14 @@ scored as (
             else 'measured'
         end as measurement_status,
         1e0 * weekly.observed_minutes / weekly.scheduled_minutes as completeness,
-        {{ per_100_hours('weekly.weighted_disruption_minutes', 'weekly.scored_minutes') }}
-            as disruption_index,
+        {{ disruption_index(
+            'weekly.weighted_disruption_minutes',
+            'weekly.time_weighted_scored_minutes',
+        ) }} as disruption_index,
+        if(
+            weekly.scheduled_minutes > 0,
+            1e0 * weekly.engineering_works_minutes / weekly.scheduled_minutes
+        ) as engineering_works_share,
         {{ percent_of('weekly.good_service_minutes', 'weekly.scored_minutes') }}
             as good_service_pct,
         {{ per_100_hours('weekly.incidents', 'weekly.scored_minutes') }} as incidents_per_100_hours,
@@ -174,9 +202,26 @@ scored as (
             and weekly.week_start = honesty.week_start
 ),
 
+rankable as (
+    select
+        *,
+        -- D22 (decided 2026-11-14): a line ranks only if it ran at least
+        -- `min_open_share_to_rank` of its scheduled minutes, i.e. engineering
+        -- works took no more than the rest.
+        case
+            -- Works first: a line closed all week has no scored minutes too.
+            when
+                engineering_works_share > 1 - {{ var('min_open_share_to_rank') }}
+                then 'engineering_works'
+            when disruption_index is null then 'no_scored_minutes'
+        end as unranked_reason
+    from scored
+),
+
 ranked as (
     select
         *,
+        unranked_reason is null as is_ranked,
         completeness < {{ var('provisional_completeness') }} as is_provisional,
         -- Too few gated hours to rank the line on the measured view (D42).
         if(
@@ -186,10 +231,9 @@ ranked as (
         -- Lowest Disruption Index first; equal indexes are split by the
         -- higher Good Service %, and still-equal lines share a rank.
         if(
-            disruption_index is null,
-            null,
+            unranked_reason is null,
             rank() over (
-                partition by week_start
+                partition by week_start, unranked_reason is null
                 order by disruption_index asc nulls last, good_service_pct desc nulls last
             )
         ) as disruption_rank,
@@ -206,7 +250,7 @@ ranked as (
                 order by excess_wait_minutes asc nulls last, long_gaps_per_100_hours asc nulls last
             )
         ) as experienced_rank
-    from scored
+    from rankable
 )
 
 select
@@ -223,6 +267,7 @@ select
     ranked.good_service_minutes,
     ranked.disrupted_minutes,
     ranked.weighted_disruption_minutes,
+    ranked.time_weighted_scored_minutes,
     ranked.incidents,
     ranked.median_recovery_minutes,
     ranked.completeness,
@@ -232,16 +277,23 @@ select
     ranked.is_week_complete,
     ranked.is_provisional,
     ranked.is_low_volume,
+    ranked.engineering_works_share,
+    ranked.is_ranked,
+    ranked.unranked_reason,
     ranked.disruption_rank,
     previous_week.disruption_rank as previous_disruption_rank,
     -- Positive means the line climbed the table.
     previous_week.disruption_rank - ranked.disruption_rank as rank_movement,
+    previous_week.disruption_index as previous_disruption_index,
     ranked.is_measured,
     ranked.measurement_status,
     ranked.scheduled_measurement_hours,
     ranked.observed_measurement_hours,
     ranked.measured_hours,
     ranked.measured_share,
+    ranked.observed_trains,
+    ranked.observed_hours_scheduled_trains,
+    ranked.trains_run_share,
     ranked.is_measured_provisional,
     ranked.excess_wait_hours,
     ranked.excess_wait_minutes,

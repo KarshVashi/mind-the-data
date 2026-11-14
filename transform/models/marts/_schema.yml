@@ -56,8 +56,9 @@ models:
       Declared-view metrics per line and London date (PLAN 7.1), over
       scheduled minutes. Scored minutes are scheduled, observed, and neither
       engineering works nor Service Closed. Disruption Index = 100 x sum of
-      (severity weight x time weight) over scored minutes / scored hours,
-      i.e. weighted disruption minutes per 100 service hours (D19).
+      (severity weight x time weight) / sum of time weight, over scored
+      minutes: the time-weighted mean severity on a 0 to 800 scale (D19,
+      decided 2026-11-14).
     columns:
       - name: line_daily_key
         description: Row key, a hash of (line_id, london_date).
@@ -89,6 +90,9 @@ models:
         description: Scored minutes with a weight above 0.
       - name: weighted_disruption_minutes
         description: Sum of severity weight x time weight over scored minutes.
+      - name: time_weighted_scored_minutes
+        description: Sum of time weight over scored minutes; the Disruption Index's denominator (D19).
+        data_tests: [not_null]
       - name: incidents
         description: Incidents starting on the date.
       - name: median_recovery_minutes
@@ -97,7 +101,7 @@ models:
         description: observed_minutes / scheduled_minutes.
         data_tests: [not_null]
       - name: disruption_index
-        description: Weighted disruption minutes per 100 scored service hours; null with no scored minutes.
+        description: 100 x weighted_disruption_minutes / time_weighted_scored_minutes, 0 to 800 (D19); null with no scored minutes.
       - name: good_service_pct
         description: Percentage of scored minutes at Good Service.
       - name: incidents_per_100_hours
@@ -109,7 +113,9 @@ models:
       time). Sums of fct_line_daily with ratios recomputed, the week's rank
       by Disruption Index (ties: higher Good Service %, D20), and movement
       against the previous week. A line-week under `provisional_completeness`
-      (0.9) is provisional.
+      (0.9) is provisional. A line that ran under `min_open_share_to_rank`
+      (0.5) of its scheduled minutes because of engineering works keeps its
+      index but is not ranked (D22, decided 2026-11-14).
     columns:
       - name: line_weekly_key
         description: Row key, a hash of (line_id, week_start).
@@ -142,6 +148,9 @@ models:
         description: Scored minutes with a weight above 0.
       - name: weighted_disruption_minutes
         description: Sum of severity weight x time weight.
+      - name: time_weighted_scored_minutes
+        description: Sum of time weight over scored minutes (D19).
+        data_tests: [not_null]
       - name: incidents
         description: Incidents starting in the week.
       - name: median_recovery_minutes
@@ -150,11 +159,25 @@ models:
         description: observed_minutes / scheduled_minutes.
         data_tests: [not_null]
       - name: disruption_index
-        description: Weighted disruption minutes per 100 scored service hours.
+        description: 100 x weighted_disruption_minutes / time_weighted_scored_minutes, 0 to 800 (D19).
       - name: good_service_pct
         description: Percentage of scored minutes at Good Service.
       - name: incidents_per_100_hours
         description: Incidents per 100 scored service hours.
+      - name: engineering_works_share
+        description: engineering_works_minutes / scheduled_minutes; null with no scheduled minutes.
+      - name: is_ranked
+        description: The line has a rank this week (D20, D22).
+        data_tests: [not_null]
+      - name: unranked_reason
+        description: >
+          Why the line has no rank: `no_scored_minutes`, or
+          `engineering_works` when works took more than half its scheduled
+          minutes (D22). Null when ranked.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [no_scored_minutes, engineering_works]
       - name: is_week_complete
         description: The week's last London minute has passed by the wall clock, whatever the data holds; completeness and is_provisional say how much was observed.
         data_tests: [not_null]
@@ -164,11 +187,13 @@ models:
       - name: is_low_volume
         description: Low-volume line.
       - name: disruption_rank
-        description: Rank in the week, 1 = least disrupted; null with no scored minutes.
+        description: Rank in the week among ranked lines, 1 = least disrupted; null when unranked.
       - name: previous_disruption_rank
         description: Rank in the previous week.
       - name: rank_movement
         description: previous rank minus this rank; positive means the line climbed.
+      - name: previous_disruption_index
+        description: The line's Disruption Index in the previous week; Line of the Week compares with it (D47).
       - name: is_measured
         description: seed_measured_lines scores the line in the measured view (D43).
         data_tests: [not_null]
@@ -186,6 +211,17 @@ models:
         description: Station-direction-hours with scheduled service on days the collector ran (int_measured_hours).
       - name: measured_share
         description: measured_hours / scheduled_measurement_hours; the measured view's coverage.
+      - name: observed_trains
+        description: Trains observed on the boards in observed station-direction-hours (int_measured_hours, ADR-014).
+      - name: observed_hours_scheduled_trains
+        description: Scheduled trains in the same observed hours.
+      - name: trains_run_share
+        description: >
+          observed_trains / observed_hours_scheduled_trains: trains run
+          against the timetable (ADR-014). The boards may omit trains, so it
+          is a lower bound. Withheld (null) for the lines in
+          `trains_run_withheld_lines`, whose boards misfile trains. Not
+          published until the owner settles D42.
       - name: is_measured_provisional
         description: measured_share below `min_measured_share` (0.5), so the line gets no experienced_rank (D42); null when the line is not measured.
       - name: excess_wait_hours
@@ -217,3 +253,137 @@ models:
           PLAN 7.3 Experienced Reliability rank within the week: lowest excess
           wait first, ties to fewer long gaps per 100 hours. Null when not
           measured or measured-provisional. Not published until the M4 acceptance passes.
+
+  - name: rpt_weekly_highlights
+    description: >
+      The week's headline facts (M6), one row per ISO week: the Wooden
+      Spoon (bottom-ranked line, D48), Line of the Week (largest fall in
+      Disruption Index since a complete previous week, D47) and the single
+      worst incident (most severity-weighted minutes, D48).
+    columns:
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [unique, not_null]
+      - name: week_end
+        description: Sunday of the London week.
+      - name: is_week_complete
+        description: Every line's week has ended (fct_line_weekly.is_week_complete).
+      - name: wooden_spoon_line_id
+        description: The bottom-ranked line; lines sharing the bottom rank are split by line id. Null with no ranked line.
+      - name: wooden_spoon_disruption_index
+        description: Its Disruption Index.
+      - name: wooden_spoon_is_provisional
+        description: Its line-week is provisional (completeness under 90 %).
+      - name: wooden_spoon_shared_by
+        description: Lines sharing the bottom rank, the Wooden Spoon included.
+      - name: line_of_the_week_line_id
+        description: The most improved line, or null (see line_of_the_week_null_reason).
+      - name: line_of_the_week_disruption_index
+        description: Its Disruption Index this week.
+      - name: line_of_the_week_previous_index
+        description: Its Disruption Index the week before.
+      - name: line_of_the_week_improvement
+        description: previous index minus this week's, above 0.
+      - name: line_of_the_week_null_reason
+        description: Why there is no Line of the Week; null when there is one.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [no_previous_week, previous_week_incomplete, no_line_improved]
+      - name: worst_incident_line_id
+        description: Line of the week's worst incident; null with none.
+      - name: worst_incident_started_at
+        description: Its first incident minute, UTC.
+      - name: worst_incident_duration_minutes
+        description: Its duration in minutes.
+      - name: worst_incident_severity_weighted_minutes
+        description: Its severity-weighted minutes, the ordering measure.
+      - name: worst_incident_worst_status
+        description: Its worst status.
+      - name: worst_incident_is_open
+        description: The incident may still be running.
+
+  - name: rpt_monday_morning
+    description: >
+      Monday Morning Index per line and ISO week (M6, D49): the Disruption
+      Index over Monday's AM peak (07:00 to 10:00 London time), with the
+      weekly table's rules for scoring, completeness, ranking and works
+      (D19, D20, D22).
+    columns:
+      - name: monday_morning_key
+        description: Row key, a hash of (line_id, week_start).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: week_start
+        description: The Monday.
+        data_tests: [not_null]
+      - name: scheduled_minutes
+        description: Scheduled AM-peak minutes.
+      - name: observed_minutes
+        description: Of those, minutes with a known status.
+      - name: engineering_works_minutes
+        description: Of those, engineering works minutes.
+      - name: scored_minutes
+        description: Scored minutes, the Good Service % denominator.
+      - name: good_service_minutes
+        description: Scored minutes at Good Service.
+      - name: weighted_disruption_minutes
+        description: Sum of severity weight x time weight.
+      - name: time_weighted_scored_minutes
+        description: Sum of time weight over scored minutes.
+      - name: completeness
+        description: observed_minutes / scheduled_minutes.
+      - name: engineering_works_share
+        description: engineering_works_minutes / scheduled_minutes.
+      - name: monday_morning_index
+        description: 100 x weighted_disruption_minutes / time_weighted_scored_minutes, 0 to 800.
+      - name: good_service_pct
+        description: Percentage of scored minutes at Good Service.
+      - name: is_provisional
+        description: Completeness under `provisional_completeness`.
+        data_tests: [not_null]
+      - name: unranked_reason
+        description: "`no_scored_minutes` or `engineering_works`; null when ranked."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [no_scored_minutes, engineering_works]
+      - name: monday_morning_rank
+        description: Rank among ranked lines that Monday, 1 = least disrupted.
+
+  - name: rpt_engineering_works
+    description: >
+      Engineering Works table per line and ISO week (PLAN 7.4, M6, D50):
+      hours whose worst declared status was a closure, which the Disruption
+      Index leaves out. Every line-week has a row; lines without works have
+      0 hours.
+    columns:
+      - name: engineering_works_key
+        description: Row key, a hash of (line_id, week_start).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: week_end
+        description: Sunday of the London week.
+      - name: scheduled_minutes
+        description: Minutes inside scheduled hours.
+      - name: engineering_works_minutes
+        description: Scheduled minutes under a closure.
+        data_tests: [not_null]
+      - name: engineering_works_hours
+        description: engineering_works_minutes / 60.
+      - name: engineering_works_share
+        description: engineering_works_minutes / scheduled_minutes.
+      - name: is_unranked_for_works
+        description: The works left the line unranked this week (D22).
+        data_tests: [not_null]
+      - name: is_week_complete
+        description: The week has ended.
+      - name: works_rank
+        description: 1 = most hours closed that week; lines with equal hours share a rank.

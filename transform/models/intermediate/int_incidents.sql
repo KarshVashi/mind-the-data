@@ -69,6 +69,9 @@ incidents as (
         min(minute_utc) as started_at,
         max(minute_utc) as last_incident_minute,
         count(*) as incident_minutes,
+        -- Each incident minute at its severity weight, so a long Minor
+        -- Delays and a short Suspended can be compared (M6 worst incident).
+        sum(severity_weight) as severity_weighted_minutes,
         min_by(london_date, minute_utc) as start_london_date,
         min_by(week_start, minute_utc) as start_week_start,
         max(severity_weight) as peak_severity_weight,
@@ -91,6 +94,7 @@ select
     start_london_date,
     start_week_start,
     incident_minutes,
+    severity_weighted_minutes,
     date_diff('minute', started_at, last_incident_minute) + 1 as duration_minutes,
     quiet_minutes_after < {{ var('incident_merge_gap_minutes') }} as is_open,
     -- Recovery: minutes from the first incident minute until the line left

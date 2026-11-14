@@ -34,7 +34,10 @@ daily as (
         count_if(is_scored and status_severity = 10) as good_service_minutes,
         count_if(is_scored and severity_weight > 0) as disrupted_minutes,
         coalesce(sum(if(is_scored, severity_weight * time_weight, 0)), 0)
-            as weighted_disruption_minutes
+            as weighted_disruption_minutes,
+        -- The Disruption Index's denominator (D19): scored minutes at their
+        -- time weight, so a peak minute counts twice in both halves.
+        coalesce(sum(if(is_scored, time_weight, 0)), 0) as time_weighted_scored_minutes
     from minutes
     group by line_id, london_date, week_start
 ),
@@ -93,12 +96,15 @@ select
     daily.good_service_minutes,
     daily.disrupted_minutes,
     daily.weighted_disruption_minutes,
+    daily.time_weighted_scored_minutes,
     coalesce(incident_counts.incidents, 0) as incidents,
     recovery_medians.median_recovery_minutes,
     1e0 * daily.observed_minutes / daily.scheduled_minutes as completeness,
-    -- Weighted disruption minutes per 100 scored service hours.
-    {{ per_100_hours('daily.weighted_disruption_minutes', 'daily.scored_minutes') }}
-        as disruption_index,
+    -- Time-weighted mean severity x 100, 0 to 800 (D19).
+    {{ disruption_index(
+        'daily.weighted_disruption_minutes',
+        'daily.time_weighted_scored_minutes',
+    ) }} as disruption_index,
     {{ percent_of('daily.good_service_minutes', 'daily.scored_minutes') }} as good_service_pct,
     {{ per_100_hours('coalesce(incident_counts.incidents, 0)', 'daily.scored_minutes') }}
         as incidents_per_100_hours,

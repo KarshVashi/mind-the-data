@@ -8,12 +8,13 @@ unit_tests:
     description: >
       Victoria on Tuesday 3 November 2026, nine minutes:
       peak Severe Delays (3 x 2 = 6), peak Good Service (0), off-peak Minor
-      Delays (1 x 1 = 1), off-peak Good Service (0), two missing minutes, one
+      Delays (1 x 1 = 1), peak Good Service (0), two missing minutes, one
       engineering-works minute, one Service Closed minute inside scheduled
       hours, and one Severe Delays minute outside scheduled hours (ignored).
       Scheduled 8; observed 6; missing 2; scored 4; Good Service 2;
-      disrupted 2; weighted disruption 7.
-      Disruption Index = 100 x 7 / (4 / 60) = 10,500.
+      disrupted 2; weighted disruption 7; time-weighted scored minutes
+      2 + 2 + 1 + 2 = 7 (D19).
+      Disruption Index = 100 x 7 / 7 = 100.
       Good Service % = 2 / 4 = 50. Completeness = 6 / 8 = 0.75.
       Three incidents start that day, recoveries 10, 30 and one still open:
       median of 10 and 30 = 20; incidents per 100 hours = 100 x 3 / (4 / 60)
@@ -21,8 +22,8 @@ unit_tests:
       index 0, Good Service 100 %, no incidents (0 per 100 hours, median
       null). A disruption spanning midnight: Victoria's Severe Delays carry
       on into 4 November (one off-peak minute, 3 x 1 = 3). That minute
-      scores on 4 November (index 100 x 3 / (1 / 60) = 18,000, Good Service
-      0 %), but the incident counts only on 3 November, where it started.
+      scores on 4 November (index 100 x 3 / 1 = 300, Good Service 0 %), but
+      the incident counts only on 3 November, where it started.
     model: fct_line_daily
     given:
       - input: ref('int_line_minute_status')
@@ -30,7 +31,7 @@ unit_tests:
           - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: true, status_severity: 6, severity_weight: 3, time_weight: 2}
           - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: true, status_severity: 10, severity_weight: 0, time_weight: 2}
           - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: true, status_severity: 9, severity_weight: 1, time_weight: 1}
-          - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: true, status_severity: 10, severity_weight: 0, time_weight: 1}
+          - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: false, is_service_closed: false, is_scored: true, status_severity: 10, severity_weight: 0, time_weight: 2}
           - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: true, is_engineering_works: false, is_service_closed: false, is_scored: false, status_severity: null, severity_weight: null, time_weight: 2}
           - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: true, is_engineering_works: false, is_service_closed: false, is_scored: false, status_severity: null, severity_weight: null, time_weight: 1}
           - {line_id: victoria, london_date: "2026-11-03", week_start: "2026-11-02", is_scheduled: true, is_missing: false, is_engineering_works: true, is_service_closed: false, is_scored: false, status_severity: 5, severity_weight: 0, time_weight: 1}
@@ -45,40 +46,53 @@ unit_tests:
           - {line_id: victoria, start_london_date: "2026-11-03", recovery_minutes: null}
     expect:
       rows:
-        - {line_id: victoria, london_date: "2026-11-03", scheduled_minutes: 8, observed_minutes: 6, missing_minutes: 2, engineering_works_minutes: 1, service_closed_minutes: 1, scored_minutes: 4, good_service_minutes: 2, disrupted_minutes: 2, weighted_disruption_minutes: 7, incidents: 3, median_recovery_minutes: 20, completeness: 0.75, disruption_index: 10500, good_service_pct: 50, incidents_per_100_hours: 4500}
-        - {line_id: bakerloo, london_date: "2026-11-04", scheduled_minutes: 1, observed_minutes: 1, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 1, good_service_minutes: 1, disrupted_minutes: 0, weighted_disruption_minutes: 0, incidents: 0, median_recovery_minutes: null, completeness: 1, disruption_index: 0, good_service_pct: 100, incidents_per_100_hours: 0}
-        - {line_id: victoria, london_date: "2026-11-04", scheduled_minutes: 1, observed_minutes: 1, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 1, good_service_minutes: 0, disrupted_minutes: 1, weighted_disruption_minutes: 3, incidents: 0, median_recovery_minutes: null, completeness: 1, disruption_index: 18000, good_service_pct: 0, incidents_per_100_hours: 0}
+        - {line_id: victoria, london_date: "2026-11-03", scheduled_minutes: 8, observed_minutes: 6, missing_minutes: 2, engineering_works_minutes: 1, service_closed_minutes: 1, scored_minutes: 4, good_service_minutes: 2, disrupted_minutes: 2, weighted_disruption_minutes: 7, time_weighted_scored_minutes: 7, incidents: 3, median_recovery_minutes: 20, completeness: 0.75, disruption_index: 100, good_service_pct: 50, incidents_per_100_hours: 4500}
+        - {line_id: bakerloo, london_date: "2026-11-04", scheduled_minutes: 1, observed_minutes: 1, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 1, good_service_minutes: 1, disrupted_minutes: 0, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 1, incidents: 0, median_recovery_minutes: null, completeness: 1, disruption_index: 0, good_service_pct: 100, incidents_per_100_hours: 0}
+        - {line_id: victoria, london_date: "2026-11-04", scheduled_minutes: 1, observed_minutes: 1, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 1, good_service_minutes: 0, disrupted_minutes: 1, weighted_disruption_minutes: 3, time_weighted_scored_minutes: 1, incidents: 0, median_recovery_minutes: null, completeness: 1, disruption_index: 300, good_service_pct: 0, incidents_per_100_hours: 0}
 
   - name: fct_line_weekly_sums_ranks_and_movement
     description: >
-      Weekly sums, recomputed ratios, ranks, ties and movement, over the
-      weeks of 19 and 26 October 2026. Which week a minute belongs to across
-      a clock change is decided upstream and tested there
+      Weekly sums, recomputed ratios, ranks, ties, the D22 rule and movement,
+      over the weeks of 19 and 26 October 2026. Which week a minute belongs
+      to across a clock change is decided upstream and tested there
       (int_line_minute_status_london_calendar_and_clock_changes,
       assert_clock_change_days_have_real_length); here the week is input.
-      Week 19 Oct, Victoria: 24 Oct (60 scored, 30 Good Service, weighted 30,
-      1 incident) + 25 Oct (60 scored, all Good Service) = 120 scored, 90 Good
-      Service, weighted 30: index 100 x 30 / 2 = 1,500, Good Service 75 %,
-      1 incident = 50 per 100 hours, completeness 1. Median recovery of its
-      closed incidents (12, and one open) = 12.
-      Bakerloo: 120 scheduled, 90 observed and scored, 45 Good Service,
-      weighted 22.5: index 100 x 22.5 / 1.5 = 1,500, Good Service 50 %,
-      completeness 0.75, so provisional. Equal index: Victoria's higher Good
-      Service % ranks it 1, Bakerloo 2. Waterloo & City: 60 scheduled, none
-      observed: no index, no rank, completeness 0, provisional.
-      Week 26 Oct: Victoria 60 scored, 30 Good Service, weighted 60, index
-      6,000; Bakerloo 60 scored, all Good Service, index 0. Bakerloo ranks
-      1 (up 1 from 2), Victoria 2 (down 1).
+      Week 19 Oct (a weekend, time weight 0.75), Victoria: 24 Oct (60
+      scored, 30 Good Service, weighted 45, 1 incident) + 25 Oct (60
+      scored, all Good Service) = 120 scored, time-weighted 45 + 45 = 90,
+      weighted 45: index 100 x 45 / 90 = 50 (D19), Good Service 75 %, 1
+      incident = 6000 x 1 / 120 = 50 per 100 hours, completeness 1. Median
+      recovery of its closed incidents (12, and one open) = 12.
+      Bakerloo: 120 scheduled, 90 observed and scored (time-weighted 67.5),
+      45 Good Service, weighted 33.75: index 100 x 33.75 / 67.5 = 50, Good
+      Service 50 %, completeness 0.75, so provisional. Equal index:
+      Victoria's higher Good Service % ranks it 1, Bakerloo 2. Waterloo &
+      City: 60 scheduled, none observed: no index, unranked
+      (no_scored_minutes), completeness 0, provisional.
+      Week 26 Oct (off-peak weekday, weight 1): Victoria 60 scored, 30 Good
+      Service, weighted 60, index 100; Bakerloo 60 scored, all Good Service,
+      index 0. District: 100 scheduled, 60 under engineering works (share
+      0.6), 40 scored, all Good Service: index 0, but it ran only 40 % of
+      its minutes, so it is not ranked (engineering_works, D22). Jubilee:
+      100 scheduled, exactly 50 under works (share 0.5, ranked), 50 scored,
+      25 Good Service, weighted 50: index 100 and Good Service 50 %, equal
+      to Victoria, so both share rank 2. Northern is closed for all 100
+      minutes: no index, and unranked for engineering works, not for want of
+      scored minutes. Bakerloo ranks 1 (up 1 from 2,
+      previous index 50), Victoria 2 (down 1, previous index 50).
     model: fct_line_weekly
     given:
       - input: ref('fct_line_daily')
         rows:
-          - {line_id: victoria, london_date: "2026-10-24", week_start: "2026-10-19", scheduled_minutes: 60, observed_minutes: 60, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 60, good_service_minutes: 30, disrupted_minutes: 30, weighted_disruption_minutes: 30, incidents: 1}
-          - {line_id: victoria, london_date: "2026-10-25", week_start: "2026-10-19", scheduled_minutes: 60, observed_minutes: 60, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 60, good_service_minutes: 60, disrupted_minutes: 0, weighted_disruption_minutes: 0, incidents: 0}
-          - {line_id: bakerloo, london_date: "2026-10-25", week_start: "2026-10-19", scheduled_minutes: 120, observed_minutes: 90, missing_minutes: 30, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 90, good_service_minutes: 45, disrupted_minutes: 45, weighted_disruption_minutes: 22.5, incidents: 0}
-          - {line_id: waterloo-city, london_date: "2026-10-23", week_start: "2026-10-19", scheduled_minutes: 60, observed_minutes: 0, missing_minutes: 60, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 0, good_service_minutes: 0, disrupted_minutes: 0, weighted_disruption_minutes: 0, incidents: 0}
-          - {line_id: victoria, london_date: "2026-10-26", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 60, good_service_minutes: 30, disrupted_minutes: 30, weighted_disruption_minutes: 60, incidents: 0}
-          - {line_id: bakerloo, london_date: "2026-10-26", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 60, good_service_minutes: 60, disrupted_minutes: 0, weighted_disruption_minutes: 0, incidents: 0}
+          - {line_id: victoria, london_date: "2026-10-24", week_start: "2026-10-19", scheduled_minutes: 60, observed_minutes: 60, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 60, good_service_minutes: 30, disrupted_minutes: 30, weighted_disruption_minutes: 45, time_weighted_scored_minutes: 45, incidents: 1}
+          - {line_id: victoria, london_date: "2026-10-25", week_start: "2026-10-19", scheduled_minutes: 60, observed_minutes: 60, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 60, good_service_minutes: 60, disrupted_minutes: 0, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 45, incidents: 0}
+          - {line_id: bakerloo, london_date: "2026-10-25", week_start: "2026-10-19", scheduled_minutes: 120, observed_minutes: 90, missing_minutes: 30, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 90, good_service_minutes: 45, disrupted_minutes: 45, weighted_disruption_minutes: 33.75, time_weighted_scored_minutes: 67.5, incidents: 0}
+          - {line_id: waterloo-city, london_date: "2026-10-23", week_start: "2026-10-19", scheduled_minutes: 60, observed_minutes: 0, missing_minutes: 60, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 0, good_service_minutes: 0, disrupted_minutes: 0, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 0, incidents: 0}
+          - {line_id: victoria, london_date: "2026-10-26", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 60, good_service_minutes: 30, disrupted_minutes: 30, weighted_disruption_minutes: 60, time_weighted_scored_minutes: 60, incidents: 0}
+          - {line_id: bakerloo, london_date: "2026-10-26", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, missing_minutes: 0, engineering_works_minutes: 0, service_closed_minutes: 0, scored_minutes: 60, good_service_minutes: 60, disrupted_minutes: 0, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
+          - {line_id: district, london_date: "2026-10-26", week_start: "2026-10-26", scheduled_minutes: 100, observed_minutes: 100, missing_minutes: 0, engineering_works_minutes: 60, service_closed_minutes: 0, scored_minutes: 40, good_service_minutes: 40, disrupted_minutes: 0, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 40, incidents: 0}
+          - {line_id: northern, london_date: "2026-10-26", week_start: "2026-10-26", scheduled_minutes: 100, observed_minutes: 100, missing_minutes: 0, engineering_works_minutes: 100, service_closed_minutes: 0, scored_minutes: 0, good_service_minutes: 0, disrupted_minutes: 0, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 0, incidents: 0}
+          - {line_id: jubilee, london_date: "2026-10-26", week_start: "2026-10-26", scheduled_minutes: 100, observed_minutes: 100, missing_minutes: 0, engineering_works_minutes: 50, service_closed_minutes: 0, scored_minutes: 50, good_service_minutes: 25, disrupted_minutes: 25, weighted_disruption_minutes: 50, time_weighted_scored_minutes: 50, incidents: 0}
       - input: ref('int_incidents')
         rows:
           - {line_id: victoria, start_week_start: "2026-10-19", recovery_minutes: 12}
@@ -88,6 +102,9 @@ unit_tests:
           - {line_id: victoria, is_low_volume: false}
           - {line_id: bakerloo, is_low_volume: false}
           - {line_id: waterloo-city, is_low_volume: false}
+          - {line_id: district, is_low_volume: false}
+          - {line_id: jubilee, is_low_volume: false}
+          - {line_id: northern, is_low_volume: false}
       # The measured view has its own test below; one row that matches
       # nothing keeps these inputs out of the way.
       - input: ref('seed_measured_lines')
@@ -101,11 +118,14 @@ unit_tests:
           - {line_id: unused, london_date: "2026-10-19", london_ts: "2026-10-19 08:00:00", is_missing: true}
     expect:
       rows:
-        - {line_id: victoria, week_start: "2026-10-19", week_end: "2026-10-25", scored_minutes: 120, disruption_index: 1500, good_service_pct: 75, incidents_per_100_hours: 50, completeness: 1, median_recovery_minutes: 12, is_week_complete: true, is_provisional: false, disruption_rank: 1, previous_disruption_rank: null, rank_movement: null}
-        - {line_id: bakerloo, week_start: "2026-10-19", week_end: "2026-10-25", scored_minutes: 90, disruption_index: 1500, good_service_pct: 50, incidents_per_100_hours: 0, completeness: 0.75, median_recovery_minutes: null, is_week_complete: true, is_provisional: true, disruption_rank: 2, previous_disruption_rank: null, rank_movement: null}
-        - {line_id: waterloo-city, week_start: "2026-10-19", week_end: "2026-10-25", scored_minutes: 0, disruption_index: null, good_service_pct: null, incidents_per_100_hours: null, completeness: 0, median_recovery_minutes: null, is_week_complete: true, is_provisional: true, disruption_rank: null, previous_disruption_rank: null, rank_movement: null}
-        - {line_id: victoria, week_start: "2026-10-26", week_end: "2026-11-01", scored_minutes: 60, disruption_index: 6000, good_service_pct: 50, incidents_per_100_hours: 0, completeness: 1, median_recovery_minutes: null, is_week_complete: true, is_provisional: false, disruption_rank: 2, previous_disruption_rank: 1, rank_movement: -1}
-        - {line_id: bakerloo, week_start: "2026-10-26", week_end: "2026-11-01", scored_minutes: 60, disruption_index: 0, good_service_pct: 100, incidents_per_100_hours: 0, completeness: 1, median_recovery_minutes: null, is_week_complete: true, is_provisional: false, disruption_rank: 1, previous_disruption_rank: 2, rank_movement: 1}
+        - {line_id: victoria, week_start: "2026-10-19", week_end: "2026-10-25", scored_minutes: 120, time_weighted_scored_minutes: 90, disruption_index: 50, good_service_pct: 75, incidents_per_100_hours: 50, completeness: 1, median_recovery_minutes: 12, is_week_complete: true, is_provisional: false, engineering_works_share: 0, is_ranked: true, unranked_reason: null, disruption_rank: 1, previous_disruption_rank: null, rank_movement: null, previous_disruption_index: null}
+        - {line_id: bakerloo, week_start: "2026-10-19", week_end: "2026-10-25", scored_minutes: 90, time_weighted_scored_minutes: 67.5, disruption_index: 50, good_service_pct: 50, incidents_per_100_hours: 0, completeness: 0.75, median_recovery_minutes: null, is_week_complete: true, is_provisional: true, engineering_works_share: 0, is_ranked: true, unranked_reason: null, disruption_rank: 2, previous_disruption_rank: null, rank_movement: null, previous_disruption_index: null}
+        - {line_id: waterloo-city, week_start: "2026-10-19", week_end: "2026-10-25", scored_minutes: 0, time_weighted_scored_minutes: 0, disruption_index: null, good_service_pct: null, incidents_per_100_hours: null, completeness: 0, median_recovery_minutes: null, is_week_complete: true, is_provisional: true, engineering_works_share: 0, is_ranked: false, unranked_reason: no_scored_minutes, disruption_rank: null, previous_disruption_rank: null, rank_movement: null, previous_disruption_index: null}
+        - {line_id: victoria, week_start: "2026-10-26", week_end: "2026-11-01", scored_minutes: 60, time_weighted_scored_minutes: 60, disruption_index: 100, good_service_pct: 50, incidents_per_100_hours: 0, completeness: 1, median_recovery_minutes: null, is_week_complete: true, is_provisional: false, engineering_works_share: 0, is_ranked: true, unranked_reason: null, disruption_rank: 2, previous_disruption_rank: 1, rank_movement: -1, previous_disruption_index: 50}
+        - {line_id: bakerloo, week_start: "2026-10-26", week_end: "2026-11-01", scored_minutes: 60, time_weighted_scored_minutes: 60, disruption_index: 0, good_service_pct: 100, incidents_per_100_hours: 0, completeness: 1, median_recovery_minutes: null, is_week_complete: true, is_provisional: false, engineering_works_share: 0, is_ranked: true, unranked_reason: null, disruption_rank: 1, previous_disruption_rank: 2, rank_movement: 1, previous_disruption_index: 50}
+        - {line_id: district, week_start: "2026-10-26", week_end: "2026-11-01", scored_minutes: 40, time_weighted_scored_minutes: 40, disruption_index: 0, good_service_pct: 100, incidents_per_100_hours: 0, completeness: 1, median_recovery_minutes: null, is_week_complete: true, is_provisional: false, engineering_works_share: 0.6, is_ranked: false, unranked_reason: engineering_works, disruption_rank: null, previous_disruption_rank: null, rank_movement: null, previous_disruption_index: null}
+        - {line_id: northern, week_start: "2026-10-26", week_end: "2026-11-01", scored_minutes: 0, time_weighted_scored_minutes: 0, disruption_index: null, good_service_pct: null, incidents_per_100_hours: null, completeness: 1, median_recovery_minutes: null, is_week_complete: true, is_provisional: false, engineering_works_share: 1, is_ranked: false, unranked_reason: engineering_works, disruption_rank: null, previous_disruption_rank: null, rank_movement: null, previous_disruption_index: null}
+        - {line_id: jubilee, week_start: "2026-10-26", week_end: "2026-11-01", scored_minutes: 50, time_weighted_scored_minutes: 50, disruption_index: 100, good_service_pct: 50, incidents_per_100_hours: 0, completeness: 1, median_recovery_minutes: null, is_week_complete: true, is_provisional: false, engineering_works_share: 0.5, is_ranked: true, unranked_reason: null, disruption_rank: 2, previous_disruption_rank: null, rank_movement: null, previous_disruption_index: null}
 
   - name: fct_line_weekly_measured_view_and_honesty_gap
     description: >
@@ -126,6 +146,11 @@ unit_tests:
       share 0.25, under 0.5, so it is measured-provisional and gets no rank.
       DLR is not measured: its hours are ignored and it shows
       `not_measured` with no measured numbers or rank.
+      Trains run (ADR-014), over observed hours only: Victoria's two 08:00
+      hours saw 30 + 30 trains on the boards against 40 + 40 scheduled
+      (its other observed hours carry no counts here): 60 / 80 = 0.75.
+      Central's only counted hour (10:00, 5 of 30) is not observed, so it
+      has 0 against 0 and no share. Bakerloo has no counts at all.
     model: fct_line_weekly
     given:
       - input: ref('fct_line_daily')
@@ -151,17 +176,17 @@ unit_tests:
           - {line_id: central, is_measured: true}
       - input: ref('int_measured_hours')
         rows:
-          - {line_id: victoria, naptan_id: a, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 60, long_gaps: 1}
-          - {line_id: victoria, naptan_id: b, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 0}
-          - {line_id: victoria, naptan_id: a, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 30, long_gaps: 0}
-          - {line_id: victoria, naptan_id: b, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 30, long_gaps: 0}
-          - {line_id: victoria, naptan_id: a, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 10, is_line_measured: true, is_observed: true, counts_for_reliability: false, excess_wait_seconds: 600, long_gaps: 5}
-          - {line_id: bakerloo, naptan_id: a, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: -30, long_gaps: 0}
-          - {line_id: dlr, naptan_id: c, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: false, is_observed: true, counts_for_reliability: false, excess_wait_seconds: 900, long_gaps: 9}
-          - {line_id: central, naptan_id: d, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 0}
-          - {line_id: central, naptan_id: d, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_observed: true, counts_for_reliability: false, excess_wait_seconds: 0, long_gaps: 0}
-          - {line_id: central, naptan_id: d, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 10, is_line_measured: true, is_observed: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0}
-          - {line_id: central, naptan_id: d, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 11, is_line_measured: true, is_observed: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0}
+          - {line_id: victoria, naptan_id: a, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 60, long_gaps: 1, observed_trains: 30, scheduled_departures: 40}
+          - {line_id: victoria, naptan_id: b, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 0, observed_trains: 30, scheduled_departures: 40}
+          - {line_id: victoria, naptan_id: a, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 30, long_gaps: 0, observed_trains: null, scheduled_departures: null}
+          - {line_id: victoria, naptan_id: b, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 30, long_gaps: 0, observed_trains: null, scheduled_departures: null}
+          - {line_id: victoria, naptan_id: a, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 10, is_line_measured: true, is_observed: true, counts_for_reliability: false, excess_wait_seconds: 600, long_gaps: 5, observed_trains: null, scheduled_departures: null}
+          - {line_id: bakerloo, naptan_id: a, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: -30, long_gaps: 0, observed_trains: null, scheduled_departures: null}
+          - {line_id: dlr, naptan_id: c, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: false, is_observed: true, counts_for_reliability: false, excess_wait_seconds: 900, long_gaps: 9, observed_trains: null, scheduled_departures: null}
+          - {line_id: central, naptan_id: d, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_observed: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 0, observed_trains: null, scheduled_departures: null}
+          - {line_id: central, naptan_id: d, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_observed: true, counts_for_reliability: false, excess_wait_seconds: 0, long_gaps: 0, observed_trains: null, scheduled_departures: null}
+          - {line_id: central, naptan_id: d, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 10, is_line_measured: true, is_observed: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0, observed_trains: 5, scheduled_departures: 30}
+          - {line_id: central, naptan_id: d, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 11, is_line_measured: true, is_observed: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0, observed_trains: null, scheduled_departures: null}
       - input: ref('int_line_minute_status')
         rows:
           - {line_id: victoria, london_date: "2026-10-27", london_ts: "2026-10-27 08:00:00", is_missing: false, status_severity: 10}
@@ -172,7 +197,134 @@ unit_tests:
           - {line_id: dlr, london_date: "2026-10-27", london_ts: "2026-10-27 08:00:00", is_missing: false, status_severity: 10}
     expect:
       rows:
-        - {line_id: victoria, week_start: "2026-10-26", is_measured: true, measurement_status: measured, observed_measurement_hours: 5, measured_hours: 4, measured_share: 0.8, is_measured_provisional: false, excess_wait_hours: 4, excess_wait_minutes: 0.5, long_gaps: 1, long_gaps_per_100_hours: 25, honesty_gap_hours: 1, good_service_measured_hours: 1, honesty_gap_share: 1, experienced_rank: 2}
-        - {line_id: bakerloo, week_start: "2026-10-26", is_measured: true, measurement_status: measured, observed_measurement_hours: 1, measured_hours: 1, measured_share: 1, is_measured_provisional: false, excess_wait_hours: 1, excess_wait_minutes: -0.5, long_gaps: 0, long_gaps_per_100_hours: 0, honesty_gap_hours: 0, good_service_measured_hours: 1, honesty_gap_share: 0, experienced_rank: 1}
-        - {line_id: dlr, week_start: "2026-10-26", is_measured: false, measurement_status: not_measured, observed_measurement_hours: null, measured_hours: null, measured_share: null, is_measured_provisional: null, excess_wait_hours: null, excess_wait_minutes: null, long_gaps: null, long_gaps_per_100_hours: null, honesty_gap_hours: null, good_service_measured_hours: null, honesty_gap_share: null, experienced_rank: null}
-        - {line_id: central, week_start: "2026-10-26", is_measured: true, measurement_status: measured, observed_measurement_hours: 2, measured_hours: 1, measured_share: 0.25, is_measured_provisional: true, excess_wait_hours: 1, excess_wait_minutes: 0, long_gaps: 0, long_gaps_per_100_hours: 0, honesty_gap_hours: null, good_service_measured_hours: null, honesty_gap_share: null, experienced_rank: null}
+        - {line_id: victoria, week_start: "2026-10-26", is_measured: true, measurement_status: measured, observed_measurement_hours: 5, measured_hours: 4, measured_share: 0.8, observed_trains: 60, observed_hours_scheduled_trains: 80, trains_run_share: 0.75, is_measured_provisional: false, excess_wait_hours: 4, excess_wait_minutes: 0.5, long_gaps: 1, long_gaps_per_100_hours: 25, honesty_gap_hours: 1, good_service_measured_hours: 1, honesty_gap_share: 1, experienced_rank: 2}
+        - {line_id: bakerloo, week_start: "2026-10-26", is_measured: true, measurement_status: measured, observed_measurement_hours: 1, measured_hours: 1, measured_share: 1, observed_trains: null, observed_hours_scheduled_trains: null, trains_run_share: null, is_measured_provisional: false, excess_wait_hours: 1, excess_wait_minutes: -0.5, long_gaps: 0, long_gaps_per_100_hours: 0, honesty_gap_hours: 0, good_service_measured_hours: 1, honesty_gap_share: 0, experienced_rank: 1}
+        - {line_id: dlr, week_start: "2026-10-26", is_measured: false, measurement_status: not_measured, observed_measurement_hours: null, measured_hours: null, measured_share: null, observed_trains: null, observed_hours_scheduled_trains: null, trains_run_share: null, is_measured_provisional: null, excess_wait_hours: null, excess_wait_minutes: null, long_gaps: null, long_gaps_per_100_hours: null, honesty_gap_hours: null, good_service_measured_hours: null, honesty_gap_share: null, experienced_rank: null}
+        - {line_id: central, week_start: "2026-10-26", is_measured: true, measurement_status: measured, observed_measurement_hours: 2, measured_hours: 1, measured_share: 0.25, observed_trains: 0, observed_hours_scheduled_trains: 0, trains_run_share: null, is_measured_provisional: true, excess_wait_hours: 1, excess_wait_minutes: 0, long_gaps: 0, long_gaps_per_100_hours: 0, honesty_gap_hours: null, good_service_measured_hours: null, honesty_gap_share: null, experienced_rank: null}
+
+  - name: rpt_weekly_highlights_by_hand
+    description: >
+      Five weeks. 26 Oct: nothing observed, so no Wooden Spoon, no incident,
+      and no previous week (no_previous_week). 2 Nov: 70 % observed;
+      Central is bottom (index 120, rank 2, provisional), so it takes the
+      Wooden Spoon; the week before observed nothing (no_previous_week).
+      9 Nov: Central and Jubilee share the bottom rank 2 (index 60); the
+      spoon goes to central by line id, shared by 2. District (index 500)
+      is not ranked (engineering works) and cannot take it. The previous
+      week was 140 / 200 = 70 % observed, under 90 %:
+      previous_week_incomplete. Worst incident: Central's 40-minute Minor
+      Delays (40 severity-weighted minutes) ties Jubilee's 20-minute Severe
+      Delays (40) and wins on duration; Victoria's 30 is lower.
+      16 Nov: Central falls from 60 to 20 (improvement 40), Jubilee from 60
+      to 40 (20), Victoria rises from 40 to 70, District was unranked last
+      week: Line of the Week is Central, +40. Victoria is bottom (rank 4).
+      Two incidents of 30 tie on weight and duration; Jubilee's started
+      first. 23 Nov (not yet complete): every index equals the week before,
+      so no line improved (no_line_improved); Victoria keeps the spoon.
+    model: rpt_weekly_highlights
+    overrides:
+      vars:
+        provisional_completeness: 0.9
+    given:
+      - input: ref('fct_line_weekly')
+        rows:
+          - {line_id: victoria, week_start: "2026-10-26", observed_minutes: 0, scheduled_minutes: 100, disruption_index: null, disruption_rank: null, is_ranked: false, is_provisional: true, is_week_complete: true}
+          - {line_id: victoria, week_start: "2026-11-02", observed_minutes: 70, scheduled_minutes: 100, disruption_index: 50, disruption_rank: 1, is_ranked: true, is_provisional: true, is_week_complete: true}
+          - {line_id: central, week_start: "2026-11-02", observed_minutes: 70, scheduled_minutes: 100, disruption_index: 120, disruption_rank: 2, is_ranked: true, is_provisional: true, is_week_complete: true}
+          - {line_id: victoria, week_start: "2026-11-09", observed_minutes: 100, scheduled_minutes: 100, disruption_index: 40, disruption_rank: 1, is_ranked: true, is_provisional: false, is_week_complete: true}
+          - {line_id: central, week_start: "2026-11-09", observed_minutes: 100, scheduled_minutes: 100, disruption_index: 60, disruption_rank: 2, is_ranked: true, is_provisional: false, is_week_complete: true}
+          - {line_id: jubilee, week_start: "2026-11-09", observed_minutes: 100, scheduled_minutes: 100, disruption_index: 60, disruption_rank: 2, is_ranked: true, is_provisional: false, is_week_complete: true}
+          - {line_id: district, week_start: "2026-11-09", observed_minutes: 100, scheduled_minutes: 100, disruption_index: 500, disruption_rank: null, is_ranked: false, is_provisional: false, is_week_complete: true}
+          - {line_id: victoria, week_start: "2026-11-16", observed_minutes: 100, scheduled_minutes: 100, disruption_index: 70, disruption_rank: 4, is_ranked: true, is_provisional: false, is_week_complete: true}
+          - {line_id: central, week_start: "2026-11-16", observed_minutes: 100, scheduled_minutes: 100, disruption_index: 20, disruption_rank: 2, is_ranked: true, is_provisional: false, is_week_complete: true}
+          - {line_id: jubilee, week_start: "2026-11-16", observed_minutes: 100, scheduled_minutes: 100, disruption_index: 40, disruption_rank: 3, is_ranked: true, is_provisional: false, is_week_complete: true}
+          - {line_id: district, week_start: "2026-11-16", observed_minutes: 100, scheduled_minutes: 100, disruption_index: 10, disruption_rank: 1, is_ranked: true, is_provisional: false, is_week_complete: true}
+          - {line_id: victoria, week_start: "2026-11-23", observed_minutes: 100, scheduled_minutes: 100, disruption_index: 70, disruption_rank: 4, is_ranked: true, is_provisional: false, is_week_complete: false}
+          - {line_id: central, week_start: "2026-11-23", observed_minutes: 100, scheduled_minutes: 100, disruption_index: 20, disruption_rank: 2, is_ranked: true, is_provisional: false, is_week_complete: false}
+          - {line_id: jubilee, week_start: "2026-11-23", observed_minutes: 100, scheduled_minutes: 100, disruption_index: 40, disruption_rank: 3, is_ranked: true, is_provisional: false, is_week_complete: false}
+          - {line_id: district, week_start: "2026-11-23", observed_minutes: 100, scheduled_minutes: 100, disruption_index: 10, disruption_rank: 1, is_ranked: true, is_provisional: false, is_week_complete: false}
+      - input: ref('int_incidents')
+        rows:
+          - {line_id: victoria, start_week_start: "2026-11-09", started_at: "2026-11-10 08:00:00", duration_minutes: 10, severity_weighted_minutes: 30, worst_status_description: Severe Delays, is_open: false}
+          - {line_id: central, start_week_start: "2026-11-09", started_at: "2026-11-11 08:00:00", duration_minutes: 40, severity_weighted_minutes: 40, worst_status_description: Minor Delays, is_open: false}
+          - {line_id: jubilee, start_week_start: "2026-11-09", started_at: "2026-11-12 07:00:00", duration_minutes: 20, severity_weighted_minutes: 40, worst_status_description: Severe Delays, is_open: false}
+          - {line_id: victoria, start_week_start: "2026-11-16", started_at: "2026-11-17 09:00:00", duration_minutes: 10, severity_weighted_minutes: 30, worst_status_description: Severe Delays, is_open: false}
+          - {line_id: jubilee, start_week_start: "2026-11-16", started_at: "2026-11-17 08:00:00", duration_minutes: 10, severity_weighted_minutes: 30, worst_status_description: Severe Delays, is_open: true}
+    expect:
+      rows:
+        - {week_start: "2026-10-26", is_week_complete: true, wooden_spoon_line_id: null, wooden_spoon_disruption_index: null, wooden_spoon_is_provisional: null, wooden_spoon_shared_by: null, line_of_the_week_line_id: null, line_of_the_week_disruption_index: null, line_of_the_week_previous_index: null, line_of_the_week_improvement: null, line_of_the_week_null_reason: no_previous_week, worst_incident_line_id: null, worst_incident_started_at: null, worst_incident_duration_minutes: null, worst_incident_severity_weighted_minutes: null, worst_incident_worst_status: null, worst_incident_is_open: null}
+        - {week_start: "2026-11-02", is_week_complete: true, wooden_spoon_line_id: central, wooden_spoon_disruption_index: 120, wooden_spoon_is_provisional: true, wooden_spoon_shared_by: 1, line_of_the_week_line_id: null, line_of_the_week_disruption_index: null, line_of_the_week_previous_index: null, line_of_the_week_improvement: null, line_of_the_week_null_reason: no_previous_week, worst_incident_line_id: null, worst_incident_started_at: null, worst_incident_duration_minutes: null, worst_incident_severity_weighted_minutes: null, worst_incident_worst_status: null, worst_incident_is_open: null}
+        - {week_start: "2026-11-09", is_week_complete: true, wooden_spoon_line_id: central, wooden_spoon_disruption_index: 60, wooden_spoon_is_provisional: false, wooden_spoon_shared_by: 2, line_of_the_week_line_id: null, line_of_the_week_disruption_index: null, line_of_the_week_previous_index: null, line_of_the_week_improvement: null, line_of_the_week_null_reason: previous_week_incomplete, worst_incident_line_id: central, worst_incident_started_at: "2026-11-11 08:00:00", worst_incident_duration_minutes: 40, worst_incident_severity_weighted_minutes: 40, worst_incident_worst_status: Minor Delays, worst_incident_is_open: false}
+        - {week_start: "2026-11-16", is_week_complete: true, wooden_spoon_line_id: victoria, wooden_spoon_disruption_index: 70, wooden_spoon_is_provisional: false, wooden_spoon_shared_by: 1, line_of_the_week_line_id: central, line_of_the_week_disruption_index: 20, line_of_the_week_previous_index: 60, line_of_the_week_improvement: 40, line_of_the_week_null_reason: null, worst_incident_line_id: jubilee, worst_incident_started_at: "2026-11-17 08:00:00", worst_incident_duration_minutes: 10, worst_incident_severity_weighted_minutes: 30, worst_incident_worst_status: Severe Delays, worst_incident_is_open: true}
+        - {week_start: "2026-11-23", is_week_complete: false, wooden_spoon_line_id: victoria, wooden_spoon_disruption_index: 70, wooden_spoon_is_provisional: false, wooden_spoon_shared_by: 1, line_of_the_week_line_id: null, line_of_the_week_disruption_index: null, line_of_the_week_previous_index: null, line_of_the_week_improvement: null, line_of_the_week_null_reason: no_line_improved, worst_incident_line_id: null, worst_incident_started_at: null, worst_incident_duration_minutes: null, worst_incident_severity_weighted_minutes: null, worst_incident_worst_status: null, worst_incident_is_open: null}
+
+  - name: rpt_monday_morning_by_hand
+    description: >
+      Monday 9 November 2026, AM peak (every minute weighs 2). Victoria:
+      Severe Delays (3 x 2 = 6), two Good Service minutes and one missing:
+      4 scheduled, 3 observed (completeness 0.75, provisional), 3 scored,
+      time-weighted 6, index 100 x 6 / 6 = 100, Good Service 2 / 3.
+      Central: three Good Service minutes and one Minor Delays (1 x 2 = 2):
+      index 100 x 2 / 8 = 25, Good Service 75 %. District: three of its four
+      minutes under engineering works (share 0.75) and one Good Service:
+      index 0, but it ran under half the peak, so it is not ranked
+      (engineering_works, D22). Jubilee: two missing minutes, no index
+      (no_scored_minutes). Central ranks 1, Victoria 2. A Tuesday peak
+      minute, a Monday inter-peak minute and an unscheduled Monday peak
+      minute are all left out.
+    model: rpt_monday_morning
+    overrides:
+      vars:
+        provisional_completeness: 0.9
+        min_open_share_to_rank: 0.5
+    given:
+      - input: ref('int_line_minute_status')
+        rows:
+          - {line_id: victoria, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: false, is_engineering_works: false, is_scored: true, status_severity: 6, severity_weight: 3, time_weight: 2}
+          - {line_id: victoria, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: false, is_engineering_works: false, is_scored: true, status_severity: 10, severity_weight: 0, time_weight: 2}
+          - {line_id: victoria, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: false, is_engineering_works: false, is_scored: true, status_severity: 10, severity_weight: 0, time_weight: 2}
+          - {line_id: victoria, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: true, is_engineering_works: false, is_scored: false, status_severity: null, severity_weight: null, time_weight: 2}
+          - {line_id: victoria, london_date: "2026-11-10", time_band: am_peak, is_scheduled: true, is_missing: false, is_engineering_works: false, is_scored: true, status_severity: 6, severity_weight: 3, time_weight: 2}
+          - {line_id: victoria, london_date: "2026-11-09", time_band: inter_peak, is_scheduled: true, is_missing: false, is_engineering_works: false, is_scored: true, status_severity: 6, severity_weight: 3, time_weight: 1}
+          - {line_id: victoria, london_date: "2026-11-09", time_band: am_peak, is_scheduled: false, is_missing: false, is_engineering_works: false, is_scored: false, status_severity: 6, severity_weight: 3, time_weight: 2}
+          - {line_id: central, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: false, is_engineering_works: false, is_scored: true, status_severity: 10, severity_weight: 0, time_weight: 2}
+          - {line_id: central, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: false, is_engineering_works: false, is_scored: true, status_severity: 10, severity_weight: 0, time_weight: 2}
+          - {line_id: central, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: false, is_engineering_works: false, is_scored: true, status_severity: 10, severity_weight: 0, time_weight: 2}
+          - {line_id: central, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: false, is_engineering_works: false, is_scored: true, status_severity: 9, severity_weight: 1, time_weight: 2}
+          - {line_id: district, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: false, is_engineering_works: true, is_scored: false, status_severity: 4, severity_weight: 0, time_weight: 2}
+          - {line_id: district, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: false, is_engineering_works: true, is_scored: false, status_severity: 4, severity_weight: 0, time_weight: 2}
+          - {line_id: district, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: false, is_engineering_works: true, is_scored: false, status_severity: 4, severity_weight: 0, time_weight: 2}
+          - {line_id: district, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: false, is_engineering_works: false, is_scored: true, status_severity: 10, severity_weight: 0, time_weight: 2}
+          - {line_id: jubilee, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: true, is_engineering_works: false, is_scored: false, status_severity: null, severity_weight: null, time_weight: 2}
+          - {line_id: jubilee, london_date: "2026-11-09", time_band: am_peak, is_scheduled: true, is_missing: true, is_engineering_works: false, is_scored: false, status_severity: null, severity_weight: null, time_weight: 2}
+      - input: ref('dim_lines')
+        rows:
+          - {line_id: victoria}
+          - {line_id: central}
+          - {line_id: district}
+          - {line_id: jubilee}
+    expect:
+      rows:
+        - {line_id: victoria, week_start: "2026-11-09", scheduled_minutes: 4, observed_minutes: 3, engineering_works_minutes: 0, scored_minutes: 3, good_service_minutes: 2, weighted_disruption_minutes: 6, time_weighted_scored_minutes: 6, completeness: 0.75, engineering_works_share: 0, monday_morning_index: 100, is_provisional: true, unranked_reason: null, monday_morning_rank: 2}
+        - {line_id: central, week_start: "2026-11-09", scheduled_minutes: 4, observed_minutes: 4, engineering_works_minutes: 0, scored_minutes: 4, good_service_minutes: 3, weighted_disruption_minutes: 2, time_weighted_scored_minutes: 8, completeness: 1, engineering_works_share: 0, monday_morning_index: 25, is_provisional: false, unranked_reason: null, monday_morning_rank: 1}
+        - {line_id: district, week_start: "2026-11-09", scheduled_minutes: 4, observed_minutes: 4, engineering_works_minutes: 3, scored_minutes: 1, good_service_minutes: 1, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 2, completeness: 1, engineering_works_share: 0.75, monday_morning_index: 0, is_provisional: false, unranked_reason: engineering_works, monday_morning_rank: null}
+        - {line_id: jubilee, week_start: "2026-11-09", scheduled_minutes: 2, observed_minutes: 0, engineering_works_minutes: 0, scored_minutes: 0, good_service_minutes: 0, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 0, completeness: 0, engineering_works_share: 0, monday_morning_index: null, is_provisional: true, unranked_reason: no_scored_minutes, monday_morning_rank: null}
+
+  - name: rpt_engineering_works_by_hand
+    description: >
+      Week of 9 November 2026, 1,000 scheduled minutes each. District: 600
+      minutes of works = 10 hours, share 0.6, unranked for works (D22),
+      rank 1. Jubilee: 120 minutes = 2 hours, share 0.12, ranked, rank 2.
+      Victoria: none, 0 hours, rank 3.
+    model: rpt_engineering_works
+    given:
+      - input: ref('fct_line_weekly')
+        rows:
+          - {line_id: district, week_start: "2026-11-09", week_end: "2026-11-15", scheduled_minutes: 1000, engineering_works_minutes: 600, engineering_works_share: 0.6, unranked_reason: engineering_works, is_week_complete: true}
+          - {line_id: jubilee, week_start: "2026-11-09", week_end: "2026-11-15", scheduled_minutes: 1000, engineering_works_minutes: 120, engineering_works_share: 0.12, unranked_reason: null, is_week_complete: true}
+          - {line_id: victoria, week_start: "2026-11-09", week_end: "2026-11-15", scheduled_minutes: 1000, engineering_works_minutes: 0, engineering_works_share: 0, unranked_reason: null, is_week_complete: true}
+    expect:
+      rows:
+        - {line_id: district, week_start: "2026-11-09", engineering_works_minutes: 600, engineering_works_hours: 10, engineering_works_share: 0.6, is_unranked_for_works: true, works_rank: 1}
+        - {line_id: jubilee, week_start: "2026-11-09", engineering_works_minutes: 120, engineering_works_hours: 2, engineering_works_share: 0.12, is_unranked_for_works: false, works_rank: 2}
+        - {line_id: victoria, week_start: "2026-11-09", engineering_works_minutes: 0, engineering_works_hours: 0, engineering_works_share: 0, is_unranked_for_works: false, works_rank: 3}

@@ -213,6 +213,11 @@ models:
         data_tests: [not_null]
       - name: incident_minutes
         description: Incident minutes, excluding bridged gaps.
+      - name: severity_weighted_minutes
+        description: >
+          Sum of the severity weight of each incident minute (no time
+          weight); orders the week's single worst incident (M6, D48).
+        data_tests: [not_null]
       - name: duration_minutes
         description: Wall-clock minutes from start to the last incident minute, inclusive.
       - name: is_open
@@ -454,13 +459,58 @@ models:
       - name: week_start
         description: Monday of the London ISO week.
 
+  - name: int_vehicle_passes
+    description: >
+      Trains seen on the arrival boards, by vehicle id (ADR-014): one row
+      per visit of a vehicle id to a station and direction (sightings no
+      more than `vehicle_pass_visit_gap_seconds` apart, any platform) that
+      came within `vehicle_pass_threshold_seconds` of the station. The pass
+      time is the expected arrival of the visit's last sighting. Placeholder
+      ids and sightings without an id or a direction are left out. Feeds the
+      quality gate and trains run in int_measured_hours.
+    columns:
+      - name: vehicle_pass_key
+        description: Row key, a hash of (line_id, naptan_id, direction, vehicle_id, first_seen_at).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id of the board's prediction.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Stop the prediction is for.
+        data_tests: [not_null]
+      - name: direction
+        description: TfL direction on the board.
+        data_tests: [not_null]
+      - name: vehicle_id
+        description: TfL vehicle id.
+        data_tests: [not_null]
+      - name: visit_number
+        description: The visit's position among the id's visits to the station and direction.
+      - name: first_seen_at
+        description: First sighting in the visit, UTC.
+      - name: last_seen_at
+        description: Last sighting in the visit, UTC.
+      - name: sightings
+        description: Sightings in the visit.
+      - name: min_seconds_to_arrival
+        description: Closest the train came, seconds to go as of the poll (D40).
+      - name: pass_time
+        description: Expected arrival of the visit's last sighting, UTC.
+        data_tests: [not_null]
+      - name: london_date
+        description: London date of pass_time.
+        data_tests: [not_null]
+      - name: london_hour
+        description: London hour of pass_time.
+        data_tests: [not_null]
+
   - name: int_measured_hours
     description: >
       The measured view per line x measurement station x direction x London
       date x London hour, for every hour with scheduled service on a day the
-      collector ran (PLAN 7.2, 7.3). Holds the PLAN 7.2 quality gate
-      (inferred against scheduled trains), headway sums, long gaps and
-      excess wait. Scheduled service adds the day's service hour and the
+      collector ran (PLAN 7.2, 7.3). Holds the quality gate (ADR-014:
+      inferred trains against the trains observed on the boards), trains run
+      against the timetable, headway sums, long gaps and excess wait. Scheduled service adds the day's service hour and the
       previous day's Night Tube hour (D30). An hour is observed with at least
       54 successful arrivals polls and no collection gap; only observed hours
       are gated. An hour counts for Experienced Reliability when its line is
@@ -507,10 +557,26 @@ models:
       - name: inferred_arrivals
         description: Inferred arrivals in the hour, platforms pooled.
         data_tests: [not_null]
+      - name: vehicle_passes
+        description: Vehicle-id passes in the hour (int_vehicle_passes), platforms pooled.
+        data_tests: [not_null]
+      - name: inferred_without_vehicle_id
+        description: Inferred arrivals whose last sighting had no vehicle id (or a placeholder); counted as observed as they are.
+        data_tests: [not_null]
+      - name: observed_trains
+        description: Trains observed on the boards, vehicle_passes + inferred_without_vehicle_id (ADR-014).
+        data_tests: [not_null]
       - name: arrival_ratio
-        description: inferred_arrivals / scheduled_departures.
+        description: inferred_arrivals / scheduled_departures, the PLAN 7.2 gate's ratio before ADR-014; kept for comparison.
+      - name: trains_run_ratio
+        description: observed_trains / scheduled_departures, trains run against the timetable. The boards may omit trains, so this is a lower bound on what ran.
+      - name: fidelity_ratio
+        description: inferred_arrivals / observed_trains, the gate's ratio; null with no train on the boards.
+      - name: is_gate_judged
+        description: Observed with at least one train on the boards; the gate test's denominator.
+        data_tests: [not_null]
       - name: is_in_band
-        description: Observed and arrival_ratio within `gate_low_ratio` to `gate_high_ratio` (0.8 to 1.2).
+        description: Judged and fidelity_ratio within `gate_low_ratio` to `gate_high_ratio` (0.8 to 1.2).
         data_tests: [not_null]
       - name: counts_for_reliability
         description: The line is measured and the hour is in band; only these hours feed fct_line_weekly's measured metrics.
