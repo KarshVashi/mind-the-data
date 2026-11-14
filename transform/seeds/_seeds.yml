@@ -288,3 +288,91 @@ seeds:
       - name: decision_status
         description: "`pending_owner` until the owner settles D43; then the date and outcome."
         data_tests: [not_null]
+
+  - name: seed_industrial_action
+    description: >
+      Industrial action on the lines in scope (PLAN 7.4, DECISIONS.md D60),
+      one row per action, each with the public source it was taken from.
+      `applies_to` is `mode` (every line of that TfL mode, e.g. the whole
+      Tube) or `line`. The dates are the London service days the action
+      touches, inclusive: a noon-to-noon strike covers both days. Only
+      `held` and `announced` actions take days out of the "strikes
+      excluded" league (rpt_league_strikes_excluded); the others are kept
+      for the record. An `announced` row is updated to `held` or
+      `called_off` once the day has passed.
+    columns:
+      - name: action_id
+        description: Stable id, union-scope-first day.
+        data_tests: [unique, not_null]
+      - name: union_name
+        description: The union that called the action.
+        data_tests: [not_null]
+      - name: applies_to
+        description: "`mode` or `line`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [mode, line]
+      - name: applies_to_id
+        description: A `mode_name` or `line_id` from the lines seed.
+        data_tests: [not_null]
+      - name: start_london_date
+        description: First London service day touched.
+        data_tests: [not_null]
+      - name: end_london_date
+        description: Last London service day touched (inclusive).
+        data_tests: [not_null]
+      - name: status
+        description: >
+          `held`, `announced`, `called_off`, `held_no_service_impact` or
+          `outcome_unknown`.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [held, announced, called_off, held_no_service_impact, outcome_unknown]
+      - name: description
+        description: Who struck and the hours, as the source gives them.
+      - name: source_publisher
+        description: Publisher of the source.
+        data_tests: [not_null]
+      - name: source_title
+        description: Title of the source.
+        data_tests: [not_null]
+      - name: source_date
+        description: Publication date of the source.
+        data_tests: [not_null]
+      - name: source_url
+        description: Link to the source.
+        data_tests: [not_null]
+
+  - name: sensitivity_weight_sets
+    description: >
+      The alternative weight sets of the sensitivity analysis (PLAN 7.5,
+      DECISIONS.md D61). Each row replaces one weight of the base seeds
+      for one set: `factor` `severity` replaces a severity code's weight
+      (unplanned, and planned where the base planned weight is above 0),
+      `time_band` a time band's weight. Anything a set does not name keeps
+      its base weight. Read by the publish code, which re-ranks each week
+      from rpt_weekly_status_mix; not used by any model.
+    columns:
+      - name: weight_set
+        description: Name of the set.
+        data_tests: [not_null]
+      - name: description
+        description: What the set changes, in words.
+        data_tests: [not_null]
+      - name: factor
+        description: "`severity` or `time_band`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [severity, time_band]
+      - name: factor_key
+        description: A severity code or a time band name.
+        data_tests: [not_null]
+      - name: weight
+        description: The replacement weight.
+        data_tests: [not_null]

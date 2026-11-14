@@ -1,0 +1,462 @@
+version: 2
+
+# Hand-computed cases for the M6 league mechanics: divisions, the season
+# table, the Recovery Time table, the strikes-excluded league and the
+# status mix behind the sensitivity analysis. The arithmetic is in each
+# description.
+
+unit_tests:
+  - name: rpt_division_seeding_from_two_complete_weeks
+    description: >
+      Four weeks of five lines. 2 Nov is 70 % observed, so not complete.
+      9 Nov, 16 Nov and 23 Nov are complete (3 complete weeks); 30 Nov has
+      not ended. Seeding uses the first two complete weeks, 9 and 16 Nov
+      (seeding_end 22 Nov, first division month December).
+      Victoria: weighted 20 + 20 over time-weighted 100 + 100 = index 20,
+      Good Service 180 / 200 = 90 %. Jubilee: 10 + 30 = 40 / 200 = 20,
+      Good Service 165 / 200 = 82.5 %. Northern: 30 + 50 = 80 / 200 = 40,
+      82.5 %. Central: 60 + 20 = 80 / 200 = 40, 80 %. District: works 70 +
+      40 = 110 of 200 scheduled (0.55, over half), so unranked
+      (engineering_works) and seeded last. Order: Victoria and Jubilee tie
+      on 20 and Victoria's higher Good Service puts it first; Northern
+      beats Central on Good Service at 40. Division One holds two lines:
+      Victoria and Jubilee. Three complete weeks is fewer than four, so the
+      seeding is provisional.
+    model: rpt_division_seeding
+    overrides:
+      vars:
+        division_seeding_weeks: 2
+        division_full_seeding_weeks: 4
+        division_one_size: 2
+        provisional_completeness: 0.9
+        min_open_share_to_rank: 0.5
+    given:
+      - input: ref('fct_line_weekly')
+        rows: &seeding_weeks
+          - {line_id: victoria, week_start: "2026-11-02", is_week_complete: true, scheduled_minutes: 100, observed_minutes: 70, engineering_works_minutes: 0, scored_minutes: 70, good_service_minutes: 70, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 70}
+          - {line_id: victoria, week_start: "2026-11-09", is_week_complete: true, scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 20, time_weighted_scored_minutes: 100}
+          - {line_id: central, week_start: "2026-11-09", is_week_complete: true, scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 80, weighted_disruption_minutes: 60, time_weighted_scored_minutes: 100}
+          - {line_id: jubilee, week_start: "2026-11-09", is_week_complete: true, scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 95, weighted_disruption_minutes: 10, time_weighted_scored_minutes: 100}
+          - {line_id: district, week_start: "2026-11-09", is_week_complete: true, scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 70, scored_minutes: 30, good_service_minutes: 30, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 30}
+          - {line_id: northern, week_start: "2026-11-09", is_week_complete: true, scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 85, weighted_disruption_minutes: 30, time_weighted_scored_minutes: 100}
+          - {line_id: victoria, week_start: "2026-11-16", is_week_complete: true, scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 20, time_weighted_scored_minutes: 100}
+          - {line_id: central, week_start: "2026-11-16", is_week_complete: true, scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 80, weighted_disruption_minutes: 20, time_weighted_scored_minutes: 100}
+          - {line_id: jubilee, week_start: "2026-11-16", is_week_complete: true, scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 70, weighted_disruption_minutes: 30, time_weighted_scored_minutes: 100}
+          - {line_id: district, week_start: "2026-11-16", is_week_complete: true, scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 40, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60}
+          - {line_id: northern, week_start: "2026-11-16", is_week_complete: true, scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 80, weighted_disruption_minutes: 50, time_weighted_scored_minutes: 100}
+          - {line_id: victoria, week_start: "2026-11-23", is_week_complete: true, scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 100, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 100}
+          - {line_id: victoria, week_start: "2026-11-30", is_week_complete: false, scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 100, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 100}
+    expect:
+      rows:
+        - {line_id: victoria, seed_position: 1, division: 1, disruption_index: 20, good_service_pct: 90, unranked_reason: null, seeding_start: "2026-11-09", seeding_end: "2026-11-22", seeding_weeks: 2, complete_weeks_available: 3, first_division_month: "2026-12-01", seeding_status: provisional}
+        - {line_id: jubilee, seed_position: 2, division: 1, disruption_index: 20, good_service_pct: 82.5, unranked_reason: null, seeding_start: "2026-11-09", seeding_end: "2026-11-22", seeding_weeks: 2, complete_weeks_available: 3, first_division_month: "2026-12-01", seeding_status: provisional}
+        - {line_id: northern, seed_position: 3, division: 2, disruption_index: 40, good_service_pct: 82.5, unranked_reason: null, seeding_start: "2026-11-09", seeding_end: "2026-11-22", seeding_weeks: 2, complete_weeks_available: 3, first_division_month: "2026-12-01", seeding_status: provisional}
+        - {line_id: central, seed_position: 4, division: 2, disruption_index: 40, good_service_pct: 80, unranked_reason: null, seeding_start: "2026-11-09", seeding_end: "2026-11-22", seeding_weeks: 2, complete_weeks_available: 3, first_division_month: "2026-12-01", seeding_status: provisional}
+        - {line_id: district, seed_position: 5, division: 2, disruption_index: 0, good_service_pct: 100, unranked_reason: engineering_works, seeding_start: "2026-11-09", seeding_end: "2026-11-22", seeding_weeks: 2, complete_weeks_available: 3, first_division_month: "2026-12-01", seeding_status: provisional}
+
+  - name: rpt_division_seeding_confirmed_once_enough_weeks_exist
+    description: >
+      The same weeks with `division_full_seeding_weeks` at 3: three complete
+      weeks exist, so the two-week seeding is confirmed. Positions are
+      unchanged.
+    model: rpt_division_seeding
+    overrides:
+      vars:
+        division_seeding_weeks: 2
+        division_full_seeding_weeks: 3
+        division_one_size: 2
+        provisional_completeness: 0.9
+        min_open_share_to_rank: 0.5
+    given:
+      - input: ref('fct_line_weekly')
+        rows: *seeding_weeks
+    expect:
+      rows:
+        - {line_id: victoria, seed_position: 1, seeding_status: confirmed}
+        - {line_id: jubilee, seed_position: 2, seeding_status: confirmed}
+        - {line_id: northern, seed_position: 3, seeding_status: confirmed}
+        - {line_id: central, seed_position: 4, seeding_status: confirmed}
+        - {line_id: district, seed_position: 5, seeding_status: confirmed}
+
+  - name: rpt_division_seeding_not_seeded_with_too_few_weeks
+    description: >
+      The same weeks seeded from four weeks (the plan's window): only three
+      are complete, so nothing is seeded and the model is empty.
+    model: rpt_division_seeding
+    overrides:
+      vars:
+        division_seeding_weeks: 4
+        division_full_seeding_weeks: 4
+        division_one_size: 2
+        provisional_completeness: 0.9
+        min_open_share_to_rank: 0.5
+    given:
+      - input: ref('fct_line_weekly')
+        rows: *seeding_weeks
+    expect:
+      rows: []
+
+  - name: rpt_divisions_monthly_promotion_and_relegation
+    description: >
+      Four lines, two per division, one place up and down, seeded for
+      December. A 20 November day is before the first division month and is
+      ignored.
+      December: Division One Central (index 100 x 10 / 100 = 10) rank 1,
+      Victoria (30) rank 2; Division Two Jubilee (5) rank 1, District (20)
+      rank 2. Victoria is relegated and Jubilee promoted.
+      January: Division One is Central (stayed) and Jubilee (promoted);
+      Division Two Victoria (relegated) and District (stayed). Central ran
+      only 40 of 100 minutes (works 0.6), so it is unranked and cannot go
+      down; Jubilee (50) is Division One's only ranked line and is
+      relegated. Division Two: Victoria (0) rank 1 is promoted; District
+      (8 / 80 = 10, completeness 0.8, provisional) stays.
+    model: rpt_divisions_monthly
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+        division_months_through: "2027-01-01"
+        division_moves: 1
+        provisional_completeness: 0.9
+        min_open_share_to_rank: 0.5
+    given:
+      - input: ref('rpt_division_seeding')
+        rows:
+          - {line_id: victoria, division: 1, first_division_month: "2026-12-01"}
+          - {line_id: central, division: 1, first_division_month: "2026-12-01"}
+          - {line_id: jubilee, division: 2, first_division_month: "2026-12-01"}
+          - {line_id: district, division: 2, first_division_month: "2026-12-01"}
+      - input: ref('fct_line_daily')
+        rows:
+          - {line_id: victoria, london_date: "2026-11-20", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 0, weighted_disruption_minutes: 800, time_weighted_scored_minutes: 100}
+          - {line_id: victoria, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 70, weighted_disruption_minutes: 30, time_weighted_scored_minutes: 100}
+          - {line_id: central, london_date: "2026-12-02", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 10, time_weighted_scored_minutes: 100}
+          - {line_id: jubilee, london_date: "2026-12-03", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 95, weighted_disruption_minutes: 5, time_weighted_scored_minutes: 100}
+          - {line_id: district, london_date: "2026-12-04", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 80, weighted_disruption_minutes: 20, time_weighted_scored_minutes: 100}
+          - {line_id: central, london_date: "2027-01-05", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 60, scored_minutes: 40, good_service_minutes: 0, weighted_disruption_minutes: 40, time_weighted_scored_minutes: 40}
+          - {line_id: jubilee, london_date: "2027-01-06", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 50, weighted_disruption_minutes: 50, time_weighted_scored_minutes: 100}
+          - {line_id: victoria, london_date: "2027-01-07", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 100, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 100}
+          - {line_id: district, london_date: "2027-01-08", scheduled_minutes: 100, observed_minutes: 80, engineering_works_minutes: 0, scored_minutes: 80, good_service_minutes: 72, weighted_disruption_minutes: 8, time_weighted_scored_minutes: 80}
+    expect:
+      rows:
+        - {line_id: victoria, month_start: "2026-12-01", division: 1, joined_by: seeded, disruption_index: 30, unranked_reason: null, division_rank: 2, movement: relegated, next_division: 2, is_provisional: false}
+        - {line_id: central, month_start: "2026-12-01", division: 1, joined_by: seeded, disruption_index: 10, unranked_reason: null, division_rank: 1, movement: stays, next_division: 1, is_provisional: false}
+        - {line_id: jubilee, month_start: "2026-12-01", division: 2, joined_by: seeded, disruption_index: 5, unranked_reason: null, division_rank: 1, movement: promoted, next_division: 1, is_provisional: false}
+        - {line_id: district, month_start: "2026-12-01", division: 2, joined_by: seeded, disruption_index: 20, unranked_reason: null, division_rank: 2, movement: stays, next_division: 2, is_provisional: false}
+        - {line_id: central, month_start: "2027-01-01", division: 1, joined_by: stayed, disruption_index: 100, unranked_reason: engineering_works, division_rank: null, movement: stays, next_division: 1, is_provisional: false}
+        - {line_id: jubilee, month_start: "2027-01-01", division: 1, joined_by: promoted, disruption_index: 50, unranked_reason: null, division_rank: 1, movement: relegated, next_division: 2, is_provisional: false}
+        - {line_id: victoria, month_start: "2027-01-01", division: 2, joined_by: relegated, disruption_index: 0, unranked_reason: null, division_rank: 1, movement: promoted, next_division: 1, is_provisional: false}
+        - {line_id: district, month_start: "2027-01-01", division: 2, joined_by: stayed, disruption_index: 10, unranked_reason: null, division_rank: 2, movement: stays, next_division: 2, is_provisional: true}
+
+  - name: rpt_divisions_monthly_three_moves
+    description: >
+      The default three places with ten lines, five per division, in
+      December. Division One indexes a 10, b 20, c 30, d 40, e 50: c, d and
+      e are relegated. Division Two f 1, g 2, h 3, i 4, j 5: f, g and h
+      are promoted. Lines are named a to j as letters sort; their ids are
+      Tube lines.
+    model: rpt_divisions_monthly
+    overrides:
+      vars:
+        raw_start_date: "2026-12-01"
+        division_months_through: "2026-12-01"
+        division_moves: 3
+        provisional_completeness: 0.9
+        min_open_share_to_rank: 0.5
+    given:
+      - input: ref('rpt_division_seeding')
+        rows:
+          - {line_id: bakerloo, division: 1, first_division_month: "2026-12-01"}
+          - {line_id: central, division: 1, first_division_month: "2026-12-01"}
+          - {line_id: circle, division: 1, first_division_month: "2026-12-01"}
+          - {line_id: district, division: 1, first_division_month: "2026-12-01"}
+          - {line_id: jubilee, division: 1, first_division_month: "2026-12-01"}
+          - {line_id: metropolitan, division: 2, first_division_month: "2026-12-01"}
+          - {line_id: northern, division: 2, first_division_month: "2026-12-01"}
+          - {line_id: piccadilly, division: 2, first_division_month: "2026-12-01"}
+          - {line_id: victoria, division: 2, first_division_month: "2026-12-01"}
+          - {line_id: waterloo-city, division: 2, first_division_month: "2026-12-01"}
+      - input: ref('fct_line_daily')
+        rows:
+          - {line_id: bakerloo, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 10, time_weighted_scored_minutes: 100}
+          - {line_id: central, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 20, time_weighted_scored_minutes: 100}
+          - {line_id: circle, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 30, time_weighted_scored_minutes: 100}
+          - {line_id: district, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 40, time_weighted_scored_minutes: 100}
+          - {line_id: jubilee, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 50, time_weighted_scored_minutes: 100}
+          - {line_id: metropolitan, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 99, weighted_disruption_minutes: 1, time_weighted_scored_minutes: 100}
+          - {line_id: northern, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 98, weighted_disruption_minutes: 2, time_weighted_scored_minutes: 100}
+          - {line_id: piccadilly, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 97, weighted_disruption_minutes: 3, time_weighted_scored_minutes: 100}
+          - {line_id: victoria, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 96, weighted_disruption_minutes: 4, time_weighted_scored_minutes: 100}
+          - {line_id: waterloo-city, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 95, weighted_disruption_minutes: 5, time_weighted_scored_minutes: 100}
+    expect:
+      rows:
+        - {line_id: bakerloo, division: 1, division_rank: 1, movement: stays, next_division: 1}
+        - {line_id: central, division: 1, division_rank: 2, movement: stays, next_division: 1}
+        - {line_id: circle, division: 1, division_rank: 3, movement: relegated, next_division: 2}
+        - {line_id: district, division: 1, division_rank: 4, movement: relegated, next_division: 2}
+        - {line_id: jubilee, division: 1, division_rank: 5, movement: relegated, next_division: 2}
+        - {line_id: metropolitan, division: 2, division_rank: 1, movement: promoted, next_division: 1}
+        - {line_id: northern, division: 2, division_rank: 2, movement: promoted, next_division: 1}
+        - {line_id: piccadilly, division: 2, division_rank: 3, movement: promoted, next_division: 1}
+        - {line_id: victoria, division: 2, division_rank: 4, movement: stays, next_division: 2}
+        - {line_id: waterloo-city, division: 2, division_rank: 5, movement: stays, next_division: 2}
+
+  - name: rpt_season_by_hand
+    description: >
+      The collector's first observed minute is on 4 November 2026, so
+      Victoria's unobserved 3 November is left out. Season 2026-27:
+      Victoria 4 Nov (weighted 20, Good Service 90, 2 incidents) + 31 Mar
+      2027 (all Good Service): index 100 x 20 / 200 = 10, Good Service
+      190 / 200 = 95 %, incidents 6000 x 2 / 200 = 60 per 100 hours, rank 1.
+      Central 4 Nov (20) + 31 Mar (40): 60 / 200 = 30, Good Service 70 %,
+      1 incident = 30 per 100 hours, rank 2. District ran 20 of 100 minutes
+      (works 0.8): index 0 but unranked (engineering_works). 1 April 2027
+      starts season 2027-28: Victoria index 50, rank 1 of its own table.
+    model: rpt_season
+    overrides:
+      vars:
+        provisional_completeness: 0.9
+        min_open_share_to_rank: 0.5
+    given:
+      - input: ref('dim_lines')
+        rows:
+          - {line_id: victoria}
+          - {line_id: central}
+          - {line_id: district}
+      - input: ref('fct_line_daily')
+        rows:
+          - {line_id: victoria, london_date: "2026-11-03", scheduled_minutes: 100, observed_minutes: 0, engineering_works_minutes: 0, scored_minutes: 0, good_service_minutes: 0, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 0, incidents: 0}
+          - {line_id: victoria, london_date: "2026-11-04", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 20, time_weighted_scored_minutes: 100, incidents: 2}
+          - {line_id: central, london_date: "2026-11-04", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 80, weighted_disruption_minutes: 20, time_weighted_scored_minutes: 100, incidents: 1}
+          - {line_id: district, london_date: "2026-11-05", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 80, scored_minutes: 20, good_service_minutes: 20, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 20, incidents: 0}
+          - {line_id: victoria, london_date: "2027-03-31", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 100, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 100, incidents: 0}
+          - {line_id: central, london_date: "2027-03-31", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 60, weighted_disruption_minutes: 40, time_weighted_scored_minutes: 100, incidents: 0}
+          - {line_id: victoria, london_date: "2027-04-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 50, weighted_disruption_minutes: 50, time_weighted_scored_minutes: 100, incidents: 1}
+    expect:
+      rows:
+        - {line_id: victoria, season: 2026-27, season_start: "2026-04-01", season_end: "2027-03-31", first_observed_date: "2026-11-04", scheduled_minutes: 200, disruption_index: 10, good_service_pct: 95, incidents_per_100_hours: 60, completeness: 1, unranked_reason: null, season_rank: 1}
+        - {line_id: central, season: 2026-27, season_start: "2026-04-01", season_end: "2027-03-31", first_observed_date: "2026-11-04", scheduled_minutes: 200, disruption_index: 30, good_service_pct: 70, incidents_per_100_hours: 30, completeness: 1, unranked_reason: null, season_rank: 2}
+        - {line_id: district, season: 2026-27, season_start: "2026-04-01", season_end: "2027-03-31", first_observed_date: "2026-11-05", scheduled_minutes: 100, disruption_index: 0, good_service_pct: 100, incidents_per_100_hours: 0, completeness: 1, unranked_reason: engineering_works, season_rank: null}
+        - {line_id: victoria, season: 2027-28, season_start: "2027-04-01", season_end: "2028-03-31", first_observed_date: "2027-04-01", scheduled_minutes: 100, disruption_index: 50, good_service_pct: 50, incidents_per_100_hours: 60, completeness: 1, unranked_reason: null, season_rank: 1}
+
+  - name: rpt_recovery_time_by_hand
+    description: >
+      Week of 9 November 2026 (provisional under D18). Victoria: recoveries
+      10 and 30 and one open incident: 3 incidents, 2 recovered, median 20,
+      mean 20, longest 30. Central: 5, 15, 40: median 15, mean 20, longest
+      40. Jubilee: one incident of 20: median 20. District: no incidents,
+      unranked. Central ranks 1; Jubilee and Victoria tie on 20 and
+      Jubilee's single incident puts it 2, Victoria 3.
+    model: rpt_recovery_time
+    given:
+      - input: ref('fct_line_weekly')
+        rows:
+          - {line_id: victoria, week_start: "2026-11-09", is_week_complete: true}
+          - {line_id: central, week_start: "2026-11-09", is_week_complete: true}
+          - {line_id: jubilee, week_start: "2026-11-09", is_week_complete: true}
+          - {line_id: district, week_start: "2026-11-09", is_week_complete: true}
+      - input: ref('int_incidents')
+        rows:
+          - {line_id: victoria, start_week_start: "2026-11-09", recovery_minutes: 10}
+          - {line_id: victoria, start_week_start: "2026-11-09", recovery_minutes: 30}
+          - {line_id: victoria, start_week_start: "2026-11-09", recovery_minutes: null}
+          - {line_id: central, start_week_start: "2026-11-09", recovery_minutes: 5}
+          - {line_id: central, start_week_start: "2026-11-09", recovery_minutes: 15}
+          - {line_id: central, start_week_start: "2026-11-09", recovery_minutes: 40}
+          - {line_id: jubilee, start_week_start: "2026-11-09", recovery_minutes: 20}
+    expect:
+      rows:
+        - {line_id: victoria, incidents: 3, recovered_incidents: 2, open_incidents: 1, median_recovery_minutes: 20, mean_recovery_minutes: 20, longest_recovery_minutes: 30, unranked_reason: null, recovery_rank: 3, definition_status: provisional_d18}
+        - {line_id: central, incidents: 3, recovered_incidents: 3, open_incidents: 0, median_recovery_minutes: 15, mean_recovery_minutes: 20, longest_recovery_minutes: 40, unranked_reason: null, recovery_rank: 1, definition_status: provisional_d18}
+        - {line_id: jubilee, incidents: 1, recovered_incidents: 1, open_incidents: 0, median_recovery_minutes: 20, mean_recovery_minutes: 20, longest_recovery_minutes: 20, unranked_reason: null, recovery_rank: 2, definition_status: provisional_d18}
+        - {line_id: district, incidents: 0, recovered_incidents: 0, open_incidents: 0, median_recovery_minutes: null, mean_recovery_minutes: null, longest_recovery_minutes: null, unranked_reason: no_recovered_incidents, recovery_rank: null, definition_status: provisional_d18}
+
+  - name: rpt_league_strikes_excluded_by_hand
+    description: >
+      A Tube strike announced for 26 and 27 November 2026, a called-off
+      Windrush strike on 25 November and a held Victoria-only action in
+      December. Week of 23 Nov: Victoria loses 26 Nov (Suspended all day)
+      and keeps 24 Nov: index 0, rank 1. Central loses 27 Nov and keeps 24
+      Nov: index 100 x 10 / 100 = 10, rank 2. Windrush (Overground) keeps
+      25 Nov, as that strike was called off: index 20, rank 3. Week of 16
+      Nov has no action, so it is the main league: Victoria and Central
+      tie on index 5 and Good Service 95 % and share rank 1; Windrush,
+      8 of 10 minutes observed (provisional), index 100 x 40 / 80 = 50,
+      rank 3.
+    model: rpt_league_strikes_excluded
+    overrides:
+      vars:
+        provisional_completeness: 0.9
+        min_open_share_to_rank: 0.5
+    given:
+      - input: ref('seed_industrial_action')
+        rows:
+          - {action_id: tube, applies_to: mode, applies_to_id: tube, start_london_date: "2026-11-26", end_london_date: "2026-11-27", status: announced}
+          - {action_id: windrush, applies_to: line, applies_to_id: windrush, start_london_date: "2026-11-25", end_london_date: "2026-11-25", status: called_off}
+          - {action_id: victoria, applies_to: line, applies_to_id: victoria, start_london_date: "2026-12-01", end_london_date: "2026-12-01", status: held}
+      - input: ref('dim_lines')
+        rows:
+          - {line_id: victoria, mode_name: tube}
+          - {line_id: central, mode_name: tube}
+          - {line_id: windrush, mode_name: overground}
+      - input: ref('fct_line_daily')
+        rows:
+          - {line_id: victoria, london_date: "2026-11-17", week_start: "2026-11-16", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 95, weighted_disruption_minutes: 5, time_weighted_scored_minutes: 100}
+          - {line_id: central, london_date: "2026-11-17", week_start: "2026-11-16", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 95, weighted_disruption_minutes: 5, time_weighted_scored_minutes: 100}
+          - {line_id: windrush, london_date: "2026-11-18", week_start: "2026-11-16", scheduled_minutes: 100, observed_minutes: 80, engineering_works_minutes: 0, scored_minutes: 80, good_service_minutes: 40, weighted_disruption_minutes: 40, time_weighted_scored_minutes: 80}
+          - {line_id: victoria, london_date: "2026-11-24", week_start: "2026-11-23", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 100, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 100}
+          - {line_id: victoria, london_date: "2026-11-26", week_start: "2026-11-23", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 0, weighted_disruption_minutes: 800, time_weighted_scored_minutes: 100}
+          - {line_id: central, london_date: "2026-11-24", week_start: "2026-11-23", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 10, time_weighted_scored_minutes: 100}
+          - {line_id: central, london_date: "2026-11-27", week_start: "2026-11-23", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 100, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 100}
+          - {line_id: windrush, london_date: "2026-11-25", week_start: "2026-11-23", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 80, weighted_disruption_minutes: 20, time_weighted_scored_minutes: 100}
+    expect:
+      rows:
+        - {line_id: victoria, week_start: "2026-11-16", strike_days: 0, week_has_industrial_action: false, disruption_index: 5, good_service_pct: 95, completeness: 1, is_provisional: false, unranked_reason: null, disruption_rank: 1}
+        - {line_id: central, week_start: "2026-11-16", strike_days: 0, week_has_industrial_action: false, disruption_index: 5, good_service_pct: 95, completeness: 1, is_provisional: false, unranked_reason: null, disruption_rank: 1}
+        - {line_id: windrush, week_start: "2026-11-16", strike_days: 0, week_has_industrial_action: false, disruption_index: 50, good_service_pct: 50, completeness: 0.8, is_provisional: true, unranked_reason: null, disruption_rank: 3}
+        - {line_id: victoria, week_start: "2026-11-23", strike_days: 1, week_has_industrial_action: true, disruption_index: 0, good_service_pct: 100, completeness: 1, is_provisional: false, unranked_reason: null, disruption_rank: 1}
+        - {line_id: central, week_start: "2026-11-23", strike_days: 1, week_has_industrial_action: true, disruption_index: 10, good_service_pct: 90, completeness: 1, is_provisional: false, unranked_reason: null, disruption_rank: 2}
+        - {line_id: windrush, week_start: "2026-11-23", strike_days: 0, week_has_industrial_action: true, disruption_index: 20, good_service_pct: 80, completeness: 1, is_provisional: false, unranked_reason: null, disruption_rank: 3}
+
+  - name: rpt_weekly_status_mix_by_hand
+    description: >
+      Victoria, week of 9 November 2026: two unplanned Severe Delays peak
+      minutes (3 x 2 each: weighted 12, time-weighted 4), one planned
+      Severe Delays peak minute (6, 2), one Good Service weekend minute (0,
+      0.75). An unscored minute and an unscheduled minute are left out.
+    model: rpt_weekly_status_mix
+    given:
+      - input: ref('int_line_minute_status')
+        rows:
+          - {line_id: victoria, week_start: "2026-11-09", is_scheduled: true, is_scored: true, status_severity: 6, is_planned: false, time_band: am_peak, severity_weight: 3, time_weight: 2}
+          - {line_id: victoria, week_start: "2026-11-09", is_scheduled: true, is_scored: true, status_severity: 6, is_planned: false, time_band: am_peak, severity_weight: 3, time_weight: 2}
+          - {line_id: victoria, week_start: "2026-11-09", is_scheduled: true, is_scored: true, status_severity: 6, is_planned: true, time_band: am_peak, severity_weight: 3, time_weight: 2}
+          - {line_id: victoria, week_start: "2026-11-09", is_scheduled: true, is_scored: true, status_severity: 10, is_planned: false, time_band: weekend, severity_weight: 0, time_weight: 0.75}
+          - {line_id: victoria, week_start: "2026-11-09", is_scheduled: true, is_scored: false, status_severity: 4, is_planned: true, time_band: am_peak, severity_weight: 0, time_weight: 2}
+          - {line_id: victoria, week_start: "2026-11-09", is_scheduled: false, is_scored: false, status_severity: 6, is_planned: false, time_band: early, severity_weight: 3, time_weight: 1}
+    expect:
+      rows:
+        - {line_id: victoria, week_start: "2026-11-09", status_severity: 6, is_planned: false, time_band: am_peak, scored_minutes: 2, weighted_disruption_minutes: 12, time_weighted_scored_minutes: 4}
+        - {line_id: victoria, week_start: "2026-11-09", status_severity: 6, is_planned: true, time_band: am_peak, scored_minutes: 1, weighted_disruption_minutes: 6, time_weighted_scored_minutes: 2}
+        - {line_id: victoria, week_start: "2026-11-09", status_severity: 10, is_planned: false, time_band: weekend, scored_minutes: 1, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 0.75}
+
+  - name: rpt_divisions_monthly_tie_at_the_relegation_place
+    description: >
+      December, one place up and down. Central and Victoria tie on index 10
+      and Good Service 90 %, so they share rank 1 of Division One; the
+      relegation place is split by line id, so Victoria (after Central) goes
+      down. Jubilee (5) is promoted over District (20).
+    model: rpt_divisions_monthly
+    overrides:
+      vars:
+        raw_start_date: "2026-12-01"
+        division_months_through: "2026-12-01"
+        division_moves: 1
+        provisional_completeness: 0.9
+        min_open_share_to_rank: 0.5
+    given:
+      - input: ref('rpt_division_seeding')
+        rows:
+          - {line_id: victoria, division: 1, first_division_month: "2026-12-01"}
+          - {line_id: central, division: 1, first_division_month: "2026-12-01"}
+          - {line_id: jubilee, division: 2, first_division_month: "2026-12-01"}
+          - {line_id: district, division: 2, first_division_month: "2026-12-01"}
+      - input: ref('fct_line_daily')
+        rows:
+          - {line_id: victoria, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 10, time_weighted_scored_minutes: 100}
+          - {line_id: central, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 10, time_weighted_scored_minutes: 100}
+          - {line_id: jubilee, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 95, weighted_disruption_minutes: 5, time_weighted_scored_minutes: 100}
+          - {line_id: district, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 80, weighted_disruption_minutes: 20, time_weighted_scored_minutes: 100}
+    expect:
+      rows:
+        - {line_id: central, division: 1, division_rank: 1, movement: stays, next_division: 1}
+        - {line_id: victoria, division: 1, division_rank: 1, movement: relegated, next_division: 2}
+        - {line_id: jubilee, division: 2, division_rank: 1, movement: promoted, next_division: 1}
+        - {line_id: district, division: 2, division_rank: 2, movement: stays, next_division: 2}
+
+  - name: rpt_divisions_monthly_no_moves_without_ranked_lines
+    description: >
+      December, one place up and down, but both Division Two lines ran
+      under half their minutes (works 0.6), so Division Two has no ranked
+      line: no place changes hands, and Victoria, bottom of Division One,
+      stays up.
+    model: rpt_divisions_monthly
+    overrides:
+      vars:
+        raw_start_date: "2026-12-01"
+        division_months_through: "2026-12-01"
+        division_moves: 1
+        provisional_completeness: 0.9
+        min_open_share_to_rank: 0.5
+    given:
+      - input: ref('rpt_division_seeding')
+        rows:
+          - {line_id: victoria, division: 1, first_division_month: "2026-12-01"}
+          - {line_id: central, division: 1, first_division_month: "2026-12-01"}
+          - {line_id: jubilee, division: 2, first_division_month: "2026-12-01"}
+          - {line_id: district, division: 2, first_division_month: "2026-12-01"}
+      - input: ref('fct_line_daily')
+        rows:
+          - {line_id: victoria, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 50, weighted_disruption_minutes: 50, time_weighted_scored_minutes: 100}
+          - {line_id: central, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 10, time_weighted_scored_minutes: 100}
+          - {line_id: jubilee, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 60, scored_minutes: 40, good_service_minutes: 40, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 40}
+          - {line_id: district, london_date: "2026-12-01", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 60, scored_minutes: 40, good_service_minutes: 40, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 40}
+    expect:
+      rows:
+        - {line_id: central, division: 1, division_rank: 1, unranked_reason: null, movement: stays, next_division: 1}
+        - {line_id: victoria, division: 1, division_rank: 2, unranked_reason: null, movement: stays, next_division: 1}
+        - {line_id: jubilee, division: 2, division_rank: null, unranked_reason: engineering_works, movement: stays, next_division: 2}
+        - {line_id: district, division: 2, division_rank: null, unranked_reason: engineering_works, movement: stays, next_division: 2}
+
+  - name: rpt_league_strikes_excluded_across_a_week_boundary
+    description: >
+      A Victoria action from Sunday 22 to Monday 23 November 2026 takes one
+      day out of each week. Week of 16 Nov keeps Saturday 21 (index 10);
+      week of 23 Nov keeps Tuesday 24 (index 0). Both weeks have
+      industrial action.
+    model: rpt_league_strikes_excluded
+    overrides:
+      vars:
+        provisional_completeness: 0.9
+        min_open_share_to_rank: 0.5
+    given:
+      - input: ref('seed_industrial_action')
+        rows:
+          - {action_id: victoria, applies_to: line, applies_to_id: victoria, start_london_date: "2026-11-22", end_london_date: "2026-11-23", status: held}
+      - input: ref('dim_lines')
+        rows:
+          - {line_id: victoria, mode_name: tube}
+      - input: ref('fct_line_daily')
+        rows:
+          - {line_id: victoria, london_date: "2026-11-21", week_start: "2026-11-16", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 10, time_weighted_scored_minutes: 100}
+          - {line_id: victoria, london_date: "2026-11-22", week_start: "2026-11-16", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 0, weighted_disruption_minutes: 800, time_weighted_scored_minutes: 100}
+          - {line_id: victoria, london_date: "2026-11-23", week_start: "2026-11-23", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 0, weighted_disruption_minutes: 800, time_weighted_scored_minutes: 100}
+          - {line_id: victoria, london_date: "2026-11-24", week_start: "2026-11-23", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 100, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 100}
+    expect:
+      rows:
+        - {line_id: victoria, week_start: "2026-11-16", strike_days: 1, week_has_industrial_action: true, scheduled_minutes: 100, disruption_index: 10, disruption_rank: 1}
+        - {line_id: victoria, week_start: "2026-11-23", strike_days: 1, week_has_industrial_action: true, scheduled_minutes: 100, disruption_index: 0, disruption_rank: 1}
+
+  - name: rpt_league_strikes_excluded_whole_week_struck
+    description: >
+      Waterloo & City runs on weekdays only; a Monday-to-Friday action
+      takes every scheduled day, so nothing is left: no index,
+      completeness null, unranked (no_scored_minutes), provisional.
+    model: rpt_league_strikes_excluded
+    overrides:
+      vars:
+        provisional_completeness: 0.9
+        min_open_share_to_rank: 0.5
+    given:
+      - input: ref('seed_industrial_action')
+        rows:
+          - {action_id: wc, applies_to: line, applies_to_id: waterloo-city, start_london_date: "2026-11-23", end_london_date: "2026-11-27", status: held}
+      - input: ref('dim_lines')
+        rows:
+          - {line_id: waterloo-city, mode_name: tube}
+      - input: ref('fct_line_daily')
+        rows:
+          - {line_id: waterloo-city, london_date: "2026-11-23", week_start: "2026-11-23", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 100, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 100}
+          - {line_id: waterloo-city, london_date: "2026-11-27", week_start: "2026-11-23", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 100, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 100}
+    expect:
+      rows:
+        - {line_id: waterloo-city, week_start: "2026-11-23", strike_days: 2, scheduled_minutes: 0, disruption_index: null, completeness: null, is_provisional: true, unranked_reason: no_scored_minutes, disruption_rank: null}

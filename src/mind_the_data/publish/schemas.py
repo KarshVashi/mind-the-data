@@ -10,7 +10,7 @@ from referencing import Registry, Resource
 
 # Minor bump for an additive change (a new file or field), major for a breaking one.
 SCHEMA_VERSION = "0.4.0"
-SCHEMA_NAMES = ("league", "line", "methodology", "index")
+SCHEMA_NAMES = ("league", "line", "methodology", "index", "division", "season")
 
 
 @cache

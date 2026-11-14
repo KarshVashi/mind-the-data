@@ -202,6 +202,24 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
 - **`meta/methodology.json`** gains the gate thresholds (`gate_low_ratio`, `gate_high_ratio`, `gate_max_out_of_band_share`, `min_measured_share`), `measured_view_withheld_lines` and `trains_run_withheld_lines`.
 - **`lines/{line_id}.json`** `measured_status` is `measured` when any week in the history has measured numbers.
 
+### Changed in the rest of M6 (`schema_version` 0.4.0, additive)
+
+- **`divisions/{yyyy-mm}.json`** (new, `contract/division.schema.json`). One file per month from November 2026.
+  - `status` is one of:
+    - `not_seeded`: fewer complete weeks than the seeding needs. There is no table, so show "Divisions start once two full weeks are in";
+    - `seeded`: the seeding exists and the divisions start next month;
+    - `pending`: a division month the build has not reached yet (just after midnight on the 1st). Show the previous month;
+    - `in_progress` or `complete`.
+  - `seeding` holds the seed order, its `status` (`provisional` until four complete weeks exist, ADR-015) and `first_division_month`.
+  - `divisions[]` holds each division's lines with rank, `joined_by`, `movement` (`promoted`, `relegated`, `stays`) and `next_division`. While the month runs, `movement` is where the line stands, not a result.
+- **`season/{season}.json`** (new, `contract/season.schema.json`): the season to date (1 April to 31 March), ranked like the weekly table. `data_window` spans the dates observed.
+- **League files** gain three blocks:
+  - `recovery_time`: `definition_status` is `provisional_d18`. Show it labelled provisional.
+  - `industrial_action[]`: the actions touching the week, each with its source.
+  - `strikes_excluded`: `is_same_as_main` and the variant table. It is `null` for a custom window.
+- **`meta/methodology.json`** gains `divisions`, `season`, `recovery_time`, `industrial_action` (the whole seed, with sources) and `sensitivity` (weight sets, and per week Spearman's rho, max rank shift and top or bottom three changes).
+- **`meta/index.json`** gains `months[]` (month, status, path) and `seasons[]`.
+
 ### Still needed
 
 | Gap | Needed for | Where |
@@ -210,7 +228,7 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
 | Per-day values per line in the league file (`days[]`: date, Good Service %, Disruption Index, scored minutes) | Line × day heatmap on week pages | M6 task: a `daily` block in `league/{iso_week}.json` from `fct_line_daily` (one more Athena query per run) |
 | Card paths in `meta/index.json` | Linking each archived week to its card | After the R2 upload exists: the upload step knows which cards are in the bucket. Until then the site uses `cards/{iso_week}.png` for the latest week only |
 | Post snapshots (custom windows) in the index | Archiving the Wednesday post's table | Optional: `post_snapshot.py` could upload to `snapshots/{start}_{end}/` with an index entry. v0 vendors it instead |
-| `divisions/`, `season/`, `open-data/` | Later pages | The rest of M6 (divisions need four weeks), M7 |
+| `open-data/` | Later pages | M7 |
 | Public methodology prose | `/tube/methodology/` | M7 `docs/methodology.md` |
 
 ### How far back trends go

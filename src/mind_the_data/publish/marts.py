@@ -167,6 +167,99 @@ class MondayMorningRow:
     monday_morning_rank: int | None
 
 
+@dataclass(frozen=True)
+class SeedingRow:
+    """One row of rpt_division_seeding (ADR-015)."""
+
+    line_id: str
+    seed_position: int
+    division: int
+    disruption_index: float | None
+    good_service_pct: float | None
+    unranked_reason: str | None
+    seeding_start: date
+    seeding_end: date
+    seeding_weeks: int
+    complete_weeks_available: int
+    first_division_month: date
+    seeding_status: str
+
+
+@dataclass(frozen=True)
+class DivisionMonthRow:
+    """One row of rpt_divisions_monthly: a line's month in its division (D57)."""
+
+    line_id: str
+    month_start: date
+    division: int
+    joined_by: str
+    scheduled_minutes: int
+    observed_minutes: int
+    disruption_index: float | None
+    good_service_pct: float | None
+    completeness: float
+    is_provisional: bool
+    unranked_reason: str | None
+    division_rank: int | None
+    movement: str
+    next_division: int
+    is_month_complete: bool
+
+
+@dataclass(frozen=True)
+class SeasonRow:
+    """One row of rpt_season (D58)."""
+
+    line_id: str
+    season: str
+    season_start: date
+    season_end: date
+    first_observed_date: date | None
+    last_observed_date: date | None
+    scheduled_minutes: int
+    observed_minutes: int
+    engineering_works_minutes: int
+    incidents: int
+    disruption_index: float | None
+    good_service_pct: float | None
+    incidents_per_100_hours: float | None
+    completeness: float | None
+    is_provisional: bool
+    unranked_reason: str | None
+    season_rank: int | None
+    is_season_complete: bool
+
+
+@dataclass(frozen=True)
+class StrikesExcludedRow:
+    """One row of rpt_league_strikes_excluded (D60)."""
+
+    line_id: str
+    week_start: date
+    strike_days: int
+    week_has_industrial_action: bool
+    scheduled_minutes: int
+    observed_minutes: int
+    disruption_index: float | None
+    good_service_pct: float | None
+    completeness: float | None
+    is_provisional: bool
+    unranked_reason: str | None
+    disruption_rank: int | None
+
+
+@dataclass(frozen=True)
+class StatusMixRow:
+    """One row of rpt_weekly_status_mix: unweighted scored minutes (D61)."""
+
+    line_id: str
+    week_start: date
+    status_severity: int
+    is_planned: bool
+    time_band: str
+    scored_minutes: int
+
+
 class Marts(Protocol):
     def latest_minute_london(self) -> datetime | None: ...
     def lines(self) -> list[LineInfo]: ...
@@ -176,6 +269,11 @@ class Marts(Protocol):
     def bad_hours(self, start: date, end: date) -> list[BadHourRow]: ...
     def monday_morning(self, start: date, end: date) -> list[MondayMorningRow]: ...
     def measured_daily(self, start: date, end: date) -> list[MeasuredDailyRow]: ...
+    def division_seeding(self) -> list[SeedingRow]: ...
+    def divisions(self) -> list[DivisionMonthRow]: ...
+    def seasons(self) -> list[SeasonRow]: ...
+    def strikes_excluded(self) -> list[StrikesExcludedRow]: ...
+    def status_mix(self) -> list[StatusMixRow]: ...
 
 
 # ---- Parsing ---------------------------------------------------------------
@@ -349,6 +447,98 @@ def parse_monday_morning(cells: Cells) -> MondayMorningRow:
     )
 
 
+def _opt_date(cells: Cells, name: str) -> date | None:
+    return None if _opt(cells, name) is None else _date(cells, name)
+
+
+def parse_seeding(cells: Cells) -> SeedingRow:
+    return SeedingRow(
+        line_id=_req(cells, "line_id"),
+        seed_position=_int(cells, "seed_position"),
+        division=_int(cells, "division"),
+        disruption_index=_opt_float(cells, "disruption_index"),
+        good_service_pct=_opt_float(cells, "good_service_pct"),
+        unranked_reason=_opt(cells, "unranked_reason"),
+        seeding_start=_date(cells, "seeding_start"),
+        seeding_end=_date(cells, "seeding_end"),
+        seeding_weeks=_int(cells, "seeding_weeks"),
+        complete_weeks_available=_int(cells, "complete_weeks_available"),
+        first_division_month=_date(cells, "first_division_month"),
+        seeding_status=_req(cells, "seeding_status"),
+    )
+
+
+def parse_division_month(cells: Cells) -> DivisionMonthRow:
+    return DivisionMonthRow(
+        line_id=_req(cells, "line_id"),
+        month_start=_date(cells, "month_start"),
+        division=_int(cells, "division"),
+        joined_by=_req(cells, "joined_by"),
+        scheduled_minutes=_int(cells, "scheduled_minutes"),
+        observed_minutes=_int(cells, "observed_minutes"),
+        disruption_index=_opt_float(cells, "disruption_index"),
+        good_service_pct=_opt_float(cells, "good_service_pct"),
+        completeness=_float(cells, "completeness"),
+        is_provisional=_bool(cells, "is_provisional"),
+        unranked_reason=_opt(cells, "unranked_reason"),
+        division_rank=_opt_int(cells, "division_rank"),
+        movement=_req(cells, "movement"),
+        next_division=_int(cells, "next_division"),
+        is_month_complete=_bool(cells, "is_month_complete"),
+    )
+
+
+def parse_season(cells: Cells) -> SeasonRow:
+    return SeasonRow(
+        line_id=_req(cells, "line_id"),
+        season=_req(cells, "season"),
+        season_start=_date(cells, "season_start"),
+        season_end=_date(cells, "season_end"),
+        first_observed_date=_opt_date(cells, "first_observed_date"),
+        last_observed_date=_opt_date(cells, "last_observed_date"),
+        scheduled_minutes=_int(cells, "scheduled_minutes"),
+        observed_minutes=_int(cells, "observed_minutes"),
+        engineering_works_minutes=_int(cells, "engineering_works_minutes"),
+        incidents=_int(cells, "incidents"),
+        disruption_index=_opt_float(cells, "disruption_index"),
+        good_service_pct=_opt_float(cells, "good_service_pct"),
+        incidents_per_100_hours=_opt_float(cells, "incidents_per_100_hours"),
+        completeness=_opt_float(cells, "completeness"),
+        is_provisional=_bool(cells, "is_provisional"),
+        unranked_reason=_opt(cells, "unranked_reason"),
+        season_rank=_opt_int(cells, "season_rank"),
+        is_season_complete=_bool(cells, "is_season_complete"),
+    )
+
+
+def parse_strikes_excluded(cells: Cells) -> StrikesExcludedRow:
+    return StrikesExcludedRow(
+        line_id=_req(cells, "line_id"),
+        week_start=_date(cells, "week_start"),
+        strike_days=_int(cells, "strike_days"),
+        week_has_industrial_action=_bool(cells, "week_has_industrial_action"),
+        scheduled_minutes=_int(cells, "scheduled_minutes"),
+        observed_minutes=_int(cells, "observed_minutes"),
+        disruption_index=_opt_float(cells, "disruption_index"),
+        good_service_pct=_opt_float(cells, "good_service_pct"),
+        completeness=_opt_float(cells, "completeness"),
+        is_provisional=_bool(cells, "is_provisional"),
+        unranked_reason=_opt(cells, "unranked_reason"),
+        disruption_rank=_opt_int(cells, "disruption_rank"),
+    )
+
+
+def parse_status_mix(cells: Cells) -> StatusMixRow:
+    return StatusMixRow(
+        line_id=_req(cells, "line_id"),
+        week_start=_date(cells, "week_start"),
+        status_severity=_int(cells, "status_severity"),
+        is_planned=_bool(cells, "is_planned"),
+        time_band=_req(cells, "time_band"),
+        scored_minutes=_int(cells, "scored_minutes"),
+    )
+
+
 # ---- Queries ---------------------------------------------------------------
 
 DAILY_COLUMNS = (
@@ -379,6 +569,29 @@ MONDAY_MORNING_COLUMNS = (
     "engineering_works_share, monday_morning_index, good_service_pct, is_provisional, "
     "unranked_reason, monday_morning_rank"
 )
+
+SEEDING_COLUMNS = (
+    "line_id, seed_position, division, disruption_index, good_service_pct, unranked_reason, "
+    "seeding_start, seeding_end, seeding_weeks, complete_weeks_available, "
+    "first_division_month, seeding_status"
+)
+DIVISION_COLUMNS = (
+    "line_id, month_start, division, joined_by, scheduled_minutes, observed_minutes, "
+    "disruption_index, good_service_pct, completeness, is_provisional, unranked_reason, "
+    "division_rank, movement, next_division, is_month_complete"
+)
+SEASON_COLUMNS = (
+    "line_id, season, season_start, season_end, first_observed_date, last_observed_date, "
+    "scheduled_minutes, observed_minutes, engineering_works_minutes, incidents, "
+    "disruption_index, good_service_pct, incidents_per_100_hours, completeness, "
+    "is_provisional, unranked_reason, season_rank, is_season_complete"
+)
+STRIKES_EXCLUDED_COLUMNS = (
+    "line_id, week_start, strike_days, week_has_industrial_action, scheduled_minutes, "
+    "observed_minutes, disruption_index, good_service_pct, completeness, is_provisional, "
+    "unranked_reason, disruption_rank"
+)
+STATUS_MIX_COLUMNS = "line_id, week_start, status_severity, is_planned, time_band, scored_minutes"
 
 
 def queries(database: str, start: date, end: date) -> dict[str, str]:
@@ -431,6 +644,26 @@ def queries(database: str, start: date, end: date) -> dict[str, str]:
         "measured_daily": (
             f"select {MEASURED_DAILY_COLUMNS} from {database}.fct_line_measured_daily "
             f"where london_date between {window} order by line_id, london_date"
+        ),
+        # The M6 tables below are small (a row per line and month, season
+        # or week), so each is read whole.
+        "division_seeding": (
+            f"select {SEEDING_COLUMNS} from {database}.rpt_division_seeding order by seed_position"
+        ),
+        "divisions": (
+            f"select {DIVISION_COLUMNS} from {database}.rpt_divisions_monthly "
+            "order by month_start, division, line_id"
+        ),
+        "seasons": (
+            f"select {SEASON_COLUMNS} from {database}.rpt_season order by season_start, line_id"
+        ),
+        "strikes_excluded": (
+            f"select {STRIKES_EXCLUDED_COLUMNS} from {database}.rpt_league_strikes_excluded "
+            "order by week_start, line_id"
+        ),
+        "status_mix": (
+            f"select {STATUS_MIX_COLUMNS} from {database}.rpt_weekly_status_mix "
+            "order by week_start, line_id, status_severity, is_planned, time_band"
         ),
     }
 
@@ -501,6 +734,26 @@ class RecordedMarts:
         rows = [parse_measured_daily(c) for c in self._cells("measured_daily")]
         return [r for r in rows if start <= r.london_date <= end]
 
+    def _optional(self, stem: str) -> list[dict[str, str | None]]:
+        # Recordings made before a mart existed have no file for it.
+        path = self.directory / f"{stem}.json"
+        return self._cells(stem) if path.exists() else []
+
+    def division_seeding(self) -> list[SeedingRow]:
+        return [parse_seeding(c) for c in self._optional("division_seeding")]
+
+    def divisions(self) -> list[DivisionMonthRow]:
+        return [parse_division_month(c) for c in self._optional("divisions")]
+
+    def seasons(self) -> list[SeasonRow]:
+        return [parse_season(c) for c in self._optional("seasons")]
+
+    def strikes_excluded(self) -> list[StrikesExcludedRow]:
+        return [parse_strikes_excluded(c) for c in self._optional("strikes_excluded")]
+
+    def status_mix(self) -> list[StatusMixRow]:
+        return [parse_status_mix(c) for c in self._optional("status_mix")]
+
 
 class AthenaMarts:
     """Read-only queries against a Glue database through an Athena workgroup.
@@ -567,6 +820,22 @@ class AthenaMarts:
 
     def measured_daily(self, start: date, end: date) -> list[MeasuredDailyRow]:
         return [parse_measured_daily(c) for c in self._run("measured_daily", start, end)]
+
+    def division_seeding(self) -> list[SeedingRow]:
+        return [parse_seeding(c) for c in self._run("division_seeding", date.min, date.min)]
+
+    def divisions(self) -> list[DivisionMonthRow]:
+        return [parse_division_month(c) for c in self._run("divisions", date.min, date.min)]
+
+    def seasons(self) -> list[SeasonRow]:
+        return [parse_season(c) for c in self._run("seasons", date.min, date.min)]
+
+    def strikes_excluded(self) -> list[StrikesExcludedRow]:
+        rows = self._run("strikes_excluded", date.min, date.min)
+        return [parse_strikes_excluded(c) for c in rows]
+
+    def status_mix(self) -> list[StatusMixRow]:
+        return [parse_status_mix(c) for c in self._run("status_mix", date.min, date.min)]
 
 
 def rows_by_line[

@@ -477,3 +477,327 @@ models:
         description: The week has ended.
       - name: works_rank
         description: 1 = most hours closed that week; lines with equal hours share a rank.
+
+  - name: rpt_division_seeding
+    description: >
+      Division seeding (M6, ADR-015, DECISIONS.md D56): every line ordered by
+      its Disruption Index over the first `division_seeding_weeks` complete
+      weeks (two, not the plan's four), ties to the higher Good Service %,
+      then line id, unranked lines last. The first `division_one_size`
+      start in Division One. Empty until enough complete weeks exist ("not
+      yet seeded"). `seeding_status` is `provisional` while fewer than
+      `division_full_seeding_weeks` complete weeks exist.
+    columns:
+      - name: line_id
+        description: TfL line id.
+        data_tests: [unique, not_null]
+      - name: seed_position
+        description: 1 = best over the seeding weeks; no ties.
+        data_tests: [unique, not_null]
+      - name: division
+        description: 1 or 2.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2]
+                quote: false
+      - name: disruption_index
+        description: Disruption Index over the seeding weeks (D19).
+      - name: good_service_pct
+        description: Good Service share of scored minutes over the seeding weeks.
+      - name: completeness
+        description: Observed over scheduled minutes in the seeding weeks.
+      - name: engineering_works_share
+        description: Closure minutes over scheduled minutes in the seeding weeks.
+      - name: unranked_reason
+        description: Why the line was seeded last (D20, D22); null when ranked.
+      - name: seeding_start
+        description: Monday of the first seeding week.
+        data_tests: [not_null]
+      - name: seeding_end
+        description: Sunday of the last seeding week.
+        data_tests: [not_null]
+      - name: seeding_weeks
+        description: Weeks the seeding used (`division_seeding_weeks`).
+      - name: complete_weeks_available
+        description: Complete weeks in the data at build time.
+      - name: first_division_month
+        description: First day of the first month the divisions play.
+        data_tests: [not_null]
+      - name: seeding_status
+        description: "`provisional` or `confirmed` (ADR-015)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [provisional, confirmed]
+
+  - name: rpt_divisions_monthly
+    description: >
+      Divisions per line and calendar month (PLAN 6.2, M6, D57), from the
+      first division month: membership, the month's Disruption Index and
+      rank within the division, and promotion and relegation of
+      `division_moves` lines at the month's end. Unranked lines neither go
+      up nor down. Empty until the divisions are seeded.
+    columns:
+      - name: line_month_key
+        description: Row key, a hash of (line_id, month_start).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: month_start
+        description: First London date of the month.
+        data_tests: [not_null]
+      - name: month_end
+        description: Last London date of the month.
+      - name: division
+        description: The line's division this month, 1 or 2.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2]
+                quote: false
+      - name: joined_by
+        description: "`seeded`, `promoted`, `relegated` or `stayed`: how the line got here."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [seeded, promoted, relegated, stayed]
+      - name: scheduled_minutes
+        description: Scheduled minutes in the month so far.
+      - name: observed_minutes
+        description: Observed scheduled minutes.
+      - name: engineering_works_minutes
+        description: Scheduled minutes under a closure.
+      - name: scored_minutes
+        description: Minutes in the score.
+      - name: disruption_index
+        description: Disruption Index over the month (D19).
+      - name: good_service_pct
+        description: Good Service share of scored minutes.
+      - name: completeness
+        description: Observed over scheduled minutes.
+      - name: is_provisional
+        description: Completeness under `provisional_completeness`.
+      - name: engineering_works_share
+        description: Closure minutes over scheduled minutes.
+      - name: unranked_reason
+        description: "`no_scored_minutes` or `engineering_works` (D22); null when ranked."
+      - name: division_rank
+        description: Rank within the division, 1 = lowest index; null when unranked.
+      - name: movement
+        description: >
+          `promoted`, `relegated` or `stays` at the month's end; while the
+          month is running, where the line stands.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [promoted, relegated, stays]
+      - name: next_division
+        description: The division the line plays in next month.
+        data_tests: [not_null]
+      - name: is_month_complete
+        description: The month's last London date has passed.
+        data_tests: [not_null]
+
+  - name: rpt_season
+    description: >
+      The season table per line and season (PLAN 6.2, M6, D58): 1 April to
+      31 March, resetting each April, cumulative declared-view standings
+      with the weekly table's rules. The 2026-27 season starts with the
+      collector, so until April 2027 it is the season to date.
+    columns:
+      - name: line_season_key
+        description: Row key, a hash of (line_id, season start year).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: season
+        description: Season label, e.g. 2026-27.
+        data_tests: [not_null]
+      - name: season_start
+        description: 1 April.
+        data_tests: [not_null]
+      - name: season_end
+        description: 31 March.
+        data_tests: [not_null]
+      - name: first_observed_date
+        description: First London date with an observed minute this season.
+      - name: last_observed_date
+        description: Last London date with an observed minute this season.
+      - name: scheduled_minutes
+        description: Scheduled minutes in the season so far.
+      - name: observed_minutes
+        description: Observed scheduled minutes.
+      - name: engineering_works_minutes
+        description: Scheduled minutes under a closure.
+      - name: scored_minutes
+        description: Minutes in the score.
+      - name: good_service_minutes
+        description: Scored minutes at Good Service.
+      - name: weighted_disruption_minutes
+        description: Sum of severity weight x time weight over scored minutes.
+      - name: time_weighted_scored_minutes
+        description: Sum of time weight over scored minutes.
+      - name: incidents
+        description: Incidents starting in the season.
+      - name: disruption_index
+        description: Disruption Index over the season so far (D19).
+      - name: good_service_pct
+        description: Good Service share of scored minutes.
+      - name: incidents_per_100_hours
+        description: Incidents per 100 scored hours.
+      - name: completeness
+        description: Observed over scheduled minutes.
+      - name: is_provisional
+        description: Completeness under `provisional_completeness`.
+      - name: engineering_works_share
+        description: Closure minutes over scheduled minutes.
+      - name: unranked_reason
+        description: "`no_scored_minutes` or `engineering_works` (D22); null when ranked."
+      - name: is_ranked
+        description: The line has a season rank.
+      - name: season_rank
+        description: 1 = lowest index; equal lines share a rank; null when unranked.
+      - name: is_season_complete
+        description: 31 March has passed.
+
+  - name: rpt_recovery_time
+    description: >
+      The Recovery Time table per line and ISO week (PLAN M6, D59).
+      Provisional: it rests on D18, which is open; `definition_status` says
+      so on every row. Median recovery of incidents starting in the week,
+      quickest first; lines with no closed incident are not ranked.
+    columns:
+      - name: line_weekly_key
+        description: Row key, a hash of (line_id, week_start).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: week_end
+        description: Sunday of the London week.
+      - name: is_week_complete
+        description: The week has ended.
+      - name: incidents
+        description: Incidents starting in the week.
+        data_tests: [not_null]
+      - name: recovered_incidents
+        description: Of those, incidents that have ended (D18).
+        data_tests: [not_null]
+      - name: open_incidents
+        description: Incidents still open; no recovery yet.
+      - name: median_recovery_minutes
+        description: Exact median of the recovered incidents' recovery minutes.
+      - name: mean_recovery_minutes
+        description: Mean of the same.
+      - name: longest_recovery_minutes
+        description: Longest of the same.
+      - name: unranked_reason
+        description: "`no_recovered_incidents`, or null when ranked."
+      - name: recovery_rank
+        description: 1 = quickest median; ties to fewer incidents, then shared.
+      - name: definition_status
+        description: "`provisional_d18` until D18 is settled."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [provisional_d18]
+
+  - name: rpt_league_strikes_excluded
+    description: >
+      The "strikes excluded" weekly league (PLAN 7.4, D60): each line's week
+      without the London dates seed_industrial_action marks `held` or
+      `announced` for it, ranked with the weekly table's rules. Equal to
+      fct_line_weekly in weeks with no industrial action
+      (assert_strikes_excluded_matches_league_without_strikes).
+    columns:
+      - name: line_weekly_key
+        description: Row key, a hash of (line_id, week_start).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: week_end
+        description: Sunday of the London week.
+      - name: strike_days
+        description: London dates left out for this line.
+        data_tests: [not_null]
+      - name: week_has_industrial_action
+        description: Some line has a date left out this week.
+        data_tests: [not_null]
+      - name: scheduled_minutes
+        description: Scheduled minutes on the dates kept.
+      - name: observed_minutes
+        description: Observed scheduled minutes on the dates kept.
+      - name: engineering_works_minutes
+        description: Closure minutes on the dates kept.
+      - name: scored_minutes
+        description: Scored minutes on the dates kept.
+      - name: good_service_minutes
+        description: Good Service minutes on the dates kept.
+      - name: weighted_disruption_minutes
+        description: Sum of severity weight x time weight over the scored minutes kept.
+      - name: time_weighted_scored_minutes
+        description: Sum of time weight over the scored minutes kept.
+      - name: disruption_index
+        description: Disruption Index over the dates kept (D19).
+      - name: good_service_pct
+        description: Good Service share of the scored minutes kept.
+      - name: completeness
+        description: Observed over scheduled minutes on the dates kept.
+      - name: is_provisional
+        description: Completeness under `provisional_completeness`.
+      - name: unranked_reason
+        description: "`no_scored_minutes` or `engineering_works` (D22); null when ranked."
+      - name: is_ranked
+        description: The line has a rank in the variant.
+      - name: disruption_rank
+        description: Rank in the variant; equal lines share a rank.
+
+  - name: rpt_weekly_status_mix
+    description: >
+      Scored minutes per line, ISO week, worst status, planned flag and time
+      band, unweighted (PLAN 7.5, D61). The publish code re-weights it to
+      re-rank each week under the sensitivity weight sets.
+      assert_status_mix_rebuilds_weekly_index checks it holds every scored
+      minute of fct_line_weekly.
+    columns:
+      - name: status_mix_key
+        description: Row key, a hash of the grain.
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: status_severity
+        description: The minute's worst status (ADR-004).
+        data_tests: [not_null]
+      - name: is_planned
+        description: The worst status was filed as planned work.
+        data_tests: [not_null]
+      - name: time_band
+        description: The minute's time band (time_bands seed).
+        data_tests: [not_null]
+      - name: scored_minutes
+        description: Scored minutes in the group.
+        data_tests: [not_null]
+      - name: weighted_disruption_minutes
+        description: Sum of base severity weight x time weight.
+      - name: time_weighted_scored_minutes
+        description: Sum of base time weight.
