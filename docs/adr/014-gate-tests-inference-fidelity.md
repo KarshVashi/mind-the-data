@@ -1,7 +1,7 @@
 # ADR-014: The quality gate tests inference fidelity; trains run is its own measure
 
 Date: 2026-11-14
-Status: proposed (writing it was approved by the owner on 2026-11-14; acceptance is D46)
+Status: accepted (owner, 2026-11-14, D46). Follow-ups settled the same day: the gate test runs at `error` (D44) and the measured view is published per line-week (D42, D51); Circle and Hammersmith & City stay withheld until the split in decision 4 (D52).
 
 ## Context
 
