@@ -57,11 +57,18 @@ vars:
   # Hammersmith & City boards file one line's trains under the other on the
   # shared section (ADR-014).
   trains_run_withheld_lines: ["circle", "hammersmith-city"]
+  # Lines whose whole measured view fct_line_weekly withholds until their
+  # trains are split on the shared section (D52, ADR-014 follow-up): the
+  # misfiling also distorts their headways.
+  measured_view_withheld_lines: ["circle", "hammersmith-city"]
   # The M4 gate test fails when more than this share of core-station hours
   # on measured Tube lines with trains on the boards fall outside the band.
+  # The same limit decides each line-week's own gate, over its core and
+  # branch stations (D51).
   gate_max_out_of_band_share: 0.3
-  # `warn` until the M4 acceptance passes (DECISIONS.md D44), then `error`.
-  gate_test_severity: warn
+  # `error` since the M4 acceptance passed (D44, settled 2026-11-14): a
+  # failing gate stops the build.
+  gate_test_severity: error
   # A headway is dropped, not read as a long gap, when the station went
   # longer than this between successful arrivals polls inside it (D28).
   collection_gap_seconds: 150

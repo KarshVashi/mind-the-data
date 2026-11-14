@@ -6,10 +6,12 @@
 -- A line that ran under `min_open_share_to_rank` of its scheduled minutes
 -- because of engineering works keeps its index but is not ranked (D22).
 --
--- Measured-view metrics (PLAN 7.3) come from int_measured_hours, using only
--- station-direction-hours that pass the quality gate on measured lines
--- (PLAN 7.2). A line seed_measured_lines leaves out is flagged
--- `not_measured` and carries no measured numbers (D43).
+-- Measured-view metrics (PLAN 7.3) are sums of fct_line_measured_daily,
+-- which uses only station-direction-hours inside the quality gate
+-- (ADR-014). A line seed_measured_lines leaves out is flagged `not_measured`
+-- and carries no measured numbers (D43). A line-week's measured numbers are
+-- published only when its own gate passes (D51); otherwise
+-- `measured_withheld_reason` says why.
 
 with weekly as (
     select
@@ -55,66 +57,28 @@ recovery_medians as (
 ),
 
 measured_weekly as (
-    -- Each station-direction-hour is one hour of service at one platform
-    -- pair, so a plain mean over hours is the mean weighted by service
-    -- hours (D42).
+    -- Sums of fct_line_measured_daily, so a custom window summed by the
+    -- publish code gets the same numbers. Each station-direction-hour is one
+    -- hour of service at one platform pair, so a plain mean over hours is
+    -- the mean weighted by service hours (D42).
     select
         line_id,
         week_start,
-        count(*) as scheduled_measurement_hours,
-        count_if(is_observed) as observed_measurement_hours,
-        -- Trains run against the timetable (ADR-014): trains seen on the
-        -- boards over scheduled trains, in observed hours.
-        sum(if(is_observed, observed_trains, 0)) as observed_trains,
-        sum(if(is_observed, scheduled_departures, 0)) as observed_hours_scheduled_trains,
-        count_if(counts_for_reliability) as measured_hours,
-        -- A gated hour with no in-service gap ending in it has no excess
-        -- wait, so excess wait has its own denominator.
-        count_if(counts_for_reliability and excess_wait_seconds is not null) as excess_wait_hours,
-        avg(if(counts_for_reliability, excess_wait_seconds)) / 60 as excess_wait_minutes,
-        sum(if(counts_for_reliability, long_gaps, 0)) as long_gaps
-    from {{ ref('int_measured_hours') }}
-    where is_line_measured
+        sum(scheduled_measurement_hours) as scheduled_measurement_hours,
+        sum(observed_measurement_hours) as observed_measurement_hours,
+        sum(observed_trains) as observed_trains,
+        sum(observed_hours_scheduled_trains) as observed_hours_scheduled_trains,
+        sum(measured_hours) as measured_hours,
+        sum(excess_wait_hours) as excess_wait_hours,
+        sum(sum_excess_wait_seconds) as sum_excess_wait_seconds,
+        sum(long_gaps) as long_gaps,
+        sum(fallback_measured_hours) as fallback_measured_hours,
+        sum(gate_judged_hours) as gate_judged_hours,
+        sum(gate_in_band_hours) as gate_in_band_hours,
+        sum(good_service_measured_hours) as good_service_measured_hours,
+        sum(honesty_gap_hours) as honesty_gap_hours
+    from {{ ref('fct_line_measured_daily') }}
     group by line_id, week_start
-),
-
-measured_line_hours as (
-    select
-        line_id,
-        week_start,
-        london_date,
-        london_hour,
-        sum(long_gaps) as long_gaps
-    from {{ ref('int_measured_hours') }}
-    where counts_for_reliability
-    group by line_id, week_start, london_date, london_hour
-),
-
-good_service_hours as (
-    -- PLAN 7.3 Honesty Gap: the worst declared status was Good Service for
-    -- the whole hour. A missing minute breaks the hour.
-    select
-        line_id,
-        london_date,
-        hour(london_ts) as london_hour
-    from {{ ref('int_line_minute_status') }}
-    group by line_id, london_date, hour(london_ts)
-    having count(*) = count_if(not is_missing and status_severity = 10)
-),
-
-honesty as (
-    select
-        measured_line_hours.line_id,
-        measured_line_hours.week_start,
-        count(*) as good_service_measured_hours,
-        count_if(measured_line_hours.long_gaps > 0) as honesty_gap_hours
-    from measured_line_hours
-    inner join good_service_hours
-        on
-            measured_line_hours.line_id = good_service_hours.line_id
-            and measured_line_hours.london_date = good_service_hours.london_date
-            and measured_line_hours.london_hour = good_service_hours.london_hour
-    group by measured_line_hours.line_id, measured_line_hours.week_start
 ),
 
 scored as (
@@ -142,28 +106,59 @@ scored as (
             1e0 * measured_weekly.observed_trains / measured_weekly.observed_hours_scheduled_trains
         ) as trains_run_share,
         measured_weekly.excess_wait_hours,
+        measured_weekly.sum_excess_wait_seconds,
         if(
             measured_lines.is_measured and measured_weekly.scheduled_measurement_hours > 0,
             1e0 * measured_weekly.measured_hours / measured_weekly.scheduled_measurement_hours
         ) as measured_share,
-        if(measured_lines.is_measured, measured_weekly.excess_wait_minutes) as excess_wait_minutes,
+        if(
+            measured_lines.is_measured and measured_weekly.excess_wait_hours > 0,
+            measured_weekly.sum_excess_wait_seconds / measured_weekly.excess_wait_hours / 60e0
+        ) as excess_wait_minutes,
         if(measured_lines.is_measured, measured_weekly.long_gaps) as long_gaps,
         if(
             measured_lines.is_measured and measured_weekly.measured_hours > 0,
             100e0 * measured_weekly.long_gaps / measured_weekly.measured_hours
         ) as long_gaps_per_100_hours,
-        if(measured_lines.is_measured, honesty.honesty_gap_hours) as honesty_gap_hours,
-        if(measured_lines.is_measured, honesty.good_service_measured_hours)
+        if(measured_lines.is_measured, measured_weekly.honesty_gap_hours) as honesty_gap_hours,
+        if(measured_lines.is_measured, measured_weekly.good_service_measured_hours)
             as good_service_measured_hours,
         if(
-            measured_lines.is_measured and honesty.good_service_measured_hours > 0,
-            1e0 * honesty.honesty_gap_hours / honesty.good_service_measured_hours
+            measured_lines.is_measured and measured_weekly.good_service_measured_hours > 0,
+            1e0 * measured_weekly.honesty_gap_hours / measured_weekly.good_service_measured_hours
         ) as honesty_gap_share,
+        measured_weekly.fallback_measured_hours,
+        measured_weekly.gate_judged_hours,
+        measured_weekly.gate_in_band_hours,
+        if(
+            measured_lines.is_measured and measured_weekly.gate_judged_hours > 0,
+            1e0 * measured_weekly.gate_in_band_hours / measured_weekly.gate_judged_hours
+        ) as gate_pass_share,
         case
             when not coalesce(measured_lines.is_measured, false) then 'not_measured'
             when coalesce(measured_weekly.measured_hours, 0) = 0 then 'no_measured_hours'
             else 'measured'
         end as measurement_status,
+        -- Why the line-week's measured numbers are not published, checked in
+        -- this order (D43, D52, D51, D42); null when they are.
+        case
+            when not coalesce(measured_lines.is_measured, false) then 'line_not_measured'
+            when weekly.line_id in (
+                {%- for line in var('measured_view_withheld_lines') %}
+                    '{{ line }}'{{ ',' if not loop.last }}
+                {%- endfor %}
+            ) then 'shared_section_misfiled'
+            when coalesce(measured_weekly.measured_hours, 0) = 0 then 'no_measured_hours'
+            when coalesce(measured_weekly.gate_judged_hours, 0) = 0 then 'gate_not_judged'
+            when
+                measured_weekly.gate_in_band_hours
+                < (1 - {{ var('gate_max_out_of_band_share') }}) * measured_weekly.gate_judged_hours
+                then 'gate_failed'
+            when
+                measured_weekly.measured_hours
+                < {{ var('min_measured_share') }} * measured_weekly.scheduled_measurement_hours
+                then 'too_few_measured_hours'
+        end as measured_withheld_reason,
         1e0 * weekly.observed_minutes / weekly.scheduled_minutes as completeness,
         {{ disruption_index(
             'weekly.weighted_disruption_minutes',
@@ -196,10 +191,6 @@ scored as (
         on
             weekly.line_id = measured_weekly.line_id
             and weekly.week_start = measured_weekly.week_start
-    left join honesty
-        on
-            weekly.line_id = honesty.line_id
-            and weekly.week_start = honesty.week_start
 ),
 
 rankable as (
@@ -237,16 +228,20 @@ ranked as (
                 order by disruption_index asc nulls last, good_service_pct desc nulls last
             )
         ) as disruption_rank,
-        -- PLAN 7.3: lowest excess wait first, ties to fewer long gaps.
+        -- PLAN 7.3: lowest excess wait first, ties to fewer long gaps, among
+        -- the line-weeks whose measured numbers are published (D51) and
+        -- judged against real timetables only (D53).
         if(
             excess_wait_minutes is null
-            or coalesce(measured_share, 0) < {{ var('min_measured_share') }},
+            or measured_withheld_reason is not null
+            or coalesce(fallback_measured_hours, 0) > 0,
             null,
             rank() over (
                 partition by
                     week_start,
                     excess_wait_minutes is null
-                    or coalesce(measured_share, 0) < {{ var('min_measured_share') }}
+                    or measured_withheld_reason is not null
+                    or coalesce(fallback_measured_hours, 0) > 0
                 order by excess_wait_minutes asc nulls last, long_gaps_per_100_hours asc nulls last
             )
         ) as experienced_rank
@@ -303,6 +298,16 @@ select
     ranked.good_service_measured_hours,
     ranked.honesty_gap_share,
     ranked.experienced_rank,
+    ranked.sum_excess_wait_seconds,
+    ranked.fallback_measured_hours,
+    -- Measured hours judged against an estimated timetable (D33) make the
+    -- line-week's measured numbers weak evidence.
+    coalesce(ranked.fallback_measured_hours, 0) > 0 as is_weak_evidence,
+    ranked.gate_judged_hours,
+    ranked.gate_in_band_hours,
+    ranked.gate_pass_share,
+    ranked.measured_withheld_reason,
+    ranked.measured_withheld_reason is null as is_measured_published,
     {{ row_key(['ranked.line_id', 'ranked.week_start']) }} as line_weekly_key
 from ranked
 left join ranked as previous_week
