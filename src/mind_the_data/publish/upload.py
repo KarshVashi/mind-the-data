@@ -17,6 +17,8 @@ ever printed, including in errors.
 The monthly open dataset (open-data/{yyyy-mm}/, mind_the_data.publish.open_data)
 is uploaded the same way, as a directory of its own: the Parquet files and
 README.md first, manifest.json last. The two kinds are never mixed in one run.
+A re-export whose files would leave an older part of the month in place is
+refused (stale_open_data_keys), since this code never deletes.
 
 Nothing is ever deleted from the bucket: a key that drops out of
 meta/index.json (an old card, a line no longer listed) stays readable at its
@@ -58,7 +60,7 @@ INDEX = "meta/index.json"
 FINAL_KEYS = (LATEST, INDEX)
 
 _WEEK = r"\d{4}-W\d{2}"
-_MONTH = r"\d{4}-\d{2}"
+_MONTH = r"\d{4}-(?:0[1-9]|1[0-2])"
 OPEN_DATA = "open-data/"
 # The datasets mind_the_data.publish.open_data writes (a test keeps the two in step).
 OPEN_DATASETS = ("line_minute_status", "line_daily", "line_weekly")
@@ -119,16 +121,21 @@ class R2Settings:
         return f"https://{self.account_id}.r2.cloudflarestorage.com"
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str]) -> "R2Settings":
-        missing = [name for name in SETTING_NAMES if not env.get(name, "").strip()]
+    def from_env(cls, env: Mapping[str, str], *, need_hook: bool = True) -> "R2Settings":
+        """Settings from the environment; the deploy hook only when it will be called."""
+        names = SETTING_NAMES if need_hook else SETTING_NAMES[:-1]
+        missing = [name for name in names if not env.get(name, "").strip()]
         if missing:
             raise UploadError("missing settings: " + ", ".join(missing))
-        settings = cls(*(env[name].strip() for name in SETTING_NAMES))
+        settings = cls(*(env.get(name, "").strip() for name in SETTING_NAMES))
         if not re.fullmatch(r"[0-9a-f]{32}", settings.account_id):
             raise UploadError("R2_ACCOUNT_ID must be the 32-character Cloudflare account id")
-        hook = urlsplit(settings.deploy_hook_url)
-        if hook.scheme != "https" or hook.hostname != DEPLOY_HOOK_HOST:
-            raise UploadError(f"PAGES_DEPLOY_HOOK_URL must be an https URL on {DEPLOY_HOOK_HOST}")
+        if need_hook:
+            hook = urlsplit(settings.deploy_hook_url)
+            if hook.scheme != "https" or hook.hostname != DEPLOY_HOOK_HOST:
+                raise UploadError(
+                    f"PAGES_DEPLOY_HOOK_URL must be an https URL on {DEPLOY_HOOK_HOST}"
+                )
         return settings
 
 
@@ -219,6 +226,36 @@ def upload(client: "S3Client", bucket: str, planned: Sequence[PlannedObject]) ->
     return done
 
 
+def stale_open_data_keys(
+    client: "S3Client", bucket: str, planned: Sequence[PlannedObject]
+) -> list[str]:
+    """Keys already under a planned open-data month that this upload would not overwrite.
+
+    Athena may split a dataset into a different number of parts on a
+    re-export. Old parts left beside the new ones would be read together
+    by anyone globbing the month, and the upload never deletes, so it
+    refuses instead. Empty for a league upload.
+    """
+    from botocore.exceptions import BotoCoreError, ClientError
+
+    planned_keys = {p.key for p in planned}
+    months = sorted({k.split("/")[1] for k in planned_keys if k.startswith(OPEN_DATA)})
+    stale: list[str] = []
+    for month in months:
+        try:
+            pages = client.get_paginator("list_objects_v2").paginate(
+                Bucket=bucket, Prefix=f"{OPEN_DATA}{month}/"
+            )
+            existing = [obj["Key"] for page in pages for obj in page.get("Contents", [])]
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "unknown")
+            raise UploadError(f"listing open-data/{month}/ failed: {code}") from None
+        except BotoCoreError as exc:
+            raise UploadError(f"listing open-data/{month}/ failed: {type(exc).__name__}") from None
+        stale += sorted(k for k in existing if k not in planned_keys)
+    return stale
+
+
 def call_deploy_hook(url: str, client: httpx.Client) -> int:
     """POST to the Pages deploy hook; returns the status code.
 
@@ -246,8 +283,18 @@ def main(argv: list[str] | None = None, env: Mapping[str, str] | None = None) ->
             for obj in planned:
                 print(f"would upload {obj.key} ({obj.content_type}; {obj.cache_control})")
             return 0
-        settings = R2Settings.from_env(os.environ if env is None else env)
-        keys = upload(r2_client(settings), settings.bucket, planned)
+        settings = R2Settings.from_env(
+            os.environ if env is None else env, need_hook=not args.no_hook
+        )
+        client = r2_client(settings)
+        stale = stale_open_data_keys(client, settings.bucket, planned)
+        if stale:
+            raise UploadError(
+                "the bucket holds open-data files this export does not replace, which "
+                "readers globbing the month would mix in: " + ", ".join(stale) + ". Remove "
+                "them in the Cloudflare dashboard, then re-run (runbook, Monthly open data)"
+            )
+        keys = upload(client, settings.bucket, planned)
         print(f"uploaded {len(keys)} objects, {keys[-1]} last")
         if args.no_hook:
             print("deploy hook not called (--no-hook)")

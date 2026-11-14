@@ -512,7 +512,7 @@ The two cron lines and the clock check work as in the daily transform: 05:30 UTC
 
 The same workflow file publishes the open dataset (PLAN 8, M7): on the 2nd of each month at 06:45 London time it exports the London month that just ended to `open-data/{yyyy-mm}/` in R2. It runs as `mtd-ci-publish` and:
 
-1. checks the marts reach the month's last minute (otherwise it fails, rather than publishing part of a month);
+1. checks the minute model reaches the month's last minute, `fct_line_daily` its last date, and `fct_line_weekly` every week ending in it (otherwise it fails, rather than publishing part of a month);
 2. runs Athena `UNLOAD` for each dataset (`line_minute_status`, `line_daily`, `line_weekly`) into a fresh prefix under the prod workgroup's results location, `s3://mind-the-data-athena-results-<account>/prod/open-data/<month>/<run id>/`, the publish role's only AWS write; the results bucket expires them after 7 days;
 3. downloads the Parquet parts, checks each is Parquet, names them `<dataset>.parquet` (or `<dataset>-000.parquet` onwards when Athena splits one), and writes `README.md` (columns, licence, "Powered by TfL Open Data") and `manifest.json` (rows, bytes and sha256 per file, validated against `contract/open_data_manifest.schema.json`);
 4. keeps it all as the artifact `open-data-<run id>`, and uploads it with `python -m mind_the_data.publish.upload --no-hook`, `manifest.json` last. The site does not read the open data, so the deploy hook is not called.
@@ -529,7 +529,9 @@ gh variable set OPEN_DATA_ENABLED --body true    # off again: gh variable delete
 gh workflow run publish-weekly.yml --ref main -f export=open-data -f month=2026-11 -f dry_run=true
 ```
 
-Re-running a month replaces its files; nothing is deleted from R2, so a dataset that was split into parts once and not the next time leaves the old parts behind. Only `manifest.json` lists the current files.
+Any run that uploads open data, manual or scheduled, needs `OPEN_DATA_ENABLED`, because the README states a licence (D63); a dry run does not. The job joins the `transform-prod` concurrency group, so it never reads the marts while a transform rebuilds them.
+
+Re-running a month overwrites its files. Athena can split a dataset into a different number of parts from one run to the next, and the upload never deletes, so it refuses a re-export that would leave an old part of the month in place and names the keys. Delete those keys in the Cloudflare dashboard (R2 → `mind-the-data-public` → `open-data/<month>/`), then re-run.
 
 **Locally:** `uv run python -m mind_the_data.publish.open_data --month 2026-11 --dry-run` prints every statement and needs no AWS access.
 

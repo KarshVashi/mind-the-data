@@ -111,6 +111,10 @@ def test_options(
         ({"FULL_REFRESH_INPUT": "true", "SELECT_INPUT": "   "}, "Selector needed"),
         ({"SELECT_INPUT": "stg_arrivals; rm -rf /"}, "Bad selector"),
         ({"SELECT_INPUT": "$(id)"}, "Bad selector"),
+        ({"SELECT_INPUT": "stg_x --target dev"}, "options"),
+        ({"SELECT_INPUT": "stg_x --full-refresh"}, "options"),
+        ({"SELECT_INPUT": "-s stg_x"}, "options"),
+        ({"FULL_REFRESH_INPUT": "true", "SELECT_INPUT": "x --exclude y"}, "options"),
         ({"SELECT_INPUT": "a\nb"}, "Bad selector"),
     ],
 )

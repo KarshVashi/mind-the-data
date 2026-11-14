@@ -294,9 +294,24 @@ def completeness_sql(database: str, first: date) -> str:
     window = f"date '{first.isoformat()}' and date '{month_end(first).isoformat()}'"
     return check_read_only(
         "select sum(observed_minutes) as observed_minutes, "
-        "sum(scheduled_minutes) as scheduled_minutes "
+        "sum(scheduled_minutes) as scheduled_minutes, "
+        "max(london_date) as last_date "
         f"from {_identifier(database)}.fct_line_daily where london_date between {window}"
     )
+
+
+def weeks_sql(database: str, first: date) -> str:
+    window = f"date '{first.isoformat()}' and date '{month_end(first).isoformat()}'"
+    return check_read_only(
+        "select count(distinct week_end) as weeks "
+        f"from {_identifier(database)}.fct_line_weekly where week_end between {window}"
+    )
+
+
+def sundays_in(first: date) -> int:
+    """ISO weeks that end in the month, i.e. its Sundays."""
+    last = month_end(first)
+    return sum(1 for d in range(first.day, last.day + 1) if first.replace(day=d).isoweekday() == 7)
 
 
 def freshness_sql(database: str) -> str:
@@ -418,7 +433,7 @@ README_HEAD = """\
 
 Minute-level declared line status, and the daily and weekly declared-view facts behind the \
 Tube League Table, for the London dates {start} to {end}. Built from the TfL Unified API. \
-The method and its weights are in `meta/methodology.json`, published beside these files.
+The method and its weights are in `/meta/methodology.json` at the root of this bucket.
 
 ## Licence
 
@@ -436,10 +451,12 @@ clock changes included).
 - Completeness of the month (observed / scheduled line-minutes): {completeness}. The data \
 reaches {data_through} London time.
 - Weekly rows are the ISO weeks that end in the month.
-- Definitions that are still open decisions can change, and a re-export replaces the \
-month's files. `manifest.json` gives the size and sha256 of every file.
+- Definitions that are still open decisions can change, and the month may be re-exported. \
+`manifest.json` lists the current files with the size and sha256 of each; trust it over a \
+directory listing.
 - A dataset may be split into numbered parts (`<name>-000.parquet` onwards). Read them \
-together, e.g. `read_parquet('line_daily*.parquet')` in DuckDB.
+together, e.g. `read_parquet('line_daily*.parquet')` in DuckDB. Rows are sorted within a \
+file, not across parts.
 """
 
 
@@ -520,6 +537,7 @@ class AthenaOpenData:
     timeout_s: float = 900.0
     sleep: Callable[[float], None] = time.sleep
     bytes_scanned: int = 0
+    _results: str | None = None
 
     def latest_minute_london(self) -> datetime | None:
         cells = _single_value(
@@ -531,7 +549,8 @@ class AthenaOpenData:
         value = cells.get("latest_london_ts")
         return None if not value else datetime.fromisoformat(value.replace(" ", "T"))
 
-    def completeness(self, first: date) -> float | None:
+    def daily_coverage(self, first: date) -> tuple[float | None, date | None]:
+        """Completeness over the month, and the last London date fct_line_daily holds in it."""
         cells = _single_value(
             self.athena,
             completeness_sql(self.database, first),
@@ -539,9 +558,20 @@ class AthenaOpenData:
             database=self.database,
         )
         observed, scheduled = cells.get("observed_minutes"), cells.get("scheduled_minutes")
+        last = cells.get("last_date")
+        last_date = date.fromisoformat(last[:10]) if last else None
         if not scheduled or float(scheduled) == 0:
-            return None
-        return float(observed or 0) / float(scheduled)
+            return None, last_date
+        return float(observed or 0) / float(scheduled), last_date
+
+    def weeks(self, first: date) -> int:
+        cells = _single_value(
+            self.athena,
+            weeks_sql(self.database, first),
+            workgroup=self.workgroup,
+            database=self.database,
+        )
+        return int(cells.get("weeks") or 0)
 
     def export(self, dataset: Dataset, first: date) -> ExportedDataset:
         month = first.strftime("%Y-%m")
@@ -551,10 +581,9 @@ class AthenaOpenData:
             workgroup=self.workgroup,
             database=self.database,
         )["row_count"]
-        prefix = (
-            unload_prefix(output_location(self.athena, self.workgroup), month, self.run_id)
-            + f"{dataset.name}/"
-        )
+        if self._results is None:
+            self._results = output_location(self.athena, self.workgroup)
+        prefix = unload_prefix(self._results, month, self.run_id) + f"{dataset.name}/"
         statement = unload_sql(select_sql(dataset, self.database, first), prefix)
         started = self.athena.start_query_execution(
             QueryString=statement,
@@ -584,16 +613,28 @@ def export_month(
 ) -> tuple[dict[str, Any], list[ExportedDataset]]:
     """Every dataset for the month and its manifest, validated against the contract.
 
-    A month the data does not yet reach the end of is refused unless
-    allow_incomplete is set, so a scheduled run never publishes part of one.
+    A month is refused, unless allow_incomplete is set, when any source does
+    not reach its end: the minute model's last minute, fct_line_daily's last
+    date, and a fct_line_weekly row for every week ending in the month. Each
+    mart is checked because a transform run can build the minute model and
+    then fail before the marts.
     """
     through = source.latest_minute_london()
+    completeness, last_date = source.daily_coverage(first)
+    weeks = source.weeks(first)
     last_minute = datetime.combine(month_end(first), datetime.min.time()) + timedelta(
         hours=23, minutes=59
     )
-    if not allow_incomplete and (through is None or through < last_minute):
+    gaps = []
+    if through is None or through < last_minute:
+        gaps.append(f"minutes through {through}")
+    if last_date != month_end(first):
+        gaps.append(f"fct_line_daily through {last_date}")
+    if weeks < sundays_in(first):
+        gaps.append(f"fct_line_weekly has {weeks} of {sundays_in(first)} weeks")
+    if gaps and not allow_incomplete:
         raise OpenDataError(
-            f"{first:%Y-%m} is not complete (data through {through}); "
+            f"{first:%Y-%m} is not complete ({'; '.join(gaps)}); "
             "pass --allow-incomplete to export it anyway"
         )
     exported = [source.export(dataset, first) for dataset in DATASETS]
@@ -601,7 +642,7 @@ def export_month(
         first,
         exported,
         stamp,
-        completeness=source.completeness(first),
+        completeness=completeness,
         data_through=through,
     )
     validate(manifest, "open_data_manifest")
@@ -665,7 +706,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{count_sql(dataset, args.database, first)};")
             select = select_sql(dataset, args.database, first)
             print(f"unload ({select}) to '{destination}{dataset.name}/' with (...);")
+        print(f"{freshness_sql(args.database)};")
         print(f"{completeness_sql(args.database, first)};")
+        print(f"{weeks_sql(args.database, first)};")
         print(f"would write open-data/{month}/<dataset>.parquet, README.md, manifest.json")
         return 0
 

@@ -237,15 +237,21 @@ class FakeAthena:
     zero-byte marker) into the moto bucket, as Athena would.
     """
 
-    def __init__(self, s3: Any, *, latest: str, parts: int = 1) -> None:
+    def __init__(
+        self, s3: Any, *, latest: str, parts: int, last_date: str | None, weeks: int
+    ) -> None:
         self.s3 = s3
         self.latest = latest
         self.parts = parts
+        self.last_date = last_date
+        self.weeks = weeks
+        self.work_group_calls = 0
         self.statements: list[str] = []
         self.results: dict[str, tuple[list[str], list[list[str | None]]]] = {}
 
     def get_work_group(self, WorkGroup: str) -> dict[str, Any]:
         assert WorkGroup == "mind-the-data-prod"
+        self.work_group_calls += 1
         return {"WorkGroup": {"Configuration": {"ResultConfiguration": {"OutputLocation": OUTPUT}}}}
 
     def start_query_execution(self, **kwargs: Any) -> dict[str, Any]:
@@ -263,7 +269,12 @@ class FakeAthena:
         elif "max(london_ts)" in sql:
             self.results[query_id] = (["latest_london_ts"], [[self.latest]])
         elif "sum(observed_minutes)" in sql:
-            self.results[query_id] = (["observed_minutes", "scheduled_minutes"], [["990", "1000"]])
+            self.results[query_id] = (
+                ["observed_minutes", "scheduled_minutes", "last_date"],
+                [["990", "1000", self.last_date]],
+            )
+        elif "count(distinct week_end)" in sql:
+            self.results[query_id] = (["weeks"], [[str(self.weeks)]])
         else:
             self.results[query_id] = (["row_count"], [["42"]])
         return {"QueryExecutionId": query_id}
@@ -305,10 +316,16 @@ def s3() -> Iterator[Any]:
 
 
 def source(
-    s3: Any, *, latest: str = "2026-12-02 03:20:00.000000", parts: int = 1
+    s3: Any,
+    *,
+    latest: str = "2026-12-02 03:20:00.000000",
+    parts: int = 1,
+    last_date: str | None = "2026-11-30",
+    weeks: int = 5,  # November 2026 has five Sundays
 ) -> AthenaOpenData:
+    fake = FakeAthena(s3, latest=latest, parts=parts, last_date=last_date, weeks=weeks)
     return AthenaOpenData(
-        FakeAthena(s3, latest=latest, parts=parts),  # type: ignore[arg-type]
+        fake,  # type: ignore[arg-type]
         s3,
         workgroup="mind-the-data-prod",
         database=DB,
@@ -352,6 +369,34 @@ def test_several_parts_are_numbered(s3: Any) -> None:
         "line_minute_status-001.parquet",
     ]
     validate(manifest, "open_data_manifest")
+
+
+def test_sundays_in() -> None:
+    assert open_data.sundays_in(NOV) == 5
+    assert open_data.sundays_in(date(2026, 12, 1)) == 4
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"last_date": "2026-11-29"}, "fct_line_daily through 2026-11-29"),
+        ({"last_date": None}, "fct_line_daily through None"),
+        ({"weeks": 4}, "fct_line_weekly has 4 of 5 weeks"),
+    ],
+)
+def test_stale_marts_are_refused_even_when_the_minutes_are_fresh(
+    s3: Any, kwargs: dict[str, Any], message: str
+) -> None:
+    src = source(s3, **kwargs)
+    with pytest.raises(OpenDataError, match=message):
+        export_month(src, NOV, STAMP)
+    assert not any(s.startswith("unload") for s in src.athena.statements)  # type: ignore[attr-defined]
+
+
+def test_the_results_location_is_read_once(s3: Any) -> None:
+    src = source(s3)
+    export_month(src, NOV, STAMP)
+    assert src.athena.work_group_calls == 1  # type: ignore[attr-defined]
 
 
 def test_an_unfinished_month_is_refused(s3: Any) -> None:

@@ -13,7 +13,7 @@ All figures are AWS Cost Explorer, unblended, in USD, read on 2026-11-14. Day 14
 | Steady-state day, 10 to 12 November (tagged) | 0.057 |
 | **Projected 30-day month, before VAT** | **about 1.80** |
 | Projected 30-day month, with 20% VAT | about 2.20 |
-| AWS Budget (H5) | 6.50 |
+| AWS Budget (H5): £5, set as | 6.50 |
 
 The projection is the steady-state day x 30, plus storage growing through the month. Dev work makes it higher: 13 November, a day of dev queries, cost 0.12 USD, and a month of days like it would be about 3.60 USD before VAT. Either way it is inside the plan's estimate of £1.50 to £3.50 and the budget.
 

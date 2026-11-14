@@ -159,6 +159,41 @@ def test_plan_refuses_league_and_open_data_together(tmp_path: Path) -> None:
         plan_uploads(export_dir(tmp_path, EXPORT + OPEN_DATA_EXPORT))
 
 
+def test_no_hook_does_not_need_the_hook_setting() -> None:
+    env = {k: v for k, v in ENV.items() if k != "PAGES_DEPLOY_HOOK_URL"}
+    assert R2Settings.from_env(env, need_hook=False).bucket == ENV["R2_BUCKET"]
+    with pytest.raises(UploadError, match="PAGES_DEPLOY_HOOK_URL"):
+        R2Settings.from_env(env)
+
+
+def test_a_reexport_with_fewer_parts_is_refused_not_mixed(tmp_path: Path) -> None:
+    three_parts = export_dir(tmp_path / "first", OPEN_DATA_EXPORT)
+    one_part = export_dir(
+        tmp_path / "second",
+        tuple(f for f in OPEN_DATA_EXPORT if "line_minute_status" not in f)
+        + ("open-data/2026-11/line_minute_status.parquet",),
+    )
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket=ENV["R2_BUCKET"])
+        first = plan_uploads(three_parts)
+        assert upload.stale_open_data_keys(client, ENV["R2_BUCKET"], first) == []
+        upload.upload(client, ENV["R2_BUCKET"], first)
+        # The same files again replace themselves; nothing is stale.
+        assert upload.stale_open_data_keys(client, ENV["R2_BUCKET"], first) == []
+        assert upload.stale_open_data_keys(client, ENV["R2_BUCKET"], plan_uploads(one_part)) == [
+            "open-data/2026-11/line_minute_status-000.parquet",
+            "open-data/2026-11/line_minute_status-001.parquet",
+        ]
+        # A league upload never lists the bucket.
+        assert (
+            upload.stale_open_data_keys(
+                client, ENV["R2_BUCKET"], plan_uploads(export_dir(tmp_path / "league"))
+            )
+            == []
+        )
+
+
 def test_settings_name_every_missing_secret() -> None:
     env = {**ENV, "R2_BUCKET": " ", "PAGES_DEPLOY_HOOK_URL": ""}
     with pytest.raises(UploadError) as info:

@@ -54,6 +54,10 @@
             {%- set statements = iceberg_maintenance_sql(
                 node.schema, node.alias, node.config.get('partitioned_by'), since
             ) -%}
+{#- Said out loud, so a model partitioned by a transform is not rescanned in full every week unnoticed. -#}
+{%- if since is not none and ' where ' not in statements[0] -%}
+{{ log('iceberg maintenance: ' ~ node.name ~ ' has no plain partition column; compacting all of it', info=true) }}
+{%- endif -%}
 {%- if dry_run -%}
 {%- for sql in statements -%}
                     {{ log('iceberg maintenance (dry run): ' ~ sql, info=true) }}

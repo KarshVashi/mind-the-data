@@ -148,6 +148,18 @@ def previous_london_month() -> str:
             "true",
             None,
         ),
+        # The deploy hook is not needed for open data.
+        (
+            {
+                "EVENT": "schedule",
+                "DRY_RUN": "false",
+                "OPEN_DATA_ENABLED": "true",
+                **ALL_SECRETS,
+                "HAVE_PAGES_DEPLOY_HOOK_URL": "false",
+            },
+            "true",
+            None,
+        ),
     ],
 )
 def test_config_for_scheduled_open_data(
@@ -158,6 +170,19 @@ def test_config_for_scheduled_open_data(
     assert (out["ready"], out["month"]) == (ready, previous_london_month())
     if notice:
         assert notice in log
+
+
+def test_a_manual_open_data_publish_also_waits_for_d63(tmp_path: Path) -> None:
+    env = {**BASE, "EVENT": "workflow_dispatch", "EXPORT": "open-data", **ALL_SECRETS}
+    code, out, log = run_step("config", {**env, "DRY_RUN": "false"}, tmp_path)
+    assert (code, out["ready"]) == (0, "false")
+    assert "OPEN_DATA_ENABLED" in log
+    code, out, _ = run_step("config", {**env, "DRY_RUN": "true"}, tmp_path)
+    assert (code, out["ready"]) == (0, "true")
+    code, out, _ = run_step(
+        "config", {**env, "DRY_RUN": "false", "OPEN_DATA_ENABLED": "true"}, tmp_path
+    )
+    assert (code, out["ready"]) == (0, "true")
 
 
 def test_config_checks_the_month_input(tmp_path: Path) -> None:
@@ -172,8 +197,10 @@ def test_config_checks_the_month_input(tmp_path: Path) -> None:
 def test_open_data_job_uploads_without_the_deploy_hook() -> None:
     upload = next(s for s in steps("open-data") if s.get("name") == "upload open data to R2")
     assert upload["if"] == "env.DRY_RUN != 'true'"
-    assert tuple(upload["env"]) == SETTING_NAMES
+    # Everything but the deploy hook, which open data never calls.
+    assert tuple(upload["env"]) == SETTING_NAMES[:-1]
     assert upload["run"].rstrip().endswith("--no-hook")
+    assert load()["jobs"]["open-data"]["concurrency"]["group"] == "transform-prod"
     export = next(s for s in steps("open-data") if s.get("name") == "export")
     assert "--publish-workgroup" in export["run"]
     jobs = load()["jobs"]

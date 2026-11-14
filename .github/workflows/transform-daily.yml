@@ -99,6 +99,12 @@ jobs:
               echo "::error title=Bad selector::select may hold model names, paths and dbt selector characters only."
               exit 1
             fi
+            # Each word becomes a dbt argument, so none may be an option
+            # (--target, --full-refresh, --exclude would slip past the guards).
+            if [[ " $select" == *" -"* ]]; then
+              echo "::error title=Bad selector::select may not contain options (words starting with -)."
+              exit 1
+            fi
             if [ "$FULL_REFRESH_INPUT" = "true" ]; then
               if [ -z "${select// /}" ]; then
                 echo "::error title=Selector needed::A full refresh rewrites tables from raw; name them in select (path:models for everything)."

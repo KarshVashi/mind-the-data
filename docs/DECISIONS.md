@@ -464,7 +464,7 @@ These come from the M7 hardening work (`feat/collate-c-m7`). They entered on 202
   - `line_minute_status` (every line-minute, missing minutes flagged, TfL's reason text included), `line_daily` (`fct_line_daily`) and `line_weekly` (the declared-view columns of `fct_line_weekly` for the weeks that end in the month);
   - the measured view left out while D42 is open;
   - a README and `manifest.json` in each folder, with the TfL attribution and terms link, and the derived figures offered under **CC BY 4.0**.
-- **Not yet live:** the scheduled export waits for the `OPEN_DATA_ENABLED` variable as well as H12. A manual dry run works now.
+- **Not yet live:** every upload of open data, scheduled or manual, waits for the `OPEN_DATA_ENABLED` variable as well as H12, since a licence cannot be taken back once the files are mirrored. A manual dry run works now.
 - **Alternatives:** the Open Government Licence v3.0 or ODbL for the derived figures; leave out TfL's reason text; weeks by their start date, which leaves the last week of a month incomplete on the 2nd.
 - **Class:** `never-default` (publishing). **Recommendation:** accept, then set `OPEN_DATA_ENABLED`.
 

@@ -154,8 +154,11 @@ jobs:
             fi
           fi
           if [ "$DRY_RUN" != "true" ]; then
+            # Open data never calls the deploy hook, so it does not need it.
+            needed="R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET"
+            if [ "$EXPORT" != "open-data" ]; then needed="$needed PAGES_DEPLOY_HOOK_URL"; fi
             missing=""
-            for v in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET PAGES_DEPLOY_HOOK_URL; do
+            for v in $needed; do
               have="HAVE_$v"
               [ "${!have}" = "true" ] || missing="$missing $v"
             done
@@ -165,8 +168,10 @@ jobs:
             elif [ "$EVENT" = "schedule" ] && [ "$EXPORT" != "open-data" ] && [ "$PUBLISH_ENABLED" != "true" ]; then
               echo "::notice title=publish skipped::Scheduled publishing is off. Set the PUBLISH_ENABLED repository variable to true to publish every Monday (D36; docs/runbook.md, H12)."
               ready=false
-            elif [ "$EVENT" = "schedule" ] && [ "$EXPORT" = "open-data" ] && [ "$OPEN_DATA_ENABLED" != "true" ]; then
-              echo "::notice title=open data skipped::Scheduled open data is off. Set the OPEN_DATA_ENABLED repository variable to true once D63 (the licence) is decided (docs/runbook.md, Monthly open data)."
+            elif [ "$EXPORT" = "open-data" ] && [ "$OPEN_DATA_ENABLED" != "true" ]; then
+              # Manual runs too: the README states a licence, which cannot be
+              # taken back once the files are mirrored.
+              echo "::notice title=open data skipped::Open data is off. Set the OPEN_DATA_ENABLED repository variable to true once D63 (the licence) is decided (docs/runbook.md, Monthly open data). A manual run with dry_run still exports."
               ready=false
             fi
           fi
@@ -258,8 +263,11 @@ jobs:
     if: needs.gate.outputs.run == 'true' && needs.gate.outputs.ready == 'true' && needs.gate.outputs.export == 'open-data'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    # The prod build's group: the row counts and the UNLOADs then read the
+    # same build of the marts, never one a manual transform swaps in between.
+    # The 06:45 slot is three hours after the daily build, so they rarely queue.
     concurrency:
-      group: publish-open-data
+      group: transform-prod
       cancel-in-progress: false
     permissions:
       contents: read
@@ -314,7 +322,6 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          PAGES_DEPLOY_HOOK_URL: ${{ secrets.PAGES_DEPLOY_HOOK_URL }}
         run: |
           unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
           uv run --locked python -m mind_the_data.publish.upload --dir "$OUT_DIR" --no-hook
