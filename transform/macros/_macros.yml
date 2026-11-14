@@ -41,7 +41,7 @@ macros:
     description: The enabled incremental Iceberg models among the given graph nodes, by name.
     arguments:
       - name: nodes
-        type: list
+        type: list[dict[str, any]]
         description: Graph nodes, e.g. graph.nodes.values().
   - name: iceberg_maintenance_sql
     description: >

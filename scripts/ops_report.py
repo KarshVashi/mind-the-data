@@ -1,6 +1,7 @@
 """Build the ops workflows' health reports (read-only).
 
-    # previous UTC day: completeness JSON, alarms, Lambda errors, raw freshness
+    # previous UTC day: completeness JSON, alarms, Lambda errors, raw freshness,
+    # and announced strikes in the industrial action seed left past their date
     uv run python scripts/ops_report.py daily --completeness completeness.json
     # service hours: the strict arrivals check over the last 15 minutes of raw
     uv run python scripts/ops_report.py daytime
@@ -35,11 +36,14 @@ from mind_the_data.ops.health import (
     day_bounds,
     freshness_section,
     guarded,
+    industrial_action_section,
     lambda_section,
     render,
 )
+from mind_the_data.publish.mechanics import load_industrial_action
 
 MISSED = 3
+TRANSFORM_DIR = Path(__file__).resolve().parents[1] / "transform"
 
 
 def _bucket() -> str:
@@ -66,6 +70,8 @@ def daily(day: date, completeness_file: Path, now: datetime) -> list[Section]:
             "Newest raw object per feed",
             lambda: freshness_section(boto3.client("s3"), _bucket(), now),
         ),
+        # The seed is in the checkout; its dbt test only warns (D60).
+        industrial_action_section(load_industrial_action(TRANSFORM_DIR), now.date()),
     ]
 
 
