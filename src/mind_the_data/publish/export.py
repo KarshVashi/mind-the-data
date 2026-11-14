@@ -21,7 +21,7 @@ league. divisions/{yyyy-mm}.json is written for every month from the first
 observed week to the latest data (an explicit "not_seeded" state before the
 divisions are seeded), season/{season}.json for every season with data, and
 meta/methodology.json carries the sensitivity analysis (PLAN 7.5).
-open-data/ waits for M7.
+open-data/ is mind_the_data.publish.open_data, monthly.
 """
 
 import argparse

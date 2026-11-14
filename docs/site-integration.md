@@ -73,6 +73,9 @@ The site needs none. Set a read-only CORS rule on the bucket anyway, because the
 | `league/latest.json`, `meta/index.json`, `meta/methodology.json`, `lines/*.json` | `public, max-age=300` | Overwritten every Monday |
 | `league/{iso_week}.json` | `public, max-age=3600` | Rewritten each run under D39, but changes only when the methodology or marts do |
 | `cards/*.png` | `public, max-age=86400` | Rendered once per week |
+| `open-data/{yyyy-mm}/*` (Parquet, `README.md`, `manifest.json`) | `public, max-age=3600` | Written once a month; a re-export replaces them |
+
+The open data (M7, D63) goes up in its own monthly run, `manifest.json` last, with no deploy hook: the site does not read it. A page that links to it should link to `open-data/{yyyy-mm}/README.md` and keep the attribution "Powered by TfL Open Data" beside the link.
 
 The build bypasses edge caching with its query string, so these values only matter to other readers. Upload order matters: week files, line files, cards and methodology first; `league/latest.json` and `meta/index.json` last; then the deploy hook. A reader then never sees an index that lists a file not yet uploaded.
 
@@ -202,7 +205,7 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
 - **`meta/methodology.json`** gains the gate thresholds (`gate_low_ratio`, `gate_high_ratio`, `gate_max_out_of_band_share`, `min_measured_share`), `measured_view_withheld_lines` and `trains_run_withheld_lines`.
 - **`lines/{line_id}.json`** `measured_status` is `measured` when any week in the history has measured numbers.
 
-### Changed in the rest of M6 (`schema_version` 0.4.0, additive)
+### Changed in the rest of M6 and M7 (`schema_version` 0.5.0, additive)
 
 - **`divisions/{yyyy-mm}.json`** (new, `contract/division.schema.json`). One file per month from November 2026.
   - `status` is one of:
@@ -219,6 +222,7 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
   - `strikes_excluded`: `is_same_as_main` and the variant table. It is `null` for a custom window.
 - **`meta/methodology.json`** gains `divisions`, `season`, `recovery_time`, `industrial_action` (the whole seed, with sources) and `sensitivity` (weight sets, and per week Spearman's rho, max rank shift and top or bottom three changes).
 - **`meta/index.json`** gains `months[]` (month, status, path) and `seasons[]`.
+- **`open-data/{yyyy-mm}/manifest.json`** (new, `contract/open_data_manifest.schema.json`): the monthly open dataset's files with row counts and checksums, the attribution and the licence (D63). The site does not read it; see section 2.
 
 ### Still needed
 
@@ -228,7 +232,7 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
 | Per-day values per line in the league file (`days[]`: date, Good Service %, Disruption Index, scored minutes) | Line × day heatmap on week pages | M6 task: a `daily` block in `league/{iso_week}.json` from `fct_line_daily` (one more Athena query per run) |
 | Card paths in `meta/index.json` | Linking each archived week to its card | After the R2 upload exists: the upload step knows which cards are in the bucket. Until then the site uses `cards/{iso_week}.png` for the latest week only |
 | Post snapshots (custom windows) in the index | Archiving the Wednesday post's table | Optional: `post_snapshot.py` could upload to `snapshots/{start}_{end}/` with an index entry. v0 vendors it instead |
-| `open-data/` | Later pages | M7 |
+| A page for `open-data/` | `/tube/data/` | Once D63 is settled and the first month is uploaded |
 | Public methodology prose | `/tube/methodology/` | M7 `docs/methodology.md` |
 
 ### How far back trends go

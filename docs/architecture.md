@@ -30,8 +30,8 @@ flowchart LR
   R --> RF
 
   subgraph GHA["GitHub Actions (OIDC into AWS)"]
-    TD[transform-daily<br/>03:30 London<br/>dbt build] --> ATH
-    PW[publish-weekly<br/>Mon 06:30 London<br/>export + cards] --> ATH
+    TD[transform-daily<br/>03:30 London<br/>dbt build;<br/>Sun: OPTIMIZE + VACUUM] --> ATH
+    PW[publish-weekly<br/>Mon 06:30 London: export + cards<br/>2nd 06:45: open data] --> ATH
     OPS[ops-daily, ops-daytime<br/>health checks] --> ATH
   end
 
@@ -45,10 +45,11 @@ flowchart LR
 
 1. **Collect.** EventBridge Scheduler invokes the poller Lambda every minute. It calls TfL for line status, line disruption and the Arrivals board of every measurement station (about 52 calls, bounded concurrency, finished in seconds), and writes each feed's responses as one gzipped NDJSON object to the raw bucket under `raw/{feed}/dt=YYYY-MM-DD/hour=HH/`. Each line is an envelope with the poll id, UTC poll time, request, HTTP status, latency and TfL's payload unchanged. Failed calls are written too, so missing data is visible (ADR-003). The poller runs with reserved concurrency 1, so polls never overlap (ADR-006). A second Lambda fetches timetables, route sequences and severity codes weekly (ADR-007). Both read the TfL app key from SSM at cold start.
 2. **Catalogue.** Glue tables with partition projection expose the raw prefixes to Athena. There are no crawlers: partitions resolve from the path.
-3. **Transform.** `transform-daily.yml` runs `dbt build --target prod` at 03:30 London time with `dbt-athena`. Staging models flatten, type and deduplicate the raw envelopes into Iceberg tables, merging whole days on a row key (ADR-008). Intermediate models compute the status of every line-minute, incidents, inferred arrivals and headways; they rebuild in full from the seeds each run, so a definition change applies to all history at once (ADR-012, proposed). Marts hold daily and weekly scores per line. Tests (generic, singular and unit tests against hand-computed cases) run in the same build. Raw is kept indefinitely; everything downstream can be rebuilt from it.
+3. **Transform.** `transform-daily.yml` runs `dbt build --target prod` at 03:30 London time with `dbt-athena`. Staging models flatten, type and deduplicate the raw envelopes into Iceberg tables, merging whole days on a row key (ADR-008). Intermediate models compute the status of every line-minute, incidents, inferred arrivals and headways; they rebuild in full from the seeds each run, so a definition change applies to all history at once (ADR-012, proposed). Marts hold daily and weekly scores per line. Tests (generic, singular and unit tests against hand-computed cases) run in the same build. Raw is kept indefinitely; everything downstream can be rebuilt from it, and a manual run can full-refresh named models from raw as the same role (runbook, "Full refresh in prod"). On Sundays the run ends with `dbt run-operation iceberg_maintenance`: `OPTIMIZE` and `VACUUM` on the incremental staging tables, the only ones that persist between runs (D64).
 4. **Export.** `publish-weekly.yml` runs on Mondays at 06:30 London time. It reads the marts through Athena, builds every JSON file in the published contract (`src/mind_the_data/publish/contract/`), validates each against its JSON Schema, and renders the share cards from an HTML template in headless Chromium.
 5. **Publish.** The same job uploads the files to a Cloudflare R2 bucket served at `data.karshvashi.com`, with per-file content types and cache headers, `league/latest.json` and `meta/index.json` last. It then calls the Cloudflare Pages deploy hook.
-6. **Site.** The website (its own repository) fetches `meta/index.json` and the files it lists at build time, validates them, and renders static pages. If anything fails, Pages keeps serving the previous build ([site-integration.md](site-integration.md)).
+6. **Open data.** On the 2nd of each month the same workflow exports the previous London month as Parquet: Athena `UNLOAD`s each dataset into the prod workgroup's results prefix, the job downloads and checks the files, writes a README (attribution, licence, columns) and a manifest with checksums, and uploads them to `open-data/{yyyy-mm}/` in R2 without a site rebuild (runbook, "Monthly open data"; D63).
+7. **Site.** The website (its own repository) fetches `meta/index.json` and the files it lists at build time, validates them, and renders static pages. If anything fails, Pages keeps serving the previous build ([site-integration.md](site-integration.md)).
 
 `dev` and `prod` dbt targets write to separate Glue databases and S3 prefixes, both reading the same raw data. Each target has its own Athena workgroup with an enforced per-query scan cap; the ops workgroup for health checks has a lower one.
 
@@ -75,7 +76,7 @@ Every workflow gets short-lived credentials through GitHub's OIDC provider. Each
 | `mtd-ci-apply` | `infra.yml` on `main` | deploy `infra/envs/prod` |
 | `mtd-ci-transform` | `transform-daily.yml` on `main` | Athena, Glue and S3 for the prod dbt target; no writes to raw |
 | `mtd-ci-observer` | `ops-daily.yml`, `ops-daytime.yml` on `main` | read-only, queries in the ops workgroup |
-| `mtd-ci-publish` | `publish-weekly.yml` on `main` | read the prod marts, write only Athena query results |
+| `mtd-ci-publish` | `publish-weekly.yml` on `main` | read the prod marts, write only Athena query results (including the open data's `UNLOAD` output) |
 
 A job that names a GitHub environment gets a different subject and is refused, so no workflow can route around the branch rule.
 
@@ -99,7 +100,7 @@ A job that names a GitHub environment gets a different subject and is refused, s
 
 ### Cost guards
 
-Every Athena workgroup enforces a per-query scan cap that clients cannot lift. Lambdas run outside a VPC, so there is no NAT gateway. An AWS Budget on the project's tagged spend (6.50 USD, about £5 a month) alerts at 50%, 80% and 100%.
+Every Athena workgroup enforces a per-query scan cap that clients cannot lift. Lambdas run outside a VPC, so there is no NAT gateway. An AWS Budget on the project's tagged spend (6.50 USD, about £5 a month) alerts at 50%, 80% and 100%. Actual spend is in [cost.md](cost.md).
 
 ## Repository map
 
@@ -107,7 +108,7 @@ Every Athena workgroup enforces a per-query scan cap that clients cannot lift. L
 | --- | --- |
 | `src/mind_the_data/ingest/` | poller and reference Lambdas, TfL client, Pydantic models, raw writer |
 | `src/mind_the_data/analysis/` | Python reference implementation of arrival inference (the SQL's test oracle) |
-| `src/mind_the_data/publish/` | export, JSON contract, share cards, R2 upload |
+| `src/mind_the_data/publish/` | export, JSON contract, share cards, monthly open data, R2 upload |
 | `src/mind_the_data/ops/` | health checks, status report, merge gate |
 | `transform/` | dbt project: seeds, staging, intermediate, marts, tests |
 | `infra/bootstrap/` | state bucket, CI roles, permissions boundary (human-applied) |
