@@ -1,0 +1,17 @@
+weight_set,description,factor,factor_key,weight
+flat_time,Every minute weighs 1: no peak or weekend weighting,time_band,early,1
+flat_time,Every minute weighs 1: no peak or weekend weighting,time_band,am_peak,1
+flat_time,Every minute weighs 1: no peak or weekend weighting,time_band,inter_peak,1
+flat_time,Every minute weighs 1: no peak or weekend weighting,time_band,pm_peak,1
+flat_time,Every minute weighs 1: no peak or weekend weighting,time_band,evening,1
+flat_time,Every minute weighs 1: no peak or weekend weighting,time_band,weekend,1
+linear_severity,"Severity weights by order, 1 to 5, instead of the plan's 1 to 8",severity,0,1
+linear_severity,"Severity weights by order, 1 to 5, instead of the plan's 1 to 8",severity,2,5
+linear_severity,"Severity weights by order, 1 to 5, instead of the plan's 1 to 8",severity,3,4
+linear_severity,"Severity weights by order, 1 to 5, instead of the plan's 1 to 8",severity,6,3
+linear_severity,"Severity weights by order, 1 to 5, instead of the plan's 1 to 8",severity,7,2
+linear_severity,"Severity weights by order, 1 to 5, instead of the plan's 1 to 8",severity,8,4
+linear_severity,"Severity weights by order, 1 to 5, instead of the plan's 1 to 8",severity,9,1
+peak_heavy,"Peaks weigh 3 and weekends 0.5, instead of 2 and 0.75",time_band,am_peak,3
+peak_heavy,"Peaks weigh 3 and weekends 0.5, instead of 2 and 0.75",time_band,pm_peak,3
+peak_heavy,"Peaks weigh 3 and weekends 0.5, instead of 2 and 0.75",time_band,weekend,0.5
