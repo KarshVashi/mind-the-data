@@ -89,8 +89,13 @@ def test_every_output_validates(marts: RecordedMarts) -> None:
     by_id = {line["line_id"]: line for line in league_doc["lines"]}
     for line in league_doc["lines"]:
         assert (line["measured"] is None) == (line["measured_withheld_reason"] is not None)
+        reason = line["measured_withheld_reason"]
         assert line["measured_status"] == (
-            "not_measured" if line["measured"] is None else "measured"
+            "measured"
+            if reason is None
+            else "not_measured"
+            if reason == "line_not_measured"
+            else "withheld"
         )
     for line_id in ("dlr", "tram", "waterloo-city", "suffragette"):
         assert by_id[line_id]["measured_withheld_reason"] == "line_not_measured"
@@ -104,6 +109,17 @@ def test_every_output_validates(marts: RecordedMarts) -> None:
     assert elizabeth["experienced_rank"] is None
     assert by_id["lioness"]["measured_withheld_reason"] == "gate_failed"
     assert by_id["liberty"]["measured_withheld_reason"] == "gate_not_judged"
+    # The contract ties measured to its reason: one or the other, never both or neither.
+    broken = copy.deepcopy(league_doc)
+    published = next(i for i, x in enumerate(broken["lines"]) if x["measured"] is not None)
+    broken["lines"][published]["measured_withheld_reason"] = "gate_failed"
+    with pytest.raises(ValidationError):
+        validate(broken, "league")
+    withheld = next(i for i, x in enumerate(broken["lines"]) if x["measured"] is None)
+    broken = copy.deepcopy(league_doc)
+    broken["lines"][withheld]["measured_withheld_reason"] = None
+    with pytest.raises(ValidationError):
+        validate(broken, "league")
     # M6: the most severity-weighted incident (D48), the bottom line (D48),
     # and no Line of the Week, since W44 holds no data (D47).
     assert league_doc["worst_incident"]["line_id"] == "bakerloo"
@@ -277,6 +293,7 @@ def test_methodology_thresholds_follow_dbt(marts: RecordedMarts) -> None:
         "D22",
         "D36",
         "D42",
+        "D44",
         "D46",
         "D47",
         "D48",

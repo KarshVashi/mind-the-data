@@ -259,8 +259,8 @@ models:
         description: Measured hours judged against the fallback frequencies of seed_line_frequencies (D33).
       - name: is_weak_evidence
         description: >
-          Some measured hours were judged against an estimated timetable
-          (D33: the Elizabeth line and the Overground). Their gate compares
+          At least one measured hour was judged against an estimated
+          timetable (D33; today only the Elizabeth line and the Overground). Their gate compares
           boards with estimates partly checked against the same boards.
         data_tests: [not_null]
       - name: gate_judged_hours
@@ -289,7 +289,11 @@ models:
                   - gate_failed
                   - too_few_measured_hours
       - name: is_measured_published
-        description: measured_withheld_reason is null; the export publishes the measured numbers (D42, settled 2026-11-14).
+        description: >
+          measured_withheld_reason is null; the export publishes the measured
+          numbers (D42, settled 2026-11-14). The measured columns keep their
+          values for withheld line-weeks, for checking; any reader that shows
+          them must filter on this flag.
         data_tests: [not_null]
 
   - name: fct_line_measured_daily

@@ -78,9 +78,22 @@ OPEN_METRIC_DECISIONS: tuple[str, ...] = (
     "D20",
     "D21",
     "D23",
+    # The measured view's definitions, published since D42 was settled.
+    "D25",
+    "D26",
+    "D27",
+    "D28",
+    "D29",
+    "D30",
+    "D31",
+    "D32",
+    "D33",
+    "D34",
     "D35",
     "D37",
     "D38",
+    "D40",
+    "D43",
     "D51",
     "D52",
     "D53",
@@ -92,6 +105,7 @@ SETTLED_METRIC_DECISIONS: tuple[str, ...] = (
     "D22",
     "D36",
     "D42",
+    "D44",
     "D46",
     "D47",
     "D48",
@@ -216,7 +230,9 @@ def rank_measured(standings: Sequence["Standing"]) -> list["Standing"]:
 
     def key(s: Standing) -> tuple[float, float]:
         assert s.measured is not None and s.measured.excess_wait_minutes is not None
-        return (s.measured.excess_wait_minutes, s.measured.long_gaps_per_100_hours or 0.0)
+        # excess_wait_hours > 0 implies measured_hours > 0, so long gaps is never null here.
+        assert s.measured.long_gaps_per_100_hours is not None
+        return (s.measured.excess_wait_minutes, s.measured.long_gaps_per_100_hours)
 
     rankable = sorted(
         (

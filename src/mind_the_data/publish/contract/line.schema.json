@@ -120,7 +120,8 @@
         "measured": {
           "oneOf": [{"type": "null"}, {"$ref": "league.schema.json#/$defs/measured"}]
         }
-      }
+      },
+      "allOf": [{"$ref": "league.schema.json#/$defs/measured_xor_reason"}]
     }
   }
 }

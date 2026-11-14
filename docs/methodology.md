@@ -178,7 +178,7 @@ The plan first compared inferred trains with the timetable. The boards list only
 
 Hours outside the band are excluded from excess wait, long gaps and the Honesty Gap.
 
-**Current result.** On 9 to 13 November 87.1% of judged core-station hours on measured Tube lines were in band, against a target of 80% ([data-quality/2026-11-14-fidelity-gate.md](data-quality/2026-11-14-fidelity-gate.md)); under the old band the same hours scored 65.4%. Failing hours are almost all above 120%: on lines that do not link by vehicle id, a train held short of the platform can count once per poll (D26, D27). The gate test now fails the build when more than 30% of the last seven days' judged core-station hours are out of band (D44), so a broken inference stops the daily transform before anything is published.
+**Current result.** On 9 to 13 November 87.1% of judged core-station hours on measured Tube lines were in band, against a target of 80% ([data-quality/2026-11-14-fidelity-gate.md](data-quality/2026-11-14-fidelity-gate.md)); under the old band the same hours scored 65.4%. Failing hours are almost all above 120%: on lines that do not link by vehicle id, a train held short of the platform can count once per poll (D26, D27). The gate test now fails the build when more than 30% of the last seven days' judged core-station hours are out of band, or when no hour was judged at all (D44). dbt then skips every model downstream of `int_measured_hours`, which includes the weekly league tables, declared view too, so the next export would read the last good build. That is the owner's choice: a broken inference stops the week rather than publishing alongside it.
 
 ### What is published for a line-week
 
@@ -195,11 +195,11 @@ The build-wide gate says the inference works; each line-week must also pass on i
 
 Termini are left out of the line's gate because their boards over-count arrivals (D33); their hours still drop out of the numbers one by one when they fail. A custom window, such as a Wednesday-to-Tuesday post, sums the daily figures over its dates and applies the same rules to the sums, so a line can pass over the window and fail on one day.
 
-The Elizabeth line and the Overground are measured against estimated frequencies, not TfL timetables (D33). Their numbers are published with `is_weak_evidence: true` and are **not ranked** on Experienced Reliability (D53): estimates were set to the lower of two sources, so their scheduled waits are long and their excess wait reads low. A trains-run share above 100% on these lines is the sign of that.
+The Elizabeth line and the Overground are measured against estimated frequencies, not TfL timetables (D33). A line-week with any measured hour on those estimates is published with `is_weak_evidence: true` and is **not ranked** on Experienced Reliability (D53): estimates were set to the lower of two sources, so their scheduled waits are long and their excess wait reads low. A trains-run share above 100% on these lines is the sign of that.
 
 ### Trains run against the timetable
 
-Trains on the boards divided by scheduled trains, over observed station-direction-hours: **0.85** across the measured Tube lines on 9 to 13 November, from 0.72 (District) to 0.92 (Bakerloo). The boards may leave trains out, so this is a lower bound on what ran, not a count of cancellations. On 9 to 13 November the published lines ranged from 0.67 (District) to 0.91 (Bakerloo). On the shared section of the Circle and Hammersmith & City lines the boards file every westbound train under Hammersmith & City, so both lines' figures are withheld until trains there can be assigned by vehicle-id history (ADR-014).
+Trains on the boards divided by scheduled trains, over observed station-direction-hours: **0.85** across the measured Tube lines on 9 to 13 November, from 0.72 (District) to 0.92 (Bakerloo). The boards may leave trains out, so this is a lower bound on what ran, not a count of cancellations. On the shared section of the Circle and Hammersmith & City lines the boards file every westbound train under Hammersmith & City, so both lines' figures are withheld until trains there can be assigned by vehicle-id history (ADR-014).
 
 ### Lines not measured
 

@@ -104,6 +104,15 @@ def measured_document(measured: MeasuredView | None) -> dict[str, Any] | None:
     }
 
 
+def measured_status(standing: Standing) -> str:
+    """`measured`, `withheld` (a measured line whose week did not qualify) or `not_measured` (D43)."""
+    if standing.measured is not None:
+        return "measured"
+    if standing.measured_withheld_reason in (None, "line_not_measured"):
+        return "not_measured"
+    return "withheld"
+
+
 def _standing(standing: Standing) -> dict[str, Any]:
     measured = standing.measured
     return {
@@ -130,7 +139,7 @@ def _standing(standing: Standing) -> dict[str, Any]:
             {"code": r.code, "decisions": list(r.decisions), "detail": r.detail}
             for r in standing.provisional_reasons
         ],
-        "measured_status": "not_measured" if measured is None else "measured",
+        "measured_status": measured_status(standing),
         "measured_withheld_reason": None
         if measured is not None
         else standing.measured_withheld_reason,

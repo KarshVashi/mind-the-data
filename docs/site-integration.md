@@ -196,6 +196,8 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
   | `no_measured_hours`, `gate_not_judged`, `gate_failed`, `too_few_measured_hours` | "Not enough reliable data this week" (D42, D51) |
 
 - **`measured`** gains `trains_run_withheld_reason`, `measured_hours`, `measured_share`, `gate_pass_share`, `good_service_measured_hours` and `is_weak_evidence`. Show weak-evidence lines (the Elizabeth line and the Overground, D33) with a mark and a note "measured against estimated frequencies"; they have no `experienced_rank` (D53). Trains run is a lower bound ("trains shown on TfL's boards"), and can exceed 100% on weak-evidence lines.
+- **`measured_status`** gains `withheld`: a measured line whose week did not qualify. `not_measured` now means only the four lines the measured view leaves out.
+- **The Honesty Gap needs its caveat beside it** wherever it is shown, line pages included: "Long gaps are measured from TfL's arrival boards, which list about 85% of timetabled trains; if the rest ran, some gaps exist only on the boards." (methodology, section 3).
 - **`insight.kind`** adds `trains_run`. The insight is the biggest Honesty Gap, then the lowest trains run, then the lowest Good Service % (D38).
 - **`meta/methodology.json`** gains the gate thresholds (`gate_low_ratio`, `gate_high_ratio`, `gate_max_out_of_band_share`, `min_measured_share`), `measured_view_withheld_lines` and `trains_run_withheld_lines`.
 - **`lines/{line_id}.json`** `measured_status` is `measured` when any week in the history has measured numbers.

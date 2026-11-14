@@ -175,7 +175,7 @@
       ],
       "properties": {
         "excess_wait_minutes": {
-          "description": "Mean over measured hours of the average wait from observed headways minus the scheduled one, minutes. Negative means better than timetable.",
+          "description": "Mean, over measured hours with at least one counted headway, of the average wait from observed headways minus the scheduled one, minutes. Negative means better than timetable.",
           "type": ["number", "null"]
         },
         "long_gaps_per_100_hours": {
@@ -222,7 +222,7 @@
           "minimum": 0
         },
         "is_weak_evidence": {
-          "description": "Measured against estimated frequencies, not a TfL timetable (D33: the Elizabeth line and the Overground). Shown, not ranked (D53).",
+          "description": "At least one measured hour was judged against estimated frequencies, not a TfL timetable (D33; today only the Elizabeth line and the Overground). Shown, not ranked (D53).",
           "type": "boolean"
         }
       }
@@ -295,10 +295,20 @@
           "type": "array",
           "items": {"$ref": "#/$defs/provisional_reason"}
         },
-        "measured_status": {"enum": ["measured", "not_measured"]},
+        "measured_status": {
+          "description": "measured; withheld when a measured line's week did not qualify (see measured_withheld_reason); not_measured for a line the measured view leaves out (D43).",
+          "enum": ["measured", "withheld", "not_measured"]
+        },
         "measured_withheld_reason": {"$ref": "#/$defs/measured_withheld_reason"},
         "measured": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/measured"}]}
-      }
+      },
+      "allOf": [{"$ref": "#/$defs/measured_xor_reason"}]
+    },
+    "measured_xor_reason": {
+      "description": "measured is null exactly when measured_withheld_reason is set.",
+      "if": {"properties": {"measured": {"type": "null"}}},
+      "then": {"properties": {"measured_withheld_reason": {"type": "string"}}},
+      "else": {"properties": {"measured_withheld_reason": {"type": "null"}}}
     },
     "incident": {
       "description": "The incident starting in the window with the most severity-weighted minutes (D18, D48).",

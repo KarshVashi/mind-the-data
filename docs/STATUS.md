@@ -40,7 +40,7 @@ After the M6 and gate bundle merges, in order:
    gh run list --workflow infra.yml --limit 1
    ```
 
-2. **Rebuild prod through CI.** The new models (`int_vehicle_passes`, `fct_line_measured_daily`, the `rpt_` models) and the changed marts build in full; staging is unchanged, so no full refresh is needed. The export reads the new columns, so it fails until this has run. The gate test now runs at `error`: if prod's gate fails, the build stops, and `dbt build` output names the shortfall.
+2. **Rebuild prod through CI.** The new models (`int_vehicle_passes`, `fct_line_measured_daily`, the `rpt_` models) and the changed marts build in full; staging is unchanged, so no full refresh is needed. The export reads the new columns, so it fails until this has run. The gate test now runs at `error`: if prod's gate fails, dbt skips every model downstream of `int_measured_hours`, the declared weekly tables included, and `dbt build` output names the shortfall.
 
    ```sh
    gh workflow run transform-daily.yml --ref main
