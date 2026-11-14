@@ -97,6 +97,13 @@
   .bar span { display: block; height: 100%; }
   .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .di { font-weight: 700; }
+  .note {
+    grid-column: span 3;
+    font-size: ${small_size}px;
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+  }
   .unranked { color: var(--muted); }
   footer {
     padding: ${pad_y_small}px ${pad_x}px ${pad_y}px;

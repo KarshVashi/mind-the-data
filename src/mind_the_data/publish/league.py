@@ -3,10 +3,16 @@
 An ISO week is read straight from fct_line_weekly, so the published weekly
 table carries dbt's own ranks. A custom window (the first post runs
 Wednesday to Tuesday) is summed here from fct_line_daily with the same rules:
-ratios recomputed from summed minutes, rank by Disruption Index ascending,
-ties to the higher Good Service %, still-equal lines sharing a rank (D20),
-lines without scored minutes unranked. A test checks the two paths agree on
-a full recorded week.
+ratios recomputed from summed minutes, the Disruption Index as the
+time-weighted mean severity x 100 (D19), rank by it ascending, ties to the
+higher Good Service %, still-equal lines sharing a rank (D20), lines without
+scored minutes or that ran under half their scheduled minutes because of
+engineering works unranked (D22). A test checks the two paths agree on a
+full recorded week.
+
+The week's highlights (M6) are worked out here for both paths, mirroring
+rpt_weekly_highlights: the Wooden Spoon, Line of the Week and the single
+worst incident.
 
 Nothing here changes a metric. Flags only mark numbers that rest on a
 decision the owner has not made yet.
@@ -21,6 +27,7 @@ from mind_the_data.publish.marts import (
     DailyRow,
     IncidentRow,
     LineInfo,
+    MondayMorningRow,
     WeeklyRow,
     rows_by_line,
 )
@@ -30,26 +37,38 @@ from mind_the_data.publish.marts import (
 PROVISIONAL_COMPLETENESS = 0.9
 
 # A line whose scheduled minutes are this much engineering works is scored on
-# what is left, and under D22 a delay on top of a part closure stays in while
-# the Good Service around it drops out. Such a line's index and rank depend on
-# how D22 is answered, so it is marked provisional. Display only: the rank is
-# not changed. The threshold itself is pending as D35.
+# what is left, and a delay on top of a part closure stays in while the Good
+# Service around it drops out, so its index leans on few hours. It is marked
+# provisional; the rank is not changed. The threshold is pending as D35.
 CLOSURE_SHARE_PROVISIONAL = 0.25
+
+# D22 (decided 2026-11-14): a line is ranked only if it ran at least this
+# share of its scheduled minutes, engineering works taking the rest.
+# Mirrors the dbt var `min_open_share_to_rank`; a test compares them.
+MIN_OPEN_SHARE_TO_RANK = 0.5
+
+UNRANKED_NO_SCORED_MINUTES = "no_scored_minutes"
+UNRANKED_ENGINEERING_WORKS = "engineering_works"
 
 # Open owner decisions that change published numbers or flags (docs/DECISIONS.md).
 OPEN_METRIC_DECISIONS: tuple[str, ...] = (
     "D16",
     "D17",
     "D18",
-    "D19",
     "D20",
     "D21",
-    "D22",
     "D23",
     "D35",
     "D37",
     "D38",
+    "D47",
+    "D48",
+    "D49",
+    "D50",
 )
+
+# Owner decisions settled since publishing began, listed in meta/methodology.json.
+SETTLED_METRIC_DECISIONS: tuple[str, ...] = ("D19", "D22", "D36")
 
 
 @dataclass(frozen=True)
@@ -88,13 +107,15 @@ class ProvisionalReason:
 
 @dataclass(frozen=True)
 class MeasuredView:
-    """Experienced Reliability (PLAN 7.3). Filled once the M4 acceptance passes (D44)."""
+    """Experienced Reliability (PLAN 7.3). Filled once the owner publishes the measured view (D42)."""
 
     excess_wait_minutes: float | None
     long_gaps_per_100_hours: float | None
     honesty_gap_hours: float | None
     honesty_gap_share: float | None
     experienced_rank: int | None
+    # Trains on the boards over scheduled trains (ADR-014); the boards may omit trains.
+    trains_run_share: float | None = None
 
 
 @dataclass(frozen=True)
@@ -106,6 +127,7 @@ class Standing:
     scored_minutes: int
     good_service_minutes: int
     weighted_disruption_minutes: float
+    time_weighted_scored_minutes: float
     incidents: int
     median_recovery_minutes: float | None
     rank: int | None = None
@@ -121,10 +143,10 @@ class Standing:
 
     @property
     def disruption_index(self) -> float | None:
-        # Weighted disruption minutes per 100 scored service hours (D19).
-        if self.scored_minutes == 0:
+        # 100 x the time-weighted mean severity, 0 to 800 (D19).
+        if self.time_weighted_scored_minutes <= 0:
             return None
-        return 6000 * self.weighted_disruption_minutes / self.scored_minutes
+        return 100 * self.weighted_disruption_minutes / self.time_weighted_scored_minutes
 
     @property
     def good_service_pct(self) -> float | None:
@@ -145,6 +167,21 @@ class Standing:
         return self.engineering_works_minutes / self.scheduled_minutes
 
     @property
+    def engineering_works_hours(self) -> float:
+        return self.engineering_works_minutes / 60
+
+    @property
+    def unranked_reason(self) -> str | None:
+        """Why the line gets no rank (D20, D22); None when it can be ranked."""
+        # Works first: a line closed all week has no scored minutes either.
+        share = self.closure_share
+        if share is not None and share > 1 - MIN_OPEN_SHARE_TO_RANK:
+            return UNRANKED_ENGINEERING_WORKS
+        if self.disruption_index is None:
+            return UNRANKED_NO_SCORED_MINUTES
+        return None
+
+    @property
     def is_provisional(self) -> bool:
         return bool(self.provisional_reasons)
 
@@ -156,6 +193,38 @@ class WorstIncident:
 
 
 @dataclass(frozen=True)
+class WoodenSpoon:
+    """The bottom-ranked line (D48)."""
+
+    standing: Standing
+    shared_by: int
+
+
+@dataclass(frozen=True)
+class LineOfTheWeek:
+    """The most improved line since the previous week (D47), or why there is none."""
+
+    line: LineInfo | None
+    disruption_index: float | None = None
+    previous_disruption_index: float | None = None
+    null_reason: str | None = None
+
+    @property
+    def improvement(self) -> float | None:
+        if self.disruption_index is None or self.previous_disruption_index is None:
+            return None
+        return self.previous_disruption_index - self.disruption_index
+
+
+@dataclass(frozen=True)
+class MondayMorning:
+    """A line's Monday Morning Index for one Monday (D49)."""
+
+    line: LineInfo
+    row: MondayMorningRow
+
+
+@dataclass(frozen=True)
 class League:
     window: Window
     standings: tuple[Standing, ...]
@@ -164,6 +233,14 @@ class League:
     is_complete: bool = False
     latest_data_london: datetime | None = None
     open_decisions: tuple[str, ...] = field(default=OPEN_METRIC_DECISIONS)
+    line_of_the_week: LineOfTheWeek = field(
+        default_factory=lambda: LineOfTheWeek(None, null_reason="custom_window")
+    )
+    monday_morning: tuple[MondayMorning, ...] = ()
+
+    @property
+    def wooden_spoon(self) -> WoodenSpoon | None:
+        return wooden_spoon(self.standings)
 
     @property
     def completeness(self) -> float | None:
@@ -199,7 +276,7 @@ def provisional_reasons(
         reasons.append(
             ProvisionalReason(
                 "mostly_engineering_works",
-                ("D22", "D35"),
+                ("D35",),
                 f"{share:.0%} of scheduled minutes under closures; scored on the rest",
             )
         )
@@ -207,19 +284,20 @@ def provisional_reasons(
 
 
 def rank_standings(standings: Sequence[Standing]) -> list[Standing]:
-    """Assign ranks (D20) and return the standings in league order.
+    """Assign ranks (D20, D22) and return the standings in league order.
 
     Equivalent to SQL `rank() over (order by disruption_index asc,
-    good_service_pct desc)` over the lines with an index.
+    good_service_pct desc)` over the lines that can be ranked. Unranked lines
+    follow by name.
     """
 
     def key(s: Standing) -> tuple[float, float]:
         assert s.disruption_index is not None and s.good_service_pct is not None
         return (s.disruption_index, -s.good_service_pct)
 
-    ranked = sorted((s for s in standings if s.disruption_index is not None), key=key)
+    ranked = sorted((s for s in standings if s.unranked_reason is None), key=key)
     unranked = sorted(
-        (s for s in standings if s.disruption_index is None), key=lambda s: s.line.line_name
+        (s for s in standings if s.unranked_reason is not None), key=lambda s: s.line.line_name
     )
     out: list[Standing] = []
     previous_key: tuple[float, float] | None = None
@@ -242,16 +320,124 @@ def _median_recovery(incidents: Sequence[IncidentRow]) -> float | None:
 def worst_incident(
     lines: Sequence[LineInfo], incidents: Sequence[IncidentRow]
 ) -> WorstIncident | None:
-    """The longest incident in the window; ties go to the higher peak weight, then the earlier."""
+    """The incident with the most severity-weighted minutes (D48).
+
+    Ties go to the longer, then the earlier, then the line id, as in
+    rpt_weekly_highlights.
+    """
     by_id = {line.line_id: line for line in lines}
     candidates = [i for i in incidents if i.line_id in by_id]
     if not candidates:
         return None
     worst = min(
         candidates,
-        key=lambda i: (-i.duration_minutes, -i.peak_severity_weight, i.started_at_utc),
+        key=lambda i: (
+            -i.severity_weighted_minutes,
+            -i.duration_minutes,
+            i.started_at_utc,
+            i.line_id,
+        ),
     )
     return WorstIncident(line=by_id[worst.line_id], incident=worst)
+
+
+def wooden_spoon(standings: Sequence[Standing]) -> WoodenSpoon | None:
+    """The bottom-ranked line (D48); lines sharing the bottom rank are split by line id."""
+    ranked = [s for s in standings if s.rank is not None]
+    if not ranked:
+        return None
+    bottom = max(s.rank for s in ranked if s.rank is not None)
+    tied = sorted((s for s in ranked if s.rank == bottom), key=lambda s: s.line.line_id)
+    return WoodenSpoon(standing=tied[0], shared_by=len(tied))
+
+
+def week_is_complete(rows: Sequence[WeeklyRow]) -> bool:
+    """A week has ended and enough of it was observed to compare with (D47)."""
+    scheduled = sum(r.scheduled_minutes for r in rows)
+    observed = sum(r.observed_minutes for r in rows)
+    return (
+        bool(rows)
+        and all(r.is_week_complete for r in rows)
+        and scheduled > 0
+        and observed / scheduled >= PROVISIONAL_COMPLETENESS
+    )
+
+
+def line_of_the_week(
+    week_start: date, lines: Sequence[LineInfo], weekly: Sequence[WeeklyRow]
+) -> LineOfTheWeek:
+    """The largest fall in Disruption Index since the previous week (D47).
+
+    Only lines ranked and not provisional in both weeks qualify; ties go to
+    the lower index this week, then the line id. Mirrors
+    rpt_weekly_highlights.
+    """
+    previous_start = week_start - timedelta(days=7)
+    this_week = {w.line_id: w for w in weekly if w.week_start == week_start}
+    previous = [w for w in weekly if w.week_start == previous_start]
+    if not previous or sum(w.observed_minutes for w in previous) == 0:
+        return LineOfTheWeek(None, null_reason="no_previous_week")
+    if not week_is_complete(previous):
+        return LineOfTheWeek(None, null_reason="previous_week_incomplete")
+    by_id = {line.line_id: line for line in lines}
+    candidates = []
+    for before in previous:
+        now = this_week.get(before.line_id)
+        if (
+            now is None
+            or before.line_id not in by_id
+            or now.disruption_rank is None
+            or before.disruption_rank is None
+            or now.is_provisional
+            or before.is_provisional
+            or now.disruption_index is None
+            or before.disruption_index is None
+            or before.disruption_index <= now.disruption_index
+        ):
+            continue
+        candidates.append((now, before))
+    if not candidates:
+        return LineOfTheWeek(None, null_reason="no_line_improved")
+    now, before = min(
+        candidates,
+        key=lambda pair: (
+            -((pair[1].disruption_index or 0.0) - (pair[0].disruption_index or 0.0)),
+            pair[0].disruption_index or 0.0,
+            pair[0].line_id,
+        ),
+    )
+    return LineOfTheWeek(
+        line=by_id[now.line_id],
+        disruption_index=now.disruption_index,
+        previous_disruption_index=before.disruption_index,
+    )
+
+
+def monday_mornings(
+    window: Window, lines: Sequence[LineInfo], rows: Sequence[MondayMorningRow]
+) -> tuple[MondayMorning, ...]:
+    """The Monday Morning Index rows for the Mondays in the window, in rank order.
+
+    A Monday with nothing observed on any line (before the collector began)
+    is left out rather than published as a column of blanks.
+    """
+    by_id = {line.line_id: line for line in lines}
+    in_window = [
+        r for r in rows if window.start <= r.week_start <= window.end and r.line_id in by_id
+    ]
+    observed = {r.week_start for r in in_window if r.completeness > 0}
+    picked = [
+        MondayMorning(line=by_id[r.line_id], row=r) for r in in_window if r.week_start in observed
+    ]
+    picked.sort(
+        key=lambda m: (
+            m.row.week_start,
+            m.row.monday_morning_rank is None,
+            m.row.monday_morning_rank or 0,
+            m.line.line_name,
+        )
+    )
+    return tuple(picked)
 
 
 def data_reaches_past(window: Window, latest_minute_london: datetime | None) -> bool:
@@ -265,11 +451,12 @@ def league_from_daily(
     daily: Sequence[DailyRow],
     incidents: Sequence[IncidentRow],
     latest_minute_london: datetime | None = None,
+    monday_morning: Sequence[MondayMorningRow] = (),
 ) -> League:
-    """Sum fct_line_daily over a custom window and rank it (D20).
+    """Sum fct_line_daily over a custom window and rank it (D20, D22).
 
-    Rank movement is left empty: there is no earlier window of the same shape
-    to compare with.
+    Rank movement and Line of the Week are left empty: there is no earlier
+    window of the same shape to compare with.
     """
     in_window = [d for d in daily if window.start <= d.london_date <= window.end]
     window_incidents = [i for i in incidents if window.start <= i.start_london_date <= window.end]
@@ -286,6 +473,7 @@ def league_from_daily(
             scored_minutes=sum(r.scored_minutes for r in rows),
             good_service_minutes=sum(r.good_service_minutes for r in rows),
             weighted_disruption_minutes=sum(r.weighted_disruption_minutes for r in rows),
+            time_weighted_scored_minutes=sum(r.time_weighted_scored_minutes for r in rows),
             incidents=sum(r.incidents for r in rows),
             median_recovery_minutes=_median_recovery(incidents_by_line.get(line.line_id, [])),
         )
@@ -296,6 +484,8 @@ def league_from_daily(
         worst_incident=worst_incident(lines, window_incidents),
         is_complete=data_reaches_past(window, latest_minute_london),
         latest_data_london=latest_minute_london,
+        line_of_the_week=LineOfTheWeek(None, null_reason="custom_window"),
+        monday_morning=monday_mornings(window, lines, monday_morning),
     )
 
 
@@ -305,6 +495,7 @@ def league_from_weekly(
     weekly: Sequence[WeeklyRow],
     incidents: Sequence[IncidentRow],
     latest_minute_london: datetime | None = None,
+    monday_morning: Sequence[MondayMorningRow] = (),
 ) -> League:
     """The ISO week as fct_line_weekly ranked and flagged it."""
     window = Window(start=week_start, end=week_start + timedelta(days=6))
@@ -313,7 +504,7 @@ def league_from_weekly(
     for line in lines:
         row = rows.get(line.line_id)
         if row is None:
-            standing = Standing(line, 0, 0, 0, 0, 0, 0.0, 0, None)
+            standing = Standing(line, 0, 0, 0, 0, 0, 0.0, 0.0, 0, None)
         else:
             standing = Standing(
                 line=line,
@@ -323,6 +514,7 @@ def league_from_weekly(
                 scored_minutes=row.scored_minutes,
                 good_service_minutes=row.good_service_minutes,
                 weighted_disruption_minutes=row.weighted_disruption_minutes,
+                time_weighted_scored_minutes=row.time_weighted_scored_minutes,
                 incidents=row.incidents,
                 median_recovery_minutes=row.median_recovery_minutes,
                 rank=row.disruption_rank,
@@ -343,4 +535,6 @@ def league_from_weekly(
         worst_incident=worst_incident(lines, week_incidents),
         is_complete=week_over and data_reaches_past(window, latest_minute_london),
         latest_data_london=latest_minute_london,
+        line_of_the_week=line_of_the_week(week_start, lines, weekly),
+        monday_morning=monday_mornings(window, lines, monday_morning),
     )

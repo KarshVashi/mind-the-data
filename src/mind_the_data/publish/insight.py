@@ -1,10 +1,9 @@
 """The one-sentence insight on a share card.
 
 The plan fills it from the week's biggest Honesty Gap (PLAN 7.3). Until the
-M4 acceptance passes and the measured view is published (D44), or when no
-line has a gap, it falls back to a
-declared-view fact: the lowest Good Service % among lines whose numbers are
-not provisional (D38). Good Service % is over scored minutes, which leave out
+measured view is published (D42, D44), or when no line has a gap, it falls
+back to a declared-view fact: the lowest Good Service % among ranked lines
+whose numbers are not provisional (D38, D22). Good Service % is over scored minutes, which leave out
 closures, Service Closed and missing minutes, hence "scored service time".
 """
 
@@ -40,7 +39,9 @@ def pick_insight(league: League) -> Insight | None:
         )
 
     declared = [
-        s for s in league.standings if s.good_service_pct is not None and not s.is_provisional
+        s
+        for s in league.standings
+        if s.good_service_pct is not None and not s.is_provisional and s.rank is not None
     ]
     if not declared:
         return None

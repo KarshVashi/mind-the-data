@@ -17,8 +17,11 @@ import yaml
 from mind_the_data.publish.insight import Insight
 from mind_the_data.publish.league import (
     CLOSURE_SHARE_PROVISIONAL,
+    MIN_OPEN_SHARE_TO_RANK,
     OPEN_METRIC_DECISIONS,
+    SETTLED_METRIC_DECISIONS,
     League,
+    MondayMorning,
     Standing,
     Window,
 )
@@ -88,6 +91,7 @@ def _standing(standing: Standing) -> dict[str, Any]:
         "colour": standing.line.colour,
         "is_low_volume": standing.line.is_low_volume,
         "rank": standing.rank,
+        "unranked_reason": standing.unranked_reason,
         "rank_movement": standing.rank_movement,
         "disruption_index": _round(standing.disruption_index, 1),
         "good_service_pct": _round(standing.good_service_pct, 2),
@@ -98,6 +102,7 @@ def _standing(standing: Standing) -> dict[str, Any]:
         "scheduled_minutes": standing.scheduled_minutes,
         "scored_minutes": standing.scored_minutes,
         "engineering_works_minutes": standing.engineering_works_minutes,
+        "engineering_works_hours": _round(standing.engineering_works_hours, 1),
         "is_provisional": standing.is_provisional,
         "provisional_reasons": [
             {"code": r.code, "decisions": list(r.decisions), "detail": r.detail}
@@ -112,8 +117,70 @@ def _standing(standing: Standing) -> dict[str, Any]:
             "honesty_gap_hours": _round(measured.honesty_gap_hours, 1),
             "honesty_gap_share": _round(measured.honesty_gap_share, 4),
             "experienced_rank": measured.experienced_rank,
+            "trains_run_share": _round(measured.trains_run_share, 4),
         },
     }
+
+
+def _monday(entry: MondayMorning) -> dict[str, Any]:
+    row = entry.row
+    return {
+        "line_id": entry.line.line_id,
+        "line_name": entry.line.line_name,
+        "monday": row.week_start.isoformat(),
+        "rank": row.monday_morning_rank,
+        "unranked_reason": row.unranked_reason,
+        "monday_morning_index": _round(row.monday_morning_index, 1),
+        "good_service_pct": _round(row.good_service_pct, 2),
+        "completeness": _round(row.completeness, 4),
+        "is_provisional": row.is_provisional,
+    }
+
+
+def highlights_document(league: League) -> dict[str, Any]:
+    """The week's Wooden Spoon and Line of the Week (M6); the worst incident sits beside them."""
+    spoon = league.wooden_spoon
+    best = league.line_of_the_week
+    return {
+        "wooden_spoon": None
+        if spoon is None
+        else {
+            "line_id": spoon.standing.line.line_id,
+            "line_name": spoon.standing.line.line_name,
+            "rank": spoon.standing.rank,
+            "disruption_index": _round(spoon.standing.disruption_index, 1),
+            "is_provisional": spoon.standing.is_provisional,
+            "shared_by": spoon.shared_by,
+        },
+        "line_of_the_week": None
+        if best.line is None
+        else {
+            "line_id": best.line.line_id,
+            "line_name": best.line.line_name,
+            "disruption_index": _round(best.disruption_index, 1),
+            "previous_disruption_index": _round(best.previous_disruption_index, 1),
+            "improvement": _round(best.improvement, 1),
+        },
+        "line_of_the_week_null_reason": best.null_reason,
+    }
+
+
+def engineering_works_document(league: League) -> list[dict[str, Any]]:
+    """Lines with hours closed for works in the window, most first (PLAN 7.4)."""
+    closed = sorted(
+        (s for s in league.standings if s.engineering_works_minutes > 0),
+        key=lambda s: (-s.engineering_works_minutes, s.line.line_name),
+    )
+    return [
+        {
+            "line_id": s.line.line_id,
+            "line_name": s.line.line_name,
+            "engineering_works_hours": _round(s.engineering_works_hours, 1),
+            "engineering_works_share": _round(s.closure_share, 4),
+            "is_unranked_for_works": s.unranked_reason == "engineering_works",
+        }
+        for s in closed
+    ]
 
 
 def league_document(league: League, insight: Insight | None, stamp: Stamp) -> dict[str, Any]:
@@ -130,6 +197,9 @@ def league_document(league: League, insight: Insight | None, stamp: Stamp) -> di
         },
         "open_decisions": list(league.open_decisions),
         "lines": [_standing(s) for s in league.standings],
+        "highlights": highlights_document(league),
+        "monday_morning": [_monday(m) for m in league.monday_morning],
+        "engineering_works": engineering_works_document(league),
         "worst_incident": None
         if worst is None
         else {
@@ -139,6 +209,7 @@ def league_document(league: League, insight: Insight | None, stamp: Stamp) -> di
             "started_at_london": _local(worst.incident.started_at_london),
             "start_london_date": worst.incident.start_london_date.isoformat(),
             "duration_minutes": worst.incident.duration_minutes,
+            "severity_weighted_minutes": _round(worst.incident.severity_weighted_minutes, 1),
             "is_open": worst.incident.is_open,
             "worst_status": worst.incident.worst_status_description,
             "first_reason": worst.incident.first_reason,
@@ -155,10 +226,12 @@ def _week(row: WeeklyRow) -> dict[str, Any]:
         "week_start": row.week_start.isoformat(),
         "week_end": (row.week_start + timedelta(days=6)).isoformat(),
         "rank": row.disruption_rank,
+        "unranked_reason": row.unranked_reason,
         "rank_movement": row.rank_movement,
         "disruption_index": _round(row.disruption_index, 1),
         "good_service_pct": _round(row.good_service_pct, 2),
         "incidents": row.incidents,
+        "engineering_works_hours": round(row.engineering_works_minutes / 60, 1),
         "completeness": _round(row.completeness, 4),
         "is_week_complete": row.is_week_complete,
         "is_provisional": row.is_provisional,
@@ -258,13 +331,23 @@ def methodology_document(transform_dir: Path, league: League, stamp: Stamp) -> d
             for r in csv.DictReader(f)
         ]
     variables = dbt_vars(transform_dir)
+    max_weight = max(max(w["weight_unplanned"], w["weight_planned"]) for w in severity)
     return {
         **envelope(stamp, league.window, league.completeness),
         "severity_weights": severity,
         "time_bands": bands,
+        "disruption_index": {
+            "definition": (
+                "100 x the sum of severity weight x time weight over scored minutes, "
+                "divided by the sum of time weight over the same minutes (D19)"
+            ),
+            "min": 0.0,
+            "max": 100 * max_weight,
+        },
         "thresholds": {
             "provisional_completeness": float(variables["provisional_completeness"]),
             "closure_share_provisional": CLOSURE_SHARE_PROVISIONAL,
+            "min_open_share_to_rank": MIN_OPEN_SHARE_TO_RANK,
             "incident_merge_gap_minutes": int(variables["incident_merge_gap_minutes"]),
         },
         "views": {
@@ -272,6 +355,7 @@ def methodology_document(transform_dir: Path, league: League, stamp: Stamp) -> d
             "measured": "published" if measured_published(league) else "not_measured",
         },
         "open_decisions": list(OPEN_METRIC_DECISIONS),
+        "settled_decisions": list(SETTLED_METRIC_DECISIONS),
     }
 
 

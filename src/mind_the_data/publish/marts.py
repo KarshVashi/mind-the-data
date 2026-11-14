@@ -45,6 +45,8 @@ class DailyRow:
     good_service_minutes: int
     disrupted_minutes: int
     weighted_disruption_minutes: float
+    # Scored minutes at their time weight: the Disruption Index's denominator (D19).
+    time_weighted_scored_minutes: float
     incidents: int
 
 
@@ -60,6 +62,7 @@ class WeeklyRow:
     scored_minutes: int
     good_service_minutes: int
     weighted_disruption_minutes: float
+    time_weighted_scored_minutes: float
     incidents: int
     median_recovery_minutes: float | None
     completeness: float
@@ -68,6 +71,8 @@ class WeeklyRow:
     incidents_per_100_hours: float | None
     is_week_complete: bool
     is_provisional: bool
+    # "no_scored_minutes" or "engineering_works" (D22); None when ranked.
+    unranked_reason: str | None
     disruption_rank: int | None
     rank_movement: int | None
 
@@ -83,6 +88,8 @@ class IncidentRow:
     is_open: bool
     recovery_minutes: int | None
     peak_severity_weight: float
+    # Each incident minute at its severity weight; orders the worst incident (D48).
+    severity_weighted_minutes: float
     worst_status_description: str
     first_reason: str | None
 
@@ -97,6 +104,23 @@ class BadHourRow:
     disrupted_minutes: int
 
 
+@dataclass(frozen=True)
+class MondayMorningRow:
+    """One row of rpt_monday_morning: a line's Monday AM peak (D49)."""
+
+    line_id: str
+    week_start: date
+    scheduled_minutes: int
+    scored_minutes: int
+    completeness: float
+    engineering_works_share: float
+    monday_morning_index: float | None
+    good_service_pct: float | None
+    is_provisional: bool
+    unranked_reason: str | None
+    monday_morning_rank: int | None
+
+
 class Marts(Protocol):
     def latest_minute_london(self) -> datetime | None: ...
     def lines(self) -> list[LineInfo]: ...
@@ -104,6 +128,7 @@ class Marts(Protocol):
     def weekly(self) -> list[WeeklyRow]: ...
     def incidents(self, start: date, end: date) -> list[IncidentRow]: ...
     def bad_hours(self, start: date, end: date) -> list[BadHourRow]: ...
+    def monday_morning(self, start: date, end: date) -> list[MondayMorningRow]: ...
 
 
 # ---- Parsing ---------------------------------------------------------------
@@ -182,6 +207,7 @@ def parse_daily(cells: Cells) -> DailyRow:
         good_service_minutes=_int(cells, "good_service_minutes"),
         disrupted_minutes=_int(cells, "disrupted_minutes"),
         weighted_disruption_minutes=_float(cells, "weighted_disruption_minutes"),
+        time_weighted_scored_minutes=_float(cells, "time_weighted_scored_minutes"),
         incidents=_int(cells, "incidents"),
     )
 
@@ -196,6 +222,7 @@ def parse_weekly(cells: Cells) -> WeeklyRow:
         scored_minutes=_int(cells, "scored_minutes"),
         good_service_minutes=_int(cells, "good_service_minutes"),
         weighted_disruption_minutes=_float(cells, "weighted_disruption_minutes"),
+        time_weighted_scored_minutes=_float(cells, "time_weighted_scored_minutes"),
         incidents=_int(cells, "incidents"),
         median_recovery_minutes=_opt_float(cells, "median_recovery_minutes"),
         completeness=_float(cells, "completeness"),
@@ -204,6 +231,7 @@ def parse_weekly(cells: Cells) -> WeeklyRow:
         incidents_per_100_hours=_opt_float(cells, "incidents_per_100_hours"),
         is_week_complete=_bool(cells, "is_week_complete"),
         is_provisional=_bool(cells, "is_provisional"),
+        unranked_reason=_opt(cells, "unranked_reason"),
         disruption_rank=_opt_int(cells, "disruption_rank"),
         rank_movement=_opt_int(cells, "rank_movement"),
     )
@@ -219,6 +247,7 @@ def parse_incident(cells: Cells) -> IncidentRow:
         is_open=_bool(cells, "is_open"),
         recovery_minutes=_opt_int(cells, "recovery_minutes"),
         peak_severity_weight=_float(cells, "peak_severity_weight"),
+        severity_weighted_minutes=_float(cells, "severity_weighted_minutes"),
         worst_status_description=_req(cells, "worst_status_description"),
         first_reason=_opt(cells, "first_reason"),
     )
@@ -233,24 +262,48 @@ def parse_bad_hour(cells: Cells) -> BadHourRow:
     )
 
 
+def parse_monday_morning(cells: Cells) -> MondayMorningRow:
+    return MondayMorningRow(
+        line_id=_req(cells, "line_id"),
+        week_start=_date(cells, "week_start"),
+        scheduled_minutes=_int(cells, "scheduled_minutes"),
+        scored_minutes=_int(cells, "scored_minutes"),
+        completeness=_float(cells, "completeness"),
+        engineering_works_share=_float(cells, "engineering_works_share"),
+        monday_morning_index=_opt_float(cells, "monday_morning_index"),
+        good_service_pct=_opt_float(cells, "good_service_pct"),
+        is_provisional=_bool(cells, "is_provisional"),
+        unranked_reason=_opt(cells, "unranked_reason"),
+        monday_morning_rank=_opt_int(cells, "monday_morning_rank"),
+    )
+
+
 # ---- Queries ---------------------------------------------------------------
 
 DAILY_COLUMNS = (
     "line_id, london_date, scheduled_minutes, observed_minutes, missing_minutes, "
     "engineering_works_minutes, service_closed_minutes, scored_minutes, "
-    "good_service_minutes, disrupted_minutes, weighted_disruption_minutes, incidents"
+    "good_service_minutes, disrupted_minutes, weighted_disruption_minutes, "
+    "time_weighted_scored_minutes, incidents"
 )
 WEEKLY_COLUMNS = (
     "line_id, week_start, scheduled_minutes, observed_minutes, engineering_works_minutes, "
-    "scored_minutes, good_service_minutes, weighted_disruption_minutes, incidents, "
-    "median_recovery_minutes, completeness, disruption_index, good_service_pct, "
-    "incidents_per_100_hours, is_week_complete, is_provisional, disruption_rank, rank_movement"
+    "scored_minutes, good_service_minutes, weighted_disruption_minutes, "
+    "time_weighted_scored_minutes, incidents, median_recovery_minutes, completeness, "
+    "disruption_index, good_service_pct, incidents_per_100_hours, is_week_complete, "
+    "is_provisional, unranked_reason, disruption_rank, rank_movement"
 )
 INCIDENT_COLUMNS = (
     "incidents.line_id, incidents.started_at, minutes.london_ts as started_at_london, "
     "incidents.start_london_date, incidents.duration_minutes, incidents.is_open, "
     "incidents.recovery_minutes, incidents.peak_severity_weight, "
-    "incidents.worst_status_description, incidents.first_reason"
+    "incidents.severity_weighted_minutes, incidents.worst_status_description, "
+    "incidents.first_reason"
+)
+MONDAY_MORNING_COLUMNS = (
+    "line_id, week_start, scheduled_minutes, scored_minutes, completeness, "
+    "engineering_works_share, monday_morning_index, good_service_pct, is_provisional, "
+    "unranked_reason, monday_morning_rank"
 )
 
 
@@ -292,6 +345,11 @@ def queries(database: str, start: date, end: date) -> dict[str, str]:
             f"from {database}.int_line_minute_status "
             f"where is_scheduled and london_date between {window} "
             "group by 1, 2 order by 1, 2"
+        ),
+        # week_start is the Monday itself, so the window picks the Mondays in it.
+        "monday_morning": (
+            f"select {MONDAY_MORNING_COLUMNS} from {database}.rpt_monday_morning "
+            f"where week_start between {window} order by week_start, line_id"
         ),
     }
 
@@ -347,6 +405,13 @@ class RecordedMarts:
         # Recorded already aggregated over the recording's window.
         path = self.directory / "bad_hours.json"
         return [parse_bad_hour(c) for c in self._cells("bad_hours")] if path.exists() else []
+
+    def monday_morning(self, start: date, end: date) -> list[MondayMorningRow]:
+        path = self.directory / "monday_morning.json"
+        if not path.exists():
+            return []
+        rows = [parse_monday_morning(c) for c in self._cells("monday_morning")]
+        return [r for r in rows if start <= r.week_start <= end]
 
 
 class AthenaMarts:
@@ -409,8 +474,11 @@ class AthenaMarts:
     def bad_hours(self, start: date, end: date) -> list[BadHourRow]:
         return [parse_bad_hour(c) for c in self._run("bad_hours", start, end)]
 
+    def monday_morning(self, start: date, end: date) -> list[MondayMorningRow]:
+        return [parse_monday_morning(c) for c in self._run("monday_morning", start, end)]
 
-def rows_by_line[T: (DailyRow, IncidentRow, WeeklyRow, BadHourRow)](
+
+def rows_by_line[T: (DailyRow, IncidentRow, WeeklyRow, BadHourRow, MondayMorningRow)](
     rows: Sequence[T],
 ) -> dict[str, list[T]]:
     grouped: dict[str, list[T]] = {}

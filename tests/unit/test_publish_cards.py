@@ -21,9 +21,11 @@ from mind_the_data.publish.marts import (
 )
 from mind_the_data.publish.share_card import (
     LANDSCAPE,
+    NOT_RANKED_WORKS,
     PORTRAIT,
     PROVISIONAL_MARK,
     SUBTITLE,
+    TITLE,
     CardOverflow,
     card_html,
     footer_lines,
@@ -45,7 +47,14 @@ def league() -> League:
         marts.daily(WINDOW.start, WINDOW.end),
         marts.incidents(WINDOW.start, WINDOW.end),
         marts.latest_minute_london(),
+        marts.monday_morning(WINDOW.start, WINDOW.end),
     )
+
+
+@pytest.fixture
+def partial(league: League) -> League:
+    """The same window as if the data stopped on Sunday 8 November at 18:21."""
+    return replace(league, is_complete=False, latest_data_london=datetime(2026, 11, 8, 18, 21))
 
 
 # ---- Insight ------------------------------------------------------------------
@@ -54,11 +63,11 @@ def league() -> League:
 def test_declared_insight_skips_provisional_lines(league: League) -> None:
     insight = pick_insight(league)
     assert insight is not None
-    # Suffragette (0% Good Service, mostly closed) is provisional, so District leads.
+    # Suffragette (0% Good Service, 95% closed) is not ranked (D22), so District leads.
     assert insight.line_id == "district"
     assert (
         insight.text
-        == "The District line showed Good Service for only 34% of its scored service time."
+        == "The District line showed Good Service for only 33% of its scored service time."
     )
 
 
@@ -120,9 +129,11 @@ def test_card_html_has_every_line_and_marks_provisional(league: League) -> None:
     html = card_html(league, pick_insight(league), LANDSCAPE)
     for s in league.standings:
         assert s.line.line_name.replace("&", "&amp;") in html
+    # A line not ranked for works carries its own note instead of the mark.
     assert html.count(f'<span class="mark">{PROVISIONAL_MARK}</span>') == sum(
-        s.is_provisional for s in league.standings
+        s.is_provisional and s.unranked_reason != "engineering_works" for s in league.standings
     )
+    assert html.count(f'<div class="note">{NOT_RANKED_WORKS}</div>') == 1
     assert "4 to 8 Nov 2026" in html
     assert "$" not in html.replace("$$", "")  # every placeholder filled
     assert 'class="col"' in html and html.count('class="col"') == 2
@@ -130,11 +141,14 @@ def test_card_html_has_every_line_and_marks_provisional(league: League) -> None:
 
 
 def test_card_names_the_measure_and_its_direction(league: League) -> None:
-    """A card seen on its own says what is ranked and that lower is better."""
-    assert "Disruption Index" in SUBTITLE and "per 100 service hours" in SUBTITLE
+    """A card seen on its own says what is ranked, its scale and that lower is better."""
+    assert TITLE == "Which lines did TfL report as most disrupted?"
+    assert "Disruption Index" in SUBTITLE and "0 (Good Service" in SUBTITLE
+    assert "to 800 (suspended" in SUBTITLE
     assert SUBTITLE.endswith("Lower is better.")
     for size in (LANDSCAPE, PORTRAIT):
         html = card_html(league, None, size)
+        assert f"<h1>{TITLE}</h1>" in html
         assert f'<p class="subtitle">{SUBTITLE}</p>' in html
         columns = html.count('class="col"')
         assert html.count('<div class="gs">% time reported Good Service</div>') == columns
@@ -151,9 +165,11 @@ def test_card_html_escapes_text(league: League) -> None:
 
 def test_footer_names_closures_and_completeness(league: League) -> None:
     lines = footer_lines(league)
-    assert lines[0].endswith("99.1% of scheduled minutes observed.")
+    assert lines[0].endswith("99.2% of scheduled minutes observed.")
+    assert any("lines open under half their hours are not ranked" in n for n in lines)
     provisional = next(n for n in lines if n.startswith(PROVISIONAL_MARK))
-    assert "Tram, Mildmay, Suffragette (a large share of hours closed for works)" in provisional
+    # Suffragette is not ranked (D22), so it is not listed as provisional.
+    assert "Tram, Mildmay (a large share of hours closed for works)" in provisional
     # When every line is short of data, the footer says so rather than listing 20 names.
     short = tuple(replace(s, provisional_reasons=_reason()) for s in league.standings)
     summary = next(n for n in footer_lines(replace(league, standings=short)) if "Provisional" in n)
@@ -214,21 +230,28 @@ def test_numbers_sheet(league: League) -> None:
         generated_at=datetime(2026, 11, 8, 22, 0, tzinfo=UTC),
         git_sha="abc1234",
     )
-    assert "| 20 | Suffragette | 11,947 | 0.0 |" in sheet
-    # The recording was taken on 8 November, so the window is partial.
-    assert "**Partial window**" in sheet
-    assert "Data through: Sun 8 Nov 18:21 (London)" in sheet
-    rows = [r for r in sheet.splitlines() if r.startswith("| District | Sat 7 Nov 07:49 | 1051")]
+    assert "| - | Suffragette | 211 | 0.0 |" in sheet
+    assert "not ranked: engineering works (D22)" in sheet
+    assert "| 19 | Bakerloo | 141 | 47.1 |" in sheet
+    assert "Data through: Sat 14 Nov 15:09 (London)" in sheet
+    assert "Partial window" not in sheet
+    # Bakerloo's Part Suspended on Sunday morning: 1,005 minutes, 3,763 weighted.
+    assert "- Worst incident (D48): Bakerloo, Sun 8 Nov 07:15, 1005 min, 3,763" in sheet
+    rows = [r for r in sheet.splitlines() if r.startswith("| Bakerloo | Sun 8 Nov 07:15 | 1005")]
     assert len(rows) == 1
-    later = numbers_sheet(
-        replace(league, is_complete=True),
+    assert "- Wooden Spoon (D48): Bakerloo, rank 19" in sheet
+    assert "- Line of the Week (D47): none (custom_window)" in sheet
+    assert "(no Monday in the window)" in sheet
+    assert "| Suffragette | " in sheet.split("## Engineering works (D50)")[1]
+    early = numbers_sheet(
+        replace(league, is_complete=False),
         None,
         [],
         marts.lines(),
         generated_at=datetime(2026, 11, 12, tzinfo=UTC),
         git_sha="abc1234",
     )
-    assert "Partial window" not in later and "| (none) |" in later
+    assert "**Partial window**" in early and "| (none) |" in early
 
 
 def test_london_time_is_only_formatted() -> None:
@@ -247,12 +270,12 @@ def test_card_text_is_ascii(league: League) -> None:
         assert text.isascii(), sorted({c for c in text if not c.isascii()})
 
 
-def test_partial_window_is_said_on_the_card(league: League) -> None:
-    assert not league.is_complete
+def test_partial_window_is_said_on_the_card(league: League, partial: League) -> None:
+    assert league.is_complete and not partial.is_complete
     assert any(
-        n.startswith("Partial window: data through Sun 8 Nov 18:21") for n in footer_lines(league)
+        n.startswith("Partial window: data through Sun 8 Nov 18:21") for n in footer_lines(partial)
     )
-    assert not any("Partial" in n for n in footer_lines(replace(league, is_complete=True)))
+    assert not any("Partial" in n for n in footer_lines(league))
 
 
 # ---- Mart parsing -------------------------------------------------------------------
@@ -269,6 +292,7 @@ def test_parsing_handles_nulls_and_athena_formats() -> None:
             "is_open": "true",
             "recovery_minutes": None,
             "peak_severity_weight": "5.0",
+            "severity_weighted_minutes": "3335.0",
             "worst_status_description": "Part Suspended",
             "first_reason": "",
         }

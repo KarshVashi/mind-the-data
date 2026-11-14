@@ -14,8 +14,9 @@ validates and lists the files without writing them.
 Written: league/{iso_week}.json for the week and for every complete week
 before it, league/latest.json, lines/{line_id}.json, meta/methodology.json,
 meta/index.json and cards/{iso_week}.png plus the 1080x1350 variant.
-divisions/ and season/ wait for the league mechanics in M6, and
-open-data/ for M7.
+Each league file carries the week's highlights (Wooden Spoon, Line of the
+Week, worst incident), Monday Morning Index and Engineering Works table.
+divisions/ and season/ wait for the rest of M6, and open-data/ for M7.
 """
 
 import argparse
@@ -122,7 +123,10 @@ def build_outputs(
     history_end = max([window.end, *(w + timedelta(days=6) for w in observed_weeks)])
     # One query for every week's incidents; each league keeps its own window's.
     incidents = marts.incidents(history_start, history_end)
-    league = league_from_weekly(window.start, lines, weekly, incidents, latest_minute)
+    monday_morning = marts.monday_morning(history_start, history_end)
+    league = league_from_weekly(
+        window.start, lines, weekly, incidents, latest_minute, monday_morning
+    )
     if not league.is_complete and not allow_incomplete:
         raise IncompleteWeek(
             f"{iso_week_of(window.start)} is not complete (data through "
@@ -132,7 +136,7 @@ def build_outputs(
     archive = [
         league
         if start == window.start
-        else league_from_weekly(start, lines, weekly, incidents, latest_minute)
+        else league_from_weekly(start, lines, weekly, incidents, latest_minute, monday_morning)
         for start in observed_weeks
     ]
     archive = [week for week in archive if week.is_complete]

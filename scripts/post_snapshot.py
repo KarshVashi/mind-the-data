@@ -64,7 +64,10 @@ def main(argv: list[str] | None = None) -> int:
     lines = marts.lines()
     daily = marts.daily(window.start, window.end)
     incidents = marts.incidents(window.start, window.end)
-    league = league_from_daily(window, lines, daily, incidents, marts.latest_minute_london())
+    monday_morning = marts.monday_morning(window.start, window.end)
+    league = league_from_daily(
+        window, lines, daily, incidents, marts.latest_minute_london(), monday_morning
+    )
     insight = pick_insight(league)
     stamp = Stamp(generated_at=datetime.now(UTC), git_sha=git_sha())
 

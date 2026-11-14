@@ -15,6 +15,9 @@
     "views",
     "open_decisions",
     "lines",
+    "highlights",
+    "monday_morning",
+    "engineering_works",
     "worst_incident",
     "insight"
   ],
@@ -45,12 +48,19 @@
       "minItems": 1,
       "items": {"$ref": "#/$defs/standing"}
     },
-    "worst_incident": {
-      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/incident"}]
+    "highlights": {"$ref": "#/$defs/highlights"},
+    "monday_morning": {
+      "description": "Monday Morning Index (D49) for each Monday in the window: the Disruption Index over 07:00 to 10:00 London time, in rank order, unranked lines last.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/monday_morning"}
     },
-    "insight": {
-      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/insight"}]
-    }
+    "engineering_works": {
+      "description": "Lines with hours closed for engineering works in the window, most first (PLAN 7.4, D50). Lines without works are left out.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/engineering_works"}
+    },
+    "worst_incident": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/incident"}]},
+    "insight": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/insight"}]}
   },
   "$defs": {
     "schema_version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
@@ -73,13 +83,22 @@
     },
     "decision_id": {"type": "string", "pattern": "^D\\d+$"},
     "share": {"type": "number", "minimum": 0, "maximum": 1},
-    "nullable_share": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "nullable_share": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    },
     "nullable_non_negative": {"type": ["number", "null"], "minimum": 0},
     "data_window": {
       "description": "Inclusive London dates the numbers cover. iso_week is set when the window is exactly one ISO week.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["start", "end", "timezone", "iso_week"],
+      "required": [
+        "start",
+        "end",
+        "timezone",
+        "iso_week"
+      ],
       "properties": {
         "start": {"$ref": "#/$defs/london_date"},
         "end": {"$ref": "#/$defs/london_date"},
@@ -90,7 +109,10 @@
     "views": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["declared", "measured"],
+      "required": [
+        "declared",
+        "measured"
+      ],
       "properties": {
         "declared": {"enum": ["published"]},
         "measured": {"enum": ["published", "not_measured"]}
@@ -99,9 +121,19 @@
     "provisional_reason": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["code", "decisions", "detail"],
+      "required": [
+        "code",
+        "decisions",
+        "detail"
+      ],
       "properties": {
-        "code": {"enum": ["low_completeness", "no_scheduled_minutes", "mostly_engineering_works"]},
+        "code": {
+          "enum": [
+            "low_completeness",
+            "no_scheduled_minutes",
+            "mostly_engineering_works"
+          ]
+        },
         "decisions": {
           "description": "Open decisions the flag rests on; each is also in open_decisions.",
           "type": "array",
@@ -120,14 +152,19 @@
         "long_gaps_per_100_hours",
         "honesty_gap_hours",
         "honesty_gap_share",
-        "experienced_rank"
+        "experienced_rank",
+        "trains_run_share"
       ],
       "properties": {
         "excess_wait_minutes": {"type": ["number", "null"]},
         "long_gaps_per_100_hours": {"$ref": "#/$defs/nullable_non_negative"},
         "honesty_gap_hours": {"$ref": "#/$defs/nullable_non_negative"},
         "honesty_gap_share": {"$ref": "#/$defs/nullable_share"},
-        "experienced_rank": {"type": ["integer", "null"], "minimum": 1}
+        "experienced_rank": {"type": ["integer", "null"], "minimum": 1},
+        "trains_run_share": {
+          "description": "Trains observed on the boards over scheduled trains (ADR-014). The boards may omit trains, so this is a lower bound on what ran.",
+          "$ref": "#/$defs/nullable_non_negative"
+        }
       }
     },
     "standing": {
@@ -140,6 +177,7 @@
         "colour",
         "is_low_volume",
         "rank",
+        "unranked_reason",
         "rank_movement",
         "disruption_index",
         "good_service_pct",
@@ -150,6 +188,7 @@
         "scheduled_minutes",
         "scored_minutes",
         "engineering_works_minutes",
+        "engineering_works_hours",
         "is_provisional",
         "provisional_reasons",
         "measured_status",
@@ -162,16 +201,26 @@
         "colour": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
         "is_low_volume": {"type": "boolean"},
         "rank": {
-          "description": "1 = least disrupted by Disruption Index; null with no scored minutes.",
+          "description": "1 = least disrupted by Disruption Index; null when unranked (see unranked_reason).",
           "type": ["integer", "null"],
           "minimum": 1
         },
+        "unranked_reason": {"$ref": "#/$defs/unranked_reason"},
         "rank_movement": {
           "description": "Previous rank minus this rank; positive means the line climbed. Null for a custom window.",
           "type": ["integer", "null"]
         },
-        "disruption_index": {"$ref": "#/$defs/nullable_non_negative"},
-        "good_service_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+        "disruption_index": {
+          "description": "100 x the time-weighted mean severity of the scored minutes, 0 (Good Service throughout) to 800 (Suspended throughout) (D19).",
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 800
+        },
+        "good_service_pct": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 100
+        },
         "incidents": {"type": "integer", "minimum": 0},
         "incidents_per_100_hours": {"$ref": "#/$defs/nullable_non_negative"},
         "median_recovery_minutes": {"$ref": "#/$defs/nullable_non_negative"},
@@ -179,6 +228,7 @@
         "scheduled_minutes": {"type": "integer", "minimum": 0},
         "scored_minutes": {"type": "integer", "minimum": 0},
         "engineering_works_minutes": {"type": "integer", "minimum": 0},
+        "engineering_works_hours": {"type": "number", "minimum": 0},
         "is_provisional": {"type": "boolean"},
         "provisional_reasons": {
           "type": "array",
@@ -189,7 +239,7 @@
       }
     },
     "incident": {
-      "description": "The longest incident starting in the window (D18).",
+      "description": "The incident starting in the window with the most severity-weighted minutes (D18, D48).",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -199,6 +249,7 @@
         "started_at_london",
         "start_london_date",
         "duration_minutes",
+        "severity_weighted_minutes",
         "is_open",
         "worst_status",
         "first_reason"
@@ -210,6 +261,11 @@
         "started_at_london": {"$ref": "#/$defs/london_timestamp"},
         "start_london_date": {"$ref": "#/$defs/london_date"},
         "duration_minutes": {"type": "integer", "minimum": 1},
+        "severity_weighted_minutes": {
+          "description": "Sum of each incident minute's severity weight.",
+          "type": "number",
+          "minimum": 0
+        },
         "is_open": {"type": "boolean"},
         "worst_status": {"type": "string"},
         "first_reason": {"type": ["string", "null"]}
@@ -218,11 +274,143 @@
     "insight": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "line_id", "text"],
+      "required": [
+        "kind",
+        "line_id",
+        "text"
+      ],
       "properties": {
         "kind": {"enum": ["honesty_gap", "lowest_good_service"]},
         "line_id": {"$ref": "#/$defs/line_id"},
         "text": {"type": "string", "minLength": 1, "maxLength": 160}
+      }
+    },
+    "unranked_reason": {
+      "description": "Why a line has no rank: no scored minutes, or it ran under half its scheduled minutes because of engineering works (D22). Null when ranked.",
+      "enum": [null, "no_scored_minutes", "engineering_works"]
+    },
+    "highlights": {
+      "description": "The window's Wooden Spoon (D48) and Line of the Week (D47).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wooden_spoon",
+        "line_of_the_week",
+        "line_of_the_week_null_reason"
+      ],
+      "properties": {
+        "wooden_spoon": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "description": "The bottom-ranked line; lines sharing the bottom rank are split by line id.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "line_id",
+                "line_name",
+                "rank",
+                "disruption_index",
+                "is_provisional",
+                "shared_by"
+              ],
+              "properties": {
+                "line_id": {"$ref": "#/$defs/line_id"},
+                "line_name": {"type": "string", "minLength": 1},
+                "rank": {"type": "integer", "minimum": 1},
+                "disruption_index": {"type": "number", "minimum": 0, "maximum": 800},
+                "is_provisional": {"type": "boolean"},
+                "shared_by": {"type": "integer", "minimum": 1}
+              }
+            }
+          ]
+        },
+        "line_of_the_week": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "description": "The largest fall in Disruption Index since the previous week, among lines ranked and not provisional in both.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "line_id",
+                "line_name",
+                "disruption_index",
+                "previous_disruption_index",
+                "improvement"
+              ],
+              "properties": {
+                "line_id": {"$ref": "#/$defs/line_id"},
+                "line_name": {"type": "string", "minLength": 1},
+                "disruption_index": {"type": "number", "minimum": 0, "maximum": 800},
+                "previous_disruption_index": {"type": "number", "minimum": 0, "maximum": 800},
+                "improvement": {"type": "number", "minimum": 0}
+              }
+            }
+          ]
+        },
+        "line_of_the_week_null_reason": {
+          "description": "Why line_of_the_week is null; null when it is set.",
+          "enum": [
+            null,
+            "custom_window",
+            "no_previous_week",
+            "previous_week_incomplete",
+            "no_line_improved"
+          ]
+        }
+      }
+    },
+    "monday_morning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "line_id",
+        "line_name",
+        "monday",
+        "rank",
+        "unranked_reason",
+        "monday_morning_index",
+        "good_service_pct",
+        "completeness",
+        "is_provisional"
+      ],
+      "properties": {
+        "line_id": {"$ref": "#/$defs/line_id"},
+        "line_name": {"type": "string", "minLength": 1},
+        "monday": {"$ref": "#/$defs/london_date"},
+        "rank": {"type": ["integer", "null"], "minimum": 1},
+        "unranked_reason": {"$ref": "#/$defs/unranked_reason"},
+        "monday_morning_index": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 800
+        },
+        "good_service_pct": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "completeness": {"$ref": "#/$defs/share"},
+        "is_provisional": {"type": "boolean"}
+      }
+    },
+    "engineering_works": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "line_id",
+        "line_name",
+        "engineering_works_hours",
+        "engineering_works_share",
+        "is_unranked_for_works"
+      ],
+      "properties": {
+        "line_id": {"$ref": "#/$defs/line_id"},
+        "line_name": {"type": "string", "minLength": 1},
+        "engineering_works_hours": {"type": "number", "exclusiveMinimum": 0},
+        "engineering_works_share": {"$ref": "#/$defs/share"},
+        "is_unranked_for_works": {"type": "boolean"}
       }
     }
   }

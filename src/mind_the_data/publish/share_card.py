@@ -38,14 +38,19 @@ SIZES = (LANDSCAPE, PORTRAIT)
 # (M5 acceptance: no missing glyphs). A test checks the rendered text.
 PROVISIONAL_MARK = "*"
 
-# The card travels without its methodology page, so it names the measure
-# and its direction itself.
+# The card travels without its methodology page, so it names the measure,
+# its scale and its direction itself. The index rests on TfL's declared
+# status, which the title says (wording approved with D19, D22 and D36).
+TITLE = "Which lines did TfL report as most disrupted?"
 SUBTITLE = (
-    "Ranked by Disruption Index: severity-weighted disruption per 100 service hours. "
-    "Lower is better."
+    "Disruption Index: TfL-reported severity, peak hours weighted, from 0 (Good Service "
+    "throughout) to 800 (suspended throughout). Lower is better."
 )
 GOOD_SERVICE_HEADER = "% time reported Good Service"
 INDEX_HEADER = "Disruption Index"
+# D22: shown in place of the numbers for a line that ran under half its hours.
+NOT_RANKED_WORKS = "Not ranked: engineering works"
+METHODOLOGY_NOTE = "Methodology v0.2: some definitions are provisional and may be revised."
 
 
 class CardOverflow(RuntimeError):
@@ -79,6 +84,16 @@ def _fmt_pct(value: float | None) -> str:
 def _row(standing: Standing) -> str:
     line = standing.line
     rank = "" if standing.rank is None else str(standing.rank)
+    if standing.unranked_reason == "engineering_works":
+        # The works are the reason; a provisional mark would only repeat it.
+        return (
+            '<div class="row unranked">'
+            f'<div class="rank">{escape(rank)}</div>'
+            f'<div class="name"><span class="chip" style="background:{escape(line.colour)}">'
+            f"</span>{escape(line.line_name)}</div>"
+            f'<div class="note">{escape(NOT_RANKED_WORKS)}</div>'
+            "</div>"
+        )
     mark = f' <span class="mark">{PROVISIONAL_MARK}</span>' if standing.is_provisional else ""
     pct = standing.good_service_pct
     width = 0.0 if pct is None else max(0.0, min(100.0, pct))
@@ -117,8 +132,8 @@ def footer_lines(league: League) -> list[str]:
         data += f" {completeness:.1%} of scheduled minutes observed."
     notes.append(data)
     notes.append(
-        "Disruption Index weights: peaks x2, weekends x0.75. "
-        "Closures and missing data are left out."
+        "Weights: peaks x2, weekends x0.75. Closures and missing data are left out; "
+        "lines open under half their hours are not ranked."
     )
     if not league.is_complete:
         through = league.latest_data_london
@@ -134,18 +149,16 @@ def footer_lines(league: League) -> list[str]:
     parts = [f"{names} ({why})" for names, why in groups if names]
     if parts:
         notes.append(f"{PROVISIONAL_MARK} Provisional: " + "; ".join(parts) + ".")
-    notes.append("Methodology v0.1: weights and definitions are provisional and may be revised.")
+    notes.append(METHODOLOGY_NOTE)
     return notes
 
 
 def _names(league: League, code: str, limit: int = 4) -> str:
     """Line names with a provisional reason, or a count when there are many."""
-    names = [
-        s.line.line_name
-        for s in league.standings
-        if any(r.code == code for r in s.provisional_reasons)
-    ]
-    if len(names) == len(league.standings) and names:
+    # A line not ranked for works says so on its row instead.
+    listed = [s for s in league.standings if s.unranked_reason != "engineering_works"]
+    names = [s.line.line_name for s in listed if any(r.code == code for r in s.provisional_reasons)]
+    if len(names) == len(listed) and names:
         return "all lines"
     if len(names) > limit:
         return f"{len(names)} lines"
@@ -182,7 +195,7 @@ def card_html(league: League, insight: Insight | None, size: CardSize) -> str:
         if size.columns == 2
         else f"30px {name_width}px 1fr 64px 120px",
         "kicker": escape("London rail league | " + window_label(*_window(league))),
-        "title": escape("How reliable was each line?"),
+        "title": escape(TITLE),
         "subtitle": escape(SUBTITLE),
         "subtitle_size": 15 if size.columns == 2 else 22,
         "insight": escape(insight_text),
@@ -205,7 +218,7 @@ _OVERFLOW_JS = """
   if (card.scrollHeight > window.innerHeight) {
     problems.push(`card ${card.scrollHeight}px tall > ${window.innerHeight}px`);
   }
-  const checked = '.name, .num, .head > div, .subtitle, .table, footer, .insight';
+  const checked = '.name, .num, .note, .head > div, .subtitle, .table, footer, .insight';
   for (const el of document.querySelectorAll(checked)) {
     if (el.scrollWidth > el.clientWidth + 1) {
       problems.push(`${el.className}: "${el.textContent.trim().slice(0, 40)}" is cut off`);

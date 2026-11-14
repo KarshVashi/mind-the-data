@@ -12,9 +12,11 @@
     "git_sha",
     "severity_weights",
     "time_bands",
+    "disruption_index",
     "thresholds",
     "views",
-    "open_decisions"
+    "open_decisions",
+    "settled_decisions"
   ],
   "properties": {
     "schema_version": {"$ref": "league.schema.json#/$defs/schema_version"},
@@ -54,7 +56,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["day_class", "time_band", "start_minute", "end_minute", "time_weight"],
+        "required": [
+          "day_class",
+          "time_band",
+          "start_minute",
+          "end_minute",
+          "time_weight"
+        ],
         "properties": {
           "day_class": {"enum": ["weekday", "weekend"]},
           "time_band": {"type": "string"},
@@ -64,22 +72,48 @@
         }
       }
     },
+    "disruption_index": {
+      "description": "How the Disruption Index is computed and its range (D19).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "definition",
+        "min",
+        "max"
+      ],
+      "properties": {
+        "definition": {"type": "string", "minLength": 1},
+        "min": {"type": "number"},
+        "max": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
     "thresholds": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "provisional_completeness",
         "closure_share_provisional",
+        "min_open_share_to_rank",
         "incident_merge_gap_minutes"
       ],
       "properties": {
         "provisional_completeness": {"$ref": "league.schema.json#/$defs/share"},
         "closure_share_provisional": {"$ref": "league.schema.json#/$defs/share"},
+        "min_open_share_to_rank": {
+          "description": "A line is ranked only if it ran at least this share of its scheduled minutes (D22).",
+          "$ref": "league.schema.json#/$defs/share"
+        },
         "incident_merge_gap_minutes": {"type": "integer", "minimum": 0}
       }
     },
     "views": {"$ref": "league.schema.json#/$defs/views"},
     "open_decisions": {
+      "type": "array",
+      "items": {"$ref": "league.schema.json#/$defs/decision_id"},
+      "uniqueItems": true
+    },
+    "settled_decisions": {
+      "description": "Owner decisions behind the published numbers that have been settled (docs/DECISIONS.md).",
       "type": "array",
       "items": {"$ref": "league.schema.json#/$defs/decision_id"},
       "uniqueItems": true
