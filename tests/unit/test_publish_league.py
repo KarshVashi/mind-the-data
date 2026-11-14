@@ -15,6 +15,8 @@ from mind_the_data.publish.league import (
     league_from_daily,
     league_from_weekly,
     line_of_the_week,
+    measured_view,
+    measured_withheld_reason,
     monday_mornings,
     provisional_reasons,
     rank_standings,
@@ -25,6 +27,8 @@ from mind_the_data.publish.marts import (
     DailyRow,
     IncidentRow,
     LineInfo,
+    MeasuredDailyRow,
+    MeasuredSums,
     MondayMorningRow,
     RecordedMarts,
     WeeklyRow,
@@ -481,3 +485,156 @@ def test_weekly_flags_come_from_the_mart() -> None:
     assert not any(
         r.code == "low_completeness" for s in league.standings for r in s.provisional_reasons
     )
+
+
+# ---- Measured view (D42, D51 to D53) --------------------------------------------
+
+
+def measured_line(line_id: str, *, is_measured: bool = True) -> LineInfo:
+    return LineInfo(line_id, line_id.title(), "tube", "#000000", False, is_measured)
+
+
+def sums(**values: float) -> MeasuredSums:
+    base: dict[str, float] = {
+        "scheduled_measurement_hours": 10,
+        "observed_measurement_hours": 10,
+        "observed_trains": 80,
+        "observed_hours_scheduled_trains": 100,
+        "measured_hours": 8,
+        "excess_wait_hours": 8,
+        "sum_excess_wait_seconds": 240.0,
+        "long_gaps": 2,
+        "fallback_measured_hours": 0,
+        "gate_judged_hours": 10,
+        "gate_in_band_hours": 8,
+        "good_service_measured_hours": 4,
+        "honesty_gap_hours": 1,
+    }
+    base.update(values)
+    return MeasuredSums(**base)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("line_info", "values", "reason"),
+    [
+        (measured_line("dlr", is_measured=False), {}, "line_not_measured"),
+        (measured_line("circle"), {}, "shared_section_misfiled"),
+        (measured_line("hammersmith-city"), {}, "shared_section_misfiled"),
+        (measured_line("a"), {"measured_hours": 0}, "no_measured_hours"),
+        (measured_line("a"), {"gate_judged_hours": 0, "gate_in_band_hours": 0}, "gate_not_judged"),
+        # 6 of 9 in band is 66.7%: more than 30% out (D51).
+        (measured_line("a"), {"gate_judged_hours": 9, "gate_in_band_hours": 6}, "gate_failed"),
+        # 7 of 10 is exactly 30% out: passes.
+        (measured_line("a"), {"gate_in_band_hours": 7}, None),
+        # 4 of 10 scheduled hours measured is under half (D42).
+        (measured_line("a"), {"measured_hours": 4}, "too_few_measured_hours"),
+        (measured_line("a"), {"measured_hours": 5}, None),
+    ],
+)
+def test_measured_withheld_reason_by_hand(
+    line_info: LineInfo, values: dict[str, float], reason: str | None
+) -> None:
+    assert measured_withheld_reason(line_info, sums(**values)) == reason
+
+
+def test_measured_view_numbers_by_hand() -> None:
+    view = measured_view(measured_line("a"), sums(), experienced_rank=3)
+    # 240 s over 8 hours = 30 s = 0.5 min; 2 long gaps per 8 hours = 25 per 100.
+    assert view.excess_wait_minutes == pytest.approx(0.5)
+    assert view.long_gaps_per_100_hours == pytest.approx(25)
+    assert (view.honesty_gap_hours, view.honesty_gap_share) == (1.0, 0.25)
+    assert view.trains_run_share == pytest.approx(0.8)
+    assert (view.measured_share, view.gate_pass_share) == (0.8, 0.8)
+    assert view.experienced_rank == 3 and not view.is_weak_evidence
+    # Circle and H&C trains run stays withheld if their view is ever shown (ADR-014).
+    circle = measured_view(measured_line("circle"), sums(), None)
+    assert circle.trains_run_share is None
+    assert circle.trains_run_withheld_reason == "shared_section_misfiled"
+    weak = measured_view(measured_line("a"), sums(fallback_measured_hours=1), None)
+    assert weak.is_weak_evidence
+
+
+def test_custom_window_measured_view_and_rank() -> None:
+    """Sums over the window's days, then fct_line_weekly's rules (D51 to D53)."""
+    window = Window(date(2026, 11, 4), date(2026, 11, 5))
+    lines = [
+        measured_line("a"),
+        measured_line("b"),
+        measured_line("c"),
+        measured_line("weak"),
+        measured_line("gone", is_measured=False),
+    ]
+    day1, day2, outside = date(2026, 11, 4), date(2026, 11, 5), date(2026, 11, 6)
+    rows = [
+        # a: (240 + 0) s over 8 + 8 hours = 0.25 min.
+        MeasuredDailyRow("a", day1, sums()),
+        MeasuredDailyRow("a", day2, sums(sum_excess_wait_seconds=0.0)),
+        MeasuredDailyRow("a", outside, sums(sum_excess_wait_seconds=99_999.0)),
+        # b: 0.5 min, ranks below a.
+        MeasuredDailyRow("b", day1, sums()),
+        # c: (2 + 10) of 20 judged hours in band = 60%, more than 30% out.
+        MeasuredDailyRow("c", day1, sums(gate_in_band_hours=2)),
+        MeasuredDailyRow("c", day2, sums(gate_in_band_hours=10)),
+        # weak: the best excess wait, but against an estimated timetable.
+        MeasuredDailyRow(
+            "weak", day1, sums(sum_excess_wait_seconds=-480.0, fallback_measured_hours=8)
+        ),
+    ]
+    daily_rows = [
+        daily(
+            x.line_id,
+            day1,
+            scheduled_minutes=60,
+            observed_minutes=60,
+            scored_minutes=60,
+            good_service_minutes=60,
+            time_weighted_scored_minutes=60.0,
+        )
+        for x in lines
+    ]
+    league = league_from_daily(window, lines, daily_rows, [], measured_daily=rows)
+    by_id = {s.line.line_id: s for s in league.standings}
+    a, b = by_id["a"].measured, by_id["b"].measured
+    assert a is not None and b is not None
+    assert a.excess_wait_minutes == pytest.approx(0.25) and a.experienced_rank == 1
+    assert b.excess_wait_minutes == pytest.approx(0.5) and b.experienced_rank == 2
+    assert by_id["c"].measured is None and by_id["c"].measured_withheld_reason == "gate_failed"
+    weak = by_id["weak"].measured
+    assert weak is not None and weak.is_weak_evidence and weak.experienced_rank is None
+    assert by_id["gone"].measured_withheld_reason == "line_not_measured"
+
+
+@pytest.mark.parametrize("iso_week", ["2026-W45", "2026-W46"])
+def test_measured_daily_sum_matches_dbt_weekly(iso_week: str) -> None:
+    """Python's window sums and rules reproduce fct_line_weekly's measured view.
+
+    The measured recordings come from the dev build (fct_line_measured_daily
+    and fct_line_weekly's measured columns).
+    """
+    marts = RecordedMarts(FIXTURES)
+    lines = marts.lines()
+    window = Window.for_iso_week(iso_week)
+    weekly = [w for w in marts.weekly() if w.week_start == window.start]
+    from_daily = league_from_daily(
+        window,
+        lines,
+        marts.daily(window.start, window.end),
+        [],
+        measured_daily=marts.measured_daily(window.start, window.end),
+    )
+    by_id = {s.line.line_id: s for s in from_daily.standings}
+    published = 0
+    for row in weekly:
+        mine = by_id[row.line_id]
+        assert mine.measured_withheld_reason == row.measured_withheld_reason, row.line_id
+        if row.measured_withheld_reason is None:
+            published += 1
+            assert mine.measured is not None and row.measured_sums is not None
+            assert mine.measured.experienced_rank == row.experienced_rank, row.line_id
+            want = measured_view(mine.line, row.measured_sums, row.experienced_rank)
+            # Summing seconds day by day can differ in the last bit.
+            assert mine.measured.excess_wait_minutes == pytest.approx(want.excess_wait_minutes)
+            assert replace(mine.measured, excess_wait_minutes=None) == replace(
+                want, excess_wait_minutes=None
+            )
+    assert published >= 8

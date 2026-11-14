@@ -23,8 +23,12 @@ from mind_the_data.publish.documents import (
 )
 from mind_the_data.publish.insight import pick_insight
 from mind_the_data.publish.league import (
+    GATE_MAX_OUT_OF_BAND_SHARE,
+    MEASURED_VIEW_WITHHELD_LINES,
+    MIN_MEASURED_SHARE,
     MIN_OPEN_SHARE_TO_RANK,
     PROVISIONAL_COMPLETENESS,
+    TRAINS_RUN_WITHHELD_LINES,
     MeasuredView,
     Window,
     league_from_daily,
@@ -80,9 +84,26 @@ def test_every_output_validates(marts: RecordedMarts) -> None:
         "timezone": "Europe/London",
         "iso_week": "2026-W45",
     }
-    assert league_doc["views"] == {"declared": "published", "measured": "not_measured"}
-    assert all(line["measured"] is None for line in league_doc["lines"])
-    assert all(line["measured_status"] == "not_measured" for line in league_doc["lines"])
+    # The measured view is published for line-weeks whose gate passed (D42, D51).
+    assert league_doc["views"] == {"declared": "published", "measured": "published"}
+    by_id = {line["line_id"]: line for line in league_doc["lines"]}
+    for line in league_doc["lines"]:
+        assert (line["measured"] is None) == (line["measured_withheld_reason"] is not None)
+        assert line["measured_status"] == (
+            "not_measured" if line["measured"] is None else "measured"
+        )
+    for line_id in ("dlr", "tram", "waterloo-city", "suffragette"):
+        assert by_id[line_id]["measured_withheld_reason"] == "line_not_measured"
+    for line_id in ("circle", "hammersmith-city"):
+        assert by_id[line_id]["measured_withheld_reason"] == "shared_section_misfiled"
+    victoria = by_id["victoria"]["measured"]
+    assert victoria is not None and not victoria["is_weak_evidence"]
+    assert victoria["trains_run_share"] is not None and victoria["experienced_rank"] is not None
+    elizabeth = by_id["elizabeth"]["measured"]
+    assert elizabeth is not None and elizabeth["is_weak_evidence"]
+    assert elizabeth["experienced_rank"] is None
+    assert by_id["lioness"]["measured_withheld_reason"] == "gate_failed"
+    assert by_id["liberty"]["measured_withheld_reason"] == "gate_not_judged"
     # M6: the most severity-weighted incident (D48), the bottom line (D48),
     # and no Line of the Week, since W44 holds no data (D47).
     assert league_doc["worst_incident"]["line_id"] == "bakerloo"
@@ -162,11 +183,15 @@ def test_measured_view_validates_when_present(marts: RecordedMarts) -> None:
         honesty_gap_share=0.08,
         experienced_rank=2,
         trains_run_share=0.86,
+        measured_hours=120,
+        measured_share=0.7,
+        gate_pass_share=0.9,
+        good_service_measured_hours=88,
     )
-    partly = MeasuredView(None, None, None, None, None)
+    partly = MeasuredView(None, None, None, None, None, measured_hours=1)
     standings = list(league.standings)
-    standings[0] = replace(standings[0], measured=measured)
-    standings[1] = replace(standings[1], measured=partly)
+    standings[0] = replace(standings[0], measured=measured, measured_withheld_reason=None)
+    standings[1] = replace(standings[1], measured=partly, measured_withheld_reason=None)
     league = replace(league, standings=tuple(standings))
     insight = pick_insight(league)
     assert insight is not None and insight.kind == "honesty_gap"
@@ -175,6 +200,7 @@ def test_measured_view_validates_when_present(marts: RecordedMarts) -> None:
     assert doc["views"]["measured"] == "published"
     assert doc["lines"][0]["measured"]["trains_run_share"] == 0.86
     assert doc["lines"][0]["measured_status"] == "measured"
+    assert doc["lines"][0]["measured_withheld_reason"] is None
     assert doc["lines"][2]["measured_status"] == "not_measured"
 
 
@@ -246,8 +272,26 @@ def test_methodology_thresholds_follow_dbt(marts: RecordedMarts) -> None:
     assert doc["thresholds"]["min_open_share_to_rank"] == 0.5
     # D19: the index is a time-weighted mean severity x 100, so Suspended (8) tops it.
     assert (doc["disruption_index"]["min"], doc["disruption_index"]["max"]) == (0.0, 800.0)
-    assert doc["settled_decisions"] == ["D19", "D22", "D36"]
-    assert not {"D19", "D22", "D36"} & set(doc["open_decisions"])
+    assert doc["settled_decisions"] == [
+        "D19",
+        "D22",
+        "D36",
+        "D42",
+        "D46",
+        "D47",
+        "D48",
+        "D49",
+        "D50",
+    ]
+    assert not set(doc["settled_decisions"]) & set(doc["open_decisions"])
+    # The measured view's thresholds and withheld lines mirror the dbt vars.
+    assert float(variables["gate_max_out_of_band_share"]) == GATE_MAX_OUT_OF_BAND_SHARE
+    assert float(variables["min_measured_share"]) == MIN_MEASURED_SHARE
+    assert tuple(variables["measured_view_withheld_lines"]) == MEASURED_VIEW_WITHHELD_LINES
+    assert tuple(variables["trains_run_withheld_lines"]) == TRAINS_RUN_WITHHELD_LINES
+    assert doc["thresholds"]["gate_max_out_of_band_share"] == 0.3
+    assert doc["measured_view_withheld_lines"] == ["circle", "hammersmith-city"]
+    assert variables["gate_test_severity"] == "error"  # D44, settled 2026-11-14
 
 
 def test_export_cli_writes_and_dry_runs(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

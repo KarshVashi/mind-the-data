@@ -5,7 +5,8 @@
 
 For posts whose window is not an ISO week (the first post runs Wednesday to
 Tuesday). Reads the prod marts read-only through the dev Athena workgroup,
-sums fct_line_daily over the window with the league's rules, and writes:
+sums fct_line_daily and fct_line_measured_daily over the window with the
+league's rules, and writes:
 
     numbers.md                   every figure behind the post, for checking
     league.json                  the league contract, data_window = the custom window
@@ -65,8 +66,15 @@ def main(argv: list[str] | None = None) -> int:
     daily = marts.daily(window.start, window.end)
     incidents = marts.incidents(window.start, window.end)
     monday_morning = marts.monday_morning(window.start, window.end)
+    measured_daily = marts.measured_daily(window.start, window.end)
     league = league_from_daily(
-        window, lines, daily, incidents, marts.latest_minute_london(), monday_morning
+        window,
+        lines,
+        daily,
+        incidents,
+        marts.latest_minute_london(),
+        monday_morning,
+        measured_daily,
     )
     insight = pick_insight(league)
     stamp = Stamp(generated_at=datetime.now(UTC), git_sha=git_sha())

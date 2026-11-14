@@ -14,6 +14,8 @@
     "time_bands",
     "disruption_index",
     "thresholds",
+    "measured_view_withheld_lines",
+    "trains_run_withheld_lines",
     "views",
     "open_decisions",
     "settled_decisions"
@@ -94,7 +96,11 @@
         "provisional_completeness",
         "closure_share_provisional",
         "min_open_share_to_rank",
-        "incident_merge_gap_minutes"
+        "incident_merge_gap_minutes",
+        "gate_low_ratio",
+        "gate_high_ratio",
+        "gate_max_out_of_band_share",
+        "min_measured_share"
       ],
       "properties": {
         "provisional_completeness": {"$ref": "league.schema.json#/$defs/share"},
@@ -103,8 +109,38 @@
           "description": "A line is ranked only if it ran at least this share of its scheduled minutes (D22).",
           "$ref": "league.schema.json#/$defs/share"
         },
-        "incident_merge_gap_minutes": {"type": "integer", "minimum": 0}
+        "incident_merge_gap_minutes": {"type": "integer", "minimum": 0},
+        "gate_low_ratio": {
+          "description": "An hour is inside the quality gate when inferred trains are at least this share of the trains on the boards (ADR-014).",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "gate_high_ratio": {
+          "description": "... and at most this share.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "gate_max_out_of_band_share": {
+          "description": "A line-week's measured numbers are withheld when more than this share of its judged hours falls outside the gate (D51).",
+          "$ref": "league.schema.json#/$defs/share"
+        },
+        "min_measured_share": {
+          "description": "A line-week's measured numbers are withheld when under this share of its scheduled station-direction-hours is measured (D42).",
+          "$ref": "league.schema.json#/$defs/share"
+        }
       }
+    },
+    "measured_view_withheld_lines": {
+      "description": "Lines whose measured view is withheld because their boards misfile trains on a shared section (D52).",
+      "type": "array",
+      "items": {"$ref": "league.schema.json#/$defs/line_id"},
+      "uniqueItems": true
+    },
+    "trains_run_withheld_lines": {
+      "description": "Lines whose trains-run share is withheld for the same reason (ADR-014).",
+      "type": "array",
+      "items": {"$ref": "league.schema.json#/$defs/line_id"},
+      "uniqueItems": true
     },
     "views": {"$ref": "league.schema.json#/$defs/views"},
     "open_decisions": {

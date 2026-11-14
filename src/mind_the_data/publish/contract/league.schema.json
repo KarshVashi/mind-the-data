@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "League table",
-  "description": "league/latest.json and league/{iso_week}.json: the league for one window of London dates. Measured-view fields are null until that view is published for a line.",
+  "description": "league/latest.json and league/{iso_week}.json: the league for one window of London dates. A line's measured fields are filled when its measured view passes the line-week gate (D42, D51); otherwise measured is null and measured_withheld_reason says why.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -143,8 +143,20 @@
         "detail": {"type": "string", "minLength": 1}
       }
     },
+    "measured_withheld_reason": {
+      "description": "Why a line's measured numbers are not published, the first that applies: the line is not measured (D43); its boards misfile trains on a shared section (D52); no hour passed the quality gate; no hour was judged at a core or branch station; more than 30% of judged hours fell outside the gate (D51); under half its scheduled hours measured (D42). Null when published.",
+      "enum": [
+        null,
+        "line_not_measured",
+        "shared_section_misfiled",
+        "no_measured_hours",
+        "gate_not_judged",
+        "gate_failed",
+        "too_few_measured_hours"
+      ]
+    },
     "measured": {
-      "description": "Experienced Reliability (PLAN 7.3). Every field may be null while a line is outside the quality gate.",
+      "description": "Experienced Reliability (PLAN 7.3) from inferred arrivals at the measurement stations, over the hours inside the quality gate (ADR-014).",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -153,17 +165,65 @@
         "honesty_gap_hours",
         "honesty_gap_share",
         "experienced_rank",
-        "trains_run_share"
+        "trains_run_share",
+        "trains_run_withheld_reason",
+        "measured_hours",
+        "measured_share",
+        "gate_pass_share",
+        "good_service_measured_hours",
+        "is_weak_evidence"
       ],
       "properties": {
-        "excess_wait_minutes": {"type": ["number", "null"]},
-        "long_gaps_per_100_hours": {"$ref": "#/$defs/nullable_non_negative"},
-        "honesty_gap_hours": {"$ref": "#/$defs/nullable_non_negative"},
-        "honesty_gap_share": {"$ref": "#/$defs/nullable_share"},
-        "experienced_rank": {"type": ["integer", "null"], "minimum": 1},
-        "trains_run_share": {
-          "description": "Trains observed on the boards over scheduled trains (ADR-014). The boards may omit trains, so this is a lower bound on what ran.",
+        "excess_wait_minutes": {
+          "description": "Mean over measured hours of the average wait from observed headways minus the scheduled one, minutes. Negative means better than timetable.",
+          "type": ["number", "null"]
+        },
+        "long_gaps_per_100_hours": {
+          "description": "Headways over twice the longest scheduled gap of their hour (D34), per 100 measured station-direction-hours.",
           "$ref": "#/$defs/nullable_non_negative"
+        },
+        "honesty_gap_hours": {
+          "description": "Hours of whole-hour declared Good Service in which a measurement station recorded a long gap (PLAN 7.3).",
+          "$ref": "#/$defs/nullable_non_negative"
+        },
+        "honesty_gap_share": {
+          "description": "honesty_gap_hours over good_service_measured_hours.",
+          "$ref": "#/$defs/nullable_share"
+        },
+        "experienced_rank": {
+          "description": "1 = lowest excess wait among published lines that are not weak evidence (D53); null otherwise.",
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "trains_run_share": {
+          "description": "Trains observed on the boards over scheduled trains (ADR-014). The boards may omit trains, so this is a lower bound on what ran. Above 1 on weak-evidence lines means the estimated timetable is too low.",
+          "$ref": "#/$defs/nullable_non_negative"
+        },
+        "trains_run_withheld_reason": {
+          "description": "Why trains_run_share is null although the line is measured.",
+          "enum": [null, "shared_section_misfiled"]
+        },
+        "measured_hours": {
+          "description": "Station-direction-hours inside the quality gate, behind every number here.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "measured_share": {
+          "description": "measured_hours over scheduled station-direction-hours.",
+          "$ref": "#/$defs/nullable_share"
+        },
+        "gate_pass_share": {
+          "description": "Share of judged hours at core and branch stations inside the gate (D51).",
+          "$ref": "#/$defs/nullable_share"
+        },
+        "good_service_measured_hours": {
+          "description": "Hours of whole-hour Good Service with a measurement: the Honesty Gap's denominator.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "is_weak_evidence": {
+          "description": "Measured against estimated frequencies, not a TfL timetable (D33: the Elizabeth line and the Overground). Shown, not ranked (D53).",
+          "type": "boolean"
         }
       }
     },
@@ -192,6 +252,7 @@
         "is_provisional",
         "provisional_reasons",
         "measured_status",
+        "measured_withheld_reason",
         "measured"
       ],
       "properties": {
@@ -235,6 +296,7 @@
           "items": {"$ref": "#/$defs/provisional_reason"}
         },
         "measured_status": {"enum": ["measured", "not_measured"]},
+        "measured_withheld_reason": {"$ref": "#/$defs/measured_withheld_reason"},
         "measured": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/measured"}]}
       }
     },
@@ -280,7 +342,7 @@
         "text"
       ],
       "properties": {
-        "kind": {"enum": ["honesty_gap", "lowest_good_service"]},
+        "kind": {"enum": ["honesty_gap", "trains_run", "lowest_good_service"]},
         "line_id": {"$ref": "#/$defs/line_id"},
         "text": {"type": "string", "minLength": 1, "maxLength": 160}
       }

@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from mind_the_data.publish.insight import Insight
 from mind_the_data.publish.league import (
     CLOSURE_SHARE_PROVISIONAL,
+    GATE_MAX_OUT_OF_BAND_SHARE,
+    MIN_MEASURED_SHARE,
     MIN_OPEN_SHARE_TO_RANK,
     PROVISIONAL_COMPLETENESS,
     League,
@@ -50,9 +52,10 @@ def numbers_sheet(
             "so the numbers will change."
         )
     out.append(f"- Open decisions behind these numbers: {', '.join(league.open_decisions)}")
+    published = sum(1 for st in league.standings if st.measured is not None)
     out.append(
-        "- Measured view (Honesty Gap, trains run): not published until the owner settles D42 "
-        "(gate: ADR-014, D46)"
+        f"- Measured view (D42, gate ADR-014): published for {published} of "
+        f"{len(league.standings)} lines"
     )
     if bytes_scanned is not None:
         out.append(f"- Athena scanned: {bytes_scanned:,} bytes")
@@ -93,6 +96,58 @@ def numbers_sheet(
         "Provisional lines are still ranked (D20), but never named in the insight (D38). "
         f"A line open under {MIN_OPEN_SHARE_TO_RANK:.0%} of its scheduled minutes because of "
         "engineering works is not ranked (D22)."
+    )
+    out.append("")
+
+    out.append("## Measured view (PLAN 7.3; Experienced Reliability, lower excess wait is better)")
+    out.append("")
+    out.append(
+        "| Exp. rank | Line | Excess wait (min) | Long gaps / 100 h | Honesty Gap h "
+        "| of Good Service h | Trains run | Measured h | Coverage | Gate | Notes |"
+    )
+    out.append("|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|")
+    measured_first = sorted(
+        league.standings,
+        key=lambda st: (
+            st.measured is None,
+            st.measured is None or st.measured.experienced_rank is None,
+            (st.measured.experienced_rank or 0) if st.measured else 0,
+            st.line.line_name,
+        ),
+    )
+    for st in measured_first:
+        mv = st.measured
+        if mv is None:
+            out.append(
+                f"| - | {st.line.line_name} | | | | | | | | "
+                f"| withheld: {st.measured_withheld_reason} |"
+            )
+            continue
+        notes = "; ".join(
+            n
+            for n in (
+                "weak evidence: estimated timetable (D33), not ranked (D53)"
+                if mv.is_weak_evidence
+                else "",
+                f"trains run withheld: {mv.trains_run_withheld_reason}"
+                if mv.trains_run_withheld_reason
+                else "",
+            )
+            if n
+        )
+        out.append(
+            f"| {mv.experienced_rank or '-'} | {st.line.line_name} "
+            f"| {_num(mv.excess_wait_minutes, '.2f')} | {_num(mv.long_gaps_per_100_hours, '.1f')} "
+            f"| {_num(mv.honesty_gap_hours, '.0f')} | {mv.good_service_measured_hours} "
+            f"| {_num(mv.trains_run_share, '.1%')} | {mv.measured_hours} "
+            f"| {_num(mv.measured_share, '.0%')} | {_num(mv.gate_pass_share, '.0%')} | {notes} |"
+        )
+    out.append("")
+    out.append(
+        "Published only when the line-week's own gate passes: at most "
+        f"{GATE_MAX_OUT_OF_BAND_SHARE:.0%} of judged hours at core and branch stations outside "
+        f"the band (D51) and at least {MIN_MEASURED_SHARE:.0%} of scheduled hours measured (D42). "
+        "Trains run counts the trains on TfL's boards, so it is a lower bound (ADR-014)."
     )
     out.append("")
 

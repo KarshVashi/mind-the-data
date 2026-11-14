@@ -68,7 +68,10 @@
         }
       }
     },
-    "measured_status": {"enum": ["measured", "not_measured"]}
+    "measured_status": {
+      "description": "measured when at least one week in the history publishes measured numbers.",
+      "enum": ["measured", "not_measured"]
+    }
   },
   "$defs": {
     "week": {
@@ -87,7 +90,9 @@
         "engineering_works_hours",
         "completeness",
         "is_week_complete",
-        "is_provisional"
+        "is_provisional",
+        "measured_withheld_reason",
+        "measured"
       ],
       "properties": {
         "iso_week": {"$ref": "league.schema.json#/$defs/iso_week"},
@@ -110,7 +115,11 @@
         "engineering_works_hours": {"type": "number", "minimum": 0},
         "completeness": {"$ref": "league.schema.json#/$defs/share"},
         "is_week_complete": {"type": "boolean"},
-        "is_provisional": {"type": "boolean"}
+        "is_provisional": {"type": "boolean"},
+        "measured_withheld_reason": {"$ref": "league.schema.json#/$defs/measured_withheld_reason"},
+        "measured": {
+          "oneOf": [{"type": "null"}, {"$ref": "league.schema.json#/$defs/measured"}]
+        }
       }
     }
   }
