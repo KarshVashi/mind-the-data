@@ -8,7 +8,10 @@ files, so it needs no dbt parse.
 """
 
 import re
+from datetime import date
 from pathlib import Path
+
+from mind_the_data.publish.marts import queries
 
 TRANSFORM = Path(__file__).resolve().parents[2] / "transform"
 REF = re.compile(r"""ref\(\s*['"](\w+)['"]\s*\)""")
@@ -85,6 +88,17 @@ def test_gate_failure_skips_only_measured_models() -> None:
     }
     assert set(MEASURED_OUTPUTS) <= blocked
     assert not blocked & set(DECLARED_OUTPUTS)
+    # Nothing outside the measured path may ever be blocked, listed or not.
+    assert blocked <= set(MEASURED_ROOTS) | set(MEASURED_OUTPUTS)
+
+
+def test_export_reads_only_measured_tables_from_the_measured_path() -> None:
+    parents = _parents()
+    read = set(re.findall(r"\bdb\.(\w+)", " ".join(queries("db", date.min, date.min).values())))
+    measured_path = {
+        node for node in parents if set(MEASURED_ROOTS) & (_ancestors(node, parents) | {node})
+    }
+    assert read & measured_path == set(MEASURED_OUTPUTS)
 
 
 def test_gate_test_runs_at_the_configured_severity() -> None:

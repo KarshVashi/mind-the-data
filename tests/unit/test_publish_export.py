@@ -3,6 +3,7 @@
 import copy
 import importlib.util
 import json
+import shutil
 import sys
 from dataclasses import replace
 from datetime import UTC, date, datetime
@@ -33,7 +34,13 @@ from mind_the_data.publish.league import (
     Window,
     league_from_daily,
 )
-from mind_the_data.publish.marts import BadHourRow, RecordedMarts, WeeklyRow
+from mind_the_data.publish.marts import (
+    BadHourRow,
+    RecordedMarts,
+    Recording,
+    WeeklyRow,
+    dump_recording,
+)
 from mind_the_data.publish.schemas import SCHEMA_NAMES, load_schema, validate
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -486,3 +493,36 @@ def test_only_the_publish_flag_reaches_the_prod_workgroup() -> None:
     assert export.workgroup_for("mind-the-data-dev", publish=True) == export.PUBLISH_WORKGROUP
     with pytest.raises(ValueError, match="dev workgroup"):
         export.workgroup_for("mind-the-data-prod", publish=False)
+
+
+def test_stale_measured_tables_withhold_only_unfinished_weeks(tmp_path: Path) -> None:
+    """A failed gate on Tuesday 10 November left the measured tables at Monday's build.
+
+    W45 had ended when they were built, so it keeps its measured numbers;
+    W46 had not, so every measured line is `measured_not_rebuilt` (D55).
+    """
+    recorded = tmp_path / "marts"
+    shutil.copytree(FIXTURES, recorded)
+    dump_recording(
+        recorded / "build_times.json",
+        Recording(
+            columns=["declared_built_at", "measured_built_at", "measured_built_london_date"],
+            rows=[["2026-11-10 03:35:00.000000", "2026-11-09 03:40:00.000000", "2026-11-09"]],
+        ),
+    )
+    _, outputs = export.build_outputs(
+        RecordedMarts(recorded), PARTIAL_WEEK, STAMP, allow_incomplete=True
+    )
+    docs = {o.path: o.document for o in outputs}
+    kept = {line["line_id"]: line for line in docs["league/2026-W45.json"]["lines"]}
+    assert kept["victoria"]["measured"] is not None
+    stale = {line["line_id"]: line for line in docs["league/2026-W46.json"]["lines"]}
+    assert stale["victoria"]["measured"] is None
+    assert stale["victoria"]["measured_withheld_reason"] == "measured_not_rebuilt"
+    assert stale["victoria"]["measured_status"] == "withheld"
+    # The declared view is untouched, and unmeasured lines keep their reason.
+    assert stale["victoria"]["rank"] is not None
+    assert stale["dlr"]["measured_withheld_reason"] == "line_not_measured"
+    for path, doc in docs.items():
+        if path.startswith("league/"):
+            validate(doc, "league")

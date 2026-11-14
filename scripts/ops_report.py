@@ -36,7 +36,7 @@ from mind_the_data.ops.health import (
     day_bounds,
     freshness_section,
     guarded,
-    industrial_action_section,
+    industrial_action_report,
     lambda_section,
     render,
 )
@@ -71,7 +71,7 @@ def daily(day: date, completeness_file: Path, now: datetime) -> list[Section]:
             lambda: freshness_section(boto3.client("s3"), _bucket(), now),
         ),
         # The seed is in the checkout; its dbt test only warns (D60).
-        industrial_action_section(load_industrial_action(TRANSFORM_DIR), now.date()),
+        industrial_action_report(lambda: load_industrial_action(TRANSFORM_DIR), now.date()),
     ]
 
 

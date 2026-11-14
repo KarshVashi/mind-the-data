@@ -265,7 +265,7 @@ seeds:
   - name: seed_measured_lines
     description: >
       Which lines the measured view scores. A line set to false gets a
-      "not measured" flag in fct_line_weekly instead of numbers. Set to the
+      "not measured" flag in fct_line_weekly_measured instead of numbers. Set to the
       week-one review's recommendation (docs/data-quality/2026-11-08-week-one.md):
       the DLR, trams, Waterloo & City and the Suffragette line are not
       measured. Waiting for the owner, as `decision_status` shows

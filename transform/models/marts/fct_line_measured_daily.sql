@@ -2,7 +2,7 @@
 
 -- Measured-view sums per line and London date (PLAN 7.3), from
 -- int_measured_hours. Every column is a count or a sum, so any window of
--- days adds up: fct_line_weekly sums these rows for the ISO week, and the
+-- days adds up: fct_line_weekly_measured sums these rows for the ISO week, and the
 -- publish code sums them for a custom window, both with the same rules.
 --
 -- Only lines seed_measured_lines measures have rows (D43). A station-

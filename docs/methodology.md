@@ -9,7 +9,7 @@ The table ranks every line two ways:
 
 The gap between the two, hours in which TfL said Good Service while the boards showed a long gap, is the **Honesty Gap**.
 
-**Status, methodology v0.3.** Both views are built and run daily, and the weekly files carry both. On 14 November 2026 the owner settled: the Disruption Index is a time-weighted mean severity on a 0 to 800 scale (D19); a line is ranked only if it ran at least half its scheduled hours (D22); publishing goes ahead while other definitions are open, with provisional labels (D36); the quality gate tests the inference against the trains on the boards (ADR-014, D46) and stops the build when it fails (D44); the measured view is **published** for each line-week whose own gate passes (D42); and the weekly highlights (D47 to D50). Public publishing starts once the Cloudflare setup is done. Most definitions below are readings of an ambiguous rule and are waiting for a final decision. Each is tagged with its decision number (`D16`) from [DECISIONS.md](DECISIONS.md) or its record (`ADR-004`) in [adr/](adr/), and the table at the end says which are provisional. Every published file lists the open decisions it rests on in `open_decisions`.
+**Status, methodology v0.3.** Both views are built and run daily, and the weekly files carry both. On 14 November 2026 the owner settled: the Disruption Index is a time-weighted mean severity on a 0 to 800 scale (D19); a line is ranked only if it ran at least half its scheduled hours (D22); publishing goes ahead while other definitions are open, with provisional labels (D36); the quality gate tests the inference against the trains on the boards (ADR-014, D46) and fails the run when it fails, skipping only the measured tables, so the declared league always builds (D44, D55); the measured view is **published** for each line-week whose own gate passes (D42); and the weekly highlights (D47 to D50). Public publishing starts once the Cloudflare setup is done. Most definitions below are readings of an ambiguous rule and are waiting for a final decision. Each is tagged with its decision number (`D16`) from [DECISIONS.md](DECISIONS.md) or its record (`ADR-004`) in [adr/](adr/), and the table at the end says which are provisional. Every published file lists the open decisions it rests on in `open_decisions`.
 
 ---
 
@@ -288,7 +288,7 @@ The card's insight line names, in order: the lowest trains-run share under 95%; 
 
 ## 6. Decisions behind this methodology
 
-ADR-004 and ADR-014 are accepted, and D19, D22, D36, D42, D44, D46 and D47 to D50 were decided by the owner on 14 November 2026. Every other entry is implemented as described and is waiting for a final decision, so it is **provisional** and may change. A change is a seed or variable edit and a rebuild; past weeks are rebuilt with it (D39).
+ADR-004 and ADR-014 are accepted, and D19, D22, D36, D42, D44, D46, D47 to D50 and D55 were decided by the owner on 14 November 2026. Every other entry is implemented as described and is waiting for a final decision, so it is **provisional** and may change. A change is a seed or variable edit and a rebuild; past weeks are rebuilt with it (D39).
 
 | Decision | Subject | Affects |
 | --- | --- | --- |
@@ -326,6 +326,8 @@ ADR-004 and ADR-014 are accepted, and D19, D22, D36, D42, D44, D46 and D47 to D5
 | D53 | Weak-evidence lines shown but not ranked on Experienced Reliability | measured, publishing |
 | D54 | The card's insight leaves out the Honesty Gap for now | measured, publishing |
 | D55 | A failing gate never holds back the declared view | measured (decided) |
+| D63 | The open dataset's contents and licence | publishing |
+| D64 | Iceberg maintenance scope (auto-apply) | operations |
 | [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing |
 | D57 | Division size, monthly measure, promotion and relegation | declared, publishing |
 | D58 | Season table, April to March | declared, publishing |

@@ -57,7 +57,7 @@ vars:
   # Hammersmith & City boards file one line's trains under the other on the
   # shared section (ADR-014).
   trains_run_withheld_lines: ["circle", "hammersmith-city"]
-  # Lines whose whole measured view fct_line_weekly withholds until their
+  # Lines whose whole measured view fct_line_weekly_measured withholds until their
   # trains are split on the shared section (D52, ADR-014 follow-up): the
   # misfiling also distorts their headways.
   measured_view_withheld_lines: ["circle", "hammersmith-city"]
@@ -67,7 +67,8 @@ vars:
   # branch stations (D51).
   gate_max_out_of_band_share: 0.3
   # `error` since the M4 acceptance passed (D44, settled 2026-11-14): a
-  # failing gate stops the build.
+  # failing gate fails the run and skips the measured models only; the
+  # declared tables never depend on it (D55, ADR-014).
   gate_test_severity: error
   # A headway is dropped, not read as a long gap, when the station went
   # longer than this between successful arrivals polls inside it (D28).
@@ -75,7 +76,7 @@ vars:
   # An hour is observed with at least this many successful arrivals polls
   # at the station (of 60) and no collection gap touching it.
   min_polls_per_hour: 54
-  # fct_line_weekly ranks a line on the measured view only when at least
+  # fct_line_weekly_measured ranks a line on the measured view only when at least
   # this share of its scheduled station-direction-hours passed the gate.
   min_measured_share: 0.5
   # Divisions (M6, ADR-015): seeded from the first this-many complete weeks

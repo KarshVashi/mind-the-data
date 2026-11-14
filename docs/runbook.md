@@ -485,6 +485,16 @@ terraform -chdir=infra/envs/prod output -json dbt_athena_env \
 
 **Sundays** the build is followed by the Iceberg maintenance (see "Iceberg maintenance").
 
+**When the quality gate fails.** `assert_measured_hours_pass_the_gate` runs at `error` (D44), so the run goes red, but it skips only the measured models (`fct_line_measured_daily`, `fct_line_weekly_measured`). The declared tables, the league, divisions and season are built as usual (ADR-014, D55). The next export withholds the measured numbers of every week the measured tables had not finished (`measured_not_rebuilt`); earlier weeks keep theirs. To see why the gate failed, read the test's rows in the run log, then look at the week's hours in prod (the owner's read-only profile; the dev database is built from the same raw data and can stand in when the dev build is current):
+
+```sh
+uv run python scripts/athena_query.py "select line_id, count(*) as judged, count_if(not is_in_band) as out_of_band from mind_the_data_prod.int_measured_hours where role = 'core' and is_gate_judged and london_date >= current_date - interval '7' day group by line_id order by 3 desc"
+```
+
+Once it passes again, the next daily run rebuilds the measured tables and the following export restores the numbers. Nothing needs to be re-run by hand.
+
+**Industrial action seed.** `assert_announced_industrial_action_is_current` warns, and the daily ops report (`ops-daily`, section "Industrial action seed") opens or updates the `ops-health` issue, when an `announced` row in `transform/seeds/seed_industrial_action.csv` is more than three days past its last day. It never fails the build. To clear it, set the row's `status` to `held` or `called_off` from a public source (update `source_*` to that source), open a pull request, and after merge re-run `transform-daily` so the strikes-excluded league uses it. Until then the strikes-excluded league keeps dropping that action's days (D60).
+
 ---
 
 ## Weekly publish
@@ -776,7 +786,7 @@ Scheduled checks that answer "is the collector healthy?" without anyone asking. 
 
 | Workflow | When | What it checks | Issue label |
 | --- | --- | --- | --- |
-| `ops-daily` | Every day at 02:10 UTC | The previous UTC day: completeness (`scripts/completeness.py`), alarm state and any alarm that fired, poller and reference Lambda errors and throttles, and the newest raw object per feed | `ops-health` |
+| `ops-daily` | Every day at 02:10 UTC | The previous UTC day: completeness (`scripts/completeness.py`), alarm state and any alarm that fired, poller and reference Lambda errors and throttles, the newest raw object per feed, and announced strikes left in the industrial action seed past their date | `ops-health` |
 | `ops-daytime` | Weekdays at 12:00 UTC | The strict arrivals check: every configured line shows predictions at its station in the last 15 minutes of raw arrivals | `ops-daytime` |
 
 Each run writes its report to the run summary. When something misses its target, it opens one issue with that label, or comments on the open one. The first run that meets every target closes it. So an open `ops-health` or `ops-daytime` issue means something is wrong now.

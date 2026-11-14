@@ -579,7 +579,7 @@ models:
         description: Judged and fidelity_ratio within `gate_low_ratio` to `gate_high_ratio` (0.8 to 1.2).
         data_tests: [not_null]
       - name: counts_for_reliability
-        description: The line is measured and the hour is in band; only these hours feed fct_line_weekly's measured metrics.
+        description: The line is measured and the hour is in band; only these hours feed fct_line_weekly_measured's metrics.
         data_tests: [not_null]
       - name: headways
         description: Observed headways ending in the hour, gaps across collection gaps left out.

@@ -17,7 +17,7 @@ Decisions waiting on the owner. Every PR updates this page. When a decision is s
 
 ## Deadlines
 
-The deadline is 72 hours after the item enters this inbox. Every item below entered on 2026-11-07, so the deadline is 2026-11-10 12:00 UTC.
+The deadline is 72 hours after the item enters this inbox. Unless a section says otherwise, an item below entered on 2026-11-07, so its deadline was 2026-11-10 12:00 UTC.
 
 ## Pending
 
@@ -375,14 +375,14 @@ These came out of the week-one review and the measured-view review, after D35 to
 - **Prod:** the merge key changed, so an incremental run would keep the old rows beside the new ones for the days it rereads, and older days stay short. Prod needs `dbt build --full-refresh --select stg_arrivals+` once after merge (owner step in STATUS.md). The dev table was rebuilt this way. Since M7 this runs in CI: `gh workflow run transform-daily.yml --ref main -f full_refresh=true -f select='stg_arrivals+'`.
 - **Class:** `never-default` (data rewrite). **Recommendation:** accept, and run the full refresh straight after merge.
 
-### Measured-view publishing decisions (D51 to D53)
+### Measured-view publishing decisions (D51 to D54)
 
-These come from publishing the measured view after the owner settled D42 on 2026-11-14 (`feat/collate-a-measured`). They entered on 2026-11-14, so the reminder date is 2026-11-17 18:00 UTC. All are `never-default` (metric semantics, publishing) and are listed in every published file's `open_decisions`. D42, D44, D46 and D47 to D50 were settled by the owner the same day and are under "Settled".
+These come from publishing the measured view after the owner settled D42 on 2026-11-14 (`feat/collate-a-measured`). D54 came from the owner's review of the bundle the same day. They entered on 2026-11-14, so the reminder date is 2026-11-17 18:00 UTC. All are `never-default` (metric semantics, publishing) and are listed in every published file's `open_decisions`. D42, D44, D46 and D47 to D50 were settled by the owner the same day and are under "Settled".
 
 ### D51. A line-week's own gate decides whether its measured numbers are published
 
 - **Context:** D42 publishes the measured view "once the gate passes". The M4 gate is one figure over all core-station Tube hours; it does not say whether a given line's week can be trusted. On 9 to 14 November the Tube lines' core hours pass at 75% to 98%, the Lioness line's at 42%.
-- **Implemented** (`fct_line_measured_daily`, `fct_line_weekly.measured_withheld_reason`, mirrored in `publish/league.py`): the build-wide limit, applied to each line-week. Its judged hours at core and branch stations (termini over-count, D33) must have at most `gate_max_out_of_band_share` (30%) out of band, and at least `min_measured_share` (50%) of its scheduled station-direction-hours must be measured (D42's existing rule). Otherwise the line-week's measured fields are `null` with a reason: `no_measured_hours`, `gate_not_judged` (no core or branch station, the Liberty line), `gate_failed` or `too_few_measured_hours`. A custom window sums the daily figures and applies the same rules. Experienced Reliability ranks only published line-weeks.
+- **Implemented** (`fct_line_measured_daily`, `fct_line_weekly_measured.measured_withheld_reason`, mirrored in `publish/league.py`): the build-wide limit, applied to each line-week. Its judged hours at core and branch stations (termini over-count, D33) must have at most `gate_max_out_of_band_share` (30%) out of band, and at least `min_measured_share` (50%) of its scheduled station-direction-hours must be measured (D42's existing rule). Otherwise the line-week's measured fields are `null` with a reason: `no_measured_hours`, `gate_not_judged` (no core or branch station, the Liberty line), `gate_failed` or `too_few_measured_hours`. A custom window sums the daily figures and applies the same rules. Experienced Reliability ranks only published line-weeks.
 - **Result, 9 to 14 November:** published for Bakerloo, Central, District, Jubilee, Metropolitan, Piccadilly, Victoria, the Elizabeth line and Weaver; withheld for Lioness (`gate_failed`), Mildmay, Northern and Windrush (`too_few_measured_hours`) and Liberty (`gate_not_judged`).
 - **Alternatives:** the M4 acceptance's 80% per line (Piccadilly and Metropolitan, at 76% and 75%, would be withheld); judge the line on all its stations, termini included (Central 70%, Northern 57%); no per-line gate.
 - **Class:** `never-default`. **Recommendation:** accept.
@@ -397,9 +397,17 @@ These come from publishing the measured view after the owner settled D42 on 2026
 ### D53. Weak-evidence lines are shown but not ranked on Experienced Reliability
 
 - **Context:** the Elizabeth line and the Overground are measured against fallback frequencies (D33), set to the lower of two estimates, so their scheduled waits are long and their excess wait reads low. On 2 to 8 November the Elizabeth line would have ranked first; its trains-run share was 1.20, more trains on the boards than the estimate.
-- **Implemented:** a line-week with any measured hour on fallback frequencies (today only the Elizabeth line and the Overground; a Tube station-direction TfL stopped publishing a timetable for would trigger it too) has `is_weak_evidence` (`fct_line_weekly`, and in the published `measured` object). Its numbers are published when its gate passes (D51), but it gets no `experienced_rank`, and the card's insight line never names it for a measured headline (D38).
+- **Implemented:** a line-week with any measured hour on fallback frequencies (today only the Elizabeth line and the Overground; a Tube station-direction TfL stopped publishing a timetable for would trigger it too) has `is_weak_evidence` (`fct_line_weekly_measured`, and in the published `measured` object). Its numbers are published when its gate passes (D51), but it gets no `experienced_rank`, and the card's insight line never names it for a measured headline (D38).
 - **Alternatives:** rank them with the flag; withhold them until real timetables exist.
 - **Class:** `never-default`. **Recommendation:** accept.
+
+### D54. The share card's insight line leaves out the Honesty Gap for now
+
+- **Context:** D38 put the most Honesty Gap hours first on the card once the measured view was published. ADR-014's open item 2 is unanswered: if the boards leave out trains that ran, hours pass the gate with gaps that exist only on the boards, and those long gaps feed the Honesty Gap. A card is the most shared form of the numbers and carries no caveat.
+- **Implemented** (owner-directed default, `publish/insight.py`): `HONESTY_GAP_HEADLINE = False`. The insight is the lowest trains run against the timetable on a line that is neither provisional nor weak evidence, when under 95% (unchanged from D38), then the declared fallback, the lowest Good Service % among ranked lines. Neither Honesty Gap hours nor long-gap counts reach the card. The Honesty Gap stays in the league and line files, with its caveat beside it (`docs/site-integration.md`). Setting the constant to `True` restores D38's order; `pick_insight(..., honesty_gap_headline=True)` is tested.
+- **Result:** on 4 to 10 November and 9 to 13 November the card's insight is the trains-run line; see the cards in the PR.
+- **Alternatives:** keep D38's order with a caveat on the card (no room on 1200x675 without crowding); drop the measured view from the card entirely.
+- **Class:** `never-default` (publishing). **Recommendation:** keep it off until open item 2 is answered (compare the boards with TfL's own trains-operated figures for a week), then switch it on.
 
 ### M6 league mechanics (D56 to D61)
 
@@ -467,7 +475,7 @@ These come from the rest of M6: divisions, the season table, the Recovery Time t
   - `rpt_league_strikes_excluded` drops, per line, the whole London dates of `held` or `announced` action that applies to it (a noon-to-noon strike drops both days), then sums and ranks the rest of the week with the weekly rules.
   - A week with no such date is the main league exactly. `assert_strikes_excluded_matches_league_without_strikes` checks this on every build, and a unit test checks it on the recorded week.
   - Each league file lists the action touching its window (`industrial_action`) and the variant (`strikes_excluded`, with `is_same_as_main`).
-  - An `announced` row must be updated to `held` or `called_off` once its date passes. `assert_announced_industrial_action_is_current` fails the build three days after an announced action's last day if it has not been updated.
+  - An `announced` row must be updated to `held` or `called_off` once its date passes. `assert_announced_industrial_action_is_current` warns three days after an announced action's last day if it has not been updated, and the daily ops report lists the row as a problem (owner-directed: a missed hand update must never stop the nightly build; runbook, "Industrial action seed").
   - `rmt-tube-2026-04-23` is marked `held` on the TfL announcement and later reports that drivers struck twice in April; no report from the day was found. It is before collection began, so it changes no published number.
 - **Not included:** the Evening Standard's report that 16 and 18 June were replaced by 2 and 4 June (no primary source found), and the 2027 dates of the same dispute.
 - **Alternatives:** drop only the strike hours (noon to noon), not whole days; exclude only the lines that ran no service, from TfL's status that day.
@@ -492,7 +500,7 @@ These come from the rest of M6: divisions, the season table, the Recovery Time t
 
 ### M7 decisions (D63, D64)
 
-These come from the M7 hardening work (`feat/collate-c-m7`). They entered on 2026-11-14, so the reminder date is 2026-11-17 18:00 UTC.
+These come from the M7 hardening work (`feat/collate-c-m7`). D62 was not used. They entered on 2026-11-14, so the reminder date is 2026-11-17 18:00 UTC.
 
 ### D63. The open dataset's contents and licence
 
@@ -523,11 +531,12 @@ These come from the M7 hardening work (`feat/collate-c-m7`). They entered on 202
 | 2026-11-03 | Deploy approval on a private repo on GitHub Free (ADR-005) | Merging is the approval, and merging deploys. |
 | 2026-11-14 | D19 Disruption Index denominator (owner) | The recommended alternative: the time-weighted denominator. Disruption Index = 100 x sum of (severity weight x time weight) / sum of time weight over scored minutes, a time-weighted mean severity from 0 to 800. In `fct_line_daily`, `fct_line_weekly`, `rpt_monday_morning` and `publish/league.py`; the card subtitle describes the scale. |
 | 2026-11-14 | D22 Planned statuses and lines mostly under works (owner) | The recommended option: a line is ranked only if it ran at least 50% of its scheduled hours (var `min_open_share_to_rank`, `MIN_OPEN_SHARE_TO_RANK`). Otherwise it keeps its index and shows "Not ranked: engineering works" in the marts (`unranked_reason`), the export, the share card and `post_snapshot.py`. Planned statuses other than closures keep their weights. D35 stays as it was and nests inside it (see D35). |
-| 2026-11-14 | D36 Publish while decisions are open (owner) | The recommended option: publish with provisional labels. Cards and files keep the methodology note, provisional markers and `open_decisions`; `meta/methodology.json` lists the settled ones. Publishing still needs H12 and the `PUBLISH_ENABLED` variable (runbook, H12). The measured view stays unpublished (D42). |
+| 2026-11-14 | D36 Publish while decisions are open (owner) | The recommended option: publish with provisional labels. Cards and files keep the methodology note, provisional markers and `open_decisions`; `meta/methodology.json` lists the settled ones. Publishing still needs H12 and the `PUBLISH_ENABLED` variable (runbook, H12). The measured view stayed unpublished until D42 was settled the same day. |
 | 2026-11-14 | D42 Publish the measured view (owner) | The recommended option: keep the D42 grain and denominators, and publish now that the gate passes under ADR-014. Measured fields (excess wait, long gaps, Honesty Gap, trains run, Experienced Reliability rank) are filled for each line-week whose own gate passes (D51); others carry `measured_withheld_reason`. The ADR-014 risk (boards that omit trains create gaps) is stated beside the Honesty Gap in the methodology. Contract `schema_version` 0.4.0. |
-| 2026-11-14 | D44 Gate test severity (owner) | The recommended option: `gate_test_severity: error`. A failing gate stops `transform-daily`: dbt skips everything downstream of `int_measured_hours`, the declared weekly tables included, so the export would read the last good build until the gate passes again. |
+| 2026-11-14 | D44 Gate test severity (owner) | The recommended option: `gate_test_severity: error`. A failing gate turns `transform-daily` red and dbt skips everything downstream of `int_measured_hours`. Since D55 that is the measured tables only. |
 | 2026-11-14 | D46 Accept ADR-014 (owner) | Accepted: the gate compares inferred trains with the trains on the boards; trains run against the timetable is its own measure. ADR-014 is marked accepted. |
 | 2026-11-14 | D47 Line of the Week (owner) | As recommended: the largest fall in Disruption Index points among lines ranked and at least 90% observed in both weeks, with a null reason otherwise. |
 | 2026-11-14 | D48 Wooden Spoon and worst incident (owner) | As recommended: the bottom-ranked line, split by line id; the incident with the most severity-weighted minutes. |
 | 2026-11-14 | D49 Monday Morning Index (owner) | As recommended: the Disruption Index over each Monday 07:00 to 10:00 London time. |
 | 2026-11-14 | D50 Engineering Works table (owner) | As recommended: weekly, per line, Part Closure counted in full. |
+| 2026-11-14 | D55 A failing gate never holds back the declared view (owner) | Directed by the owner. The measured columns moved from `fct_line_weekly` to `fct_line_weekly_measured`, so the gate test at `error` skips only the measured models; the declared tables, league, divisions and season always build. Weeks the measured tables did not finish are withheld (`measured_not_rebuilt`). ADR-014, "Gate failures and the declared view"; checked by `tests/unit/test_dbt_gate_isolation.py`. |

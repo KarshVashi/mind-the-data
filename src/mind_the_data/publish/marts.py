@@ -686,7 +686,7 @@ def queries(database: str, start: date, end: date) -> dict[str, str]:
             f"where incidents.start_london_date between {window} "
             "order by incidents.line_id, incidents.started_at"
         ),
-        # The newest minute built, in London time: how far the data reaches.
+        # When each weekly table was last built (ADR-014, D55).
         "build_times": (
             f"select (select max(built_at) from {database}.fct_line_weekly) as declared_built_at, "
             f"(select max(built_at) from {database}.fct_line_weekly_measured) "
@@ -694,6 +694,7 @@ def queries(database: str, start: date, end: date) -> dict[str, str]:
             f"(select max(built_london_date) from {database}.fct_line_weekly_measured) "
             "as measured_built_london_date"
         ),
+        # The newest minute built, in London time: how far the data reaches.
         "freshness": (
             f"select max(london_ts) as latest_london_ts from {database}.int_line_minute_status"
         ),

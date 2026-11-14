@@ -276,7 +276,7 @@ def rank_measured(standings: Sequence["Standing"]) -> list["Standing"]:
     """Experienced Reliability rank (PLAN 7.3) over published, strong-evidence lines.
 
     Lowest excess wait first, ties to fewer long gaps per 100 hours, equal
-    lines sharing a rank, as SQL rank() in fct_line_weekly (D51, D53).
+    lines sharing a rank, as SQL rank() in fct_line_weekly_measured (D51, D53).
     """
 
     def key(s: Standing) -> tuple[float, float]:

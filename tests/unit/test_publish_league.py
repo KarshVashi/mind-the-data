@@ -34,6 +34,7 @@ from mind_the_data.publish.marts import (
     MondayMorningRow,
     RecordedMarts,
     WeeklyRow,
+    parse_build_times,
 )
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "marts"
@@ -658,7 +659,7 @@ def test_build_times_measured_is_final_for() -> None:
     # Stale: W46 ended on Sunday 15 November, before the last measured build.
     assert STALE_BUILD.measured_is_final_for(date(2026, 11, 15))
     assert STALE_BUILD.measured_is_final_for(date(2026, 11, 16))
-    # Monday 17 November itself was only partly in the tables.
+    # Tuesday 17 November itself was only partly in the tables.
     assert not STALE_BUILD.measured_is_final_for(date(2026, 11, 17))
     assert not STALE_BUILD.measured_is_final_for(date(2026, 11, 22))
     # Never built: nothing is final.
@@ -715,3 +716,28 @@ def test_custom_window_withholds_measured_when_tables_are_stale() -> None:
     assert by_id["a"].measured_withheld_reason == "measured_not_rebuilt"
     assert by_id["a"].rank == 1 and by_id["dlr"].rank == 1
     assert by_id["dlr"].measured_withheld_reason == "line_not_measured"
+
+
+def test_build_times_parse_athena_timestamps() -> None:
+    times = parse_build_times(
+        {
+            "declared_built_at": "2026-11-18 03:35:02.123456",
+            "measured_built_at": "2026-11-17 03:40:11.000000",
+            "measured_built_london_date": "2026-11-17",
+        }
+    )
+    assert times == BuildTimes(
+        datetime(2026, 11, 18, 3, 35, 2, 123456),
+        datetime(2026, 11, 17, 3, 40, 11),
+        date(2026, 11, 17),
+    )
+    # The measured table was never built.
+    never = parse_build_times(
+        {
+            "declared_built_at": "2026-11-18 03:35:02.000000",
+            "measured_built_at": None,
+            "measured_built_london_date": None,
+        }
+    )
+    assert never is not None and not never.measured_is_final_for(date(2026, 11, 1))
+    assert parse_build_times({"declared_built_at": None}) is None

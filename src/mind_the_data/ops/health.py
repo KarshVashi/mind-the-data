@@ -286,9 +286,6 @@ def freshness_section(
     return section
 
 
-# ---- report ------------------------------------------------------------------------
-
-
 # ---- industrial action seed ----------------------------------------------------
 
 # Days after an announced action's last day before the seed counts as stale;
@@ -300,7 +297,9 @@ def industrial_action_section(actions: Sequence["IndustrialAction"], today: date
     """Announced actions that have passed and still need `held` or `called_off` (D60).
 
     The dbt test only warns, so a missed hand update cannot stop the nightly
-    build; this puts it in the daily report as a problem instead.
+    build; this puts it in the daily report as a problem instead. `today` is
+    the report's UTC date; dbt uses the London date, so the two can differ
+    by a day around midnight, which the three days' grace absorbs.
     """
     title = "Industrial action seed"
     stale = sorted(
@@ -321,6 +320,20 @@ def industrial_action_section(actions: Sequence["IndustrialAction"], today: date
         for a in stale
     ]
     return Section(title, lines, [f"{title}: {len(stale)} announced action(s) out of date"])
+
+
+def industrial_action_report(
+    load: Callable[[], Sequence["IndustrialAction"]], today: date
+) -> Section:
+    """`industrial_action_section` over the seed, with a bad seed as a problem, not a crash."""
+    try:
+        return industrial_action_section(load(), today)
+    except (OSError, ValueError, KeyError) as exc:
+        reason = f"could not read the seed: {type(exc).__name__}: {exc}"
+        return Section("Industrial action seed", [reason], [f"Industrial action seed: {reason}"])
+
+
+# ---- report ------------------------------------------------------------------------
 
 
 def render(title: str, sections: Sequence[Section], footer: str = "") -> str:
