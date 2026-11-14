@@ -105,14 +105,6 @@ unit_tests:
           - {line_id: district, is_low_volume: false}
           - {line_id: jubilee, is_low_volume: false}
           - {line_id: northern, is_low_volume: false}
-      # The measured view has its own test below; one row that matches
-      # nothing keeps these inputs out of the way.
-      - input: ref('seed_measured_lines')
-        rows:
-          - {line_id: victoria, is_measured: true}
-      - input: ref('fct_line_measured_daily')
-        rows:
-          - {line_id: unused, week_start: "2026-10-19", measured_hours: 0}
     expect:
       rows:
         - {line_id: victoria, week_start: "2026-10-19", week_end: "2026-10-25", scored_minutes: 120, time_weighted_scored_minutes: 90, disruption_index: 50, good_service_pct: 75, incidents_per_100_hours: 50, completeness: 1, median_recovery_minutes: 12, is_week_complete: true, is_provisional: false, engineering_works_share: 0, is_ranked: true, unranked_reason: null, disruption_rank: 1, previous_disruption_rank: null, rank_movement: null, previous_disruption_index: null}
@@ -174,7 +166,7 @@ unit_tests:
 
   - name: fct_line_weekly_measured_view_and_publish_rule
     description: >
-      Week of 26 October 2026, from fct_line_measured_daily sums over two
+      One row per line-week of fct_line_weekly. Week of 26 October 2026, from fct_line_measured_daily sums over two
       days. Victoria: excess wait (90 + 30) s over 4 hours = 0.5 min; long
       gaps 1 per 4 measured hours = 25 per 100; Honesty Gap 1 of 1; trains
       run 60 / 80 = 0.75; coverage 4 of 5 = 0.8; gate 3 of 4 judged hours in
@@ -195,35 +187,20 @@ unit_tests:
       out): published, excess 120 s over 2 hours = 1 min, rank 2.
       Piccadilly has 1 of its 2 measured hours on fallback frequencies:
       one is enough to make it weak evidence, published and unranked.
-    model: fct_line_weekly
+    model: fct_line_weekly_measured
     given:
-      - input: ref('fct_line_daily')
+      - input: ref('fct_line_weekly')
         rows:
-          - {line_id: victoria, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
-          - {line_id: bakerloo, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
-          - {line_id: dlr, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
-          - {line_id: central, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
-          - {line_id: metropolitan, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
-          - {line_id: liberty, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
-          - {line_id: elizabeth, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
-          - {line_id: circle, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
-          - {line_id: jubilee, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
-          - {line_id: piccadilly, london_date: "2026-10-27", week_start: "2026-10-26", scheduled_minutes: 60, observed_minutes: 60, scored_minutes: 60, good_service_minutes: 60, weighted_disruption_minutes: 0, time_weighted_scored_minutes: 60, incidents: 0}
-      - input: ref('int_incidents')
-        rows:
-          - {line_id: unused, start_week_start: "2026-10-26", recovery_minutes: null}
-      - input: ref('dim_lines')
-        rows:
-          - {line_id: victoria, is_low_volume: false}
-          - {line_id: bakerloo, is_low_volume: false}
-          - {line_id: dlr, is_low_volume: false}
-          - {line_id: central, is_low_volume: false}
-          - {line_id: metropolitan, is_low_volume: false}
-          - {line_id: liberty, is_low_volume: true}
-          - {line_id: elizabeth, is_low_volume: false}
-          - {line_id: circle, is_low_volume: false}
-          - {line_id: jubilee, is_low_volume: false}
-          - {line_id: piccadilly, is_low_volume: false}
+          - {line_id: victoria, week_start: "2026-10-26"}
+          - {line_id: bakerloo, week_start: "2026-10-26"}
+          - {line_id: dlr, week_start: "2026-10-26"}
+          - {line_id: central, week_start: "2026-10-26"}
+          - {line_id: metropolitan, week_start: "2026-10-26"}
+          - {line_id: liberty, week_start: "2026-10-26"}
+          - {line_id: elizabeth, week_start: "2026-10-26"}
+          - {line_id: circle, week_start: "2026-10-26"}
+          - {line_id: jubilee, week_start: "2026-10-26"}
+          - {line_id: piccadilly, week_start: "2026-10-26"}
       - input: ref('seed_measured_lines')
         rows:
           - {line_id: victoria, is_measured: true}

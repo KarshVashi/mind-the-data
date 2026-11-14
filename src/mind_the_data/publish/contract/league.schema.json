@@ -160,7 +160,7 @@
       }
     },
     "measured_withheld_reason": {
-      "description": "Why a line's measured numbers are not published, the first that applies: the line is not measured (D43); its boards misfile trains on a shared section (D52); no hour passed the quality gate; no hour was judged at a core or branch station; more than 30% of judged hours fell outside the gate (D51); under half its scheduled hours measured (D42). Null when published.",
+      "description": "Why a line's measured numbers are not published, the first that applies: the line is not measured (D43); its boards misfile trains on a shared section (D52); no hour passed the quality gate; no hour was judged at a core or branch station; more than 30% of judged hours fell outside the gate (D51); under half its scheduled hours measured (D42); the measured tables were not rebuilt since the window ended, after a failed quality gate (measured_not_rebuilt, ADR-014). Null when published.",
       "enum": [
         null,
         "line_not_measured",
@@ -168,7 +168,8 @@
         "no_measured_hours",
         "gate_not_judged",
         "gate_failed",
-        "too_few_measured_hours"
+        "too_few_measured_hours",
+        "measured_not_rebuilt"
       ]
     },
     "measured": {

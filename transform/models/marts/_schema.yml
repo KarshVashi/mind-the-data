@@ -115,7 +115,9 @@ models:
       against the previous week. A line-week under `provisional_completeness`
       (0.9) is provisional. A line that ran under `min_open_share_to_rank`
       (0.5) of its scheduled minutes because of engineering works keeps its
-      index but is not ranked (D22, decided 2026-11-14).
+      index but is not ranked (D22, decided 2026-11-14). Holds no measured
+      columns and does not depend on int_measured_hours, so a failing
+      quality gate never skips it (ADR-014).
     columns:
       - name: line_weekly_key
         description: Row key, a hash of (line_id, week_start).
@@ -194,6 +196,29 @@ models:
         description: previous rank minus this rank; positive means the line climbed.
       - name: previous_disruption_index
         description: The line's Disruption Index in the previous week; Line of the Week compares with it (D47).
+      - name: built_at
+        description: When this table was built (UTC). The export compares it with fct_line_weekly_measured.built_at.
+        data_tests: [not_null]
+
+  - name: fct_line_weekly_measured
+    description: >
+      Measured-view metrics per line and ISO week (PLAN 7.3), one row for
+      every line-week of fct_line_weekly: sums of fct_line_measured_daily,
+      the line-week gate (D51), weak evidence (D53) and the Experienced
+      Reliability rank. Downstream of int_measured_hours, so a failing
+      quality gate test skips it and the table keeps its last good build;
+      the export then withholds every week that was not complete at
+      `built_london_date` (`measured_not_rebuilt`).
+    columns:
+      - name: line_weekly_measured_key
+        description: Row key, a hash of (line_id, week_start).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
       - name: is_measured
         description: seed_measured_lines scores the line in the measured view (D43).
         data_tests: [not_null]
@@ -294,6 +319,12 @@ models:
           numbers (D42, settled 2026-11-14). The measured columns keep their
           values for withheld line-weeks, for checking; any reader that shows
           them must filter on this flag.
+        data_tests: [not_null]
+      - name: built_at
+        description: When this table was built (UTC).
+        data_tests: [not_null]
+      - name: built_london_date
+        description: The London date of the build; weeks that ended before it were complete when the table was built.
         data_tests: [not_null]
 
   - name: fct_line_measured_daily

@@ -124,6 +124,35 @@ class WeeklyRow:
 
 
 @dataclass(frozen=True)
+class BuildTimes:
+    """When the declared and measured weekly tables were last built.
+
+    A failing quality gate skips fct_line_weekly_measured (and
+    fct_line_measured_daily) but not fct_line_weekly, so the measured tables
+    can be older than the declared ones (ADR-014, "Gate failures and the
+    declared view").
+    """
+
+    declared_built_at: datetime
+    measured_built_at: datetime | None
+    # London date of the measured build: windows that ended before it were
+    # complete in the measured tables.
+    measured_built_london_date: date | None
+
+    def measured_is_final_for(self, window_end: date) -> bool:
+        """The measured tables hold the window's whole measured view.
+
+        True when they were built with (or after) the declared tables, or
+        when the window had ended before they were last built.
+        """
+        if self.measured_built_at is None or self.measured_built_london_date is None:
+            return False
+        if self.measured_built_at >= self.declared_built_at:
+            return True
+        return window_end < self.measured_built_london_date
+
+
+@dataclass(frozen=True)
 class IncidentRow:
     line_id: str
     started_at_utc: datetime
@@ -269,6 +298,7 @@ class Marts(Protocol):
     def bad_hours(self, start: date, end: date) -> list[BadHourRow]: ...
     def monday_morning(self, start: date, end: date) -> list[MondayMorningRow]: ...
     def measured_daily(self, start: date, end: date) -> list[MeasuredDailyRow]: ...
+    def build_times(self) -> BuildTimes | None: ...
     def division_seeding(self) -> list[SeedingRow]: ...
     def divisions(self) -> list[DivisionMonthRow]: ...
     def seasons(self) -> list[SeasonRow]: ...
@@ -403,6 +433,17 @@ def parse_weekly(cells: Cells) -> WeeklyRow:
         measured_sums=None if _opt(cells, "measured_hours") is None else _measured_sums(cells),
         measured_withheld_reason=_opt(cells, "measured_withheld_reason"),
         experienced_rank=_opt_int(cells, "experienced_rank"),
+    )
+
+
+def parse_build_times(cells: Cells) -> BuildTimes | None:
+    declared = _opt_timestamp(cells, "declared_built_at")
+    if declared is None:
+        return None
+    return BuildTimes(
+        declared_built_at=declared,
+        measured_built_at=_opt_timestamp(cells, "measured_built_at"),
+        measured_built_london_date=_opt_date(cells, "measured_built_london_date"),
     )
 
 
@@ -547,14 +588,34 @@ DAILY_COLUMNS = (
     "good_service_minutes, disrupted_minutes, weighted_disruption_minutes, "
     "time_weighted_scored_minutes, incidents"
 )
-WEEKLY_COLUMNS = (
-    "line_id, week_start, scheduled_minutes, observed_minutes, engineering_works_minutes, "
-    "scored_minutes, good_service_minutes, weighted_disruption_minutes, "
-    "time_weighted_scored_minutes, incidents, median_recovery_minutes, completeness, "
-    "disruption_index, good_service_pct, incidents_per_100_hours, is_week_complete, "
-    "is_provisional, unranked_reason, disruption_rank, rank_movement, "
-    + ", ".join(MEASURED_SUM_FIELDS)
-    + ", measured_withheld_reason, experienced_rank"
+DECLARED_WEEKLY_COLUMNS = (
+    "line_id",
+    "week_start",
+    "scheduled_minutes",
+    "observed_minutes",
+    "engineering_works_minutes",
+    "scored_minutes",
+    "good_service_minutes",
+    "weighted_disruption_minutes",
+    "time_weighted_scored_minutes",
+    "incidents",
+    "median_recovery_minutes",
+    "completeness",
+    "disruption_index",
+    "good_service_pct",
+    "incidents_per_100_hours",
+    "is_week_complete",
+    "is_provisional",
+    "unranked_reason",
+    "disruption_rank",
+    "rank_movement",
+)
+MEASURED_WEEKLY_COLUMNS = (*MEASURED_SUM_FIELDS, "measured_withheld_reason", "experienced_rank")
+# fct_line_weekly holds the declared view and fct_line_weekly_measured the
+# measured one (ADR-014); the export reads them joined, with the old names.
+WEEKLY_COLUMNS = ", ".join(
+    [f"declared.{c}" for c in DECLARED_WEEKLY_COLUMNS]
+    + [f"measured.{c}" for c in MEASURED_WEEKLY_COLUMNS]
 )
 MEASURED_DAILY_COLUMNS = "line_id, london_date, " + ", ".join(MEASURED_SUM_FIELDS)
 INCIDENT_COLUMNS = (
@@ -610,7 +671,10 @@ def queries(database: str, start: date, end: date) -> dict[str, str]:
             f"where london_date between {window} order by line_id, london_date"
         ),
         "weekly": (
-            f"select {WEEKLY_COLUMNS} from {database}.fct_line_weekly order by week_start, line_id"
+            f"select {WEEKLY_COLUMNS} from {database}.fct_line_weekly as declared "
+            f"left join {database}.fct_line_weekly_measured as measured "
+            "on declared.line_id = measured.line_id and declared.week_start = measured.week_start "
+            "order by declared.week_start, declared.line_id"
         ),
         # London time comes from dbt (int_line_minute_status.london_ts), not
         # from a conversion here.
@@ -623,6 +687,13 @@ def queries(database: str, start: date, end: date) -> dict[str, str]:
             "order by incidents.line_id, incidents.started_at"
         ),
         # The newest minute built, in London time: how far the data reaches.
+        "build_times": (
+            f"select (select max(built_at) from {database}.fct_line_weekly) as declared_built_at, "
+            f"(select max(built_at) from {database}.fct_line_weekly_measured) "
+            "as measured_built_at, "
+            f"(select max(built_london_date) from {database}.fct_line_weekly_measured) "
+            "as measured_built_london_date"
+        ),
         "freshness": (
             f"select max(london_ts) as latest_london_ts from {database}.int_line_minute_status"
         ),
@@ -734,6 +805,12 @@ class RecordedMarts:
         rows = [parse_measured_daily(c) for c in self._cells("measured_daily")]
         return [r for r in rows if start <= r.london_date <= end]
 
+    def build_times(self) -> BuildTimes | None:
+        # Recordings made before the measured view had its own table have
+        # no build times; their measured columns came from one build.
+        cells = self._optional("build_times")
+        return parse_build_times(cells[0]) if cells else None
+
     def _optional(self, stem: str) -> list[dict[str, str | None]]:
         # Recordings made before a mart existed have no file for it.
         path = self.directory / f"{stem}.json"
@@ -820,6 +897,10 @@ class AthenaMarts:
 
     def measured_daily(self, start: date, end: date) -> list[MeasuredDailyRow]:
         return [parse_measured_daily(c) for c in self._run("measured_daily", start, end)]
+
+    def build_times(self) -> BuildTimes | None:
+        cells = self._run("build_times", date.min, date.min)
+        return parse_build_times(cells[0]) if cells else None
 
     def division_seeding(self) -> list[SeedingRow]:
         return [parse_seeding(c) for c in self._run("division_seeding", date.min, date.min)]

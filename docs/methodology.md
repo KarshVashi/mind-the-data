@@ -209,7 +209,7 @@ The plan first compared inferred trains with the timetable. The boards list only
 
 Hours outside the band are excluded from excess wait, long gaps and the Honesty Gap.
 
-**Current result.** On 9 to 13 November 87.1% of judged core-station hours on measured Tube lines were in band, against a target of 80% ([data-quality/2026-11-14-fidelity-gate.md](data-quality/2026-11-14-fidelity-gate.md)); under the old band the same hours scored 65.4%. Failing hours are almost all above 120%: on lines that do not link by vehicle id, a train held short of the platform can count once per poll (D26, D27). The gate test now fails the build when more than 30% of the last seven days' judged core-station hours are out of band, or when no hour was judged at all (D44). dbt then skips every model downstream of `int_measured_hours`, which includes the weekly league tables, declared view too, so the next export would read the last good build. That is the owner's choice: a broken inference stops the week rather than publishing alongside it.
+**Current result.** On 9 to 13 November 87.1% of judged core-station hours on measured Tube lines were in band, against a target of 80% ([data-quality/2026-11-14-fidelity-gate.md](data-quality/2026-11-14-fidelity-gate.md)); under the old band the same hours scored 65.4%. Failing hours are almost all above 120%: on lines that do not link by vehicle id, a train held short of the platform can count once per poll (D26, D27). The gate test now fails the build when more than 30% of the last seven days' judged core-station hours are out of band, or when no hour was judged at all (D44). dbt then skips the measured tables only. The declared league, divisions and season are built from status data that does not use the inference, so they are rebuilt as usual (D55, ADR-014). Any week the measured tables had not finished at their last good build has its measured numbers withheld (`measured_not_rebuilt`) until the gate passes again; nothing measured is ever shown from a partial week.
 
 ### What is published for a line-week
 
@@ -264,7 +264,7 @@ Every Monday the latest complete week is exported as JSON and two share card ima
 
 Every file carries `schema_version`, `generated_at`, `data_window`, `completeness` and `git_sha`, so any number can be traced to the code that made it. Each run rewrites every past week from the current marts, so the archive always shows the current methodology (D39).
 
-The card's insight line names, in order: the most Honesty Gap hours; otherwise the lowest trains-run share under 95%; otherwise the lowest Good Service % (D38). It never names a provisional line, or a weak-evidence line for a measured headline. Measured fields in each league and line file are `null` with a `measured_withheld_reason` when withheld; `meta/methodology.json` lists the gate thresholds and the withheld lines.
+The card's insight line names, in order: the lowest trains-run share under 95%; otherwise the lowest Good Service % (D38, D54). The Honesty Gap is left off the card until it is known whether the boards omit trains that ran (ADR-014, open item 2); it stays in the files with its caveat. It never names a provisional line, or a weak-evidence line for a measured headline. Measured fields in each league and line file are `null` with a `measured_withheld_reason` when withheld; `meta/methodology.json` lists the gate thresholds and the withheld lines.
 
 ---
 
@@ -324,6 +324,8 @@ ADR-004 and ADR-014 are accepted, and D19, D22, D36, D42, D44, D46 and D47 to D5
 | D51 | A line-week's own gate decides whether its measured numbers are published | measured, publishing |
 | D52 | Circle and Hammersmith & City measured view withheld | measured, publishing |
 | D53 | Weak-evidence lines shown but not ranked on Experienced Reliability | measured, publishing |
+| D54 | The card's insight leaves out the Honesty Gap for now | measured, publishing |
+| D55 | A failing gate never holds back the declared view | measured (decided) |
 | [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing |
 | D57 | Division size, monthly measure, promotion and relegation | declared, publishing |
 | D58 | Season table, April to March | declared, publishing |

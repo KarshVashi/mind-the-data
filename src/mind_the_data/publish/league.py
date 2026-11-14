@@ -15,7 +15,7 @@ rpt_weekly_highlights: the Wooden Spoon, Line of the Week and the single
 worst incident.
 
 The measured view (PLAN 7.3, published since D42 was settled) follows the
-same pattern: an ISO week takes fct_line_weekly's sums, withheld reason and
+same pattern: an ISO week takes fct_line_weekly_measured's sums, withheld reason and
 experienced rank; a custom window sums fct_line_measured_daily and applies
 the same rules here (D51 to D53).
 
@@ -29,6 +29,7 @@ from datetime import date, datetime, timedelta
 from statistics import median
 
 from mind_the_data.publish.marts import (
+    BuildTimes,
     DailyRow,
     IncidentRow,
     LineInfo,
@@ -77,6 +78,10 @@ MIN_MEASURED_SHARE = 0.5
 MEASURED_VIEW_WITHHELD_LINES: tuple[str, ...] = ("circle", "hammersmith-city")
 TRAINS_RUN_WITHHELD_LINES: tuple[str, ...] = ("circle", "hammersmith-city")
 WITHHELD_SHARED_SECTION = "shared_section_misfiled"
+# The measured tables were not rebuilt with the declared ones (a failing
+# quality gate skips them, ADR-014) and the window had not ended when they
+# last were, so their numbers for it are partial.
+WITHHELD_NOT_REBUILT = "measured_not_rebuilt"
 
 # Open owner decisions that change published numbers or flags (docs/DECISIONS.md).
 OPEN_METRIC_DECISIONS: tuple[str, ...] = (
@@ -105,6 +110,7 @@ OPEN_METRIC_DECISIONS: tuple[str, ...] = (
     "D51",
     "D52",
     "D53",
+    "D54",
     "D56",
     "D57",
     "D58",
@@ -125,6 +131,7 @@ SETTLED_METRIC_DECISIONS: tuple[str, ...] = (
     "D48",
     "D49",
     "D50",
+    "D55",
 )
 
 
@@ -185,7 +192,7 @@ class MeasuredView:
 def measured_withheld_reason(line: LineInfo, sums: MeasuredSums | None) -> str | None:
     """Why a line-week's measured numbers are not published; None when they are.
 
-    The first that applies, as fct_line_weekly.measured_withheld_reason.
+    The first that applies, as fct_line_weekly_measured.measured_withheld_reason.
     """
     if not line.is_measured:
         return "line_not_measured"
@@ -202,8 +209,38 @@ def measured_withheld_reason(line: LineInfo, sums: MeasuredSums | None) -> str |
     return None
 
 
+def withhold_stale_measured(
+    weekly: Sequence[WeeklyRow],
+    lines: Sequence[LineInfo],
+    build_times: BuildTimes | None,
+) -> list[WeeklyRow]:
+    """Withhold the measured view of weeks the measured tables did not finish.
+
+    A failing quality gate leaves fct_line_weekly rebuilt and
+    fct_line_weekly_measured at its last good build. Weeks that had ended
+    before that build keep their measured numbers; later ones are withheld
+    for every measured line, never shown partial. No build times (a
+    recording from before the split) means one build made both.
+    """
+    if build_times is None:
+        return list(weekly)
+    measured_lines = {line.line_id for line in lines if line.is_measured}
+    out = []
+    for row in weekly:
+        week_end = row.week_start + timedelta(days=6)
+        if row.line_id in measured_lines and not build_times.measured_is_final_for(week_end):
+            row = replace(
+                row,
+                measured_sums=None,
+                measured_withheld_reason=WITHHELD_NOT_REBUILT,
+                experienced_rank=None,
+            )
+        out.append(row)
+    return out
+
+
 def measured_view(line: LineInfo, sums: MeasuredSums, experienced_rank: int | None) -> MeasuredView:
-    """The published measured numbers from a window's sums, as fct_line_weekly computes them."""
+    """The published measured numbers from a window's sums, as fct_line_weekly_measured has them."""
     trains_run_withheld = (
         WITHHELD_SHARED_SECTION if line.line_id in TRAINS_RUN_WITHHELD_LINES else None
     )
@@ -619,16 +656,20 @@ def league_from_daily(
     monday_morning: Sequence[MondayMorningRow] = (),
     measured_daily: Sequence[MeasuredDailyRow] = (),
     industrial_action: Sequence[IndustrialAction] = (),
+    build_times: BuildTimes | None = None,
 ) -> League:
     """Sum fct_line_daily over a custom window and rank it (D20, D22).
 
     The measured view sums fct_line_measured_daily over the same dates and
-    applies fct_line_weekly's rules (D51 to D53).
+    applies fct_line_weekly_measured's rules (D51 to D53). If the measured
+    tables were not rebuilt since the window ended, it is withheld
+    (`measured_not_rebuilt`, see withhold_stale_measured).
 
     Rank movement and Line of the Week are left empty: there is no earlier
     window of the same shape to compare with.
     """
     in_window = [d for d in daily if window.start <= d.london_date <= window.end]
+    measured_final = build_times is None or build_times.measured_is_final_for(window.end)
     window_incidents = [i for i in incidents if window.start <= i.start_london_date <= window.end]
     daily_by_line = rows_by_line(in_window)
     incidents_by_line = rows_by_line(window_incidents)
@@ -653,6 +694,8 @@ def league_from_daily(
         measured_rows = measured_by_line.get(line.line_id, [])
         sums = sum((m.sums for m in measured_rows), MeasuredSums()) if measured_rows else None
         withheld = measured_withheld_reason(line, sums)
+        if line.is_measured and not measured_final:
+            withheld = WITHHELD_NOT_REBUILT
         standings.append(
             replace(
                 standing,

@@ -51,6 +51,7 @@ from mind_the_data.publish.league import (
     League,
     Window,
     league_from_weekly,
+    withhold_stale_measured,
 )
 from mind_the_data.publish.marts import AthenaMarts, Marts, RecordedMarts, WeeklyRow
 from mind_the_data.publish.mechanics import (
@@ -140,6 +141,9 @@ def build_outputs(
     window = Window.for_iso_week(iso_week_of(week_start))
     lines = marts.lines()
     weekly = marts.weekly() if weekly is None else weekly
+    # A failed quality gate leaves the measured tables behind the declared
+    # ones; their unfinished weeks are withheld, never shown partial.
+    weekly = withhold_stale_measured(weekly, lines, marts.build_times())
     latest_minute = marts.latest_minute_london()
     observed_weeks = sorted({w.week_start for w in weekly if w.observed_minutes > 0})
     history_start = min([window.start, *observed_weeks])

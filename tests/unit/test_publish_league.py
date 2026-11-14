@@ -20,10 +20,12 @@ from mind_the_data.publish.league import (
     monday_mornings,
     provisional_reasons,
     rank_standings,
+    withhold_stale_measured,
     wooden_spoon,
     worst_incident,
 )
 from mind_the_data.publish.marts import (
+    BuildTimes,
     DailyRow,
     IncidentRow,
     LineInfo,
@@ -638,3 +640,78 @@ def test_measured_daily_sum_matches_dbt_weekly(iso_week: str) -> None:
                 want, excess_wait_minutes=None
             )
     assert published >= 8
+
+
+# A gate failure on Wednesday 18 November skips the measured tables; they
+# were last built at 03:30 London on Tuesday 17 November (UTC in winter).
+STALE_BUILD = BuildTimes(
+    declared_built_at=datetime(2026, 11, 18, 3, 35),
+    measured_built_at=datetime(2026, 11, 17, 3, 40),
+    measured_built_london_date=date(2026, 11, 17),
+)
+
+
+def test_build_times_measured_is_final_for() -> None:
+    # Built in the same run (after the declared table): every window is final.
+    same_run = replace(STALE_BUILD, measured_built_at=datetime(2026, 11, 18, 3, 40))
+    assert same_run.measured_is_final_for(date(2026, 11, 22))
+    # Stale: W46 ended on Sunday 15 November, before the last measured build.
+    assert STALE_BUILD.measured_is_final_for(date(2026, 11, 15))
+    assert STALE_BUILD.measured_is_final_for(date(2026, 11, 16))
+    # Monday 17 November itself was only partly in the tables.
+    assert not STALE_BUILD.measured_is_final_for(date(2026, 11, 17))
+    assert not STALE_BUILD.measured_is_final_for(date(2026, 11, 22))
+    # Never built: nothing is final.
+    never = BuildTimes(datetime(2026, 11, 18, 3, 35), None, None)
+    assert not never.measured_is_final_for(date(2026, 11, 1))
+
+
+def test_stale_measured_weeks_are_withheld_not_partial() -> None:
+    """A gate failure keeps the declared rows and withholds unfinished measured weeks."""
+    lines = [measured_line("a"), measured_line("dlr", is_measured=False)]
+    w46, w47 = date(2026, 11, 9), date(2026, 11, 16)
+    rows = [
+        replace(weekly_row(x, week, 10.0, 1), measured_sums=sums(), experienced_rank=1)
+        for x in ("a",)
+        for week in (w46, w47)
+    ] + [
+        replace(weekly_row("dlr", w47, 20.0, 2), measured_withheld_reason="line_not_measured"),
+    ]
+    out = {(r.line_id, r.week_start): r for r in withhold_stale_measured(rows, lines, STALE_BUILD)}
+    # W46 had ended when the measured tables were built: kept.
+    assert out[("a", w46)].measured_sums == sums() and out[("a", w46)].experienced_rank == 1
+    # W47 was in progress: withheld, never shown partial.
+    stale = out[("a", w47)]
+    assert stale.measured_sums is None and stale.experienced_rank is None
+    assert stale.measured_withheld_reason == "measured_not_rebuilt"
+    # The declared view is untouched, and unmeasured lines keep their reason.
+    assert (stale.disruption_index, stale.disruption_rank) == (10.0, 1)
+    assert out[("dlr", w47)].measured_withheld_reason == "line_not_measured"
+    # No build times (an old recording): rows pass through.
+    assert withhold_stale_measured(rows, lines, None) == rows
+
+
+def test_custom_window_withholds_measured_when_tables_are_stale() -> None:
+    window = Window(date(2026, 11, 16), date(2026, 11, 17))
+    lines = [measured_line("a"), measured_line("dlr", is_measured=False)]
+    daily_rows = [
+        daily(
+            x.line_id,
+            window.start,
+            scheduled_minutes=60,
+            observed_minutes=60,
+            scored_minutes=60,
+            good_service_minutes=60,
+            time_weighted_scored_minutes=60.0,
+        )
+        for x in lines
+    ]
+    measured = [MeasuredDailyRow("a", window.start, sums())]
+    league = league_from_daily(
+        window, lines, daily_rows, [], measured_daily=measured, build_times=STALE_BUILD
+    )
+    by_id = {s.line.line_id: s for s in league.standings}
+    assert by_id["a"].measured is None
+    assert by_id["a"].measured_withheld_reason == "measured_not_rebuilt"
+    assert by_id["a"].rank == 1 and by_id["dlr"].rank == 1
+    assert by_id["dlr"].measured_withheld_reason == "line_not_measured"
