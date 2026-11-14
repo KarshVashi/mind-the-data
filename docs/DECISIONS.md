@@ -75,6 +75,7 @@ The deadline is 72 hours after the item enters this inbox. Every item below ente
 - **Context:** `transform-daily` ran in prod before #17. Then, arrivals and stop disruptions parsed as null-filled rows. A merge never deletes rows (ADR-008), so null-keyed rows may still sit beside the corrected ones.
 - A `--full-refresh` rewrites the prod staging tables from raw.
 - **Default:** check prod for null-keyed rows once AWS access is back. If any are found, run a full refresh in a one-off workflow run.
+- **Now possible in CI:** `transform-daily` takes `full_refresh` and `select` on a manual run (runbook, "Full refresh in prod"), e.g. `-f full_refresh=true -f select='staging+'`, as the transform role.
 - **Deadline:** 2026-11-10 12:00 UTC. **Class:** `never-default` (data deletion).
 
 ### D9. dbt unit tests in prod builds
@@ -396,7 +397,7 @@ These came out of the week-one review and the measured-view review, after D35 to
 
 - **Context:** the week-one review (Q5) found `stg_arrivals` keyed on `(poll_id, request_path, prediction_id)`. TfL's id is not unique on a board: every DLR prediction at a station shares one id, and a train that terminates and leaves again keeps its id on two platforms. On 6 November staging dropped 83.7% of DLR rows and up to 38% at Tube termini. This is a bug fix to merged M2 staging.
 - **Implemented:** the key adds line, stop, platform, direction, vehicle, destination and expected arrival. On dev, 6 November goes from 1,250,353 to 1,444,004 rows against 1,444,816 raw (the 812 left are the same prediction listed twice). `assert_staged_arrivals_match_raw` fails when staged rows differ from the distinct raw predictions of any line-day, either way: fewer means a key narrower than a prediction, more means rows left by an older key. TfL does list one prediction twice (8% of Piccadilly rows overnight), so raw rows are not compared one for one.
-- **Prod:** the merge key changed, so an incremental run would keep the old rows beside the new ones for the days it rereads, and older days stay short. Prod needs `dbt build --full-refresh --select stg_arrivals+` once after merge (owner step in STATUS.md). The dev table was rebuilt this way.
+- **Prod:** the merge key changed, so an incremental run would keep the old rows beside the new ones for the days it rereads, and older days stay short. Prod needs `dbt build --full-refresh --select stg_arrivals+` once after merge (owner step in STATUS.md). The dev table was rebuilt this way. Since M7 this runs in CI: `gh workflow run transform-daily.yml --ref main -f full_refresh=true -f select='stg_arrivals+'`.
 - **Class:** `never-default` (data rewrite). **Recommendation:** accept, and run the full refresh straight after merge.
 
 ### M6 and gate decisions (D46 to D50)
@@ -450,6 +451,30 @@ These come from the M6 and gate bundle (`feat/m6-league-and-gate`). They entered
 - **Implemented:** `rpt_engineering_works` per line and ISO week: minutes whose worst declared status is a closure, in hours, with the share of scheduled minutes, whether D22 left the line unranked, and a rank by hours (every line has a row). A Part Closure takes the whole line-minute (ADR-004), so a branch closure counts in full. The league file lists only lines with works, most first, without the rank, and works the same figures out from the window's minutes so a custom window gets them too. A monthly view is a sum of weeks and can follow.
 - **Alternatives:** monthly, as PLAN 6.2; count only Planned Closure, not Part Closure.
 - **Class:** `never-default` (deviates from the plan).
+
+### M7 decisions (D63, D64)
+
+These come from the M7 hardening work (`feat/collate-c-m7`). They entered on 2026-11-14, so the reminder date is 2026-11-17 18:00 UTC.
+
+### D63. The open dataset's contents and licence
+
+- **Context:** PLAN 8 lists `open-data/{yyyy-mm}/*.parquet` (M7) without contents or a licence. Republishing derived TfL data needs the attribution "Powered by TfL Open Data", and the project's own figures need a licence of their own.
+- **Implemented** (`publish/open_data.py`, runbook "Monthly open data"):
+  - one London calendar month per folder, exported on the 2nd;
+  - `line_minute_status` (every line-minute, missing minutes flagged, TfL's reason text included), `line_daily` (`fct_line_daily`) and `line_weekly` (the declared-view columns of `fct_line_weekly` for the weeks that end in the month);
+  - the measured view left out while D42 is open;
+  - a README and `manifest.json` in each folder, with the TfL attribution and terms link, and the derived figures offered under **CC BY 4.0**.
+- **Not yet live:** the scheduled export waits for the `OPEN_DATA_ENABLED` variable as well as H12. A manual dry run works now.
+- **Alternatives:** the Open Government Licence v3.0 or ODbL for the derived figures; leave out TfL's reason text; weeks by their start date, which leaves the last week of a month incomplete on the 2nd.
+- **Class:** `never-default` (publishing). **Recommendation:** accept, then set `OPEN_DATA_ENABLED`.
+
+### D64. Iceberg maintenance covers the incremental tables, weekly
+
+- **Context:** PLAN M7 asks for weekly `OPTIMIZE` and `VACUUM` on the curated tables. Only the staging models persist from run to run (incremental merges). Every other model is materialised as a table and rebuilt as a new table on each run, so it never collects small files or old snapshots.
+- **Implemented** (`macros/iceberg_maintenance.sql`, runbook "Iceberg maintenance"): on London Sundays, after the build, `OPTIMIZE ... REWRITE DATA USING BIN_PACK` over the last 9 days of partitions, then `VACUUM`, on every incremental Iceberg model (today the 8 staging tables). VACUUM uses Athena's default snapshot age of 5 days, so time travel on staging reaches back about 5 days. It deletes only files no remaining snapshot uses; raw is never touched.
+- **IAM:** the transform role's existing rights cover both statements: `glue:UpdateTable` on the prod database, and get, put and delete objects under the curated bucket's `prod/` prefix. No Terraform change.
+- **Alternatives:** run it on every Iceberg table, which rescans tables rebuilt that morning for nothing; compact every partition each week; keep snapshots longer by setting `vacuum_max_snapshot_age_seconds` on the staging tables.
+- **Class:** `auto-apply`. VACUUM is in the plan, and the scope only leaves out tables that have nothing to compact. **Default:** as implemented.
 
 ## Settled
 

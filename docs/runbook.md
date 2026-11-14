@@ -2,7 +2,7 @@
 
 Commands for the steps a person has to do. Run them from the repository root unless stated. Region is `eu-west-2` throughout.
 
-The rest of the runbook (alarms, re-runs, backfills, key rotation in depth) arrives with M1 and M7.
+Operating it day to day: [what each alarm means and what to do](#alarms-what-to-do), [re-running a workflow](#re-running), [backfilling the marts from raw](#backfilling-the-marts-from-raw), [a full refresh in prod](#full-refresh-in-prod), [Iceberg maintenance](#iceberg-maintenance), [the monthly open data](#monthly-open-data) and [rotating the TfL key](#rotating-the-tfl-key). Costs are in [cost.md](cost.md).
 
 ---
 
@@ -481,7 +481,9 @@ terraform -chdir=infra/envs/prod output -json dbt_athena_env \
 
 **Why two cron lines.** GitHub's cron runs in UTC only. 03:30 London is 02:30 UTC in summer (BST) and 03:30 UTC in winter (GMT), so the workflow is scheduled at both. Its first step ends the run early unless the slot that fired matches London's current UTC offset: the 02:30 UTC slot builds only while London is on BST, the 03:30 UTC slot only while it is on GMT. Exactly one of the two builds each day. The check uses the slot that fired, not the time the job starts, so a run GitHub starts late under load still builds. The clocks change at 01:00 UTC, before either slot.
 
-**Re-running by hand.** Actions → transform-daily → Run workflow on `main`. A manual run skips the clock check.
+**Re-running by hand.** Actions → transform-daily → Run workflow on `main`. A manual run skips the clock check. Its inputs: `select` (a dbt selector, e.g. `fct_line_weekly+`; empty builds everything), `full_refresh` (see "Full refresh in prod") and `maintenance` (run the Iceberg maintenance on a day other than Sunday).
+
+**Sundays** the build is followed by the Iceberg maintenance (see "Iceberg maintenance").
 
 ---
 
@@ -503,6 +505,159 @@ The two cron lines and the clock check work as in the daily transform: 05:30 UTC
 **When it fails.** The site keeps serving last week's build. A failed export uploads nothing: a schema error, a card that overflows, or a week the data does not yet reach past, which on a schedule means Monday's `transform-daily` has not built Sunday (re-run it, then this). The scheduled run never falls back to an older week. A failed upload stops at the failing file, before `meta/index.json` at the latest, so the index never lists a file that is not there; re-run the workflow, as every upload overwrites. A failed hook call after a good upload leaves the files in R2: re-run, or start a build from the Pages dashboard.
 
 **Locally,** with the dev identity: `uv run python -m mind_the_data.publish.export --out-dir build/publish` then `uv run python -m mind_the_data.publish.upload --dir build/publish --dry-run` lists what would be sent. A real upload from a laptop is not part of the process.
+
+---
+
+## Monthly open data
+
+The same workflow file publishes the open dataset (PLAN 8, M7): on the 2nd of each month at 06:45 London time it exports the London month that just ended to `open-data/{yyyy-mm}/` in R2. It runs as `mtd-ci-publish` and:
+
+1. checks the marts reach the month's last minute (otherwise it fails, rather than publishing part of a month);
+2. runs Athena `UNLOAD` for each dataset (`line_minute_status`, `line_daily`, `line_weekly`) into a fresh prefix under the prod workgroup's results location, `s3://mind-the-data-athena-results-<account>/prod/open-data/<month>/<run id>/`, the publish role's only AWS write; the results bucket expires them after 7 days;
+3. downloads the Parquet parts, checks each is Parquet, names them `<dataset>.parquet` (or `<dataset>-000.parquet` onwards when Athena splits one), and writes `README.md` (columns, licence, "Powered by TfL Open Data") and `manifest.json` (rows, bytes and sha256 per file, validated against `contract/open_data_manifest.schema.json`);
+4. keeps it all as the artifact `open-data-<run id>`, and uploads it with `python -m mind_the_data.publish.upload --no-hook`, `manifest.json` last. The site does not read the open data, so the deploy hook is not called.
+
+The measured view is not in it while it is unpublished (D42). The schedule needs H12 and the `OPEN_DATA_ENABLED` repository variable, which waits for the licence decision (D63):
+
+```sh
+gh variable set OPEN_DATA_ENABLED --body true    # off again: gh variable delete OPEN_DATA_ENABLED
+```
+
+**Manual runs.** Actions → publish-weekly → Run workflow on `main` with `export: open-data`; `month` (e.g. `2026-11`) defaults to last month, and `dry_run` is on by default:
+
+```sh
+gh workflow run publish-weekly.yml --ref main -f export=open-data -f month=2026-11 -f dry_run=true
+```
+
+Re-running a month replaces its files; nothing is deleted from R2, so a dataset that was split into parts once and not the next time leaves the old parts behind. Only `manifest.json` lists the current files.
+
+**Locally:** `uv run python -m mind_the_data.publish.open_data --month 2026-11 --dry-run` prints every statement and needs no AWS access.
+
+---
+
+## Alarms: what to do
+
+Every alarm emails the `mind-the-data-alerts` topic ("Alert email"). The table in "Collector alarms" says when each fires; this is what to do. Start with `make status`, which shows alarm state, raw freshness per feed and the last workflow runs.
+
+| Alarm | Do this |
+| --- | --- |
+| `mind-the-data-poller-error-rate` | Read the last errors: `aws logs tail /aws/lambda/mind-the-data-poller --profile mtd-dev --region eu-west-2 --since 30m --filter-pattern ERROR`. A TfL outage clears on its own; 401 or 403 is the key (see "Rotating the TfL key"); a parse error means TfL changed a payload, and raw still holds every response for replay once the model is fixed. |
+| `mind-the-data-poller-throttles` | Check the reserved concurrency and the account limit ("Lambda concurrency quota"). A poll running past a minute shows as a duration near the 45 s budget in the logs. |
+| `mind-the-data-no-objects-<feed>` | Is the schedule enabled? `aws scheduler get-schedule --profile mtd-dev --region eu-west-2 --name mind-the-data-poller --query State`. Then the poller logs. If only `arrivals` stopped, check `config/stations.yaml` against the last deploy. |
+| `mind-the-data-tfl-failures-line-status` | Every line-status call fails: the key first, then TfL's own status page. |
+| `mind-the-data-reference-errors` | The weekly reference fetch failed. Nothing is lost until the next Monday; re-run it with the invoke command in "Collector alarms". |
+
+**Gaps.** Data the poller missed cannot be fetched again: TfL's API has no history. The minutes stay `is_missing` and lower that week's completeness, which the league shows; they are never read as Good Service. Note the cause in the week's data-quality page if it is more than a few minutes.
+
+A failing **transform-daily** run (an email from GitHub, not an alarm) leaves yesterday's marts in place. Read the failed test in the run log, fix forward on a branch, then re-run (below).
+
+---
+
+## Re-running
+
+Every workflow can be re-run on `main` from Actions → the workflow → Run workflow, or with `gh`:
+
+```sh
+gh workflow run transform-daily.yml --ref main                       # rebuild prod now
+gh workflow run publish-weekly.yml --ref main -f dry_run=true        # export, keep as artifact
+gh workflow run publish-weekly.yml --ref main -f dry_run=false -f week=2026-W46
+gh workflow run ops-daily.yml --ref main -f day=2026-11-13
+gh run list --workflow transform-daily.yml --limit 3                 # then: gh run watch <id>
+```
+
+A re-run is always safe: staging merges whole days on a row key (ADR-008), the other models rebuild in full, and every upload overwrites. "Re-run failed jobs" on a finished run reuses its inputs and the commit it ran at.
+
+---
+
+## Backfilling the marts from raw
+
+Raw is kept forever and everything downstream rebuilds from it.
+
+- **Missed daily runs** (up to `lookback_days`, 2): the next run picks the days up. Nothing to do.
+- **Longer outage of the transform**, or a raw object that arrived late for an older day: rerun staging over the days, then everything downstream. Staging reads only the window, the rest rebuilds in full:
+
+  ```sh
+  cd transform
+  uv run --locked dbt build --target dev --profiles-dir . --select staging+ \
+    --vars '{start_date: "2026-11-03", end_date: "2026-11-05"}'
+  ```
+
+  That is the dev target, as the dev identity. In prod the same window needs the transform role: run `transform-daily` with `select` set to `staging+`. The workflow does not take `start_date`/`end_date`, so for a window older than the lookback use a full refresh of the affected staging models (below), which reads from `raw_start_date`.
+- **A metric definition changed** (a seed or an intermediate model): the next daily run rebuilds every intermediate and mart model in full, so all history follows (ADR-012). Nothing to do.
+
+---
+
+## Full refresh in prod
+
+A staging model whose logic drops rows or whose merge key changes (D8, D45) has to be rebuilt from raw. In prod this runs in CI as `mtd-ci-transform`, not from a laptop as admin:
+
+```sh
+gh workflow run transform-daily.yml --ref main -f full_refresh=true -f select='stg_arrivals+'
+run=$(gh run list --workflow transform-daily.yml --event workflow_dispatch --limit 1 --json databaseId -q '.[0].databaseId')
+gh run watch "$run" --exit-status
+```
+
+The guards:
+
+- the inputs exist only on a manual run, so no schedule can full-refresh;
+- `full_refresh` needs a selector; `path:models` rebuilds everything, which reads all of raw since `raw_start_date` and can take most of the job's 55 minutes;
+- the selector may hold only model names, paths and dbt selector characters, and reaches dbt as separate arguments;
+- the run takes the `transform-prod` concurrency group, so it never overlaps the daily build.
+
+Add `+` after a staging model so its dependants rebuild in the same run; otherwise they keep the old rows until the next daily build. The run's log starts with the exact dbt command.
+
+---
+
+## Iceberg maintenance
+
+On Sundays (the London date) `transform-daily` runs `dbt run-operation iceberg_maintenance --target prod` after the build, as the transform role. For each incremental Iceberg model (the staging tables, D64) it runs:
+
+- `optimize <table> rewrite data using bin_pack where dt >= date '<9 days ago>'`: compacts the small files the daily merges leave, in the partitions they touched since last Sunday (`maintenance_lookback_days`);
+- `vacuum <table>`: expires snapshots older than the table's `vacuum_max_snapshot_age_seconds` (Athena's default, 5 days) and deletes files no snapshot uses.
+
+Tables rebuilt in full each run start fresh every day, so they are not touched. Both statements are retried while Athena answers `ICEBERG_*_MORE_RUNS_NEEDED`. The step also runs when the build failed (not when it was cancelled), and the job still ends failed.
+
+After a VACUUM, Iceberg time travel on staging reaches back about 5 days.
+
+**By hand:**
+
+```sh
+gh workflow run transform-daily.yml --ref main -f maintenance=true
+# Locally, print the statements without running them (no AWS calls):
+cd transform && uv run --locked dbt run-operation iceberg_maintenance --target dev --profiles-dir . --args '{dry_run: true}'
+```
+
+`--args '{full: true}'` compacts every partition, for the first run or after a large backfill. Each statement is under the workgroup's 10 GiB scan cap; if one ever hits it, run with a smaller `maintenance_lookback_days`.
+
+---
+
+## Rotating the TfL key
+
+The key lives only in SSM at `/mind-the-data/tfl/app_key`. Never print it, paste it into a chat or a file, or read it back with `get-parameter --with-decryption`.
+
+1. In the TfL API portal, add a second key or regenerate the secondary key (keep the old one working for now).
+2. Overwrite the parameter as the admin identity. `read -s` keeps the key off the screen and out of shell history:
+
+   ```sh
+   read -rs TFL_APP_KEY && \
+   aws ssm put-parameter --profile mtd-admin --region eu-west-2 \
+     --name /mind-the-data/tfl/app_key --type SecureString \
+     --value "$TFL_APP_KEY" --overwrite ; \
+   unset TFL_APP_KEY
+   ```
+
+3. Check the version went up, without the value:
+
+   ```sh
+   aws ssm describe-parameters --profile mtd-dev --region eu-west-2 \
+     --parameter-filters Key=Name,Values=/mind-the-data/tfl/app_key \
+     --query 'Parameters[].{version:Version,modified:LastModifiedDate}'
+   ```
+
+4. The poller reads the key at cold start, and again after any 401 or 403, so new invocations use it within minutes with no deploy. Confirm with `make status` (raw age per feed under two minutes) and no `tfl-failures` alarm for 15 minutes.
+5. Revoke the old key in the portal.
+
+If the key leaked: revoke it in the portal first, then steps 2 to 4. The `tfl-failures` alarm fires in between; that is expected.
 
 ---
 

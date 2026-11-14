@@ -73,6 +73,9 @@ The site needs none. Set a read-only CORS rule on the bucket anyway, because the
 | `league/latest.json`, `meta/index.json`, `meta/methodology.json`, `lines/*.json` | `public, max-age=300` | Overwritten every Monday |
 | `league/{iso_week}.json` | `public, max-age=3600` | Rewritten each run under D39, but changes only when the methodology or marts do |
 | `cards/*.png` | `public, max-age=86400` | Rendered once per week |
+| `open-data/{yyyy-mm}/*` (Parquet, `README.md`, `manifest.json`) | `public, max-age=3600` | Written once a month; a re-export replaces them |
+
+The open data (M7, D63) goes up in its own monthly run, `manifest.json` last, with no deploy hook: the site does not read it. A page that links to it should link to `open-data/{yyyy-mm}/README.md` and keep the attribution "Powered by TfL Open Data" beside the link.
 
 The build bypasses edge caching with its query string, so these values only matter to other readers. Upload order matters: week files, line files, cards and methodology first; `league/latest.json` and `meta/index.json` last; then the deploy hook. A reader then never sees an index that lists a file not yet uploaded.
 
