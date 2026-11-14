@@ -41,3 +41,4 @@ What gets easier, what gets harder, what to revisit and when.
 | [012](012-run-models-rebuild-in-full.md) | Declared-view intermediate models rebuild in full each run | proposed |
 | [013](013-poll-per-line-minute.md) | Read the latest poll that lists the line, and only current entries (amends ADR-004) | proposed |
 | [014](014-gate-tests-inference-fidelity.md) | The quality gate tests inference fidelity (inferred against trains on the boards); trains run is its own measure (amends PLAN 7.2) | proposed |
+| [015](015-divisions-seed-from-two-weeks.md) | Seed the divisions from two complete weeks, provisional until four exist (amends PLAN M6) | proposed |

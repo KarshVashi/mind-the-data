@@ -121,6 +121,37 @@ Lines are ranked by Disruption Index, lowest first. Ties go to the higher Good S
 - **Worst incident:** the incident starting in the week with the most severity-weighted minutes, each incident minute counted at its severity weight. Ties go to the longer, then the earlier (D48).
 - **Monday Morning Index:** the Disruption Index over Monday 07:00 to 10:00 for each line, ranked the same way (D49).
 - **Engineering Works:** hours each line's worst status was a closure, per week, most first (D50).
+- **Recovery Time:** each line's median recovery over the week's closed incidents, quickest first; ties go to fewer incidents. **Provisional**: it rests on D18, which is still open, and every published copy says so (D59).
+
+### Divisions
+
+Two divisions of ten lines (D57). They are seeded by Disruption Index over the first **two** complete weeks (9 to 22 November 2026, once the second ends), not the four the plan set, and the seeding is marked **provisional** until four complete weeks exist ([ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56). A complete week is one every line has finished with at least 90% of the network's minutes observed. Until the seeding weeks exist, the month's file says "not yet seeded" and shows no table.
+
+Divisions play from December 2026. Each month, lines are ranked within their division by the month's Disruption Index, with the weekly rules. At the end of the month the bottom three ranked lines of Division One swap with the top three of Division Two. Lines level on index and Good Service % at a promotion or relegation place are split by line id. A line not ranked that month (mostly closed for works, or nothing scored) neither goes up nor down.
+
+### Season
+
+The season runs from 1 April to 31 March and resets each April. Its table is the Disruption Index over every date of the season so far, ranked like the weekly table. The 2026-27 season starts with the collector on 4 November 2026, so until April 2027 it is the season to date (D58).
+
+### Strikes
+
+Strikes are kept in the main table: they are part of what passengers get. The industrial action seed lists 2026 action on the lines in scope, each row with its public source. Each week's file also carries a **strikes-excluded** table. It leaves out, for each line, the whole London dates of action that was held or announced for it (a noon-to-noon strike removes both days), and ranks the rest of the week the same way. In a week with no action it is identical to the main table, and a test checks that on every build (D60).
+
+### Sensitivity
+
+The weights are a judgment, so each published week is re-ranked under three alternative weight sets (PLAN 7.5, D61):
+
+- every minute weighing 1;
+- severity weights 1 to 5 by order instead of 1 to 8;
+- peaks weighing 3 and weekends 0.5.
+
+`meta/methodology.json` reports, for each week and set:
+
+- Spearman's rank correlation with the published ranks;
+- the largest change of rank;
+- whether the top three or bottom three lines change.
+
+On the first published week (4 to 8 November, collected from a Wednesday, so about 70% observed) the correlations were 0.98 to 0.99. No line moved more than two places, and the top three did not change.
 
 ---
 
@@ -200,10 +231,12 @@ Only the hour in which the long gap ends is checked for Good Service. A gap that
 
 Every Monday the latest complete week is exported as JSON and two share card images (PLAN 8, [site-integration.md](site-integration.md)):
 
-- `league/{iso_week}.json` and `league/latest.json`: the ranked table, provisional flags and unranked reasons, the week's highlights (Wooden Spoon, Line of the Week, worst incident), the Monday Morning Index, the Engineering Works table, and one insight line;
+- `league/{iso_week}.json` and `league/latest.json`: the ranked table, provisional flags and unranked reasons, the week's highlights (Wooden Spoon, Line of the Week, worst incident), the Monday Morning Index, the Engineering Works and Recovery Time tables, the week's industrial action, the strikes-excluded table, and one insight line;
 - `lines/{line_id}.json`: each line's weekly history, with unranked reasons and hours under works, and typical bad hours;
-- `meta/methodology.json`: the weights, thresholds and open decisions actually used, from the same seeds as the build;
-- `meta/index.json`: every published week and line file;
+- `divisions/{yyyy-mm}.json`: the month's divisions, or the seeding, or "not yet seeded" (D56, D57);
+- `season/{season}.json`: the season table to date (D58);
+- `meta/methodology.json`: the weights, thresholds and open decisions actually used, from the same seeds as the build, plus the industrial action list with sources and the sensitivity analysis;
+- `meta/index.json`: every published week, month, season and line file;
 - `cards/{iso_week}.png`: 1200×675 and 1080×1350 share cards.
 
 Every file carries `schema_version`, `generated_at`, `data_window`, `completeness` and `git_sha`, so any number can be traced to the code that made it. Each run rewrites every past week from the current marts, so the archive always shows the current methodology (D39).
@@ -224,7 +257,8 @@ The card's insight line names the week's biggest Honesty Gap once the measured v
 - **Boards are not a train register.** Trains run is what the boards listed; a train the boards never showed counts as not run.
 - **Circle and Hammersmith & City share boards that misfile trains** on the section from Baker Street to Liverpool Street, which distorts both lines' measured numbers there (ADR-014).
 - **Platform changes.** A train that switches platform during its approach can count at both (D28).
-- **Strikes** are kept in. A "strikes excluded" variant is planned (PLAN 7.4).
+- **Strikes** are kept in the main table. The strikes-excluded table drops whole days, so a noon-to-noon strike also drops the unaffected half of each day (D60). The seed is maintained by hand from public sources; an announced strike is updated once its date passes.
+- **Divisions seeded on two weeks.** One unusual week can put a line in the wrong division for a month; the seeding is marked provisional until four weeks exist (ADR-015).
 - **No external validation yet.** Once three 4-week periods exist, the ranking will be compared with TfL's own share of scheduled trips operated, and the rank correlation reported here.
 
 ---
@@ -264,7 +298,13 @@ ADR-004 is accepted, and D19, D22 and D36 were decided by the owner on 14 Novemb
 | D48 | Wooden Spoon and worst incident | declared, publishing |
 | D49 | Monday Morning Index | declared, publishing |
 | D50 | Engineering Works table per week | declared, publishing |
+| [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing |
+| D57 | Division size, monthly measure, promotion and relegation | declared, publishing |
+| D58 | Season table, April to March | declared, publishing |
+| D59 | Recovery Time table (provisional on D18) | declared, publishing |
+| D60 | Industrial action seed and strikes-excluded table | declared, publishing |
+| D61 | Sensitivity weight sets | declared, publishing |
 
-The weights for the status codes the plan names, and the time-band weights, are the build plan's values. D16 adds Service Closed to the weights, and D21 decides how the bands map onto calendar days. Sensitivity checks under alternative weight sets are planned, and will be reported here with their rank correlations.
+The weights for the status codes the plan names, and the time-band weights, are the build plan's values. D16 adds Service Closed to the weights, and D21 decides how the bands map onto calendar days. Sensitivity under three alternative weight sets is reported each week in `meta/methodology.json` (see Sensitivity above, D61).
 
 Powered by TfL Open Data.

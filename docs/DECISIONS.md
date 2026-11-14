@@ -155,6 +155,7 @@ D19 and D22 were settled by the owner on 2026-11-14 and are under "Settled". The
   - incident minutes separated by fewer than 5 quiet minutes merge;
   - an incident belongs to the London date and week it starts in;
   - recovery = minutes from the first to the last incident minute of a closed incident; open incidents have no recovery yet and are left out of the median.
+- **Also depends on it:** the Recovery Time table (D59) is built on this draft and is published labelled `provisional_d18` until D18 is settled.
 - **Alternatives:** let a long poller gap end an incident; measure recovery to the first Good Service minute specifically; count incidents in every day they touch.
 - **Default:** none. **Class:** `never-default`.
 
@@ -450,6 +451,95 @@ These come from the M6 and gate bundle (`feat/m6-league-and-gate`). They entered
 - **Implemented:** `rpt_engineering_works` per line and ISO week: minutes whose worst declared status is a closure, in hours, with the share of scheduled minutes, whether D22 left the line unranked, and a rank by hours (every line has a row). A Part Closure takes the whole line-minute (ADR-004), so a branch closure counts in full. The league file lists only lines with works, most first, without the rank, and works the same figures out from the window's minutes so a custom window gets them too. A monthly view is a sum of weeks and can follow.
 - **Alternatives:** monthly, as PLAN 6.2; count only Planned Closure, not Part Closure.
 - **Class:** `never-default` (deviates from the plan).
+
+### M6 league mechanics (D56 to D61)
+
+These come from the rest of M6: divisions, the season table, the Recovery Time table, the strikes-excluded league and the sensitivity analysis. They entered on 2026-11-14, so the reminder date is 2026-11-17 21:00 UTC. All are `never-default`, and all are listed in every published file's `open_decisions`.
+
+### D56. Accept ADR-015 (seed the divisions from two weeks)
+
+- **Context:** PLAN M6 seeds the divisions from the first four weeks. Four complete weeks end on 6 December, so the divisions would start in January 2027. The owner asked for shorter time-based requirements on 2026-11-14.
+- **Implemented ([ADR-015](adr/015-divisions-seed-from-two-weeks.md), `rpt_division_seeding`):**
+  - seeded from the first `division_seeding_weeks: 2` complete weeks (W46 and W47);
+  - labelled `provisional` until `division_full_seeding_weeks: 4` complete weeks exist;
+  - before the seeding weeks exist, the output is an explicit `not_seeded` state with no table;
+  - the divisions play from December 2026.
+- **Alternatives:** four weeks, as the plan (divisions from January 2027); re-seed automatically when four weeks exist.
+- **Class:** `never-default` (deviates from the plan).
+
+### D57. How divisions are formed and how lines move
+
+- **Context:** PLAN M6 says "monthly promotion and relegation of three lines". It does not give the number of divisions, the monthly measure, or what happens to lines that cannot be ranked.
+- **Implemented (`rpt_divisions_monthly`):**
+  - two divisions: the ten best seeded lines in Division One, the other ten in Division Two (`division_one_size: 10`);
+  - each month is ranked within its division by the Disruption Index over the month's London dates, with the weekly table's rules (D19, D20, D22);
+  - at the month's end, the bottom three ranked lines of Division One swap with the top three ranked lines of Division Two (`division_moves: 3`; ties split by line id);
+  - a line not ranked for the month (mostly closed for works, or nothing scored) neither goes up nor down. If a division has fewer ranked lines than places, fewer lines move, so both divisions keep ten lines;
+  - while a month runs, `movement` shows where each line stands; it becomes a result once the month is complete;
+  - lines level on index and Good Service % at a promotion or relegation place are split by line id (alphabetical);
+  - a month under 90% observed (`is_provisional`) still promotes and relegates. **Owner question:** should a provisional month move no one?
+  - a line added to the lines seed after seeding never joins a division until the divisions are re-seeded;
+  - if a division month has not been built yet, its file says `pending`, never `seeded`;
+  - `assert_divisions_keep_their_size` checks every month's Division One holds ten lines, this month and next.
+- **Known limit:** the months are chained at compile time from `raw_start_date`, so the query grows with every month (quadratically in planning work, since each month's CTE builds on the last). It is small for the first seasons. Before it nears Athena's limits, store each finished month's membership in an incremental table and chain from that.
+- **Alternatives:** three divisions (Tube, rail, low volume); rank months on the season measure; let unranked lines be relegated; split ties by the previous month's rank.
+- **Class:** `never-default` (metric semantics, publishing).
+
+### D58. The season table
+
+- **Context:** PLAN 6.2 gives `rpt_season` the grain "line x season (April to March)", and M6 says it resets each April.
+- **Implemented (`rpt_season`):**
+  - seasons run from 1 April to 31 March in London dates, labelled like `2026-27`;
+  - each line's standing is the declared view over every date of the season so far, with the weekly table's rules (D19, D20, D22);
+  - dates before the collector's first observed minute (4 November 2026) are left out, so until April 2027 the table is the season to date;
+  - `season/{season}.json` is published for every season with data.
+- **Alternatives:** the calendar year; rank on points from weekly positions rather than on the pooled index.
+- **Class:** `never-default` (metric semantics, publishing).
+
+### D59. The Recovery Time table rests on D18, which is open
+
+- **Context:** PLAN M6 asks for a Recovery Time table. D18 (what an incident is and what recovery measures) is not settled.
+- **Implemented (`rpt_recovery_time`, and `recovery_time` in each league file):**
+  - built on D18's current draft: recovery is the minutes from an incident's first to its last incident minute; open incidents are left out;
+  - lines are ranked by median recovery, quickest first; equal medians go to fewer incidents and still-equal lines share a rank;
+  - a line with no closed incident is not ranked (`no_recovered_incidents`);
+  - every row and the published block say `definition_status: provisional_d18`.
+- D18 itself is unchanged and still open. Settling it may change every number in this table.
+- **Alternatives:** rank by mean or longest recovery; publish nothing until D18 is settled.
+- **Class:** `never-default` (metric semantics, publishing).
+
+### D60. Industrial action seed and the strikes-excluded league
+
+- **Context:** PLAN 7.4 keeps strikes in the league, tags weeks from an industrial action seed, and exports a "strikes excluded" variant. Neither the seed's shape nor the exclusion rule is specified.
+- **Implemented:**
+  - `seed_industrial_action` lists 2026 action on the lines in scope, one row per action, each with its public source (publisher, title, date, URL):
+    - the RMT Tube drivers' strikes: March and May (called off), April and 2 and 4 June (held), and 26 to 27 November, 17 to 18 December and 19 to 20 December (announced);
+    - three Windrush line contractor strikes in February to April. The February one had no service impact; the outcome of the other two is unknown.
+  - `rpt_league_strikes_excluded` drops, per line, the whole London dates of `held` or `announced` action that applies to it (a noon-to-noon strike drops both days), then sums and ranks the rest of the week with the weekly rules.
+  - A week with no such date is the main league exactly. `assert_strikes_excluded_matches_league_without_strikes` checks this on every build, and a unit test checks it on the recorded week.
+  - Each league file lists the action touching its window (`industrial_action`) and the variant (`strikes_excluded`, with `is_same_as_main`).
+  - An `announced` row must be updated to `held` or `called_off` once its date passes. `assert_announced_industrial_action_is_current` fails the build three days after an announced action's last day if it has not been updated.
+  - `rmt-tube-2026-04-23` is marked `held` on the TfL announcement and later reports that drivers struck twice in April; no report from the day was found. It is before collection began, so it changes no published number.
+- **Not included:** the Evening Standard's report that 16 and 18 June were replaced by 2 and 4 June (no primary source found), and the 2027 dates of the same dispute.
+- **Alternatives:** drop only the strike hours (noon to noon), not whole days; exclude only the lines that ran no service, from TfL's status that day.
+- **Class:** `never-default` (metric semantics, publishing).
+
+### D61. Sensitivity weight sets
+
+- **Context:** PLAN 7.5 asks for weekly ranks to be re-run under "three alternative weight sets" with Spearman correlation and top and bottom three changes. The sets are not given.
+- **Implemented (`sensitivity_weight_sets` seed, `rpt_weekly_status_mix`, `publish/sensitivity.py`):**
+  - the three sets:
+    - `flat_time`: every minute weighs 1;
+    - `linear_severity`: severity weights 1 to 5 by order (Minor Delays, Special Service 1; Reduced Service 2; Severe Delays 3; Part Suspended and unplanned Bus Service 4; Suspended 5);
+    - `peak_heavy`: peaks 3, weekends 0.5.
+  - Each published week's ranked lines are re-ranked under each set from the same minutes.
+  - `meta/methodology.json` gets, per week and set: Spearman's rho (ties averaged), the largest rank shift, and whether the top three or bottom three change.
+  - A set re-weights the status ADR-004 chose under the base weights; it does not re-pick the worst status.
+  - A week is skipped (no results) if any ranked line has no status mix rows, so a stale mart never re-scores a line as perfect.
+  - Top and bottom three are compared as sets of lines, ordered with the line id as the last tie-break, so a tie at third place that only reorders can show as a change.
+  - On W45 (4 to 8 November, about 70% observed, so not a complete week): rho 0.98 to 0.99, at most two places moved, top three unchanged under all three sets.
+- **Alternatives:** other sets (for example severity squared, or no weekend discount); also re-pick the worst status under each set.
+- **Class:** `never-default` (metric semantics, publishing).
 
 ## Settled
 
