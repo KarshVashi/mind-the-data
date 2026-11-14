@@ -13,7 +13,8 @@ Three datasets for one London calendar month, read from the prod marts:
   for the ISO weeks that end in the month, so every week appears in exactly
   one month and is complete by the 1st of the next.
 
-The measured view is left out while it is unpublished (D42). Athena writes
+The measured view is left out for now: it was built before D42 was settled,
+and adding it is a follow-up recorded under D63. Athena writes
 the Parquet itself with UNLOAD, into a fresh prefix under the workgroup's
 own results location; the files are then downloaded, checked and renamed.
 Each month also gets README.md (columns, licence and the TfL attribution)
