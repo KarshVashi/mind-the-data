@@ -889,6 +889,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "boto3-stubs", extra = ["cloudwatch", "s3", "ssm"] },
+    { name = "dbt-athena" },
     { name = "dbt-athena-community" },
     { name = "dbt-core" },
     { name = "hypothesis" },
@@ -917,7 +918,8 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "boto3-stubs", extras = ["cloudwatch", "s3", "ssm"], specifier = ">=1.40" },
-    { name = "dbt-athena-community", specifier = ">=1.9,<2" },
+    { name = "dbt-athena", specifier = ">=1.11.1,<1.12" },
+    { name = "dbt-athena-community", specifier = ">=1.11.1,<1.12" },
     { name = "dbt-core", specifier = ">=1.10,<2" },
     { name = "hypothesis", specifier = ">=6.170" },
     { name = "jsonschema", specifier = ">=4.23" },
