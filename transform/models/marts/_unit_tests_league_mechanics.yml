@@ -140,10 +140,10 @@ unit_tests:
           - {line_id: district, london_date: "2027-01-08", scheduled_minutes: 100, observed_minutes: 100, engineering_works_minutes: 0, scored_minutes: 100, good_service_minutes: 90, weighted_disruption_minutes: 10, time_weighted_scored_minutes: 100}
     expect:
       rows:
-        - {line_id: victoria, month_start: "2026-12-01", division: 1, joined_by: seeded, disruption_index: 30, unranked_reason: null, division_rank: 2, movement: relegated, next_division: 2, is_provisional: false}
-        - {line_id: central, month_start: "2026-12-01", division: 1, joined_by: seeded, disruption_index: 10, unranked_reason: null, division_rank: 1, movement: stays, next_division: 1, is_provisional: false}
-        - {line_id: jubilee, month_start: "2026-12-01", division: 2, joined_by: seeded, disruption_index: 5, unranked_reason: null, division_rank: 1, movement: promoted, next_division: 1, is_provisional: false}
-        - {line_id: district, month_start: "2026-12-01", division: 2, joined_by: seeded, disruption_index: 20, unranked_reason: null, division_rank: 2, movement: stays, next_division: 2, is_provisional: false}
+        - {line_id: victoria, month_start: "2026-12-01", division: 1, joined_by: seeded, disruption_index: 30, unranked_reason: null, division_rank: 2, movement: relegated, next_division: 2, is_provisional: false, movement_held_reason: null}
+        - {line_id: central, month_start: "2026-12-01", division: 1, joined_by: seeded, disruption_index: 10, unranked_reason: null, division_rank: 1, movement: stays, next_division: 1, is_provisional: false, movement_held_reason: null}
+        - {line_id: jubilee, month_start: "2026-12-01", division: 2, joined_by: seeded, disruption_index: 5, unranked_reason: null, division_rank: 1, movement: promoted, next_division: 1, is_provisional: false, movement_held_reason: null}
+        - {line_id: district, month_start: "2026-12-01", division: 2, joined_by: seeded, disruption_index: 20, unranked_reason: null, division_rank: 2, movement: stays, next_division: 2, is_provisional: false, movement_held_reason: null}
         - {line_id: central, month_start: "2027-01-01", division: 1, joined_by: stayed, disruption_index: 100, unranked_reason: engineering_works, division_rank: null, movement: stays, next_division: 1, is_provisional: false, movement_held_reason: null}
         - {line_id: jubilee, month_start: "2027-01-01", division: 1, joined_by: promoted, disruption_index: 50, unranked_reason: null, division_rank: 1, movement: relegated, next_division: 2, is_provisional: false, movement_held_reason: null}
         - {line_id: victoria, month_start: "2027-01-01", division: 2, joined_by: relegated, disruption_index: 0, unranked_reason: null, division_rank: 1, movement: promoted, next_division: 1, is_provisional: false, movement_held_reason: null}
