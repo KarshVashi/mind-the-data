@@ -570,7 +570,9 @@ models:
       first division month: membership, the month's Disruption Index and
       rank within the division, and promotion and relegation of
       `division_moves` lines at the month's end. Unranked lines neither go
-      up nor down. Empty until the divisions are seeded.
+      up nor down, and nobody moves in a provisional month (a ranked line
+      observed under `provisional_completeness`, D57). Empty until the
+      divisions are seeded.
     columns:
       - name: line_month_key
         description: Row key, a hash of (line_id, month_start).
@@ -629,6 +631,15 @@ models:
           - accepted_values:
               arguments:
                 values: [promoted, relegated, stays]
+      - name: movement_held_reason
+        description: >
+          `provisional_month` when the month is provisional (a ranked line
+          observed under `provisional_completeness`), so every line stays in
+          its division whatever its rank (D57); null otherwise.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [provisional_month]
       - name: next_division
         description: The division the line plays in next month.
         data_tests: [not_null]

@@ -16,6 +16,13 @@
 -- a division has fewer ranked lines than places, fewer lines move, so both
 -- divisions keep their size.
 --
+-- A provisional month moves no one (D57). If any ranked line observed under
+-- `provisional_completeness` of its scheduled minutes, the whole month is
+-- provisional: ranks are still shown, but every line stays in its division
+-- and `movement_held_reason` says why. Freezing the month, not the one
+-- thin line, keeps the swap balanced: dropping a single line from it would
+-- relegate a better line in its place, or break the divisions' size.
+--
 -- Membership in a month depends on the month before, so the months are
 -- chained at compile time, from the month of `raw_start_date` to
 -- `division_months_through` (default: the current month). Months before
@@ -164,7 +171,12 @@ seeding as (
                 {{ var('division_moves') }},
                 count_if(division = 1 and unranked_reason is null) over (),
                 count_if(division = 2 and unranked_reason is null) over ()
-            ) as moves
+            ) as moves,
+            -- A thin month for any ranked line holds the whole month (D57).
+            count_if(
+                unranked_reason is null
+                and completeness < {{ var('provisional_completeness') }}
+            ) over () > 0 as is_month_provisional
         from scored_{{ i }}
     ),
 
@@ -172,6 +184,7 @@ seeding as (
         select
             *,
             case
+                when is_month_provisional then 'stays'
                 when
                     division = 1 and ranked_position > ranked_in_division_one - moves
                     then 'relegated'
@@ -209,6 +222,7 @@ select
     unranked_reason,
     division_rank,
     movement,
+    if(is_month_provisional, 'provisional_month') as movement_held_reason,
     case movement when 'promoted' then 1 when 'relegated' then 2 else division end
         as next_division,
     -- A month is complete once its last London date has passed; until then
