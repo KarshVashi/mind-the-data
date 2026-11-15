@@ -1,7 +1,7 @@
 # ADR-015: Seed the divisions from two complete weeks, provisionally
 
 Date: 2026-11-14
-Status: proposed (the owner asked for the shorter window on 2026-11-14; acceptance is D56)
+Status: accepted (owner, 2026-11-15, D56)
 
 ## Context
 

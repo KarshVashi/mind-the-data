@@ -1,7 +1,7 @@
 # ADR-007: Reference Lambda sizing
 
 Date: 2026-11-03
-Status: proposed
+Status: accepted (owner, 2026-11-15, D2)
 
 ## Context
 

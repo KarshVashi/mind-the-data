@@ -1,7 +1,7 @@
 # ADR-012: Declared-view intermediate models rebuild in full
 
 Date: 2026-11-08
-Status: proposed
+Status: accepted (owner, 2026-11-15, D24)
 
 ## Context
 

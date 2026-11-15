@@ -527,7 +527,7 @@ The same workflow file publishes the open dataset (PLAN 8, M7): on the 2nd of ea
 3. downloads the Parquet parts, checks each is Parquet, names them `<dataset>.parquet` (or `<dataset>-000.parquet` onwards when Athena splits one), and writes `README.md` (columns, licence, "Powered by TfL Open Data") and `manifest.json` (rows, bytes and sha256 per file, validated against `contract/open_data_manifest.schema.json`);
 4. keeps it all as the artifact `open-data-<run id>`, and uploads it with `python -m mind_the_data.publish.upload --no-hook`, `manifest.json` last. The site does not read the open data, so the deploy hook is not called.
 
-The measured view is not in it while it is unpublished (D42). The schedule needs H12 and the `OPEN_DATA_ENABLED` repository variable, which waits for the licence decision (D63):
+The measured view is not in it while it is unpublished (D42). The schedule needs H12 and the `OPEN_DATA_ENABLED` repository variable, which waits for H12 (the licence, CC BY 4.0, is settled: D63):
 
 ```sh
 gh variable set OPEN_DATA_ENABLED --body true    # off again: gh variable delete OPEN_DATA_ENABLED
@@ -799,7 +799,7 @@ The daytime check reads what the collector stored rather than calling TfL. CI ne
 gh variable get AWS_OBSERVER_ROLE_ARN   # arn:aws:iam::<account>:role/mtd-ci-observer
 ```
 
-Without the variable, and whenever the role can't be assumed, both workflows skip with a warning and leave issues alone. The role trusts only runs on `main`, so a run started from another branch skips too. To try one at once: Actions → ops-daily → Run workflow. `ops-daily` takes an optional `day` (YYYY-MM-DD).
+Without the variable, both workflows skip with a warning and leave issues alone. When the role can't be assumed they fail (D13), so a broken trust shows red instead of hiding a dead collector. The role trusts only runs on `main`, so a run started from another branch fails too. To try one at once: Actions → ops-daily → Run workflow. `ops-daily` takes an optional `day` (YYYY-MM-DD).
 
 **Re-recording test fixtures.** Run `ops-daytime` by hand during service hours with `record_fixtures` ticked. It calls TfL anonymously, with no key and no AWS credentials in the job, and runs the unit tests against the new recording. The fixtures come back as the `tfl-fixtures` artifact. To use them, copy them over `tests/fixtures/tfl/` on a branch and open a pull request. Nothing is committed automatically.
 
@@ -823,29 +823,6 @@ make prune-worktrees             # remove them
 Ignored files in a removed worktree (`.venv`, `.terraform`, dbt `target/`, local `.env` copies) go with it. Its local branch is deleted. Remote branches are never touched.
 
 **Data transfer.** `ops-daily` reads about 55 MB of raw objects from eu-west-2 a day. That is S3 egress to the internet, about 1.7 GB a month, well inside the 100 GB monthly free allowance.
-
-### Automerge (off)
-
-The merge gate below (ADR-011) covers the same need with stricter checks. Decision D14 asks whether to remove automerge in its favour. Until then, leave `AUTOMERGE_ENABLED` unset.
-
-`.github/workflows/automerge.yml` squash-merges a pull request after `ci` passes, if all of these hold:
-
-- you opened it, from a branch in this repository, and it isn't a draft;
-- nothing was pushed after `ci` ran, and every check passed;
-- every changed file is under `transform/models/`, `tests/` or `docs/`, but not `docs/adr/`.
-
-It runs only when the repository variable `AUTOMERGE_ENABLED` is `true`.
-
-Notes:
-
-- GitHub Free doesn't offer auto-merge (`gh pr merge --auto`) on private repositories. ci has already passed when this runs, so it merges directly, pinned to the commit ci checked.
-- A merge made with `GITHUB_TOKEN` starts no other workflow, so neither `ci` nor `infra` runs on `main` for it. Nothing in the allowed paths is deployed by `infra`. The daily transform picks up model changes at its next run.
-
-**Keep it off until the CI roles' trust is pinned to `job_workflow_ref`** (`enforce_workflow_binding`, H6 step 5). Until that is applied, the apply and transform roles trust any job running on `main`. Automerge puts changes on `main` without a person reading them first. A dbt model is SQL plus Jinja, and it runs on `main` as the transform role. Once each role trusts only its own workflow file, an unreviewed change can't reach any role except through the workflows already reviewed. Then turn it on:
-
-```sh
-gh variable set AUTOMERGE_ENABLED --body true    # off again: gh variable delete AUTOMERGE_ENABLED
-```
 
 ---
 

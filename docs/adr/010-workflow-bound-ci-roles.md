@@ -1,7 +1,7 @@
 # ADR-010: CI roles are bound to workflow files
 
 Date: 2026-11-07
-Status: proposed
+Status: accepted (owner, 2026-11-15, D11)
 
 ## Context
 
