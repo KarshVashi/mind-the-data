@@ -4,6 +4,10 @@ dbt unit tests run only against Athena, so CI never executes them. Athena
 builds each fixture as a UNION of its rows, and rows with different columns
 fail at runtime ("UNION query has different number of fields"). This catches
 that before merge.
+
+Only dict-style rows are checked: CSV fixtures share one header, and SQL
+fixtures are hand-written. Rows may still use a subset of the model's
+columns, which dbt allows, as long as every row in a fixture uses the same set.
 """
 
 from pathlib import Path
