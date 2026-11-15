@@ -84,14 +84,22 @@ WITHHELD_SHARED_SECTION = "shared_section_misfiled"
 WITHHELD_NOT_REBUILT = "measured_not_rebuilt"
 
 # Open owner decisions that change published numbers or flags (docs/DECISIONS.md).
-OPEN_METRIC_DECISIONS: tuple[str, ...] = (
+# The owner settled every one on 2026-11-15, so the list is empty. It stays in
+# the contract: a decision that opens later is added here, and the files and
+# the site list it (D36).
+OPEN_METRIC_DECISIONS: tuple[str, ...] = ()
+
+# Owner decisions behind the published numbers that have been settled, listed
+# in meta/methodology.json.
+SETTLED_METRIC_DECISIONS: tuple[str, ...] = (
     "D16",
     "D17",
     "D18",
+    "D19",
     "D20",
     "D21",
+    "D22",
     "D23",
-    # The measured view's definitions, published since D42 was settled.
     "D25",
     "D26",
     "D27",
@@ -103,35 +111,33 @@ OPEN_METRIC_DECISIONS: tuple[str, ...] = (
     "D33",
     "D34",
     "D35",
+    "D36",
     "D37",
     "D38",
+    "D39",
     "D40",
-    "D43",
-    "D51",
-    "D52",
-    "D53",
-    "D54",
-    "D56",
-    "D57",
-    "D58",
-    "D59",
-    "D60",
-    "D61",
-)
-
-# Owner decisions settled since publishing began, listed in meta/methodology.json.
-SETTLED_METRIC_DECISIONS: tuple[str, ...] = (
-    "D19",
-    "D22",
-    "D36",
+    "D41",
     "D42",
+    "D43",
     "D44",
     "D46",
     "D47",
     "D48",
     "D49",
     "D50",
+    "D51",
+    "D52",
+    "D53",
+    "D54",
     "D55",
+    "D56",
+    "D57",
+    "D58",
+    "D59",
+    "D60",
+    "D61",
+    "D63",
+    "D64",
 )
 
 

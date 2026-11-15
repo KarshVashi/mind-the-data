@@ -189,11 +189,11 @@ def test_custom_window_document(marts: RecordedMarts) -> None:
     assert doc["is_window_complete"] is True
     assert doc["data_through"] == "2026-11-14T15:09:00"
     assert doc["highlights"]["line_of_the_week_null_reason"] == "custom_window"
-    # Every decision a flag cites is listed as open.
+    # Every decision a flag cites is listed, as open or settled.
     cited = {
         d for line in doc["lines"] for r in line["provisional_reasons"] for d in r["decisions"]
     }
-    assert cited and cited <= set(doc["open_decisions"])
+    assert cited and cited <= set(doc["open_decisions"]) | set(SETTLED_ID_STRINGS)
     assert doc["worst_incident"]["started_at_london"] == "2026-11-08T07:15:00"
 
 
@@ -283,6 +283,60 @@ def test_typical_bad_hours_ranks_by_share() -> None:
     assert typical_bad_hours(rows)[0]["disrupted_share"] == 0.9
 
 
+# Owner decisions settled and published in meta/methodology.json (all but D1, 2026-11-15).
+SETTLED_IDS = [
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    63,
+    64,
+]
+
+
+SETTLED_ID_STRINGS = [f"D{n}" for n in SETTLED_IDS]
+
+
 def test_methodology_thresholds_follow_dbt(marts: RecordedMarts) -> None:
     variables = dbt_vars(ROOT / "transform")
     assert float(variables["provisional_completeness"]) == PROVISIONAL_COMPLETENESS
@@ -297,19 +351,8 @@ def test_methodology_thresholds_follow_dbt(marts: RecordedMarts) -> None:
     assert doc["thresholds"]["min_open_share_to_rank"] == 0.5
     # D19: the index is a time-weighted mean severity x 100, so Suspended (8) tops it.
     assert (doc["disruption_index"]["min"], doc["disruption_index"]["max"]) == (0.0, 800.0)
-    assert doc["settled_decisions"] == [
-        "D19",
-        "D22",
-        "D36",
-        "D42",
-        "D44",
-        "D46",
-        "D47",
-        "D48",
-        "D49",
-        "D50",
-        "D55",
-    ]
+    assert doc["open_decisions"] == []
+    assert doc["settled_decisions"] == [f"D{n}" for n in SETTLED_IDS]
     assert not set(doc["settled_decisions"]) & set(doc["open_decisions"])
     # The measured view's thresholds and withheld lines mirror the dbt vars.
     assert float(variables["gate_max_out_of_band_share"]) == GATE_MAX_OUT_OF_BAND_SHARE

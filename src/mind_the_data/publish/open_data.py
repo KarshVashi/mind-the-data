@@ -58,7 +58,7 @@ if TYPE_CHECKING:
 LONDON = ZoneInfo("Europe/London")
 ATTRIBUTION = "Powered by TfL Open Data"
 TFL_TERMS_URL = "https://tfl.gov.uk/corporate/terms-and-conditions/transport-data-service"
-# D63: the recommended licence for the project's derived figures, pending the owner.
+# D63 (settled 2026-11-15): the licence for the project's derived figures.
 LICENCE_NAME = "CC BY 4.0"
 LICENCE_URL = "https://creativecommons.org/licenses/by/4.0/"
 
