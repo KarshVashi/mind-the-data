@@ -14,10 +14,11 @@ from typing import Any
 import pytest
 from jsonschema import Draft202012Validator, ValidationError
 
-from mind_the_data.publish import export
+from mind_the_data.publish import export, upload
 from mind_the_data.publish.documents import (
     Stamp,
     dbt_vars,
+    iso_week_of,
     league_document,
     line_document,
     typical_bad_hours,
@@ -526,3 +527,15 @@ def test_stale_measured_tables_withhold_only_unfinished_weeks(tmp_path: Path) ->
     for path, doc in docs.items():
         if path.startswith("league/"):
             validate(doc, "league")
+
+
+def test_every_exported_path_has_an_upload_rule(marts: RecordedMarts) -> None:
+    # A new export path without an upload rule fails the publish run, not the build.
+    _, outputs = export.build_outputs(marts, WEEK, STAMP)
+    paths = [o.path for o in outputs]
+    assert any(p.startswith("divisions/") for p in paths)
+    assert any(p.startswith("season/") for p in paths)
+    iso_week = iso_week_of(WEEK)
+    paths += [f"cards/{iso_week}.png", f"cards/{iso_week}-1080x1350.png"]
+    for path in paths:
+        upload.classify(path)
