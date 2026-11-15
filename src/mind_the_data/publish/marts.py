@@ -233,6 +233,8 @@ class DivisionMonthRow:
     movement: str
     next_division: int
     is_month_complete: bool
+    # "provisional_month" when the month moved no one (D57); None otherwise.
+    movement_held_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -526,6 +528,7 @@ def parse_division_month(cells: Cells) -> DivisionMonthRow:
         movement=_req(cells, "movement"),
         next_division=_int(cells, "next_division"),
         is_month_complete=_bool(cells, "is_month_complete"),
+        movement_held_reason=_opt(cells, "movement_held_reason"),
     )
 
 
@@ -639,7 +642,7 @@ SEEDING_COLUMNS = (
 DIVISION_COLUMNS = (
     "line_id, month_start, division, joined_by, scheduled_minutes, observed_minutes, "
     "disruption_index, good_service_pct, completeness, is_provisional, unranked_reason, "
-    "division_rank, movement, next_division, is_month_complete"
+    "division_rank, movement, next_division, is_month_complete, movement_held_reason"
 )
 SEASON_COLUMNS = (
     "line_id, season, season_start, season_end, first_observed_date, last_observed_date, "

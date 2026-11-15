@@ -1,7 +1,7 @@
 # ADR-008: Staging models merge whole days on a row key
 
 Date: 2026-11-03
-Status: proposed
+Status: accepted (owner, 2026-11-15, D3)
 
 ## Context
 

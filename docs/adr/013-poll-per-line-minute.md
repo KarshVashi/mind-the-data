@@ -1,7 +1,7 @@
 # ADR-013: Read the latest poll that lists the line, and only current entries
 
 Date: 2026-11-08
-Status: proposed
+Status: accepted (owner, 2026-11-15, D20, D21, D23)
 
 ## Context
 

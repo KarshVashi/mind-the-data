@@ -1,0 +1,29 @@
+Published data and figures: Creative Commons Attribution 4.0 International
+
+Copyright (c) 2026 Karsh Vashi
+
+The figures this project publishes are licensed under the Creative Commons
+Attribution 4.0 International licence (CC BY 4.0):
+
+    https://creativecommons.org/licenses/by/4.0/legalcode
+
+This covers the weekly league files, share cards, methodology files and the
+monthly open dataset: the derived figures such as weights, scores, ranks,
+divisions and season tables, and the files that carry them. You may share and
+adapt them for any purpose, including commercially, if you give appropriate
+credit ("mind-the-data"), link to the licence and say if you made changes.
+
+Source data from Transport for London
+-------------------------------------
+
+The figures are built from TfL's open data, which stays under TfL's own terms
+and is not relicensed here:
+
+    https://tfl.gov.uk/corporate/terms-and-conditions/transport-data-service
+
+Keep the attribution "Powered by TfL Open Data" wherever you reuse or
+redistribute the figures or any file that carries TfL data (for example the
+status reason text in the open dataset). TfL does not endorse this project, and
+the data comes with no warranty.
+
+The code is under the MIT licence: see LICENSE.

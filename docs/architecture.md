@@ -90,7 +90,7 @@ A job that names a GitHub environment gets a different subject and is refused, s
 
 - Pull requests only plan. The plan is reviewed on the pull request; merging to `main` deploys it (ADR-005). Deletes need an explicit marker.
 - `main` requires a pull request and the `ci` check, and refuses force pushes.
-- **Merge gate (ADR-011, proposed).** Low-risk pull requests may be merged by the project's engineer through `make merge`, and only when a gate allows it. The gate always runs `main`'s copy of its code and policy, so a branch cannot loosen it. It refuses any change to protected paths (the bootstrap, the CI role module, `.github/`, ADRs, the gate itself), any IAM change, delete, replace or import in the pull request's own CI plan, and any resource type not on its allowlist. Everything else waits for the owner.
+- **Merge gate (ADR-011, accepted).** Low-risk pull requests may be merged by the project's engineer through `make merge`, and only when a gate allows it. The gate always runs `main`'s copy of its code and policy, so a branch cannot loosen it. It refuses any change to protected paths (the bootstrap, the CI role module, `.github/`, ADRs, the gate itself), any IAM change, delete, replace or import in the pull request's own CI plan, and any resource type not on its allowlist. Everything else waits for the owner.
 
 ### Secrets
 
@@ -113,4 +113,4 @@ Every Athena workgroup enforces a per-query scan cap that clients cannot lift. L
 | `transform/` | dbt project: seeds, staging, intermediate, marts, tests |
 | `infra/bootstrap/` | state bucket, CI roles, permissions boundary (human-applied) |
 | `infra/envs/prod/`, `infra/modules/` | everything else, deployed by `infra.yml` |
-| `.github/workflows/` | `ci`, `infra`, `transform-daily`, `publish-weekly`, `ops-daily`, `ops-daytime`, `bootstrap-plan`, `automerge` |
+| `.github/workflows/` | `ci`, `infra`, `transform-daily`, `publish-weekly`, `ops-daily`, `ops-daytime`, `bootstrap-plan` |

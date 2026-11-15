@@ -1,7 +1,7 @@
 # ADR-009: CI roles trust GitHub's immutable OIDC subjects
 
 Date: 2026-11-03
-Status: proposed
+Status: accepted (owner, 2026-11-15, D4)
 
 ## Context
 

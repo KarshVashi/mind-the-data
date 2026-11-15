@@ -6,6 +6,7 @@ Chromium through Playwright: the browser Playwright installs
 Chrome. Rendering fails rather than writing a card whose content overflows.
 """
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -14,8 +15,10 @@ from importlib import resources
 from pathlib import Path
 from string import Template
 
-from mind_the_data.publish.insight import Insight
+from mind_the_data.publish.insight import Insight, lowest_good_service_insight
 from mind_the_data.publish.league import League, Standing
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -173,6 +176,11 @@ def card_html(league: League, insight: Insight | None, size: CardSize) -> str:
         for column in columns
     )
     insight_text = insight.text if insight is not None else "Weekly reliability, line by line."
+    caveat = (
+        f'<span class="caveat">{escape(insight.caveat)}</span>'
+        if insight is not None and insight.caveat
+        else ""
+    )
     footer = "".join(f"<p>{escape(n)}</p>" for n in footer_lines(league))
     name_width = 180 if size.columns == 2 else 280
     values = {
@@ -199,6 +207,8 @@ def card_html(league: League, insight: Insight | None, size: CardSize) -> str:
         "subtitle": escape(SUBTITLE),
         "subtitle_size": 15 if size.columns == 2 else 22,
         "insight": escape(insight_text),
+        "caveat": caveat,
+        "caveat_size": 13 if size.columns == 2 else 20,
         "table": table,
         "footer": footer,
     }
@@ -277,6 +287,20 @@ def render_cards(
     for size in SIZES:
         suffix = "" if size is LANDSCAPE else f"-{size.name}"
         path = out_dir / f"{stem}{suffix}.png"
-        render_png(card_html(league, insight, size), size, path, channel=channel)
+        try:
+            render_png(card_html(league, insight, size), size, path, channel=channel)
+        except CardOverflow:
+            # The landscape card has little spare height. If the caveat is what
+            # does not fit (a partial window adds a footer line), lead with the
+            # Good Service % insight there rather than drop the caveat.
+            if size is not LANDSCAPE or insight is None or not insight.caveat:
+                raise
+            fallback = lowest_good_service_insight(league)
+            # The JSON and the numbers sheet still carry the trains-run text,
+            # so say loudly that this card does not match them.
+            logger.warning(
+                "landscape card fell back to the Good Service insight: caveat did not fit"
+            )
+            render_png(card_html(league, fallback, size), size, path, channel=channel)
         paths.append(path)
     return paths

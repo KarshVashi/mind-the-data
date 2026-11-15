@@ -320,7 +320,12 @@ def league_document(league: League, insight: Insight | None, stamp: Stamp) -> di
         },
         "insight": None
         if insight is None
-        else {"kind": insight.kind, "line_id": insight.line_id, "text": insight.text},
+        else {
+            "kind": insight.kind,
+            "line_id": insight.line_id,
+            "text": insight.text,
+            **({"caveat": insight.caveat} if insight.caveat else {}),
+        },
     }
 
 
@@ -569,6 +574,7 @@ def divisions_document(
                         "completeness": _round(r.completeness, 4),
                         "is_provisional": r.is_provisional,
                         "movement": r.movement,
+                        "movement_held_reason": r.movement_held_reason,
                         "next_division": r.next_division,
                     }
                     for r in state.rows

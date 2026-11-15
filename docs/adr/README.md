@@ -33,12 +33,12 @@ What gets easier, what gets harder, what to revisit and when.
 | [004](004-multiple-statuses.md) | Multiple statuses per line: highest weight wins | accepted |
 | [005](005-ci-role-ownership.md) | CI roles owned by the bootstrap; merging to main is the deploy approval | accepted |
 | [006](006-poller-reserved-concurrency.md) | Poller reserved concurrency waits for a Lambda quota increase | proposed |
-| [007](007-reference-lambda-sizing.md) | Reference Lambda gets 1024 MB, 300 s and concurrency 4 | proposed |
-| [008](008-staging-merge.md) | Staging merges whole days on a row key, not append | proposed |
-| [009](009-oidc-immutable-subjects.md) | CI roles trust the repository's immutable OIDC subject | proposed |
-| [010](010-workflow-bound-ci-roles.md) | CI roles bound to their workflow files through `job_workflow_ref` | proposed |
-| [011](011-merge-gate.md) | The engineer may merge low-risk pull requests through a gate | proposed |
-| [012](012-run-models-rebuild-in-full.md) | Declared-view intermediate models rebuild in full each run | proposed |
-| [013](013-poll-per-line-minute.md) | Read the latest poll that lists the line, and only current entries (amends ADR-004) | proposed |
+| [007](007-reference-lambda-sizing.md) | Reference Lambda gets 1024 MB, 300 s and concurrency 4 | accepted |
+| [008](008-staging-merge.md) | Staging merges whole days on a row key, not append | accepted |
+| [009](009-oidc-immutable-subjects.md) | CI roles trust the repository's immutable OIDC subject | accepted |
+| [010](010-workflow-bound-ci-roles.md) | CI roles bound to their workflow files through `job_workflow_ref` | accepted |
+| [011](011-merge-gate.md) | The engineer may merge low-risk pull requests through a gate | accepted |
+| [012](012-run-models-rebuild-in-full.md) | Declared-view intermediate models rebuild in full each run | accepted |
+| [013](013-poll-per-line-minute.md) | Read the latest poll that lists the line, and only current entries (amends ADR-004) | accepted |
 | [014](014-gate-tests-inference-fidelity.md) | The quality gate tests inference fidelity (inferred against trains on the boards); trains run is its own measure (amends PLAN 7.2) | accepted |
-| [015](015-divisions-seed-from-two-weeks.md) | Seed the divisions from two complete weeks, provisional until four exist (amends PLAN M6) | proposed |
+| [015](015-divisions-seed-from-two-weeks.md) | Seed the divisions from two complete weeks, provisional until four exist (amends PLAN M6) | accepted |

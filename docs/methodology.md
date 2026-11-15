@@ -9,7 +9,7 @@ The table ranks every line two ways:
 
 The gap between the two, hours in which TfL said Good Service while the boards showed a long gap, is the **Honesty Gap**.
 
-**Status, methodology v0.3.** Both views are built and run daily, and the weekly files carry both. On 14 November 2026 the owner settled: the Disruption Index is a time-weighted mean severity on a 0 to 800 scale (D19); a line is ranked only if it ran at least half its scheduled hours (D22); publishing goes ahead while other definitions are open, with provisional labels (D36); the quality gate tests the inference against the trains on the boards (ADR-014, D46) and fails the run when it fails, skipping only the measured tables, so the declared league always builds (D44, D55); the measured view is **published** for each line-week whose own gate passes (D42); and the weekly highlights (D47 to D50). Public publishing starts once the Cloudflare setup is done. Most definitions below are readings of an ambiguous rule and are waiting for a final decision. Each is tagged with its decision number (`D16`) from [DECISIONS.md](DECISIONS.md) or its record (`ADR-004`) in [adr/](adr/), and the table at the end says which are provisional. Every published file lists the open decisions it rests on in `open_decisions`.
+**Status, methodology v0.3.** Both views are built and run daily, and the weekly files carry both. On 14 November 2026 the owner settled: the Disruption Index is a time-weighted mean severity on a 0 to 800 scale (D19); a line is ranked only if it ran at least half its scheduled hours (D22); publishing goes ahead while other definitions are open, with provisional labels (D36); the quality gate tests the inference against the trains on the boards (ADR-014, D46) and fails the run when it fails, skipping only the measured tables, so the declared league always builds (D44, D55); the measured view is **published** for each line-week whose own gate passes (D42); and the weekly highlights (D47 to D50). Public publishing starts once the Cloudflare setup is done. On 15 November 2026 the owner accepted the remaining readings below, so `open_decisions` in the published files is now empty. Each is tagged with its decision number (`D16`) from [DECISIONS.md](DECISIONS.md) or its record (`ADR-004`) in [adr/](adr/), and the table at the end says which are decided. Every published file lists the open decisions it rests on in `open_decisions`.
 
 ---
 
@@ -129,6 +129,8 @@ Two divisions of ten lines (D57). They are seeded by Disruption Index over the f
 
 Divisions play from December 2026. Each month, lines are ranked within their division by the month's Disruption Index, with the weekly rules. At the end of the month the bottom three ranked lines of Division One swap with the top three of Division Two. Lines level on index and Good Service % at a promotion or relegation place are split by line id. A line not ranked that month (mostly closed for works, or nothing scored) neither goes up nor down.
 
+A provisional month moves no one (D57, settled 15 November 2026). If any ranked line was observed for under 90% of its scheduled minutes in the month, the whole month is provisional: ranks are shown, every line stays in its division, and the model records `movement_held_reason = provisional_month`. The whole month is held, not just the thin line, so that a thin month cannot relegate a line, and so that dropping one line from the swap cannot pull a better line down in its place.
+
 ### Season
 
 The season runs from 1 April to 31 March and resets each April. Its table is the Disruption Index over every date of the season so far, ranked like the weekly table. The 2026-27 season starts with the collector on 4 November 2026, so until April 2027 it is the season to date (D58).
@@ -165,7 +167,7 @@ TfL does not publish when trains actually arrived. Each Arrivals board shows pre
 
 1. **A board** is one platform and direction at a station (D28).
 2. **Duplicates.** Within one board in one poll, a prediction within 15 s of the one before it is the same train listed twice, and is dropped (D25).
-3. **Linking sightings across polls.** Predictions in consecutive successful polls are the same train when they are each other's nearest match and their expected arrivals are within 45 s. A train standing at the platform links by a separate rule. On lines whose vehicle ids are stable, sightings link by vehicle id instead; today that is the Victoria line only (D26, D27).
+3. **Linking sightings across polls.** Predictions in consecutive successful polls are the same train when they are each other's nearest match and their expected arrivals are within 45 s. A train standing at the platform links by a separate rule. On lines whose vehicle ids are stable, sightings link by vehicle id instead; that is the Victoria line and, since 15 November 2026, Bakerloo, Central, Circle, Hammersmith & City, Jubilee, Metropolitan, Northern and Piccadilly (D26, D27). District is left out because its ids are not stable (78.5% followed from Victoria to Earl's Court).
 4. **Arrival.** A train has arrived when its last sighting was at most 120 s from the platform and the next successful poll no longer shows it, or when it shows 0 s at the last poll. Time to go is computed from the poll time, not TfL's `time_to_station`, which counts from an older timestamp (D40).
 5. **Arrival time** is the last expected arrival seen. Two arrivals on one board within 45 s are one train that dropped off the board for a poll (D26).
 6. **Phantoms**, trains seen once and never within 120 s, are discarded.
@@ -288,53 +290,57 @@ The card's insight line names, in order: the lowest trains-run share under 95%; 
 
 ## 6. Decisions behind this methodology
 
-ADR-004 and ADR-014 are accepted, and D19, D22, D36, D42, D44, D46, D47 to D50 and D55 were decided by the owner on 14 November 2026. Every other entry is implemented as described and is waiting for a final decision, so it is **provisional** and may change. A change is a seed or variable edit and a rebuild; past weeks are rebuilt with it (D39).
+On 15 November 2026 the owner accepted every recommended reading below, so each is **decided**; the one decision still open is D1 / ADR-006 (the poller's reserved concurrency, waiting for a Lambda quota), which changes no published number. The figures keep their provisional labels where the data is thin (D35, D56) and the Recovery Time table keeps its provisional label (D18, D59). Earlier, ADR-004 and ADR-014 were accepted, and D19, D22, D36, D42, D44, D46, D47 to D50 and D55 decided on 14 November 2026. A later change to any reading is a seed or variable edit and a rebuild; past weeks are rebuilt with it (D39).
 
 | Decision | Subject | Affects |
 | --- | --- | --- |
 | [ADR-004](adr/004-multiple-statuses.md) | Highest weight wins when statuses overlap | declared (accepted) |
-| [ADR-013](adr/013-poll-per-line-minute.md), D23 | Which poll and entries describe a minute | declared |
-| D16 | Service Closed is left out of the score | declared |
-| D17 | Scheduled hours; estimates for 7 lines | both |
-| D18 | Incidents and recovery | declared |
+| [ADR-013](adr/013-poll-per-line-minute.md), D23 | Which poll and entries describe a minute | declared (decided) |
+| D16 | Service Closed is left out of the score | declared (decided) |
+| D17 | Scheduled hours; estimates for 7 lines | both (decided) |
+| D18 | Incidents and recovery | declared (decided) |
 | D19 | Disruption Index: time-weighted mean severity, 0 to 800 | declared (decided) |
-| D20 | Ties, unranked and provisional lines | declared |
-| D21 | Time bands follow the London calendar day | declared |
+| D20 | Ties, unranked and provisional lines | declared (decided) |
+| D21 | Time bands follow the London calendar day | declared (decided) |
 | D22 | Ranked only if open at least half the scheduled hours | declared (decided) |
-| D25 | Duplicate predictions (15 s) | measured |
-| D26, D40 | Linking sightings, arrival rule, time to go | measured |
-| D27 | Vehicle-id linking (Victoria only) | measured |
-| D28, D29 | Boards, failed polls, pooled platforms | measured |
-| D30, D31, D32 | Hours of a gap, same-minute departures, timetable versions | measured |
-| D33 | Fallback frequencies (Elizabeth line, Overground) | measured |
-| D34 | Long gap against the longest scheduled gap | measured |
-| D35 | Provisional when 25% or more is closures | declared, publishing |
+| D25 | Duplicate predictions (15 s) | measured (decided) |
+| D26, D40 | Linking sightings, arrival rule, time to go | measured (decided) |
+| D27 | Vehicle-id linking (Victoria and eight more Tube lines; not District) | measured (decided) |
+| D28, D29 | Boards, failed polls, pooled platforms | measured (decided) |
+| D30, D31, D32 | Hours of a gap, same-minute departures, timetable versions | measured (decided) |
+| D33 | Fallback frequencies (Elizabeth line, Overground) | measured (decided) |
+| D34 | Long gap against the longest scheduled gap | measured (decided) |
+| D35 | Provisional when 25% or more is closures | declared, publishing (decided) |
 | D36 | Publish with provisional labels while decisions are open | publishing (decided) |
-| D37 | Typical bad hours | publishing |
-| D38 | The card's insight line | publishing |
-| D39 | Past weeks rewritten each run | publishing |
+| D37 | Typical bad hours | publishing (decided) |
+| D38 | The card's insight line | publishing (decided) |
+| D39 | Past weeks rewritten each run | publishing (decided) |
 | D42 | Gate grain, denominators, Honesty Gap; publish the measured view | measured, publishing (decided) |
-| D43 | Lines not measured | measured |
+| D43 | Lines not measured | measured (decided) |
 | D44 | Gate test fails the build | measured (decided) |
 | [ADR-014](adr/014-gate-tests-inference-fidelity.md), D46 | Gate tests inference against trains on the boards; trains run reported | measured (decided) |
 | D47 | Line of the Week | declared, publishing (decided) |
 | D48 | Wooden Spoon and worst incident | declared, publishing (decided) |
 | D49 | Monday Morning Index | declared, publishing (decided) |
 | D50 | Engineering Works table per week | declared, publishing (decided) |
-| D51 | A line-week's own gate decides whether its measured numbers are published | measured, publishing |
-| D52 | Circle and Hammersmith & City measured view withheld | measured, publishing |
-| D53 | Weak-evidence lines shown but not ranked on Experienced Reliability | measured, publishing |
-| D54 | The card's insight leaves out the Honesty Gap for now | measured, publishing |
+| D51 | A line-week's own gate decides whether its measured numbers are published | measured, publishing (decided) |
+| D52 | Circle and Hammersmith & City measured view withheld | measured, publishing (decided) |
+| D53 | Weak-evidence lines shown but not ranked on Experienced Reliability | measured, publishing (decided) |
+| D54 | The card's insight leaves out the Honesty Gap for now | measured, publishing (decided) |
 | D55 | A failing gate never holds back the declared view | measured (decided) |
-| D63 | The open dataset's contents and licence | publishing |
-| D64 | Iceberg maintenance scope (auto-apply) | operations |
-| [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing |
-| D57 | Division size, monthly measure, promotion and relegation | declared, publishing |
-| D58 | Season table, April to March | declared, publishing |
-| D59 | Recovery Time table (provisional on D18) | declared, publishing |
-| D60 | Industrial action seed and strikes-excluded table | declared, publishing |
-| D61 | Sensitivity weight sets | declared, publishing |
+| D63 | The open dataset's contents and licence | publishing (decided) |
+| D64 | Iceberg maintenance scope (auto-apply) | operations (decided) |
+| [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing (decided) |
+| D57 | Division size, monthly measure, promotion and relegation | declared, publishing (decided) |
+| D58 | Season table, April to March | declared, publishing (decided) |
+| D59 | Recovery Time table (provisional on D18) | declared, publishing (decided) |
+| D60 | Industrial action seed and strikes-excluded table | declared, publishing (decided) |
+| D61 | Sensitivity weight sets | declared, publishing (decided) |
 
 The weights for the status codes the plan names, and the time-band weights, are the build plan's values. D16 adds Service Closed to the weights, and D21 decides how the bands map onto calendar days. Sensitivity under three alternative weight sets is reported each week in `meta/methodology.json` (see Sensitivity above, D61).
+
+## Licence
+
+The figures this project publishes, the weekly files, share cards, `meta/` files and the monthly open dataset, are offered under **CC BY 4.0** (D63; [LICENSE-DATA](../LICENSE-DATA)). Credit "mind-the-data". The code is MIT ([LICENSE](../LICENSE)). The source data is TfL's and stays under [TfL's transport data terms](https://tfl.gov.uk/corporate/terms-and-conditions/transport-data-service): keep the attribution below wherever the figures or the open dataset are reused.
 
 Powered by TfL Open Data.

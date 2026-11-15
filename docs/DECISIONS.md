@@ -21,12 +21,19 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
+Only D1 is still open.
+
 ### D1. Accept ADR-006 (poller reserved concurrency waits for the quota)
 
 - **Context:** the poller runs unreserved because the account's concurrency quota is 10. The plan's reservation of 1 is the guarantee against overlap and runaway concurrency.
 - This deviates from the plan and depends on a quota.
 - **Default:** accept. Switch to `1` once the quota is granted.
+- **Status 2026-11-15:** the only decision still open. ADR-006 stays proposed until the Lambda concurrency quota is granted; nothing published depends on it.
 - **Deadline:** 2026-11-10 12:00 UTC. **Class:** `never-default`.
+
+## Settled on 2026-11-15, with the detail
+
+The owner accepted every recommendation below on 2026-11-15; each section ends with its outcome. The table under "Settled" summarises them.
 
 ### D2. Accept ADR-007 (reference Lambda 1024 MB / 300 s)
 
@@ -34,6 +41,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 - The change is already deployed. It costs pennies a month, but it is a cost change and a deviation from the plan.
 - **Default:** accept as written.
 - **Deadline:** 2026-11-10 12:00 UTC. **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** ADR-007 accepted: the reference Lambda stays at 1024 MB / 300 s.
 
 ### D3. Accept ADR-008 (staging merges whole days on a row key)
 
@@ -41,6 +49,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 - That sets the grain of every staging model, and the metrics are built on those models.
 - **Default:** accept as written.
 - **Deadline:** 2026-11-10 12:00 UTC. **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** ADR-008 accepted: staging merges whole days on a row key.
 
 ### D4. Accept ADR-009 (CI roles trust immutable OIDC subjects)
 
@@ -48,6 +57,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 - It is an IAM trust boundary.
 - **Default:** accept as written.
 - **Deadline:** 2026-11-10 12:00 UTC. **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** ADR-009 accepted: CI roles trust immutable OIDC subjects.
 
 ### D5. Station budget: 50 or about 55
 
@@ -55,6 +65,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 - About 55 adds branch ends for 57 calls a minute, still well under the key's 500. It means changing the loader's cap, the comment in `stations.yaml` and PLAN 5.2/5.3.
 - **Default:** stay at 50. Revisit in the week-one review with real coverage numbers.
 - **Deadline:** 2026-11-10 12:00 UTC. **Class:** `auto-apply`.
+- **Settled 2026-11-15 (owner):** Stays at 50 stations; revisit with coverage numbers.
 
 ### D6. sqlfluff strictness
 
@@ -62,6 +73,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 - The open question was whether to relax any rules.
 - **Default:** keep the current config. Exclude a rule only when it trips, with the reason in a comment.
 - **Deadline:** 2026-11-10 12:00 UTC. **Class:** `auto-apply`.
+- **Settled 2026-11-15 (owner):** sqlfluff config kept as it is.
 
 ### D7. Plan checkbox while the plan stays local
 
@@ -69,6 +81,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 - The local copy currently lags: M1 and the H-steps are still unticked.
 - **Default:** tick the local plan when each PR opens, and track progress in this repo through STATUS.md. PR "Why" sections name the milestone and task by id ("M2, task 6").
 - **Deadline:** 2026-11-10 12:00 UTC. **Class:** `auto-apply`.
+- **Settled 2026-11-15 (owner):** As written: the local plan is ticked, progress is tracked in STATUS.md.
 
 ### D8. Rebuild prod staging after #17
 
@@ -77,6 +90,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 - **Default:** check prod for null-keyed rows once AWS access is back. If any are found, run a full refresh in a one-off workflow run.
 - **Now possible in CI:** `transform-daily` takes `full_refresh` and `select` on a manual run (runbook, "Full refresh in prod"), e.g. `-f full_refresh=true -f select='staging+'`, as the transform role.
 - **Deadline:** 2026-11-10 12:00 UTC. **Class:** `never-default` (data deletion).
+- **Settled 2026-11-15 (owner):** Settled by the D45 full refresh of `stg_arrivals+`, which rewrites staging from raw (run on 2026-11-14).
 
 ### D9. dbt unit tests in prod builds
 
@@ -84,6 +98,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 - The alternative is `--exclude-resource-type unit_test` in prod. CI has no warehouse access, so unit tests would then run only on manual dev builds. That gap is how the failures fixed in #18 went unnoticed.
 - **Default:** keep running unit tests in prod until a dev unit-test workflow exists. That workflow needs an OIDC role, so it gets its own decision.
 - **Deadline:** 2026-11-10 12:00 UTC. **Class:** `auto-apply`.
+- **Settled 2026-11-15 (owner):** Unit tests keep running in prod builds.
 
 ### D10. Pin dbt-athena to a minor version
 
@@ -91,6 +106,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 - The code lives in `dbt-athena`, also 1.11.1. #18 overrides its `resolve_table_type` macro and was checked against 1.11.1.
 - **Default:** pin `dbt-athena-community>=1.11.1,<1.12`, and add `dbt-athena>=1.11.1,<1.12`. Upgrade in a deliberate PR that runs the dev unit tests.
 - **Deadline:** 2026-11-10 12:00 UTC. **Class:** `auto-apply`.
+- **Settled 2026-11-15 (owner):** Done: `dbt-athena-community` and `dbt-athena` are pinned to `>=1.11.1,<1.12` in `pyproject.toml`, with `uv.lock` consistent.
 
 ### D11. ADR-010: bind OIDC roles to specific workflows
 
@@ -98,6 +114,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 - The autonomy bundle (Part 4) sets `enforce_workflow_binding` to `true`, so the plan (pull request), apply and transform roles are bound too. It takes effect only with your `make bootstrap-apply`.
 - **Default:** none. Accept ADR-010, merge the bundle, apply, then run the `all-roles` probe and the role checks (runbook H6, step 5).
 - **Deadline:** 2026-11-11 12:00 UTC (72 hours after the bundle opened). **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** ADR-010 accepted. The Terraform change is already in `infra/bootstrap` (`enforce_workflow_binding` defaults to `true`). It reaches AWS with the owner's `make bootstrap-apply`, then the `all-roles` probe (runbook H6, step 5).
 
 ### D12. Smoke test after each deploy invokes the poller
 
@@ -105,12 +122,14 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 - The alternative is to wait for the next scheduled object instead of invoking. It is slower and doesn't prove the deployed code runs on demand.
 - **Default:** none: this touches metric semantics. Accept the extra poll, or ask for the wait-only check.
 - **Deadline:** 2026-11-11 12:00 UTC. **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** Accepted: the extra poll after each deploy's smoke test stays.
 
 ### D13. Ops checks when the observer role can't be assumed
 
 - **Context:** `ops-daily` and `ops-daytime` (Part 3) skip with a warning, and stay green, when the role can't be assumed. If the observer trust broke later, the checks would go quiet.
 - **Default:** fail the job when the role variable is set but the role can't be assumed. A two-line follow-up.
 - **Deadline:** 2026-11-11 12:00 UTC. **Class:** `auto-apply`.
+- **Settled 2026-11-15 (owner):** Done: `ops-daily` and `ops-daytime` now fail, not skip green, when the observer role cannot be assumed.
 
 ### D14. Automerge allow-list
 
@@ -118,6 +137,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 - The merge gate (Part 5, ADR-011) covers the same need with stricter checks: protected paths, the PR's own plan evidence and a pinned head. Automerge runs the gate's checks only in part, through its own allow-list.
 - **Default:** none: it is a security boundary. The recommendation is to remove automerge in favour of the gate (a follow-up deleting `automerge.yml` and `ops/automerge.py`). The alternatives are to keep it off, or to turn it on with the list cut to `tests/` and `docs/`.
 - **Deadline:** 2026-11-11 12:00 UTC. **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** Done: automerge is removed (`automerge.yml`, `ops/automerge.py`, its tests and docs). The merge gate stays.
 
 ### D15. ADR-011: the engineer may merge low-risk pull requests through the gate
 
@@ -125,6 +145,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 - If you accept it, the local working rule "never merge PRs" changes to allow `make merge` only. Until then nobody runs `make merge`; `make merge-check` is a dry run and changes nothing.
 - **Default:** none. Accept, reject, or accept with `transform/**` protected too.
 - **Deadline:** 2026-11-11 12:00 UTC. **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** ADR-011 accepted as written: `make merge` may merge low-risk PRs through the gate.
 
 ### M3 decisions (D16 to D24)
 
@@ -137,6 +158,7 @@ D19 and D22 were settled by the owner on 2026-11-14 and are under "Settled". The
 - **Alternatives:** count it as an in-service minute at weight 0 (it then reads as good service); weight it like Suspended (8), which would punish the edges of the hours seed; treat it as missing.
 - **Other codes** TfL lists in `Line/Meta/Severity` (1 and 11 to 19) have not appeared and are left out on purpose, so the first one fails a test and comes back here.
 - **Default:** none. **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** Accepted: Service Closed weighs 0 and is left out of the score.
 
 ### D17. Scheduled hours: timetables for 13 lines, estimates for 7
 
@@ -145,6 +167,7 @@ D19 and D22 were settled by the owner on 2026-11-14 and are under "Settled". The
 - **Alternatives:** hours from published TfL first/last train pages for the 7 lines; hours inferred from arrival boards (noisy: boards show predictions from 03:00); a public-holiday seed.
 - **Default:** none. Confirm or supply hours for the 7 estimated lines.
 - **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** Accepted: the estimates for the 7 lines stand until TfL hours are supplied.
 
 ### D18. Incidents and recovery
 
@@ -156,9 +179,10 @@ D19 and D22 were settled by the owner on 2026-11-14 and are under "Settled". The
   - incident minutes separated by fewer than 5 quiet minutes merge;
   - an incident belongs to the London date and week it starts in;
   - recovery = minutes from the first to the last incident minute of a closed incident; open incidents have no recovery yet and are left out of the median.
-- **Also depends on it:** the Recovery Time table (D59) is built on this draft and is published labelled `provisional_d18` until D18 is settled.
+- **Also depends on it:** the Recovery Time table (D59) is built on this draft and is published labelled `provisional_d18`. D18 was accepted on 2026-11-15 as a first definition and the label stays (D59) until a full month of incidents has been reviewed.
 - **Alternatives:** let a long poller gap end an incident; measure recovery to the first Good Service minute specifically; count incidents in every day they touch.
 - **Default:** none. **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** Accepted: the draft definition of an incident and of recovery.
 
 ### D20. Ranking ties and unranked lines
 
@@ -166,6 +190,7 @@ D19 and D22 were settled by the owner on 2026-11-14 and are under "Settled". The
 - **Implemented:** rank by Disruption Index ascending; ties go to the higher Good Service %; lines still equal share a rank. Lines with no scored minutes are unranked. Provisional line-weeks (completeness under `provisional_completeness: 0.9`) are ranked and flagged. Since D22 was settled (2026-11-14), a line that ran under half its scheduled minutes because of engineering works is also unranked.
 - **Alternatives:** leave provisional lines unranked; break ties by fewer incidents.
 - **Default:** none. **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** Accepted (ADR-013 part).
 
 ### D21. Time bands follow the London calendar day
 
@@ -173,6 +198,7 @@ D19 and D22 were settled by the owner on 2026-11-14 and are under "Settled". The
 - **Implemented:** the band comes from the London calendar date and time of the minute (`time_bands.csv`, `day_types.csv`). So Night Tube minutes, which all fall on Saturday and Sunday mornings, are 0.75, and the 00:00 to 00:30 tail of Friday's normal service counts as weekend. The tail of Sunday's service after midnight counts as Monday, weekday off-peak (1).
 - **Alternative:** band by service day, so Friday's late-night tail stays weekday.
 - **Default:** none. **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** Accepted (ADR-013 part).
 
 ### D23. Which entries describe a minute
 
@@ -180,6 +206,7 @@ D19 and D22 were settled by the owner on 2026-11-14 and are under "Settled". The
 - **Implemented:** the latest successful poll in the minute that lists the line. An entry counts if it has no validity period or one overlapping the minute. TfL sometimes keeps listing a planned status a minute after its period ends, with no other entry for the line; that minute is missing (`missing_reason = no_current_entry`, 1 to 5 line-minutes a day).
 - **Alternatives:** read only the very latest poll, so a later poll that omits a line makes the minute missing; keep a just-expired entry as current.
 - **Default:** none. Accept or reject ADR-013. **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** Accepted (ADR-013 part). ADR-013 is accepted.
 
 ### D24. Declared-view intermediate models rebuild in full
 
@@ -187,6 +214,7 @@ D19 and D22 were settled by the owner on 2026-11-14 and are under "Settled". The
 - **Implemented:** `int_line_minute_status`, `int_status_intervals`, `int_incidents`, `dim_service_hours` and the marts are Iceberg tables rebuilt from `raw_start_date` each run. The M4 bundle adds `int_scheduled_headways` on the same terms: it applies the seeds of D33 and reads only the weekly timetables. Staging stays incremental. The cost is a few hundred MB scanned a year at most. See ADR-012 (proposed).
 - **Default:** none: it deviates from the plan. Accept ADR-012, or ask for a seed-free incremental layer under a table that applies the seeds.
 - **Class:** `never-default`.
+- **Settled 2026-11-15 (owner):** ADR-012 accepted: the declared and measured models rebuild in full; revisit when a run scans about 5 GB.
 
 ### M4 decisions (D25 to D34, D40 to D45)
 
@@ -199,6 +227,7 @@ These come from the M4 work in the M4/M5 bundle. They are readings of PLAN 7.2 a
 - **Alternatives:** use the 45 s matching tolerance (two trains cannot share a platform 45 s apart, but that also merges real close pairs at platforms that serve two routes); keep the duplicate with the smallest `time_to_station`.
 - **Recommendation:** keep 15 s until the review measures how far apart real duplicates sit.
 - **Week-one review (2026-11-08):** keep 15 s and add a same-destination condition (Central close pairs are 93% two trains). **Code now:** 15 s, no destination condition, in both the reference and `int_inferred_arrivals`. It makes no difference on the Victoria line.
+- **Settled 2026-11-15 (owner):** Accepted: the 15 s duplicate window. A same-destination condition (the review's ask) is a later refinement; no code now.
 
 ### D26. How sightings link, when a train has arrived, and the held-train bias
 
@@ -227,6 +256,7 @@ These come from the M4 work in the M4/M5 bundle. They are readings of PLAN 7.2 a
 - **Recommendation:** use vehicle-id linking on the Tube lines where the review finds ids stable. It removes the held-train bias. Settle the rest after the review measures expected-arrival drift in the last 120 s.
 - **Week-one review (2026-11-08):** keep the mutual-nearest and standing links, link by vehicle id on enabled lines, and read time to go from the poll (D40). Keep the 45 s collapse and 60 s polling (ADR-002).
 - **Code now (2026-11-09):** the review's recommendation, in the reference and in `int_inferred_arrivals`: vehicle-id linking on the lines `seed_vehicle_id_lines` enables (Victoria only, D27), time to go from the poll (D40), the 45 s rules unchanged. Pending the owner.
+- **Settled 2026-11-15 (owner):** Accepted, with D27.
 
 ### D27. Which lines link sightings by vehicle id
 
@@ -237,6 +267,7 @@ These come from the M4 work in the M4/M5 bundle. They are readings of PLAN 7.2 a
 - **Week-one review (2026-11-08):** Victoria now; Northern, Jubilee, Piccadilly, Central, Bakerloo, District, Hammersmith & City, Circle and Metropolitan after the Monday 9 November check; Elizabeth and Overground (trip ids) can switch on; not DLR, Waterloo & City or tram.
 - **Code now (2026-11-09):** `seed_vehicle_id_lines` enables **Victoria only**, every row `decision_status = pending_owner_d26_d27`, with the review's advice per line in `review_recommendation`. To change a line, flip `link_by_vehicle_id` and rebuild. Placeholder ids `000` and `001` count as no id (var `placeholder_vehicle_ids`, and `InferenceParams.placeholder_vehicle_ids` in the reference).
 - **Recheck (2026-11-13, [gate recheck](data-quality/2026-11-12-gate-recheck.md)):** ids are stable on Bakerloo, Central, Circle, Hammersmith & City, Jubilee, Metropolitan, Northern and Piccadilly; District is not (78.5% followed from Victoria to Earl's Court). Under the ADR-014 gate (D46) the unlinked lines' failing hours are almost all above 120%, the held-train double count linking removes; Piccadilly (74.1%) and Metropolitan (75.5%) are the two lines under 80%. **Recommendation:** link the eight lines. Still Victoria only until the owner answers.
+- **Settled 2026-11-15 (owner):** Accepted: the eight lines (Bakerloo, Central, Circle, Hammersmith & City, Jubilee, Metropolitan, Northern, Piccadilly) link by vehicle id with Victoria; District stays out. `seed_vehicle_id_lines` is updated. Circle and Hammersmith & City stay withheld by D52.
 
 ### D28. A board is a platform, and absence needs a successful poll
 
@@ -251,6 +282,7 @@ These come from the M4 work in the M4/M5 bundle. They are readings of PLAN 7.2 a
 - **Alternatives:** follow trains per station and direction, across platforms.
 - **Recommendation:** keep it, and count platform changes in the review.
 - **Week-one review (2026-11-08):** keep the platform as the board at core stations (2% change platform), but pool platforms by vehicle id for Metropolitan and District (14% and 6.5%). **Code now:** platform boards on every line; the pooling is not built, since neither line links by vehicle id yet. Headways pool platforms per station and direction (D29).
+- **Settled 2026-11-15 (owner):** Accepted.
 
 ### D29. Scheduled service is per station and direction, not per platform
 
@@ -259,6 +291,7 @@ These come from the M4 work in the M4/M5 bundle. They are readings of PLAN 7.2 a
 - **Consequence for `int_headways` (not built yet):** pool a station-direction's platforms before forming headways. Per-platform headways at a two-platform station would read as about twice the scheduled ones, and become false long gaps.
 - **Alternatives:** split scheduled departures across platforms using board history.
 - **Recommendation:** pool, as implemented.
+- **Settled 2026-11-15 (owner):** Accepted.
 
 ### D30. Which hour a gap belongs to, and service-day hours
 
@@ -270,6 +303,7 @@ These come from the M4 work in the M4/M5 bundle. They are readings of PLAN 7.2 a
   - The sums of gaps and squared gaps are kept, so `int_headways` can add Friday hour 27 and Saturday hour 3, which fall in the same London hour.
 - **Alternatives:** split a gap across the hours it spans; give it to the hour it starts in.
 - **Recommendation:** keep it.
+- **Settled 2026-11-15 (owner):** Accepted.
 
 ### D31. Two departures in one minute both count
 
@@ -279,6 +313,7 @@ These come from the M4 work in the M4/M5 bundle. They are readings of PLAN 7.2 a
 - If the Canning Town pairs are duplicates, scheduled trains there are overstated by about half. The quality gate would then exclude those hours rather than score them.
 - **Alternatives:** collapse same-minute departures listed under different routes.
 - **Recommendation:** decide Canning Town from its boards in the review. DLR boards there carry no vehicle ids and few predictions (see open questions in STATUS.md).
+- **Settled 2026-11-15 (owner):** Accepted.
 
 ### D32. Timetable versions
 
@@ -287,6 +322,7 @@ These come from the M4 work in the M4/M5 bundle. They are readings of PLAN 7.2 a
 - If a later fetch fails, the last good version stays in force; `timetable_fetched_at` shows its age.
 - **Alternatives:** use only the latest timetable for all history (a December timetable change would then rewrite November); treat a failed week as no timetable (unmeasured).
 - **Recommendation:** keep it.
+- **Settled 2026-11-15 (owner):** Accepted.
 
 ### D33. Fallback frequencies for the Elizabeth line and the Overground
 
@@ -302,6 +338,7 @@ These come from the M4 work in the M4/M5 bundle. They are readings of PLAN 7.2 a
 - **Caveat:** the fallback lines' quality gate compares boards with estimates partly checked against the same boards. A pass for these lines is weak evidence.
 - **Alternatives:** take frequencies from TfL's published working timetables; leave these lines out of the measured view until real timetables exist; add tram rows.
 - **Recommendation:** confirm or replace the 23 stations' values (owner). Report the fallback lines separately in the M4 acceptance figure.
+- **Settled 2026-11-15 (owner):** Accepted.
 
 ### D34. Scheduled headway for long gaps when gaps are uneven
 
@@ -309,6 +346,7 @@ These come from the M4 work in the M4/M5 bundle. They are readings of PLAN 7.2 a
 - **Implemented here:** `int_scheduled_headways` exposes both `mean_headway_seconds` and `max_headway_seconds`; `int_headways` will choose.
 - **Recommendation for `int_headways`:** use the longest scheduled gap in the hour. Then a long gap is one that no scheduled gap that hour comes near, which is the conservative reading for the Honesty Gap headline.
 - **Alternative:** the mean, which flags more gaps.
+- **Settled 2026-11-15 (owner):** Accepted.
 
 ### M5 decisions (D35 to D39)
 
@@ -321,6 +359,7 @@ These come from the M5 publish work in the M4/M5 bundle. D35 to D38 entered on 2
 - **With D22 settled (2026-11-14):** the two rules nest and do not contradict each other. Under 25% closed: ranked, no marker. 25% to 50%: ranked and provisional (this decision). Over 50%: not ranked, shown as "Not ranked: engineering works" (D22); the card does not add the provisional mark to such a row, since its own note already says why. Suffragette (94%) is now unranked; Tram (42%) and Mildmay (36%) stay ranked and marked. D35 is kept as it was; only its `decisions` list drops `D22`, which is no longer open.
 - **Alternatives:** a different threshold; drop the marker now that D22 unranks the worst cases.
 - **Default:** none. **Class:** `never-default` (metric semantics and publishing).
+- **Settled 2026-11-15 (owner):** Accepted.
 
 ### D37. Typical bad hours on each line page
 
@@ -328,6 +367,7 @@ These come from the M5 publish work in the M4/M5 bundle. D35 to D38 entered on 2
 - **Implemented:** the London hours of day with the highest share of scored minutes that carried a weight above 0, over the line's whole history, unweighted by time band; at most three, worst first, ties to the earlier hour. An hour needs at least 300 scored minutes (`MIN_BAD_HOUR_SCORED_MINUTES` in `documents.py`), so one disrupted quarter-hour on a mostly closed line is not called a pattern. Planned Reduced Service counts as disrupted (D22).
 - **Alternatives:** weight by time band or severity; count only unplanned statuses; a rolling window (the last 12 weeks) instead of the whole history, which also bounds the scan as data grows.
 - **Default:** none. **Class:** `never-default` (metric semantics).
+- **Settled 2026-11-15 (owner):** Accepted.
 
 ### D38. The share card's insight line
 
@@ -335,6 +375,7 @@ These come from the M5 publish work in the M4/M5 bundle. D35 to D38 entered on 2
 - **Implemented:** the most Honesty Gap hours when any published line has some, worded "showed Good Service for N hours in which its trains ran with long gaps"; otherwise, since the measured view is published (D42), the lowest trains-run share under 95%, worded "Only X% of the line's timetabled trains showed on TfL's arrival boards"; otherwise the lowest Good Service % among lines that are not provisional, worded "showed Good Service for only X% of its scored service time" (scored time leaves out closures, Service Closed and missing minutes). A provisional line is never named, and a weak-evidence line (D53) is never named for a measured headline. With nothing to name, the card shows a neutral line.
 - **Alternatives:** the highest Disruption Index; the longest incident; write the insight by hand for each post.
 - **Default:** none. **Class:** `never-default` (publishing and metric wording).
+- **Settled 2026-11-15 (owner):** Accepted; D54 overrides it for the Honesty Gap.
 
 ### D39. Rewrite every archived week on each publish
 
@@ -342,6 +383,7 @@ These come from the M5 publish work in the M4/M5 bundle. D35 to D38 entered on 2
 - **Implemented:** each export run writes `league/{iso_week}.json` for every complete week with observed data, `league/latest.json` for the newest complete week (whichever week was asked for), and `meta/index.json` listing exactly those weeks and the line files. Past weeks therefore always show the current methodology; `generated_at` and `git_sha` say which. Share cards are still rendered only for the week asked for, so a card is a record of what was posted.
 - **Alternatives:** write each week once and freeze it (the archive then shows the methodology of its day, and the index must be built from an R2 listing at upload time); freeze weeks only after D16 to D23 are settled.
 - **Default:** none. **Class:** `never-default` (publishing).
+- **Settled 2026-11-15 (owner):** Accepted: every archived week is rewritten on each publish.
 
 ### M4 decisions, continued (D40 to D45)
 
@@ -353,6 +395,7 @@ These came out of the week-one review and the measured-view review, after D35 to
 - **Implemented:** every time-to-go rule (the 120 s threshold, "shows 0", the standing link) reads `expected_arrival - polled_at` in whole seconds, truncated as Athena's `date_diff` does and floored at 0. TfL's figure stays on the output as `last_time_to_station`. On the Victoria check this is the review's variant C (+2.7 points over variant B).
 - **Alternatives:** keep `time_to_station` and raise the threshold to 180 s (variant B gains 2.5 points).
 - **Class:** `never-default` (metric semantics). **Recommendation:** keep.
+- **Settled 2026-11-15 (owner):** Accepted.
 
 ### D41. Measured-view models rebuild in full
 
@@ -360,6 +403,7 @@ These came out of the week-one review and the measured-view review, after D35 to
 - **Implemented:** `int_inferred_arrivals`, `int_headways` and `int_measured_hours` are tables rebuilt each run, as D24 did for the declared view (ADR-012, proposed). On dev, `int_inferred_arrivals` builds in about 20 s from five days of staging.
 - **Cost:** the build reads ten columns of `stg_arrivals` over all history, about 1.4 million rows a day; a year is about 0.5 billion rows. Once the scan passes about 5 GB a run, switch to an incremental merge that rewrites whole days and trims the last 30 minutes of each run.
 - **Class:** `never-default` (deviates from the plan). **Recommendation:** accept for now, revisit in M7.
+- **Settled 2026-11-15 (owner):** Accepted with D24 (ADR-012).
 
 ### D43. Lines that are not measured
 
@@ -367,6 +411,7 @@ These came out of the week-one review and the measured-view review, after D35 to
 - **Implemented:** `seed_measured_lines` sets `is_measured = false` for the DLR (no vehicle ids, minute-quantised estimates, 30% to 135% of the timetable), the tram (closures and unscheduled directions), Waterloo & City (both stations are termini) and the Suffragette line (closed at both stations during the review). `fct_line_weekly` shows them as `not_measured` with no measured numbers or rank. Every row is `pending_owner`; flip the flag and rebuild to change one.
 - **Alternatives:** measure the DLR at Canning Town only; keep the tram and Suffragette in once their closures end (after 10 November).
 - **Class:** `never-default` (metric semantics, publishing). **Recommendation:** keep until the review is re-run on fixed staging and after the closures.
+- **Settled 2026-11-15 (owner):** Accepted; revisit after the closures.
 
 ### D45. `stg_arrivals` keys on the prediction, and prod needs a full refresh
 
@@ -374,6 +419,7 @@ These came out of the week-one review and the measured-view review, after D35 to
 - **Implemented:** the key adds line, stop, platform, direction, vehicle, destination and expected arrival. On dev, 6 November goes from 1,250,353 to 1,444,004 rows against 1,444,816 raw (the 812 left are the same prediction listed twice). `assert_staged_arrivals_match_raw` fails when staged rows differ from the distinct raw predictions of any line-day, either way: fewer means a key narrower than a prediction, more means rows left by an older key. TfL does list one prediction twice (8% of Piccadilly rows overnight), so raw rows are not compared one for one.
 - **Prod:** the merge key changed, so an incremental run would keep the old rows beside the new ones for the days it rereads, and older days stay short. Prod needs `dbt build --full-refresh --select stg_arrivals+` once after merge (owner step in STATUS.md). The dev table was rebuilt this way. Since M7 this runs in CI: `gh workflow run transform-daily.yml --ref main -f full_refresh=true -f select='stg_arrivals+'`.
 - **Class:** `never-default` (data rewrite). **Recommendation:** accept, and run the full refresh straight after merge.
+- **Settled 2026-11-15 (owner):** Done: the new key was accepted, the prod full refresh of `stg_arrivals+` ran on 2026-11-14, and `transform-daily` has passed since, including 493 of 493 on 2026-11-15.
 
 ### Measured-view publishing decisions (D51 to D54)
 
@@ -386,6 +432,7 @@ These come from publishing the measured view after the owner settled D42 on 2026
 - **Result, 9 to 14 November:** published for Bakerloo, Central, District, Jubilee, Metropolitan, Piccadilly, Victoria, the Elizabeth line and Weaver; withheld for Lioness (`gate_failed`), Mildmay, Northern and Windrush (`too_few_measured_hours`) and Liberty (`gate_not_judged`).
 - **Alternatives:** the M4 acceptance's 80% per line (Piccadilly and Metropolitan, at 76% and 75%, would be withheld); judge the line on all its stations, termini included (Central 70%, Northern 57%); no per-line gate.
 - **Class:** `never-default`. **Recommendation:** accept.
+- **Settled 2026-11-15 (owner):** Accepted: each line-week's own gate decides.
 
 ### D52. Circle and Hammersmith & City: the whole measured view is withheld until the split
 
@@ -393,6 +440,7 @@ These come from publishing the measured view after the owner settled D42 on 2026
 - **Implemented:** var `measured_view_withheld_lines: ["circle", "hammersmith-city"]` (`MEASURED_VIEW_WITHHELD_LINES` in `publish/league.py`); both lines show `measured_withheld_reason: shared_section_misfiled`. `trains_run_withheld_lines` stays, so if the view is ever shown before the split, trains run stays withheld. The split by vehicle-id history (ADR-014, decision 4) is not built: it needs cross-station state in both the Python reference and `int_inferred_arrivals`, with new parity fixtures from the shared section.
 - **Alternatives:** publish the Circle, whose misfiled hours have no trains on the boards and drop out of the gate, so its numbers rest on eastbound and Victoria only; publish both with a flag.
 - **Class:** `never-default`. **Recommendation:** accept until the split lands.
+- **Settled 2026-11-15 (owner):** Accepted: Circle and Hammersmith & City stay withheld until the vehicle-id split.
 
 ### D53. Weak-evidence lines are shown but not ranked on Experienced Reliability
 
@@ -400,6 +448,7 @@ These come from publishing the measured view after the owner settled D42 on 2026
 - **Implemented:** a line-week with any measured hour on fallback frequencies (today only the Elizabeth line and the Overground; a Tube station-direction TfL stopped publishing a timetable for would trigger it too) has `is_weak_evidence` (`fct_line_weekly_measured`, and in the published `measured` object). Its numbers are published when its gate passes (D51), but it gets no `experienced_rank`, and the card's insight line never names it for a measured headline (D38).
 - **Alternatives:** rank them with the flag; withhold them until real timetables exist.
 - **Class:** `never-default`. **Recommendation:** accept.
+- **Settled 2026-11-15 (owner):** Accepted: weak-evidence lines are shown, not ranked.
 
 ### D54. The share card's insight line leaves out the Honesty Gap for now
 
@@ -408,6 +457,7 @@ These come from publishing the measured view after the owner settled D42 on 2026
 - **Result (dev build, 14 November):** on 4 to 10 November the card reads "Only 68% of the District line's timetabled trains showed on TfL's arrival boards.", and on 9 to 13 November "Only 67% of ...". Under D38's order both would have led with a Honesty Gap count (on 9 to 13 November, Piccadilly: Good Service for 78 hours with long gaps, out of 86).
 - **Alternatives:** keep D38's order with a caveat on the card (no room on 1200x675 without crowding); drop the measured view from the card entirely.
 - **Class:** `never-default` (publishing). **Recommendation:** keep it off until open item 2 is answered (compare the boards with TfL's own trains-operated figures for a week), then switch it on.
+- **Settled 2026-11-15 (owner):** Accepted: the Honesty Gap stays off the card. The trains-run insight now carries the caveat "Boards can miss trains that ran." On the 1200x675 card it falls back to the Good Service % insight if the footer does not fit (it fits today).
 
 ### M6 league mechanics (D56 to D61)
 
@@ -423,6 +473,7 @@ These come from the rest of M6: divisions, the season table, the Recovery Time t
   - the divisions play from December 2026.
 - **Alternatives:** four weeks, as the plan (divisions from January 2027); re-seed automatically when four weeks exist.
 - **Class:** `never-default` (deviates from the plan).
+- **Settled 2026-11-15 (owner):** ADR-015 accepted: divisions seed from two complete weeks, labelled provisional until four exist.
 
 ### D57. How divisions are formed and how lines move
 
@@ -434,13 +485,14 @@ These come from the rest of M6: divisions, the season table, the Recovery Time t
   - a line not ranked for the month (mostly closed for works, or nothing scored) neither goes up nor down. If a division has fewer ranked lines than places, fewer lines move, so both divisions keep ten lines;
   - while a month runs, `movement` shows where each line stands; it becomes a result once the month is complete;
   - lines level on index and Good Service % at a promotion or relegation place are split by line id (alphabetical);
-  - a month under 90% observed (`is_provisional`) still promotes and relegates. **Owner question:** should a provisional month move no one?
+  - a month in which any ranked line was observed under 90% (`is_provisional`) moves no one (settled 2026-11-15): ranks show, every line stays, and `movement_held_reason` is `provisional_month`. The whole month is held so the swap stays balanced;
   - a line added to the lines seed after seeding never joins a division until the divisions are re-seeded;
   - if a division month has not been built yet, its file says `pending`, never `seeded`;
   - `assert_divisions_keep_their_size` checks every month's Division One holds ten lines, this month and next.
 - **Known limit:** the months are chained at compile time from `raw_start_date`, so the query grows with every month (quadratically in planning work, since each month's CTE builds on the last). It is small for the first seasons. Before it nears Athena's limits, store each finished month's membership in an incremental table and chain from that.
 - **Alternatives:** three divisions (Tube, rail, low volume); rank months on the season measure; let unranked lines be relegated; split ties by the previous month's rank.
 - **Class:** `never-default` (metric semantics, publishing).
+- **Settled 2026-11-15 (owner):** Accepted: two divisions of ten, three up and three down, unranked lines stay put. A provisional month (a ranked line under 90% observed) moves no one; `rpt_divisions_monthly` holds the whole month and sets `movement_held_reason = provisional_month`.
 
 ### D58. The season table
 
@@ -452,6 +504,7 @@ These come from the rest of M6: divisions, the season table, the Recovery Time t
   - `season/{season}.json` is published for every season with data.
 - **Alternatives:** the calendar year; rank on points from weekly positions rather than on the pooled index.
 - **Class:** `never-default` (metric semantics, publishing).
+- **Settled 2026-11-15 (owner):** Accepted: the season runs April to March on the pooled index.
 
 ### D59. The Recovery Time table rests on D18, which is open
 
@@ -464,6 +517,7 @@ These come from the rest of M6: divisions, the season table, the Recovery Time t
 - D18 itself is unchanged and still open. Settling it may change every number in this table.
 - **Alternatives:** rank by mean or longest recovery; publish nothing until D18 is settled.
 - **Class:** `never-default` (metric semantics, publishing).
+- **Settled 2026-11-15 (owner):** Accepted: the Recovery Time table publishes with its provisional label.
 
 ### D60. Industrial action seed and the strikes-excluded league
 
@@ -477,9 +531,10 @@ These come from the rest of M6: divisions, the season table, the Recovery Time t
   - Each league file lists the action touching its window (`industrial_action`) and the variant (`strikes_excluded`, with `is_same_as_main`).
   - An `announced` row must be updated to `held` or `called_off` once its date passes. `assert_announced_industrial_action_is_current` warns three days after an announced action's last day if it has not been updated, and the daily ops report lists the row as a problem (owner-directed: a missed hand update must never stop the nightly build; runbook, "Industrial action seed").
   - `rmt-tube-2026-04-23` is marked `held` on the TfL announcement and later reports that drivers struck twice in April; no report from the day was found. It is before collection began, so it changes no published number.
-- **Not included:** the Evening Standard's report that 16 and 18 June were replaced by 2 and 4 June (no primary source found), and the 2027 dates of the same dispute.
+- **Not included:** the Evening Standard's report that 16 and 18 June were replaced by 2 and 4 June (no primary source found). The 2027 dates were added on 2026-11-15 (see Settled).
 - **Alternatives:** drop only the strike hours (noon to noon), not whole days; exclude only the lines that ran no service, from TfL's status that day.
 - **Class:** `never-default` (metric semantics, publishing).
+- **Settled 2026-11-15 (owner):** Accepted. The 26 and 27 November and December rows are confirmed as `announced`, and the five January and February 2027 rows are added (ITV, 6 November 2026, corroborated by Time Out and ianVisits).
 
 ### D61. Sensitivity weight sets
 
@@ -497,6 +552,7 @@ These come from the rest of M6: divisions, the season table, the Recovery Time t
   - On W45 (4 to 8 November, about 70% observed, so not a complete week): rho 0.98 to 0.99, at most two places moved, top three unchanged under all three sets.
 - **Alternatives:** other sets (for example severity squared, or no weekend discount); also re-pick the worst status under each set.
 - **Class:** `never-default` (metric semantics, publishing).
+- **Settled 2026-11-15 (owner):** Accepted: the three sensitivity weight sets.
 
 ### M7 decisions (D63, D64)
 
@@ -513,6 +569,7 @@ These come from the M7 hardening work (`feat/collate-c-m7`). D62 was not used. T
 - **Not yet live:** every upload of open data, scheduled or manual, waits for the `OPEN_DATA_ENABLED` variable as well as H12, since a licence cannot be taken back once the files are mirrored. A manual dry run works now.
 - **Alternatives:** the Open Government Licence v3.0 or ODbL for the derived figures; leave out TfL's reason text; weeks by their start date, which leaves the last week of a month incomplete on the 2nd.
 - **Class:** `never-default` (publishing). **Recommendation:** accept, then set `OPEN_DATA_ENABLED`.
+- **Settled 2026-11-15 (owner):** Accepted: CC BY 4.0 for our published figures and the open dataset, with "Powered by TfL Open Data" kept. `LICENSE` (MIT, code) and `LICENSE-DATA` (CC BY 4.0, figures) are added. `OPEN_DATA_ENABLED` remains an owner step after H12.
 
 ### D64. Iceberg maintenance covers the incremental tables, weekly
 
@@ -521,6 +578,7 @@ These come from the M7 hardening work (`feat/collate-c-m7`). D62 was not used. T
 - **IAM:** the transform role's existing rights cover both statements: `glue:UpdateTable` on the prod database, and get, put and delete objects under the curated bucket's `prod/` prefix. No Terraform change.
 - **Alternatives:** run it on every Iceberg table, which rescans tables rebuilt that morning for nothing; compact every partition each week; keep snapshots longer by setting `vacuum_max_snapshot_age_seconds` on the staging tables.
 - **Class:** `auto-apply`. VACUUM is in the plan, and the scope only leaves out tables that have nothing to compact. **Default:** as implemented.
+- **Settled 2026-11-15 (owner):** Accepted: weekly OPTIMIZE and VACUUM on the incremental tables as built.
 
 ## Settled
 
@@ -540,3 +598,15 @@ These come from the M7 hardening work (`feat/collate-c-m7`). D62 was not used. T
 | 2026-11-14 | D49 Monday Morning Index (owner) | As recommended: the Disruption Index over each Monday 07:00 to 10:00 London time. |
 | 2026-11-14 | D50 Engineering Works table (owner) | As recommended: weekly, per line, Part Closure counted in full. |
 | 2026-11-14 | D55 A failing gate never holds back the declared view (owner) | Directed by the owner. The measured columns moved from `fct_line_weekly` to `fct_line_weekly_measured`, so the gate test at `error` skips only the measured models; the declared tables, league, divisions and season always build. Weeks the measured tables did not finish are withheld (`measured_not_rebuilt`). ADR-014, "Gate failures and the declared view"; checked by `tests/unit/test_dbt_gate_isolation.py`. |
+| 2026-11-15 | D2, D3, D4 Accept ADR-007, ADR-008, ADR-009 (owner) | All three accepted. D1 / ADR-006 stays open until the Lambda concurrency quota is granted. |
+| 2026-11-15 | D5 to D7, D9 Station budget, sqlfluff, plan checkbox, dbt unit tests in prod (owner) | The recommended option each: 50 stations, config kept, as written, tests kept. |
+| 2026-11-15 | D8 Null-keyed prod rows (owner) | Settled by the D45 refresh. |
+| 2026-11-15 | D10 Pin dbt-athena (owner) | Pinned to 1.11.x in `pyproject.toml`; `uv.lock` consistent. |
+| 2026-11-15 | D11 ADR-010 (owner) | Accepted. The binding is in `infra/bootstrap`; it reaches AWS with `make bootstrap-apply` and the `all-roles` probe (owner steps). |
+| 2026-11-15 | D12 to D15 Smoke-test poll, observer failures, automerge, ADR-011 (owner) | Accepted; ops jobs now fail when the observer role cannot be assumed; automerge removed; the merge gate stays. |
+| 2026-11-15 | D16 to D18, D20, D21, D23, D24 M3 definitions and ADR-012, ADR-013 (owner) | All accepted as implemented. |
+| 2026-11-15 | D25 to D35, D37 to D41, D43 Measured-view readings (owner) | All accepted. D27: Victoria and the eight lines link by vehicle id, District out. D25: same-destination condition is a later refinement. |
+| 2026-11-15 | D45 `stg_arrivals` key and full refresh (owner) | Done: the prod refresh ran on 2026-11-14; transform-daily has passed since, including 493 of 493 on 2026-11-15. |
+| 2026-11-15 | D51 to D54 Measured-view publishing (owner) | All accepted. The trains-run insight gets the caveat "Boards can miss trains that ran."; the 1200x675 card falls back to Good Service % if it does not fit. |
+| 2026-11-15 | D56 to D61 League mechanics, ADR-015 (owner) | All accepted. D57 amended: a provisional month moves no one. D60: five 2027 strike rows added. |
+| 2026-11-15 | D63, D64 Open data licence and Iceberg maintenance (owner) | CC BY 4.0 for the published figures; `LICENSE` and `LICENSE-DATA` added. Maintenance as built. |

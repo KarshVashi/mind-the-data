@@ -148,7 +148,7 @@ All in the website repo under `src/components/tube/`, using tokens, Plex Mono la
 | `ProvisionalMark` | `*` after the line name plus a numbered footnote listing `provisional_reasons[].detail` and the decision ids. Low-volume lines get their own marker. |
 | `NotMeasured` | The cell content when `measured_status` is `not_measured` or a measured field is null: "not measured yet" in `--muted`. Never `0`, never blank. |
 | `DataStamp` | `data_window`, `data_through`, `completeness`, `generated_at`, `git_sha` (short), `open_decisions`. A "partial window" banner when `is_window_complete` is false. |
-| `Insight` | Renders `insight.text` verbatim; nothing when null. |
+| `Insight` | Renders `insight.text` verbatim, then `insight.caveat` in smaller type beside it when present (the trains-run insight always has one: "Boards can miss trains that ran."). Nothing when null. |
 | `WorstIncident` | From `worst_incident`; `first_reason` quoted as TfL wrote it. |
 | `TrendChart` | Build-time SVG over `lines/{id}.json` `history`, sized by attributes. Provisional weeks hatched, incomplete weeks outlined, a table fallback for screen readers. Needs at least four weeks to be worth drawing; until then show the table only. |
 | `WeekHeatmap` | Line × week grid of Disruption Index (sequential scale on `--accent`, light to dark), provisional cells hatched, missing cells empty with "no data" in the accessible table. From v1 once there are four or more weeks. A line × day heatmap needs a contract change (section 6). |
@@ -203,7 +203,7 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
 - **`measured`** gains `trains_run_withheld_reason`, `measured_hours`, `measured_share`, `gate_pass_share`, `good_service_measured_hours` and `is_weak_evidence`. Show weak-evidence lines (the Elizabeth line and the Overground, D33) with a mark and a note "measured against estimated frequencies"; they have no `experienced_rank` (D53). Trains run is a lower bound ("trains shown on TfL's boards"), and can exceed 100% on weak-evidence lines.
 - **`measured_status`** gains `withheld`: a measured line whose week did not qualify. `not_measured` now means only the four lines the measured view leaves out.
 - **The Honesty Gap needs its caveat beside it** wherever it is shown, line pages included: "Long gaps are measured from TfL's arrival boards, which list about 85% of timetabled trains; if the rest ran, some gaps exist only on the boards." (methodology, section 3).
-- **`insight.kind`** adds `trains_run`. The insight is the lowest trains run, then the lowest Good Service % (D38). `honesty_gap` stays in the enum but is not produced until D54 is settled.
+- **`insight.kind`** adds `trains_run`. The insight is the lowest trains run, then the lowest Good Service % (D38). `honesty_gap` stays in the enum but is not produced (D54, settled 2026-11-15: it stays off the card).
 - **`meta/methodology.json`** gains the gate thresholds (`gate_low_ratio`, `gate_high_ratio`, `gate_max_out_of_band_share`, `min_measured_share`), `measured_view_withheld_lines` and `trains_run_withheld_lines`.
 - **`lines/{line_id}.json`** `measured_status` is `measured` when any week in the history has measured numbers.
 
@@ -226,6 +226,12 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
 - **`meta/index.json`** gains `months[]` (month, status, path) and `seasons[]`.
 - **`measured_withheld_reason`** gains `measured_not_rebuilt` (see the table above, D55).
 - **`open-data/{yyyy-mm}/manifest.json`** (new, `contract/open_data_manifest.schema.json`): the monthly open dataset's files with row counts and checksums, the attribution and the licence (D63). The site does not read it; see section 2.
+
+### Changed in the settle-decisions bundle (`schema_version` 0.6.0, additive)
+
+- **`insight.caveat`** (optional string): set on the trains-run insight. Show it with the text.
+- **`divisions/{yyyy-mm}.json`** lines gain `movement_held_reason`: `provisional_month` when the month moved no one because a ranked line was observed under 90% (D57); `null` otherwise. Show "No promotion or relegation: too little of the month was observed" when it is set.
+- **`open_decisions`** is empty and `meta/methodology.json` `settled_decisions` lists the owner's decisions (2026-11-15).
 
 ### Still needed
 

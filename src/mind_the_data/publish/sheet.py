@@ -64,6 +64,9 @@ def numbers_sheet(
     out.append("## Insight line")
     out.append("")
     out.append(insight.text if insight else "(none)")
+    if insight is not None and insight.caveat:
+        out.append("")
+        out.append(insight.caveat)
     out.append("")
 
     out.append("## League (Disruption Index, 0 to 800, lower is better)")

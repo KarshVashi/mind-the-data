@@ -1,7 +1,7 @@
 # ADR-011: The engineer may merge low-risk pull requests through a gate
 
 Date: 2026-11-08
-Status: proposed (decision class `never-default`: nothing changes until the owner accepts it)
+Status: accepted (owner, 2026-11-15, D15)
 
 ## Context
 

@@ -172,6 +172,23 @@ def test_vehicle_id_lines_cover_every_line_once() -> None:
     assert all(row["decision_status"] for row in rows)
 
 
+def test_vehicle_id_lines_are_the_settled_nine() -> None:
+    """D27: Victoria plus the eight lines with stable ids; District is out."""
+    rows = read_seed("seed_vehicle_id_lines")
+    linked = {row["line_id"] for row in rows if row["link_by_vehicle_id"] == "true"}
+    assert linked == {
+        "bakerloo",
+        "central",
+        "circle",
+        "hammersmith-city",
+        "jubilee",
+        "metropolitan",
+        "northern",
+        "piccadilly",
+        "victoria",
+    }
+
+
 def test_measurement_stations_seed_matches_config() -> None:
     expected = [
         {
