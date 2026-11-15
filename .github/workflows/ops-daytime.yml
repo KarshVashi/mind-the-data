@@ -77,7 +77,11 @@ jobs:
 
       - name: role not assumable
         if: steps.config.outputs.ready == 'true' && steps.aws.outcome != 'success'
-        run: echo "::warning title=ops-daytime skipped::Could not assume $ROLE_ARN. Check its trust in infra/modules/ci_role and that the run is on main (docs/runbook.md, Ops workflows)."
+        run: |
+          # A check that cannot run must not look green (D13): a broken trust
+          # would otherwise hide a dead collector.
+          echo "::error title=ops-daytime failed::Could not assume $ROLE_ARN. Check its trust in infra/modules/ci_role and that the run is on main (docs/runbook.md, Ops workflows)."
+          exit 1
 
       - name: report
         id: report
