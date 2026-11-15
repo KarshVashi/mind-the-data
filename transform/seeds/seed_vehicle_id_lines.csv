@@ -1,21 +1,21 @@
 line_id,link_by_vehicle_id,decision_status,review_recommendation
-bakerloo,false,pending_owner_d26_d27,switch on after the Monday 9 November check
-central,false,pending_owner_d26_d27,switch on after the Monday 9 November check
-circle,false,pending_owner_d26_d27,switch on after the Monday 9 November check
-district,false,pending_owner_d26_d27,switch on after the Monday 9 November check
-hammersmith-city,false,pending_owner_d26_d27,switch on after the Monday 9 November check
-jubilee,false,pending_owner_d26_d27,switch on after the Monday 9 November check
-metropolitan,false,pending_owner_d26_d27,switch on after the Monday 9 November check
-northern,false,pending_owner_d26_d27,switch on after the Monday 9 November check
-piccadilly,false,pending_owner_d26_d27,switch on after the Monday 9 November check
-victoria,true,pending_owner_d26_d27,switch on now: the id follows the train on every leg
-waterloo-city,false,pending_owner_d26_d27,leave off: both stations are termini
-elizabeth,false,pending_owner_d26_d27,can switch on: trip ids are stable
-dlr,false,pending_owner_d26_d27,leave off: no vehicle ids
-tram,false,pending_owner_d26_d27,leave off: line not measurable this week
-liberty,false,pending_owner_d26_d27,can switch on: trip ids are stable
-lioness,false,pending_owner_d26_d27,can switch on: trip ids are stable
-mildmay,false,pending_owner_d26_d27,can switch on: trip ids are stable
-suffragette,false,pending_owner_d26_d27,can switch on: trip ids are stable
-weaver,false,pending_owner_d26_d27,can switch on: trip ids are stable
-windrush,false,pending_owner_d26_d27,can switch on: trip ids are stable
+bakerloo,true,settled_2026-11-15_d26_d27,linked: ids stable (gate recheck 2026-11-13)
+central,true,settled_2026-11-15_d26_d27,linked: ids stable (gate recheck 2026-11-13)
+circle,true,settled_2026-11-15_d26_d27,linked: ids stable (gate recheck 2026-11-13)
+district,false,settled_2026-11-15_d26_d27,leave off: ids are not stable (78.5% followed)
+hammersmith-city,true,settled_2026-11-15_d26_d27,linked: ids stable (gate recheck 2026-11-13)
+jubilee,true,settled_2026-11-15_d26_d27,linked: ids stable (gate recheck 2026-11-13)
+metropolitan,true,settled_2026-11-15_d26_d27,linked: ids stable (gate recheck 2026-11-13)
+northern,true,settled_2026-11-15_d26_d27,linked: ids stable (gate recheck 2026-11-13)
+piccadilly,true,settled_2026-11-15_d26_d27,linked: ids stable (gate recheck 2026-11-13)
+victoria,true,settled_2026-11-15_d26_d27,linked: the id follows the train on every leg
+waterloo-city,false,settled_2026-11-15_d26_d27,leave off: both stations are termini
+elizabeth,false,settled_2026-11-15_d26_d27,can switch on: trip ids are stable
+dlr,false,settled_2026-11-15_d26_d27,leave off: no vehicle ids
+tram,false,settled_2026-11-15_d26_d27,leave off: line not measurable this week
+liberty,false,settled_2026-11-15_d26_d27,can switch on: trip ids are stable
+lioness,false,settled_2026-11-15_d26_d27,can switch on: trip ids are stable
+mildmay,false,settled_2026-11-15_d26_d27,can switch on: trip ids are stable
+suffragette,false,settled_2026-11-15_d26_d27,can switch on: trip ids are stable
+weaver,false,settled_2026-11-15_d26_d27,can switch on: trip ids are stable
+windrush,false,settled_2026-11-15_d26_d27,can switch on: trip ids are stable

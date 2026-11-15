@@ -217,10 +217,12 @@ seeds:
       Which lines link a train's sightings by vehicle id in
       int_inferred_arrivals (PLAN 7.2 rule 1, "where it is stable";
       DECISIONS.md D26, D27). Flip `link_by_vehicle_id` and rebuild to change
-      a line. The current setting is the week-one review's recommendation
-      for now (docs/data-quality/2026-11-08-week-one.md): Victoria only. It
-      waits for the owner, which `decision_status` shows; the review's
-      advice per line is in `review_recommendation`.
+      a line. Settled on 2026-11-15: Victoria and the eight lines whose ids
+      the gate recheck found stable (Bakerloo, Central, Circle, Hammersmith
+      & City, Jubilee, Metropolitan, Northern, Piccadilly) link by vehicle
+      id; District stays on expected arrival (ids not stable), and so do
+      the termini-only and unmeasured lines. `review_recommendation` holds
+      the reason per line.
     columns:
       - name: line_id
         description: TfL line id.
@@ -235,7 +237,7 @@ seeds:
         description: True to link sightings by vehicle id on this line; false to use expected arrival only.
         data_tests: [not_null]
       - name: decision_status
-        description: "`pending_owner_d26_d27` until the owner settles D26 and D27; then the date and outcome."
+        description: "`settled_<date>_d26_d27` once the owner has settled D26 and D27."
         data_tests: [not_null]
       - name: review_recommendation
         description: The week-one review's advice for the line.
