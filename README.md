@@ -85,10 +85,10 @@ Each has a short record in [docs/adr/](docs/adr/). The main ones:
 | Overlapping statuses: the highest weight wins | [ADR-004](docs/adr/004-multiple-statuses.md) |
 | CI roles owned by a human-applied bootstrap; merging to `main` is the deploy approval | [ADR-005](docs/adr/005-ci-role-ownership.md) |
 | OIDC trust on the repository's immutable id, bound to each workflow file | [ADR-009](docs/adr/009-oidc-immutable-subjects.md), [ADR-010](docs/adr/010-workflow-bound-ci-roles.md) |
-| Low-risk pull requests merge through a gate that always runs `main`'s rules | [ADR-011](docs/adr/011-merge-gate.md) (proposed) |
-| Metric models rebuild in full from the seeds, so a definition change applies to all history | [ADR-012](docs/adr/012-run-models-rebuild-in-full.md) (proposed) |
+| Low-risk pull requests merge through a gate that always runs `main`'s rules | [ADR-011](docs/adr/011-merge-gate.md) (accepted) |
+| Metric models rebuild in full from the seeds, so a definition change applies to all history | [ADR-012](docs/adr/012-run-models-rebuild-in-full.md) (accepted) |
 
-Metric definitions that the plan left open are listed in [docs/DECISIONS.md](docs/DECISIONS.md) with what was implemented and the alternatives. The methodology marks which ones are still provisional.
+Metric definitions that the plan left open are listed in [docs/DECISIONS.md](docs/DECISIONS.md) with what was implemented and the alternatives. The methodology records how each was settled.
 
 ## Status
 
@@ -98,13 +98,19 @@ See [docs/STATUS.md](docs/STATUS.md) for detail.
 - **Declared view** (Disruption Index): built and running daily in prod.
 - **Measured view** (Experienced Reliability, Honesty Gap): built, but its quality gate is at 65.6% of station-hours in band against a target of 80%, so it is not published yet.
 - **Publishing:** export, share cards, R2 upload and the weekly workflow are built, and the owner has agreed to publish with provisional labels (D36). Going live waits for the Cloudflare setup (runbook, H12).
-- **Operations:** weekly Iceberg maintenance, a full refresh through CI, and the monthly open dataset are built. The open data waits for its licence decision (D63) and H12.
+- **Operations:** weekly Iceberg maintenance, a full refresh through CI, and the monthly open dataset are built. The open data is licensed CC BY 4.0 (D63); it goes out once H12 is done and `OPEN_DATA_ENABLED` is set.
 
 ## What's next
 
-- Pass the measured view's quality gate: vehicle-id linking on more Tube lines, then re-run the review.
+- Re-run the measured view's quality gate review now that eight more Tube lines link by vehicle id (D27).
 - League mechanics: monthly divisions with promotion and relegation, a season table from April, a strikes-excluded variant, and a sensitivity analysis of the weights.
 - The cost report for the first full month (December), replacing the partial-month projection.
 - Later: passenger weighting from station entry and exit counts, scaling part suspensions by the affected section, a cause breakdown of disruption reasons, and validation against TfL's own operated-trips figures.
+
+## Licence
+
+- **Code:** MIT, see [LICENSE](LICENSE).
+- **Published figures and open data:** CC BY 4.0, see [LICENSE-DATA](LICENSE-DATA) (D63). Credit "mind-the-data".
+- **TfL source data** stays under [TfL's own open data terms](https://tfl.gov.uk/corporate/terms-and-conditions/transport-data-service) and needs the attribution "Powered by TfL Open Data".
 
 Data: Powered by TfL Open Data.
