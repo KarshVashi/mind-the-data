@@ -40,3 +40,4 @@ infra/bootstrap/backend_override.tf
 .DS_Store
 .idea/
 .vscode/
+.worktrees/
