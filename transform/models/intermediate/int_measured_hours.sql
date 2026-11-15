@@ -16,9 +16,17 @@
 -- one UTC hour: the October fall-back hour 01:00 happens twice in London
 -- time and would hold two hours of trains against one of timetable. The
 -- gate is scored on observed hours only: a poller gap is missing data,
--- never a failed hour. An observed hour counts toward
--- Experienced Reliability when its line is measured (seed_measured_lines,
--- D43) and inferred trains are within the gate band of the scheduled ones.
+-- never a failed hour.
+--
+-- The gate tests the inference, not the service (ADR-014): inferred trains
+-- against the trains observed on the boards, which are the vehicle-id
+-- passes (int_vehicle_passes) plus the inferred arrivals that carry no
+-- vehicle id. An hour with no train on the boards and none inferred has
+-- nothing to judge; one with inferred trains but none on the boards fails. An
+-- observed hour counts toward Experienced Reliability when its line is
+-- measured (seed_measured_lines, D43) and the ratio is inside the band.
+-- Observed over scheduled trains is reported beside it as trains run
+-- against the timetable.
 
 with stations as (
     select
@@ -164,7 +172,8 @@ inferred as (
         arrivals.direction,
         cast({{ london_local('arrivals.arrival_time') }} as date) as london_date,
         hour({{ london_local('arrivals.arrival_time') }}) as london_hour,
-        count(*) as inferred_arrivals
+        count(*) as inferred_arrivals,
+        count_if(arrivals.last_vehicle_id is null) as inferred_without_vehicle_id
     from {{ ref('int_inferred_arrivals') }} as arrivals
     where arrivals.direction is not null
     group by
@@ -173,6 +182,18 @@ inferred as (
         arrivals.direction,
         cast({{ london_local('arrivals.arrival_time') }} as date),
         hour({{ london_local('arrivals.arrival_time') }})
+),
+
+passes as (
+    select
+        line_id,
+        naptan_id,
+        direction,
+        london_date,
+        london_hour,
+        count(*) as vehicle_passes
+    from {{ ref('int_vehicle_passes') }}
+    group by line_id, naptan_id, direction, london_date, london_hour
 ),
 
 in_service_headways as (
@@ -260,6 +281,10 @@ hours as (
         and poll_hours.utc_hours = 1
         and gap_hours.request_path is null as is_observed,
         coalesce(inferred.inferred_arrivals, 0) as inferred_arrivals,
+        coalesce(passes.vehicle_passes, 0) as vehicle_passes,
+        coalesce(inferred.inferred_without_vehicle_id, 0) as inferred_without_vehicle_id,
+        coalesce(passes.vehicle_passes, 0)
+        + coalesce(inferred.inferred_without_vehicle_id, 0) as observed_trains,
         coalesce(headway_hours.headways, 0) as headways,
         headway_hours.sum_headway_seconds,
         headway_hours.sum_headway_squared_seconds,
@@ -287,6 +312,13 @@ hours as (
             and scheduled.direction = inferred.direction
             and scheduled.london_date = inferred.london_date
             and scheduled.london_hour = inferred.london_hour
+    left join passes
+        on
+            scheduled.line_id = passes.line_id
+            and scheduled.naptan_id = passes.naptan_id
+            and scheduled.direction = passes.direction
+            and scheduled.london_date = passes.london_date
+            and scheduled.london_hour = passes.london_hour
     left join headway_hours
         on
             scheduled.line_id = headway_hours.line_id
@@ -301,8 +333,14 @@ gated as (
     select
         *,
         1e0 * inferred_arrivals / scheduled_departures as arrival_ratio,
+        1e0 * observed_trains / scheduled_departures as trains_run_ratio,
+        if(observed_trains > 0, 1e0 * inferred_arrivals / observed_trains) as fidelity_ratio,
+        -- Judged when anything was on the boards or inferred: trains inferred
+        -- with none on the boards are exactly what the gate must catch.
+        is_observed and (observed_trains > 0 or inferred_arrivals > 0) as is_gate_judged,
         is_observed
-        and 1e0 * inferred_arrivals / scheduled_departures
+        and observed_trains > 0
+        and 1e0 * inferred_arrivals / observed_trains
         between {{ var('gate_low_ratio') }} and {{ var('gate_high_ratio') }} as is_in_band
     from hours
 )
@@ -322,7 +360,13 @@ select
     is_observed,
     scheduled_departures,
     inferred_arrivals,
+    vehicle_passes,
+    inferred_without_vehicle_id,
+    observed_trains,
     arrival_ratio,
+    trains_run_ratio,
+    fidelity_ratio,
+    is_gate_judged,
     is_in_band,
     is_line_measured and is_in_band as counts_for_reliability,
     headways,

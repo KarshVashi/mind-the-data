@@ -1,0 +1,17 @@
+{
+ "columns": [
+  "line_id",
+  "seed_position",
+  "division",
+  "disruption_index",
+  "good_service_pct",
+  "unranked_reason",
+  "seeding_start",
+  "seeding_end",
+  "seeding_weeks",
+  "complete_weeks_available",
+  "first_division_month",
+  "seeding_status"
+ ],
+ "rows": []
+}

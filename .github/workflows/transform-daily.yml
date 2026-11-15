@@ -5,6 +5,13 @@ name: transform-daily
 # 02:30 and 03:30 UTC are scheduled and the gate job keeps the one that is
 # 03:30 in London today (docs/runbook.md, Daily transform).
 #
+# On Sundays (London date) the run then compacts and vacuums the curated
+# Iceberg tables (dbt run-operation iceberg_maintenance, D64). A manual run
+# can also rebuild named models from raw (full_refresh with select), so a
+# staging key change (D8, D45) is rebuilt in prod by this role rather than
+# from a laptop. A schedule never full-refreshes (docs/runbook.md, Full
+# refresh in prod).
+#
 # AWS_ACCOUNT_ID alone is enough: the role ARN and dbt settings follow the
 # naming convention in infra/, and an explicitly set variable wins
 # (docs/runbook.md, Repository variables).
@@ -14,6 +21,19 @@ on:
     - cron: "30 2 * * *" # 03:30 BST
     - cron: "30 3 * * *" # 03:30 GMT
   workflow_dispatch:
+    inputs:
+      full_refresh:
+        description: "Rebuild the selected models from raw (--full-refresh); needs select"
+        type: boolean
+        default: false
+      select:
+        description: "dbt selector, e.g. stg_arrivals+ (default: everything)"
+        required: false
+        default: ""
+      maintenance:
+        description: "Also run the Iceberg maintenance (Sunday runs always do)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -30,6 +50,9 @@ jobs:
     timeout-minutes: 5
     outputs:
       run: ${{ steps.clock.outputs.run }}
+      maintenance: ${{ steps.clock.outputs.maintenance }}
+      full_refresh: ${{ steps.options.outputs.full_refresh }}
+      select: ${{ steps.options.outputs.select }}
     steps:
       # Decided by the slot that fired, not the start time, so a run GitHub
       # starts late still builds. Clocks change at 01:00 UTC, before either slot.
@@ -37,6 +60,7 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
+          MAINTENANCE_INPUT: ${{ inputs.maintenance }}
         run: |
           offset=$(TZ=Europe/London date +%z)
           if [ "$EVENT" != "schedule" ]; then
@@ -47,8 +71,51 @@ jobs:
               *) run=false ;;
             esac
           fi
-          echo "London UTC offset $offset, event $EVENT, slot '${SCHEDULE}': run=$run"
+          # Weekly Iceberg maintenance on the London Sunday (PLAN M7, D64).
+          maintenance=false
+          if [ "$(TZ=Europe/London date +%u)" = "7" ]; then
+            maintenance=true
+          elif [ "$EVENT" = "workflow_dispatch" ] && [ "$MAINTENANCE_INPUT" = "true" ]; then
+            maintenance=true
+          fi
+          echo "London UTC offset $offset, event $EVENT, slot '${SCHEDULE}': run=$run maintenance=$maintenance"
           echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "maintenance=$maintenance" >> "$GITHUB_OUTPUT"
+
+      # Inputs exist only on a manual run, so a schedule can never
+      # full-refresh. The selector is checked here and reaches dbt as
+      # separate words, never through an expansion of the raw input.
+      - id: options
+        env:
+          EVENT: ${{ github.event_name }}
+          FULL_REFRESH_INPUT: ${{ inputs.full_refresh }}
+          SELECT_INPUT: ${{ inputs.select }}
+        run: |
+          full_refresh=false
+          select=""
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            select="$SELECT_INPUT"
+            if [ -n "$select" ] && ! [[ "$select" =~ ^[A-Za-z0-9_.:+*@,/\ -]+$ ]]; then
+              echo "::error title=Bad selector::select may hold model names, paths and dbt selector characters only."
+              exit 1
+            fi
+            # Each word becomes a dbt argument, so none may be an option
+            # (--target, --full-refresh, --exclude would slip past the guards).
+            if [[ " $select" == *" -"* ]]; then
+              echo "::error title=Bad selector::select may not contain options (words starting with -)."
+              exit 1
+            fi
+            if [ "$FULL_REFRESH_INPUT" = "true" ]; then
+              if [ -z "${select// /}" ]; then
+                echo "::error title=Selector needed::A full refresh rewrites tables from raw; name them in select (path:models for everything)."
+                exit 1
+              fi
+              full_refresh=true
+            fi
+          fi
+          echo "full_refresh=$full_refresh select='$select'"
+          echo "full_refresh=$full_refresh" >> "$GITHUB_OUTPUT"
+          echo "select=$select" >> "$GITHUB_OUTPUT"
 
   not-configured:
     needs: gate
@@ -119,7 +186,8 @@ jobs:
             echo "no packages.yml; nothing to install"
           fi
 
-      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+      - id: creds
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ env.TRANSFORM_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -127,4 +195,25 @@ jobs:
 
       - name: dbt build
         working-directory: transform
-        run: uv run --locked dbt build --target prod --profiles-dir .
+        env:
+          FULL_REFRESH: ${{ needs.gate.outputs.full_refresh }}
+          SELECT: ${{ needs.gate.outputs.select }}
+        run: |
+          args=(build --target prod --profiles-dir .)
+          if [ -n "${SELECT// /}" ]; then
+            read -ra words <<< "$SELECT"
+            args+=(--select "${words[@]}")
+          fi
+          if [ "$FULL_REFRESH" = "true" ]; then
+            args+=(--full-refresh)
+            echo "::notice title=full refresh::Rebuilding from raw: $SELECT"
+          fi
+          echo "dbt ${args[*]}"
+          uv run --locked dbt "${args[@]}"
+
+      # Runs after a failed build too: compaction does not depend on the
+      # tests passing, and the job still ends failed.
+      - name: iceberg maintenance
+        if: ${{ !cancelled() && steps.creds.outcome == 'success' && needs.gate.outputs.maintenance == 'true' }}
+        working-directory: transform
+        run: uv run --locked dbt run-operation iceberg_maintenance --target prod --profiles-dir .

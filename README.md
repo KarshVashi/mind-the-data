@@ -26,13 +26,15 @@ TfL API ──every minute──► Lambda poller ──► S3 raw (gzipped NDJS
 1. A Lambda polls TfL every minute for line status, disruptions and the arrival boards at about 50 measurement stations, and stores every response unchanged, failures included, so missing data is never mistaken for good service.
 2. A daily GitHub Actions job runs dbt on Athena, turning raw snapshots into Iceberg tables: the status of every line in every minute, incidents, inferred train arrivals, headways against the timetable, and daily and weekly scores per line.
 3. Every Monday a second job exports the latest complete week as schema-validated JSON, renders share cards in headless Chromium, uploads both to Cloudflare R2 and triggers a rebuild of the website.
+4. On the 2nd of each month the same job publishes the month as an open dataset: minute-level declared status and the daily and weekly facts, as Parquet, with a README and a checksummed manifest.
 
-It is designed to run for under £5 a month, unattended, with CloudWatch alarms and daily health checks.
+It is designed to run for under £5 a month, unattended, with CloudWatch alarms and daily health checks. The first two weeks project to about 1.80 USD a month before VAT ([docs/cost.md](docs/cost.md)). Every Sunday the staging tables are compacted and vacuumed.
 
 - [docs/architecture.md](docs/architecture.md): the components, data flow and security model.
 - [docs/methodology.md](docs/methodology.md): how every number is computed, and its known limits.
 - [docs/site-integration.md](docs/site-integration.md): the published files and how the website reads them.
-- [docs/runbook.md](docs/runbook.md): operating it, and the steps only the owner can do.
+- [docs/runbook.md](docs/runbook.md): operating it (alarms, re-runs, backfills, key rotation), and the steps only the owner can do.
+- [docs/cost.md](docs/cost.md): what it costs, from Cost Explorer.
 
 ## Running it
 
@@ -95,13 +97,14 @@ See [docs/STATUS.md](docs/STATUS.md) for detail.
 - **Collecting** every minute since 4 November 2026.
 - **Declared view** (Disruption Index): built and running daily in prod.
 - **Measured view** (Experienced Reliability, Honesty Gap): built, but its quality gate is at 65.6% of station-hours in band against a target of 80%, so it is not published yet.
-- **Publishing:** export, share cards, R2 upload and the weekly workflow are built. Going live waits for the Cloudflare setup (runbook, H12) and the owner's decision to publish while the metric definitions are provisional.
+- **Publishing:** export, share cards, R2 upload and the weekly workflow are built, and the owner has agreed to publish with provisional labels (D36). Going live waits for the Cloudflare setup (runbook, H12).
+- **Operations:** weekly Iceberg maintenance, a full refresh through CI, and the monthly open dataset are built. The open data waits for its licence decision (D63) and H12.
 
 ## What's next
 
 - Pass the measured view's quality gate: vehicle-id linking on more Tube lines, then re-run the review.
 - League mechanics: monthly divisions with promotion and relegation, a season table from April, a strikes-excluded variant, and a sensitivity analysis of the weights.
-- Weekly Iceberg maintenance (`OPTIMIZE`, `VACUUM`) and a monthly open dataset as Parquet.
+- The cost report for the first full month (December), replacing the partial-month projection.
 - Later: passenger weighting from station entry and exit counts, scaling part suspensions by the affected section, a cause breakdown of disruption reasons, and validation against TfL's own operated-trips figures.
 
 Data: Powered by TfL Open Data.

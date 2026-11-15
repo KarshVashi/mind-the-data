@@ -14,19 +14,39 @@ name: publish-weekly
 # non-dry run skips with a notice, and the schedule publishes only once the
 # PUBLISH_ENABLED repository variable is true (D36). The publish role trusts this file by
 # name on main (ADR-010), so do not rename it.
+#
+# The same file publishes the monthly open dataset (M7): on the 2nd of each
+# month at 06:45 London it exports the previous London month as Parquet to
+# open-data/{yyyy-mm}/ (mind_the_data.publish.open_data) and uploads it with
+# the same R2 path, without the deploy hook. A scheduled month publishes only
+# once OPEN_DATA_ENABLED is true (D63, the licence). A manual run picks it
+# with export: open-data.
 
 on:
   schedule:
     - cron: "30 5 * * 1" # 06:30 BST
     - cron: "30 6 * * 1" # 06:30 GMT
+    - cron: "45 5 2 * *" # open data, 06:45 BST
+    - cron: "45 6 2 * *" # open data, 06:45 GMT
   workflow_dispatch:
     inputs:
       dry_run:
         description: "Export and keep the files as an artifact; upload nothing"
         type: boolean
         default: true
+      export:
+        description: "What to publish"
+        type: choice
+        options:
+          - league
+          - open-data
+        default: league
       week:
-        description: "ISO week, e.g. 2026-W46 (default: latest complete week)"
+        description: "League: ISO week, e.g. 2026-W46 (default: latest complete week)"
+        required: false
+        default: ""
+      month:
+        description: "Open data: London month, e.g. 2026-11 (default: last month)"
         required: false
         default: ""
 
@@ -44,8 +64,10 @@ jobs:
     outputs:
       run: ${{ steps.clock.outputs.run }}
       dry_run: ${{ steps.clock.outputs.dry_run }}
+      export: ${{ steps.clock.outputs.export }}
       ready: ${{ steps.config.outputs.ready }}
       week: ${{ steps.config.outputs.week }}
+      month: ${{ steps.config.outputs.month }}
     steps:
       # Decided by the slot that fired, not the start time, so a run GitHub
       # starts late still publishes. Clocks change on Sundays at 01:00 UTC.
@@ -54,13 +76,17 @@ jobs:
           EVENT: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
           DRY_RUN_INPUT: ${{ inputs.dry_run }}
+          EXPORT_INPUT: ${{ inputs.export }}
         run: |
           offset=$(TZ=Europe/London date +%z)
+          export=league
           if [ "$EVENT" != "schedule" ]; then
             run=true
+            if [ "$EXPORT_INPUT" = "open-data" ]; then export=open-data; fi
           else
             case "$SCHEDULE|$offset" in
               "30 5 * * 1|+0100" | "30 6 * * 1|+0000") run=true ;;
+              "45 5 2 * *|+0100" | "45 6 2 * *|+0000") run=true; export=open-data ;;
               *) run=false ;;
             esac
           fi
@@ -68,8 +94,9 @@ jobs:
           if [ "$EVENT" = "workflow_dispatch" ] && [ "$DRY_RUN_INPUT" != "false" ]; then
             dry_run=true
           fi
-          echo "London UTC offset $offset, event $EVENT, slot '${SCHEDULE}': run=$run dry_run=$dry_run"
+          echo "London UTC offset $offset, event $EVENT, slot '${SCHEDULE}': run=$run export=$export dry_run=$dry_run"
           echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "export=$export" >> "$GITHUB_OUTPUT"
           echo "dry_run=$dry_run" >> "$GITHUB_OUTPUT"
 
       # Secrets cannot appear in job conditions, and their values are not
@@ -79,9 +106,12 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           DRY_RUN: ${{ steps.clock.outputs.dry_run }}
+          EXPORT: ${{ steps.clock.outputs.export }}
           REF: ${{ github.ref }}
           WEEK_INPUT: ${{ inputs.week }}
+          MONTH_INPUT: ${{ inputs.month }}
           PUBLISH_ENABLED: ${{ vars.PUBLISH_ENABLED }}
+          OPEN_DATA_ENABLED: ${{ vars.OPEN_DATA_ENABLED }}
           HAVE_R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID != '' }}
           HAVE_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID != '' }}
           HAVE_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY != '' }}
@@ -110,27 +140,49 @@ jobs:
             echo "::error title=Bad week::week must look like 2026-W46."
             exit 1
           fi
+          # Open data: a schedule exports the London month that just ended.
+          month=""
+          if [ "$EXPORT" = "open-data" ]; then
+            if [ "$EVENT" = "schedule" ]; then
+              month=$(python3 -c 'from datetime import datetime, timedelta; from zoneinfo import ZoneInfo; print((datetime.now(ZoneInfo("Europe/London")).replace(day=1) - timedelta(days=1)).strftime("%Y-%m"))')
+            else
+              month="$MONTH_INPUT"
+            fi
+            if [ -n "$month" ] && ! [[ "$month" =~ ^[0-9]{4}-(0[1-9]|1[0-2])$ ]]; then
+              echo "::error title=Bad month::month must look like 2026-11."
+              exit 1
+            fi
+          fi
           if [ "$DRY_RUN" != "true" ]; then
+            # Open data never calls the deploy hook, so it does not need it.
+            needed="R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET"
+            if [ "$EXPORT" != "open-data" ]; then needed="$needed PAGES_DEPLOY_HOOK_URL"; fi
             missing=""
-            for v in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET PAGES_DEPLOY_HOOK_URL; do
+            for v in $needed; do
               have="HAVE_$v"
               [ "${!have}" = "true" ] || missing="$missing $v"
             done
             if [ -n "$missing" ]; then
               echo "::notice title=publish skipped::R2 and Pages secrets not set:$missing. Blocked on H12 (docs/runbook.md, H12). A manual run with dry_run still exports."
               ready=false
-            elif [ "$EVENT" = "schedule" ] && [ "$PUBLISH_ENABLED" != "true" ]; then
+            elif [ "$EVENT" = "schedule" ] && [ "$EXPORT" != "open-data" ] && [ "$PUBLISH_ENABLED" != "true" ]; then
               echo "::notice title=publish skipped::Scheduled publishing is off. Set the PUBLISH_ENABLED repository variable to true to publish every Monday (D36; docs/runbook.md, H12)."
+              ready=false
+            elif [ "$EXPORT" = "open-data" ] && [ "$OPEN_DATA_ENABLED" != "true" ]; then
+              # Manual runs too: the README states a licence, which cannot be
+              # taken back once the files are mirrored.
+              echo "::notice title=open data skipped::Open data is off. Set the OPEN_DATA_ENABLED repository variable to true once D63 (the licence) is decided (docs/runbook.md, Monthly open data). A manual run with dry_run still exports."
               ready=false
             fi
           fi
-          echo "week=${week} ready=${ready}"
+          echo "export=${EXPORT} week=${week} month=${month} ready=${ready}"
           echo "week=$week" >> "$GITHUB_OUTPUT"
+          echo "month=$month" >> "$GITHUB_OUTPUT"
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
 
   publish:
     needs: gate
-    if: needs.gate.outputs.run == 'true' && needs.gate.outputs.ready == 'true'
+    if: needs.gate.outputs.run == 'true' && needs.gate.outputs.ready == 'true' && needs.gate.outputs.export == 'league'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     # One publish at a time, never cancelled half way through an upload.
@@ -204,4 +256,80 @@ jobs:
             echo "Dry run: files kept as the workflow artifact, nothing sent to R2." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Published to R2 and the Pages deploy hook called (see the upload step)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  open-data:
+    needs: gate
+    if: needs.gate.outputs.run == 'true' && needs.gate.outputs.ready == 'true' && needs.gate.outputs.export == 'open-data'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # The prod build's group: the row counts and the UNLOADs then read the
+    # same build of the marts, never one a manual transform swaps in between.
+    # The 06:45 slot is three hours after the daily build, so they rarely queue.
+    concurrency:
+      group: transform-prod
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DRY_RUN: ${{ needs.gate.outputs.dry_run }}
+      OUT_DIR: build/open-data
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.11.16"
+
+      # Downloads happen before AWS credentials exist in the job.
+      - name: install
+        run: uv sync --locked
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ env.PUBLISH_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: open-data-${{ github.run_id }}
+
+      # Athena UNLOADs each dataset into the prod workgroup's results prefix
+      # (the publish role's only write); the files are then downloaded.
+      - name: export
+        env:
+          MONTH: ${{ needs.gate.outputs.month }}
+        run: |
+          args=(--publish-workgroup --out-dir "$OUT_DIR")
+          if [ -n "$MONTH" ]; then args+=(--month "$MONTH"); fi
+          uv run --locked python -m mind_the_data.publish.open_data "${args[@]}"
+
+      - name: list uploads
+        run: uv run --locked python -m mind_the_data.publish.upload --dir "$OUT_DIR" --dry-run
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: open-data-${{ github.run_id }}
+          path: ${{ env.OUT_DIR }}
+          if-no-files-found: error
+          retention-days: 30
+
+      # No deploy hook: the site does not read the open data.
+      - name: upload open data to R2
+        if: env.DRY_RUN != 'true'
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+          uv run --locked python -m mind_the_data.publish.upload --dir "$OUT_DIR" --no-hook
+
+      - name: summary
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run: open data kept as the workflow artifact, nothing sent to R2." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Open data uploaded to R2 under open-data/ (see the upload step)." >> "$GITHUB_STEP_SUMMARY"
           fi

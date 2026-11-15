@@ -9,7 +9,7 @@ import pytest
 
 from mind_the_data.ops.athena import QueryResult
 from mind_the_data.publish import marts as marts_module
-from mind_the_data.publish.insight import line_label, pick_insight
+from mind_the_data.publish.insight import line_label, pick_insight, possessive
 from mind_the_data.publish.league import League, MeasuredView, Window, league_from_daily
 from mind_the_data.publish.marts import (
     AthenaMarts,
@@ -21,9 +21,11 @@ from mind_the_data.publish.marts import (
 )
 from mind_the_data.publish.share_card import (
     LANDSCAPE,
+    NOT_RANKED_WORKS,
     PORTRAIT,
     PROVISIONAL_MARK,
     SUBTITLE,
+    TITLE,
     CardOverflow,
     card_html,
     footer_lines,
@@ -45,7 +47,14 @@ def league() -> League:
         marts.daily(WINDOW.start, WINDOW.end),
         marts.incidents(WINDOW.start, WINDOW.end),
         marts.latest_minute_london(),
+        marts.monday_morning(WINDOW.start, WINDOW.end),
     )
+
+
+@pytest.fixture
+def partial(league: League) -> League:
+    """The same window as if the data stopped on Sunday 8 November at 18:21."""
+    return replace(league, is_complete=False, latest_data_london=datetime(2026, 11, 8, 18, 21))
 
 
 # ---- Insight ------------------------------------------------------------------
@@ -54,11 +63,11 @@ def league() -> League:
 def test_declared_insight_skips_provisional_lines(league: League) -> None:
     insight = pick_insight(league)
     assert insight is not None
-    # Suffragette (0% Good Service, mostly closed) is provisional, so District leads.
+    # Suffragette (0% Good Service, 95% closed) is not ranked (D22), so District leads.
     assert insight.line_id == "district"
     assert (
         insight.text
-        == "The District line showed Good Service for only 34% of its scored service time."
+        == "The District line showed Good Service for only 33% of its scored service time."
     )
 
 
@@ -66,10 +75,85 @@ def test_honesty_gap_wins_when_measured(league: League) -> None:
     standings = list(league.standings)
     standings[3] = replace(standings[3], measured=MeasuredView(None, None, 4.0, 0.05, None))
     standings[5] = replace(standings[5], measured=MeasuredView(None, None, 9.0, 0.1, None))
-    insight = pick_insight(replace(league, standings=tuple(standings)))
+    insight = pick_insight(replace(league, standings=tuple(standings)), honesty_gap_headline=True)
     assert insight is not None and insight.kind == "honesty_gap"
     assert insight.line_id == standings[5].line.line_id
     assert "9 hours" in insight.text
+
+
+def test_honesty_gap_is_off_the_card_by_default(league: League) -> None:
+    """D54: until ADR-014 open item 2 is resolved, gaps never head the card."""
+    standings = list(league.standings)
+    strong = [i for i, s in enumerate(standings) if _strong(s)]
+    standings[strong[0]] = replace(
+        standings[strong[0]], measured=MeasuredView(None, 50.0, 9.0, 0.1, None, 0.99)
+    )
+    standings[strong[1]] = replace(
+        standings[strong[1]], measured=MeasuredView(None, 1.0, 0.0, 0.0, None, 0.8)
+    )
+    insight = pick_insight(replace(league, standings=tuple(standings)))
+    assert insight is not None and insight.kind == "trains_run"
+    assert insight.line_id == standings[strong[1]].line.line_id
+    no_trains_run = list(league.standings)
+    no_trains_run[strong[0]] = standings[strong[0]]
+    fallback = pick_insight(replace(league, standings=tuple(no_trains_run)))
+    assert fallback is not None and fallback.kind == "lowest_good_service"
+
+
+def _strong(standing: Any) -> bool:
+    return not standing.is_provisional and standing.rank is not None
+
+
+def test_measured_insight_skips_weak_evidence_and_provisional(league: League) -> None:
+    """D38 with the measured view: weak evidence (D53) and provisional lines are never named."""
+    standings = list(league.standings)
+    strong = [i for i, s in enumerate(standings) if _strong(s)]
+    provisional = next(i for i, s in enumerate(standings) if s.is_provisional)
+    weak = MeasuredView(None, None, 40.0, 0.5, None, measured_hours=10, is_weak_evidence=True)
+    standings[strong[0]] = replace(standings[strong[0]], measured=weak)
+    standings[provisional] = replace(
+        standings[provisional], measured=MeasuredView(None, None, 30.0, 0.4, None)
+    )
+    standings[strong[1]] = replace(
+        standings[strong[1]], measured=MeasuredView(None, None, 1.0, 0.02, None)
+    )
+    insight = pick_insight(replace(league, standings=tuple(standings)), honesty_gap_headline=True)
+    assert insight is not None and insight.kind == "honesty_gap"
+    assert insight.line_id == standings[strong[1]].line.line_id
+    assert "for 1 hour in which" in insight.text
+
+
+def test_trains_run_insight_when_no_honesty_gap(league: League) -> None:
+    standings = list(league.standings)
+    strong = [i for i, s in enumerate(standings) if _strong(s)]
+    standings[strong[0]] = replace(
+        standings[strong[0]], measured=MeasuredView(None, None, 0.0, 0.0, None, 0.81)
+    )
+    standings[strong[1]] = replace(
+        standings[strong[1]], measured=MeasuredView(None, None, 0.0, 0.0, None, 0.72)
+    )
+    # Near the timetable is not a headline; the declared fallback applies.
+    standings[strong[2]] = replace(
+        standings[strong[2]], measured=MeasuredView(None, None, 0.0, 0.0, None, 0.97)
+    )
+    insight = pick_insight(replace(league, standings=tuple(standings)))
+    assert insight is not None and insight.kind == "trains_run"
+    name = standings[strong[1]].line.line_name
+    assert insight.text == (
+        f"Only 72% of {possessive(name)} timetabled trains showed on TfL's arrival boards."
+    )
+    only_near = list(league.standings)
+    only_near[strong[2]] = standings[strong[2]]
+    fallback = pick_insight(replace(league, standings=tuple(only_near)))
+    assert fallback is not None and fallback.kind == "lowest_good_service"
+
+
+@pytest.mark.parametrize(
+    ("name", "label"),
+    [("Central", "the Central line's"), ("DLR", "the DLR's"), ("Tram", "trams'")],
+)
+def test_possessive(name: str, label: str) -> None:
+    assert possessive(name) == label
 
 
 def test_no_insight_when_everything_is_provisional(league: League) -> None:
@@ -120,9 +204,11 @@ def test_card_html_has_every_line_and_marks_provisional(league: League) -> None:
     html = card_html(league, pick_insight(league), LANDSCAPE)
     for s in league.standings:
         assert s.line.line_name.replace("&", "&amp;") in html
+    # A line not ranked for works carries its own note instead of the mark.
     assert html.count(f'<span class="mark">{PROVISIONAL_MARK}</span>') == sum(
-        s.is_provisional for s in league.standings
+        s.is_provisional and s.unranked_reason != "engineering_works" for s in league.standings
     )
+    assert html.count(f'<div class="note">{NOT_RANKED_WORKS}</div>') == 1
     assert "4 to 8 Nov 2026" in html
     assert "$" not in html.replace("$$", "")  # every placeholder filled
     assert 'class="col"' in html and html.count('class="col"') == 2
@@ -130,11 +216,14 @@ def test_card_html_has_every_line_and_marks_provisional(league: League) -> None:
 
 
 def test_card_names_the_measure_and_its_direction(league: League) -> None:
-    """A card seen on its own says what is ranked and that lower is better."""
-    assert "Disruption Index" in SUBTITLE and "per 100 service hours" in SUBTITLE
+    """A card seen on its own says what is ranked, its scale and that lower is better."""
+    assert TITLE == "Which lines did TfL report as most disrupted?"
+    assert "Disruption Index" in SUBTITLE and "0 (Good Service" in SUBTITLE
+    assert "to 800 (suspended" in SUBTITLE
     assert SUBTITLE.endswith("Lower is better.")
     for size in (LANDSCAPE, PORTRAIT):
         html = card_html(league, None, size)
+        assert f"<h1>{TITLE}</h1>" in html
         assert f'<p class="subtitle">{SUBTITLE}</p>' in html
         columns = html.count('class="col"')
         assert html.count('<div class="gs">% time reported Good Service</div>') == columns
@@ -151,9 +240,11 @@ def test_card_html_escapes_text(league: League) -> None:
 
 def test_footer_names_closures_and_completeness(league: League) -> None:
     lines = footer_lines(league)
-    assert lines[0].endswith("99.1% of scheduled minutes observed.")
+    assert lines[0].endswith("99.2% of scheduled minutes observed.")
+    assert any("lines open under half their hours are not ranked" in n for n in lines)
     provisional = next(n for n in lines if n.startswith(PROVISIONAL_MARK))
-    assert "Tram, Mildmay, Suffragette (a large share of hours closed for works)" in provisional
+    # Suffragette is not ranked (D22), so it is not listed as provisional.
+    assert "Tram, Mildmay (a large share of hours closed for works)" in provisional
     # When every line is short of data, the footer says so rather than listing 20 names.
     short = tuple(replace(s, provisional_reasons=_reason()) for s in league.standings)
     summary = next(n for n in footer_lines(replace(league, standings=short)) if "Provisional" in n)
@@ -214,21 +305,28 @@ def test_numbers_sheet(league: League) -> None:
         generated_at=datetime(2026, 11, 8, 22, 0, tzinfo=UTC),
         git_sha="abc1234",
     )
-    assert "| 20 | Suffragette | 11,947 | 0.0 |" in sheet
-    # The recording was taken on 8 November, so the window is partial.
-    assert "**Partial window**" in sheet
-    assert "Data through: Sun 8 Nov 18:21 (London)" in sheet
-    rows = [r for r in sheet.splitlines() if r.startswith("| District | Sat 7 Nov 07:49 | 1051")]
+    assert "| - | Suffragette | 211 | 0.0 |" in sheet
+    assert "not ranked: engineering works (D22)" in sheet
+    assert "| 19 | Bakerloo | 141 | 47.1 |" in sheet
+    assert "Data through: Sat 14 Nov 15:09 (London)" in sheet
+    assert "Partial window" not in sheet
+    # Bakerloo's Part Suspended on Sunday morning: 1,005 minutes, 3,763 weighted.
+    assert "- Worst incident (D48): Bakerloo, Sun 8 Nov 07:15, 1005 min, 3,763" in sheet
+    rows = [r for r in sheet.splitlines() if r.startswith("| Bakerloo | Sun 8 Nov 07:15 | 1005")]
     assert len(rows) == 1
-    later = numbers_sheet(
-        replace(league, is_complete=True),
+    assert "- Wooden Spoon (D48): Bakerloo, rank 19" in sheet
+    assert "- Line of the Week (D47): none (custom_window)" in sheet
+    assert "(no Monday in the window)" in sheet
+    assert "| Suffragette | " in sheet.split("## Engineering works (D50)")[1]
+    early = numbers_sheet(
+        replace(league, is_complete=False),
         None,
         [],
         marts.lines(),
         generated_at=datetime(2026, 11, 12, tzinfo=UTC),
         git_sha="abc1234",
     )
-    assert "Partial window" not in later and "| (none) |" in later
+    assert "**Partial window**" in early and "| (none) |" in early
 
 
 def test_london_time_is_only_formatted() -> None:
@@ -247,12 +345,12 @@ def test_card_text_is_ascii(league: League) -> None:
         assert text.isascii(), sorted({c for c in text if not c.isascii()})
 
 
-def test_partial_window_is_said_on_the_card(league: League) -> None:
-    assert not league.is_complete
+def test_partial_window_is_said_on_the_card(league: League, partial: League) -> None:
+    assert league.is_complete and not partial.is_complete
     assert any(
-        n.startswith("Partial window: data through Sun 8 Nov 18:21") for n in footer_lines(league)
+        n.startswith("Partial window: data through Sun 8 Nov 18:21") for n in footer_lines(partial)
     )
-    assert not any("Partial" in n for n in footer_lines(replace(league, is_complete=True)))
+    assert not any("Partial" in n for n in footer_lines(league))
 
 
 # ---- Mart parsing -------------------------------------------------------------------
@@ -269,6 +367,7 @@ def test_parsing_handles_nulls_and_athena_formats() -> None:
             "is_open": "true",
             "recovery_minutes": None,
             "peak_severity_weight": "5.0",
+            "severity_weighted_minutes": "3335.0",
             "worst_status_description": "Part Suspended",
             "first_reason": "",
         }

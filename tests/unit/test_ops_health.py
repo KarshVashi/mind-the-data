@@ -1,6 +1,7 @@
 import json
 from collections.abc import Iterator
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -21,10 +22,12 @@ from mind_the_data.ops.health import (
     format_age,
     freshness_section,
     guarded,
+    industrial_action_section,
     lambda_section,
     newest_object,
     render,
 )
+from mind_the_data.publish.mechanics import IndustrialAction, load_industrial_action
 
 BUCKET = "mind-the-data-raw-123456789012"
 
@@ -246,3 +249,41 @@ def test_a_poller_that_never_ran_is_a_problem_but_a_quiet_reference_is_not() -> 
     functions = ["mind-the-data-poller", "mind-the-data-reference"]
     section = lambda_section(fake, start, end, functions)  # type: ignore[arg-type]
     assert section.problems == ["lambda: mind-the-data-poller was never invoked"]
+
+
+def _action(action_id: str, end: date, status: str) -> IndustrialAction:
+    return IndustrialAction(
+        action_id=action_id,
+        union_name="RMT",
+        applies_to="mode",
+        applies_to_id="tube",
+        start_london_date=end,
+        end_london_date=end,
+        status=status,
+        description="",
+        source_publisher="",
+        source_title="",
+        source_date=end,
+        source_url="https://example.org/",
+    )
+
+
+def test_industrial_action_section_flags_announced_rows_past_the_grace() -> None:
+    today = date(2026, 12, 1)
+    actions = [
+        # Ended 27 November: 4 days ago, past the 3-day grace.
+        _action("late", date(2026, 11, 27), "announced"),
+        # Ended 28 November: exactly 3 days ago, still inside the grace.
+        _action("grace", date(2026, 11, 28), "announced"),
+        _action("updated", date(2026, 11, 1), "held"),
+    ]
+    section = industrial_action_section(actions, today)
+    assert len(section.problems) == 1
+    assert len(section.lines) == 1 and "`late`" in section.lines[0]
+    assert industrial_action_section(actions[1:], today).problems == []
+
+
+def test_seeded_industrial_action_loads_for_the_report() -> None:
+    actions = load_industrial_action(Path(__file__).resolve().parents[2] / "transform")
+    # The report reads the checkout's seed; today's announced rows are in the future.
+    assert actions and "announced" in {a.status for a in actions}

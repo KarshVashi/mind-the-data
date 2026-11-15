@@ -13,7 +13,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mypy_boto3_athena import AthenaClient
-    from mypy_boto3_athena.type_defs import GetQueryResultsOutputTypeDef, RowTypeDef
+    from mypy_boto3_athena.type_defs import (
+        GetQueryResultsOutputTypeDef,
+        QueryExecutionStatisticsTypeDef,
+        RowTypeDef,
+    )
 
 ALLOWED_FIRST_WORDS = frozenset({"select", "with", "show", "describe"})
 # Statements that change data or catalog state, refused anywhere outside quotes.
@@ -104,7 +108,30 @@ def run_query(
         QueryExecutionContext={"Database": database, "Catalog": "AwsDataCatalog"},
     )
     query_id = started["QueryExecutionId"]
+    stats = wait_for_query(athena, query_id, poll_s=poll_s, timeout_s=timeout_s, sleep=sleep)
+    columns, rows = _results(athena, query_id, max_rows)
+    return QueryResult(
+        query_id=query_id,
+        columns=columns,
+        rows=rows,
+        bytes_scanned=stats.get("DataScannedInBytes", 0),
+        elapsed_ms=stats.get("TotalExecutionTimeInMillis", 0),
+    )
 
+
+def wait_for_query(
+    athena: "AthenaClient",
+    query_id: str,
+    *,
+    poll_s: float = 1.0,
+    timeout_s: float = 300.0,
+    sleep: Callable[[float], None] = time.sleep,
+) -> "QueryExecutionStatisticsTypeDef":
+    """Wait for a started query to finish; its statistics, or an error if it did not succeed.
+
+    A query still running after timeout_s is stopped, so nothing is left
+    scanning after the caller has given up on it.
+    """
     waited = 0.0
     while True:
         execution = athena.get_query_execution(QueryExecutionId=query_id)["QueryExecution"]
@@ -120,16 +147,7 @@ def run_query(
     if state != "SUCCEEDED":
         reason = execution["Status"].get("StateChangeReason", "no reason given")
         raise RuntimeError(f"query {query_id} {state}: {reason}")
-
-    stats = execution.get("Statistics", {})
-    columns, rows = _results(athena, query_id, max_rows)
-    return QueryResult(
-        query_id=query_id,
-        columns=columns,
-        rows=rows,
-        bytes_scanned=stats.get("DataScannedInBytes", 0),
-        elapsed_ms=stats.get("TotalExecutionTimeInMillis", 0),
-    )
+    return execution.get("Statistics", {})
 
 
 def _results(

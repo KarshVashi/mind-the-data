@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     from mypy_boto3_cloudwatch import CloudWatchClient
     from mypy_boto3_s3 import S3Client
 
+    from mind_the_data.publish.mechanics import IndustrialAction
+
 ALARM_PREFIX = "mind-the-data-"
 LAMBDA_FUNCTIONS = ("mind-the-data-poller", "mind-the-data-reference")
 LIVE_FEEDS = ("line_status", "line_disruption", "arrivals", "stop_disruption")
@@ -282,6 +284,53 @@ def freshness_section(
         if age > limit:
             section.problems.append(f"raw: newest {feed} object is {format_age(age)} old")
     return section
+
+
+# ---- industrial action seed ----------------------------------------------------
+
+# Days after an announced action's last day before the seed counts as stale;
+# the same grace as dbt's assert_announced_industrial_action_is_current.
+INDUSTRIAL_ACTION_GRACE_DAYS = 3
+
+
+def industrial_action_section(actions: Sequence["IndustrialAction"], today: date) -> Section:
+    """Announced actions that have passed and still need `held` or `called_off` (D60).
+
+    The dbt test only warns, so a missed hand update cannot stop the nightly
+    build; this puts it in the daily report as a problem instead. `today` is
+    the report's UTC date; dbt uses the London date, so the two can differ
+    by a day around midnight, which the three days' grace absorbs.
+    """
+    title = "Industrial action seed"
+    stale = sorted(
+        (
+            a
+            for a in actions
+            if a.status == "announced"
+            and a.end_london_date < today - timedelta(days=INDUSTRIAL_ACTION_GRACE_DAYS)
+        ),
+        key=lambda a: (a.end_london_date, a.action_id),
+    )
+    if not stale:
+        return Section(title, ["No announced action is past its last day plus the grace."])
+    lines = [
+        f"- `{a.action_id}` ended {a.end_london_date:%Y-%m-%d}: set `status` to `held` or "
+        "`called_off` in `transform/seeds/seed_industrial_action.csv` (runbook, "
+        '"Industrial action seed")'
+        for a in stale
+    ]
+    return Section(title, lines, [f"{title}: {len(stale)} announced action(s) out of date"])
+
+
+def industrial_action_report(
+    load: Callable[[], Sequence["IndustrialAction"]], today: date
+) -> Section:
+    """`industrial_action_section` over the seed, with a bad seed as a problem, not a crash."""
+    try:
+        return industrial_action_section(load(), today)
+    except (OSError, ValueError, KeyError) as exc:
+        reason = f"could not read the seed: {type(exc).__name__}: {exc}"
+        return Section("Industrial action seed", [reason], [f"Industrial action seed: {reason}"])
 
 
 # ---- report ------------------------------------------------------------------------

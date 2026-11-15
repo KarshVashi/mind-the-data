@@ -73,6 +73,9 @@ The site needs none. Set a read-only CORS rule on the bucket anyway, because the
 | `league/latest.json`, `meta/index.json`, `meta/methodology.json`, `lines/*.json` | `public, max-age=300` | Overwritten every Monday |
 | `league/{iso_week}.json` | `public, max-age=3600` | Rewritten each run under D39, but changes only when the methodology or marts do |
 | `cards/*.png` | `public, max-age=86400` | Rendered once per week |
+| `open-data/{yyyy-mm}/*` (Parquet, `README.md`, `manifest.json`) | `public, max-age=3600` | Written once a month; a re-export replaces them |
+
+The open data (M7, D63) goes up in its own monthly run, `manifest.json` last, with no deploy hook: the site does not read it. A page that links to it should link to `open-data/{yyyy-mm}/README.md` and keep the attribution "Powered by TfL Open Data" beside the link.
 
 The build bypasses edge caching with its query string, so these values only matter to other readers. Upload order matters: week files, line files, cards and methodology first; `league/latest.json` and `meta/index.json` last; then the deploy hook. A reader then never sees an index that lists a file not yet uploaded.
 
@@ -157,7 +160,7 @@ All in the website repo under `src/components/tube/`, using tokens, Plex Mono la
 - **Partial window** (`is_window_complete: false`, custom windows from `post_snapshot.py`): banner, and "partial" in the title.
 - **Custom window** (`data_window.iso_week: null`): title from the dates ("4 to 10 November"), no movement column.
 - **Provisional lines**: still ranked (D20), marked, reasons listed.
-- **Not measured**: the measured columns say so (v0 and v1, until the M4 acceptance passes, D44).
+- **Not measured**: the measured columns say why, from `measured_withheld_reason` (see the contract changes for 0.4.0).
 - **Open decisions**: listed on every data page while `open_decisions` is non-empty, with the methodology version line the cards use.
 - **No complete week yet** (`latest_week: null`): `/tube/` says the first table is published on the first Monday after a full week of data.
 
@@ -165,13 +168,63 @@ All in the website repo under `src/components/tube/`, using tokens, Plex Mono la
 
 ### Already in the files
 
-Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_name`), TfL line colours (`colour`), `mode`, `is_low_volume`, ranks with movement, provisional flags with reasons, the measured-view slots (null until the M4 acceptance passes, D44), the worst incident, the insight line, line histories, typical bad hours, methodology weights and thresholds.
+Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_name`), TfL line colours (`colour`), `mode`, `is_low_volume`, ranks with movement, provisional flags with reasons, the measured view per line (filled when the line-week's gate passes, D42, D51), the worst incident, the insight line, line histories, typical bad hours, methodology weights and thresholds.
 
 ### Changed in this bundle
 
 - **`meta/index.json`** (new, `contract/index.schema.json`): the site's entry point. `latest_week`, `weeks[]` (every complete week with a league file, newest first, with its path), `lines[]` (line_id, line_name, mode, colour, is_low_volume, path, sorted by name), `data_through`, `views`, `open_decisions`, and the common envelope.
 - **Archive written every run** (D39): `export.py` now writes `league/{iso_week}.json` for every complete week with data, and `league/latest.json` is always the newest complete week. The archive, the line histories and the index therefore come from the same marts and code in the same run.
 - **`schema_version` 0.2.0** (additive).
+
+### Changed in the M6 and gate bundle (`schema_version` 0.3.0)
+
+- **Disruption Index scale (D19, decided 2026-11-14).** It is now the time-weighted mean severity x 100, from 0 to 800. Values are about 1/(60 x the mean time weight) of the old ones, roughly a sixtieth to a seventieth (Bakerloo on 4 to 8 November: 141.5), and the schema caps the index at 800. Every archived week is rewritten on the next export (D39), so the site never mixes the two scales; show it with no thousands separator and one decimal at most. This is a change of meaning, so the minor version moves even though no field was removed (pre-1.0).
+- **Unranked lines (D22).** Each standing and each line-history week has `unranked_reason`: `null` when ranked, `no_scored_minutes`, or `engineering_works` for a line that ran under half its scheduled hours. Show the latter as "Not ranked: engineering works" in place of the rank, as the card does. Standings also carry `engineering_works_hours`; history weeks carry it too.
+- **`highlights`** in league files: `wooden_spoon` (line, rank, index, `is_provisional`, `shared_by`), `line_of_the_week` (line, index, previous index, improvement) and `line_of_the_week_null_reason` (`custom_window`, `no_previous_week`, `previous_week_incomplete`, `no_line_improved`). W46 has no Line of the Week; W47 is the first that can.
+- **`monday_morning`**: the Monday Morning Index (07:00 to 10:00) per line for each Monday in the window, ranked, unranked lines last (D49).
+- **`engineering_works`**: lines with hours closed for works in the window, most first (D50).
+- **`worst_incident`** is now the most severity-weighted incident, not the longest, and carries `severity_weighted_minutes` (D48).
+- **`measured.trains_run_share`**: trains on the boards over scheduled trains (ADR-014). Published from 0.4.0.
+- **`meta/methodology.json`** gains `disruption_index` (definition, `min`, `max`), `thresholds.min_open_share_to_rank` and `settled_decisions`.
+- The share card title is now "Which lines did TfL report as most disrupted?", and its subtitle gives the 0 to 800 scale.
+
+### Changed for the measured view (`schema_version` 0.4.0, additive)
+
+- **The measured view is published** (D42, settled 2026-11-14). `views.measured` is `published` when any line has measured numbers. Each standing, and each week in `lines/{line_id}.json` history, has `measured` filled or `null`, and a new `measured_withheld_reason`, `null` when measured:
+
+  | Reason | Show |
+  |---|---|
+  | `line_not_measured` | "Not measured" (DLR, tram, Waterloo & City, Suffragette; D43) |
+  | `shared_section_misfiled` | "Not measured: shared boards" (Circle, Hammersmith & City; D52) |
+  | `no_measured_hours`, `gate_not_judged`, `gate_failed`, `too_few_measured_hours` | "Not enough reliable data this week" (D42, D51) |
+  | `measured_not_rebuilt` (0.5.0) | "Measured view not yet updated for this week" (the measured tables were not rebuilt after a failed quality gate, D55) |
+
+- **`measured`** gains `trains_run_withheld_reason`, `measured_hours`, `measured_share`, `gate_pass_share`, `good_service_measured_hours` and `is_weak_evidence`. Show weak-evidence lines (the Elizabeth line and the Overground, D33) with a mark and a note "measured against estimated frequencies"; they have no `experienced_rank` (D53). Trains run is a lower bound ("trains shown on TfL's boards"), and can exceed 100% on weak-evidence lines.
+- **`measured_status`** gains `withheld`: a measured line whose week did not qualify. `not_measured` now means only the four lines the measured view leaves out.
+- **The Honesty Gap needs its caveat beside it** wherever it is shown, line pages included: "Long gaps are measured from TfL's arrival boards, which list about 85% of timetabled trains; if the rest ran, some gaps exist only on the boards." (methodology, section 3).
+- **`insight.kind`** adds `trains_run`. The insight is the lowest trains run, then the lowest Good Service % (D38). `honesty_gap` stays in the enum but is not produced until D54 is settled.
+- **`meta/methodology.json`** gains the gate thresholds (`gate_low_ratio`, `gate_high_ratio`, `gate_max_out_of_band_share`, `min_measured_share`), `measured_view_withheld_lines` and `trains_run_withheld_lines`.
+- **`lines/{line_id}.json`** `measured_status` is `measured` when any week in the history has measured numbers.
+
+### Changed in the rest of M6 and M7 (`schema_version` 0.5.0, additive)
+
+- **`divisions/{yyyy-mm}.json`** (new, `contract/division.schema.json`). One file per month from November 2026.
+  - `status` is one of:
+    - `not_seeded`: fewer complete weeks than the seeding needs. There is no table, so show "Divisions start once two full weeks are in";
+    - `seeded`: the seeding exists and the divisions start next month;
+    - `pending`: a division month the build has not reached yet (just after midnight on the 1st). Show the previous month;
+    - `in_progress` or `complete`.
+  - `seeding` holds the seed order, its `status` (`provisional` until four complete weeks exist, ADR-015) and `first_division_month`.
+  - `divisions[]` holds each division's lines with rank, `joined_by`, `movement` (`promoted`, `relegated`, `stays`) and `next_division`. While the month runs, `movement` is where the line stands, not a result.
+- **`season/{season}.json`** (new, `contract/season.schema.json`): the season to date (1 April to 31 March), ranked like the weekly table. `data_window` spans the dates observed.
+- **League files** gain three blocks:
+  - `recovery_time`: `definition_status` is `provisional_d18`. Show it labelled provisional.
+  - `industrial_action[]`: the actions touching the week, each with its source.
+  - `strikes_excluded`: `is_same_as_main` and the variant table. It is `null` for a custom window.
+- **`meta/methodology.json`** gains `divisions`, `season`, `recovery_time`, `industrial_action` (the whole seed, with sources) and `sensitivity` (weight sets, and per week Spearman's rho, max rank shift and top or bottom three changes).
+- **`meta/index.json`** gains `months[]` (month, status, path) and `seasons[]`.
+- **`measured_withheld_reason`** gains `measured_not_rebuilt` (see the table above, D55).
+- **`open-data/{yyyy-mm}/manifest.json`** (new, `contract/open_data_manifest.schema.json`): the monthly open dataset's files with row counts and checksums, the attribution and the licence (D63). The site does not read it; see section 2.
 
 ### Still needed
 
@@ -181,8 +234,7 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
 | Per-day values per line in the league file (`days[]`: date, Good Service %, Disruption Index, scored minutes) | Line × day heatmap on week pages | M6 task: a `daily` block in `league/{iso_week}.json` from `fct_line_daily` (one more Athena query per run) |
 | Card paths in `meta/index.json` | Linking each archived week to its card | After the R2 upload exists: the upload step knows which cards are in the bucket. Until then the site uses `cards/{iso_week}.png` for the latest week only |
 | Post snapshots (custom windows) in the index | Archiving the Wednesday post's table | Optional: `post_snapshot.py` could upload to `snapshots/{start}_{end}/` with an index entry. v0 vendors it instead |
-| Measured view (`measured` fields, `honesty_gap` insight) | v2 | The M4 acceptance (D44); the schema slots exist |
-| `divisions/`, `season/`, `open-data/` | Later pages | M6, M7 |
+| A page for `open-data/` | `/tube/data/` | Once D63 is settled and the first month is uploaded |
 | Public methodology prose | `/tube/methodology/` | M7 `docs/methodology.md` |
 
 ### How far back trends go

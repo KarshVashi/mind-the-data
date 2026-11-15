@@ -25,7 +25,13 @@
     "line": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["line_id", "line_name", "mode", "colour", "is_low_volume"],
+      "required": [
+        "line_id",
+        "line_name",
+        "mode",
+        "colour",
+        "is_low_volume"
+      ],
       "properties": {
         "line_id": {"$ref": "league.schema.json#/$defs/line_id"},
         "line_name": {"type": "string", "minLength": 1},
@@ -50,7 +56,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["london_hour", "disrupted_share", "scored_minutes"],
+        "required": [
+          "london_hour",
+          "disrupted_share",
+          "scored_minutes"
+        ],
         "properties": {
           "london_hour": {"type": "integer", "minimum": 0, "maximum": 23},
           "disrupted_share": {"$ref": "league.schema.json#/$defs/share"},
@@ -58,7 +68,10 @@
         }
       }
     },
-    "measured_status": {"enum": ["measured", "not_measured"]}
+    "measured_status": {
+      "description": "measured when at least one week in the history publishes measured numbers.",
+      "enum": ["measured", "not_measured"]
+    }
   },
   "$defs": {
     "week": {
@@ -69,27 +82,46 @@
         "week_start",
         "week_end",
         "rank",
+        "unranked_reason",
         "rank_movement",
         "disruption_index",
         "good_service_pct",
         "incidents",
+        "engineering_works_hours",
         "completeness",
         "is_week_complete",
-        "is_provisional"
+        "is_provisional",
+        "measured_withheld_reason",
+        "measured"
       ],
       "properties": {
         "iso_week": {"$ref": "league.schema.json#/$defs/iso_week"},
         "week_start": {"$ref": "league.schema.json#/$defs/london_date"},
         "week_end": {"$ref": "league.schema.json#/$defs/london_date"},
         "rank": {"type": ["integer", "null"], "minimum": 1},
+        "unranked_reason": {"$ref": "league.schema.json#/$defs/unranked_reason"},
         "rank_movement": {"type": ["integer", "null"]},
-        "disruption_index": {"$ref": "league.schema.json#/$defs/nullable_non_negative"},
-        "good_service_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+        "disruption_index": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 800
+        },
+        "good_service_pct": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 100
+        },
         "incidents": {"type": "integer", "minimum": 0},
+        "engineering_works_hours": {"type": "number", "minimum": 0},
         "completeness": {"$ref": "league.schema.json#/$defs/share"},
         "is_week_complete": {"type": "boolean"},
-        "is_provisional": {"type": "boolean"}
-      }
+        "is_provisional": {"type": "boolean"},
+        "measured_withheld_reason": {"$ref": "league.schema.json#/$defs/measured_withheld_reason"},
+        "measured": {
+          "oneOf": [{"type": "null"}, {"$ref": "league.schema.json#/$defs/measured"}]
+        }
+      },
+      "allOf": [{"$ref": "league.schema.json#/$defs/measured_xor_reason"}]
     }
   }
 }

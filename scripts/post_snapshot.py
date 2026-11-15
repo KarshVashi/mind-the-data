@@ -5,7 +5,8 @@
 
 For posts whose window is not an ISO week (the first post runs Wednesday to
 Tuesday). Reads the prod marts read-only through the dev Athena workgroup,
-sums fct_line_daily over the window with the league's rules, and writes:
+sums fct_line_daily and fct_line_measured_daily over the window with the
+league's rules, and writes:
 
     numbers.md                   every figure behind the post, for checking
     league.json                  the league contract, data_window = the custom window
@@ -23,10 +24,11 @@ from pathlib import Path
 import boto3
 
 from mind_the_data.publish.documents import Stamp, league_document
-from mind_the_data.publish.export import DEFAULT_DATABASE, DEFAULT_WORKGROUP, git_sha
+from mind_the_data.publish.export import DEFAULT_DATABASE, DEFAULT_WORKGROUP, REPO_ROOT, git_sha
 from mind_the_data.publish.insight import pick_insight
 from mind_the_data.publish.league import Window, league_from_daily
 from mind_the_data.publish.marts import AthenaMarts, Marts, RecordedMarts
+from mind_the_data.publish.mechanics import load_industrial_action
 from mind_the_data.publish.schemas import validate
 from mind_the_data.publish.sheet import numbers_sheet
 
@@ -64,7 +66,19 @@ def main(argv: list[str] | None = None) -> int:
     lines = marts.lines()
     daily = marts.daily(window.start, window.end)
     incidents = marts.incidents(window.start, window.end)
-    league = league_from_daily(window, lines, daily, incidents, marts.latest_minute_london())
+    monday_morning = marts.monday_morning(window.start, window.end)
+    measured_daily = marts.measured_daily(window.start, window.end)
+    league = league_from_daily(
+        window,
+        lines,
+        daily,
+        incidents,
+        marts.latest_minute_london(),
+        monday_morning,
+        measured_daily,
+        industrial_action=load_industrial_action(REPO_ROOT / "transform"),
+        build_times=marts.build_times(),
+    )
     insight = pick_insight(league)
     stamp = Stamp(generated_at=datetime.now(UTC), git_sha=git_sha())
 

@@ -11,9 +11,14 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 from moto import mock_aws
 
 from mind_the_data.publish import upload
+from mind_the_data.publish.open_data import DATASETS
 from mind_the_data.publish.upload import (
     CARD_CACHE,
     JSON,
+    MARKDOWN,
+    OPEN_DATA_CACHE,
+    OPEN_DATASETS,
+    PARQUET,
     PNG,
     SHORT_CACHE,
     WEEK_CACHE,
@@ -108,6 +113,85 @@ def test_plan_refuses_a_stray_file(tmp_path: Path) -> None:
     (tmp_path / "numbers.md").write_text("draft")
     with pytest.raises(UploadError, match="numbers.md"):
         plan_uploads(tmp_path)
+
+
+OPEN_DATA_EXPORT = (
+    "open-data/2026-11/line_minute_status-000.parquet",
+    "open-data/2026-11/line_minute_status-001.parquet",
+    "open-data/2026-11/line_daily.parquet",
+    "open-data/2026-11/line_weekly.parquet",
+    "open-data/2026-11/README.md",
+    "open-data/2026-11/manifest.json",
+)
+
+
+@pytest.mark.parametrize(
+    ("key", "content_type"),
+    [
+        ("open-data/2026-11/line_daily.parquet", PARQUET),
+        ("open-data/2026-11/line_minute_status-012.parquet", PARQUET),
+        ("open-data/2026-11/README.md", MARKDOWN),
+        ("open-data/2026-11/manifest.json", JSON),
+    ],
+)
+def test_classify_open_data(key: str, content_type: str) -> None:
+    assert classify(key) == (content_type, OPEN_DATA_CACHE)
+
+
+def test_upload_knows_every_open_dataset() -> None:
+    assert OPEN_DATASETS == tuple(d.name for d in DATASETS)
+
+
+def test_plan_puts_the_open_data_manifest_last(tmp_path: Path) -> None:
+    keys = [p.key for p in plan_uploads(export_dir(tmp_path, OPEN_DATA_EXPORT))]
+    assert sorted(keys) == sorted(OPEN_DATA_EXPORT)
+    assert keys[-1] == "open-data/2026-11/manifest.json"
+
+
+def test_plan_refuses_open_data_without_its_readme(tmp_path: Path) -> None:
+    files = tuple(f for f in OPEN_DATA_EXPORT if not f.endswith("README.md"))
+    with pytest.raises(UploadError, match=r"missing: open-data/2026-11/README\.md"):
+        plan_uploads(export_dir(tmp_path, files))
+
+
+def test_plan_refuses_league_and_open_data_together(tmp_path: Path) -> None:
+    with pytest.raises(UploadError, match="separately"):
+        plan_uploads(export_dir(tmp_path, EXPORT + OPEN_DATA_EXPORT))
+
+
+def test_no_hook_does_not_need_the_hook_setting() -> None:
+    env = {k: v for k, v in ENV.items() if k != "PAGES_DEPLOY_HOOK_URL"}
+    assert R2Settings.from_env(env, need_hook=False).bucket == ENV["R2_BUCKET"]
+    with pytest.raises(UploadError, match="PAGES_DEPLOY_HOOK_URL"):
+        R2Settings.from_env(env)
+
+
+def test_a_reexport_with_fewer_parts_is_refused_not_mixed(tmp_path: Path) -> None:
+    three_parts = export_dir(tmp_path / "first", OPEN_DATA_EXPORT)
+    one_part = export_dir(
+        tmp_path / "second",
+        tuple(f for f in OPEN_DATA_EXPORT if "line_minute_status" not in f)
+        + ("open-data/2026-11/line_minute_status.parquet",),
+    )
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket=ENV["R2_BUCKET"])
+        first = plan_uploads(three_parts)
+        assert upload.stale_open_data_keys(client, ENV["R2_BUCKET"], first) == []
+        upload.upload(client, ENV["R2_BUCKET"], first)
+        # The same files again replace themselves; nothing is stale.
+        assert upload.stale_open_data_keys(client, ENV["R2_BUCKET"], first) == []
+        assert upload.stale_open_data_keys(client, ENV["R2_BUCKET"], plan_uploads(one_part)) == [
+            "open-data/2026-11/line_minute_status-000.parquet",
+            "open-data/2026-11/line_minute_status-001.parquet",
+        ]
+        # A league upload never lists the bucket.
+        assert (
+            upload.stale_open_data_keys(
+                client, ENV["R2_BUCKET"], plan_uploads(export_dir(tmp_path / "league"))
+            )
+            == []
+        )
 
 
 def test_settings_name_every_missing_secret() -> None:

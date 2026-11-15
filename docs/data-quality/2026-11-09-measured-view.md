@@ -54,6 +54,8 @@ Per line, 5 to 7 November, core stations: Jubilee 88.3%, Northern 87.5%, Central
 
 The remaining shortfall is mostly undercounting on lines that do not yet link by vehicle id, and the Circle, Hammersmith & City and Metropolitan boards, which share platforms and do not line up with their timetables. Next steps: the Monday 9 November check for the other Tube lines (D27), then re-run this page.
 
+Update: the [9 to 12 November recheck](2026-11-12-gate-recheck.md) shows that vehicle-id linking does not close the gap. The boards list about 85% of the timetable, and Circle trains are filed under Hammersmith & City, so the explanation above no longer holds.
+
 ## Excluded lines
 
 DLR, tram, Waterloo & City and Suffragette: `not_measured` in `fct_line_weekly` (D43). The Elizabeth line and Overground are measured against fallback frequencies (D33); a pass there is weak evidence.

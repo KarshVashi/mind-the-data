@@ -23,6 +23,43 @@ macros:
       model here, because dbt drops the model's config for the test's
       temporary table and dbt-athena would build it as Hive, which rejects
       timestamp(6). Everything else defers to dbt-athena.
+  - name: iceberg_maintenance
+    description: >
+      Weekly Iceberg maintenance (PLAN M7, D64), run with `dbt run-operation`:
+      OPTIMIZE (bin pack) then VACUUM on every incremental Iceberg model that
+      exists in the target. OPTIMIZE covers the partitions from
+      `maintenance_lookback_days` back, or all of them with `full`. Retries
+      while Athena asks for more runs.
+    arguments:
+      - name: dry_run
+        type: bool
+        description: Log the statements and run nothing (default false).
+      - name: full
+        type: bool
+        description: Compact every partition, not just recent ones (default false).
+  - name: iceberg_maintenance_targets
+    description: The enabled incremental Iceberg models among the given graph nodes, by name.
+    arguments:
+      - name: nodes
+        type: list[dict[str, any]]
+        description: Graph nodes, e.g. graph.nodes.values().
+  - name: iceberg_maintenance_sql
+    description: >
+      The OPTIMIZE and VACUUM statements for one table. Refuses names that are
+      not plain lower-case identifiers and a `since` that is not YYYY-MM-DD.
+    arguments:
+      - name: schema
+        type: string
+        description: Glue database.
+      - name: identifier
+        type: string
+        description: Table name.
+      - name: partitioned_by
+        type: list[string]
+        description: The model's partition columns; the first bounds OPTIMIZE.
+      - name: since
+        type: string
+        description: First partition date to compact, or none for all.
   - name: raw_feeds
     description: Names of the raw feed tables in the `raw` source.
   - name: envelope_is_ok

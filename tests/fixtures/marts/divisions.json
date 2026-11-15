@@ -1,0 +1,20 @@
+{
+ "columns": [
+  "line_id",
+  "month_start",
+  "division",
+  "joined_by",
+  "scheduled_minutes",
+  "observed_minutes",
+  "disruption_index",
+  "good_service_pct",
+  "completeness",
+  "is_provisional",
+  "unranked_reason",
+  "division_rank",
+  "movement",
+  "next_division",
+  "is_month_complete"
+ ],
+ "rows": []
+}
