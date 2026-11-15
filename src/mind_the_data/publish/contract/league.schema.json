@@ -151,7 +151,7 @@
           ]
         },
         "decisions": {
-          "description": "Open decisions the flag rests on; each is also in open_decisions.",
+          "description": "Decisions the flag rests on; each is in open_decisions or settled_decisions.",
           "type": "array",
           "items": {"$ref": "#/$defs/decision_id"},
           "uniqueItems": true
@@ -371,7 +371,13 @@
       "properties": {
         "kind": {"enum": ["honesty_gap", "trains_run", "lowest_good_service"]},
         "line_id": {"$ref": "#/$defs/line_id"},
-        "text": {"type": "string", "minLength": 1, "maxLength": 160}
+        "text": {"type": "string", "minLength": 1, "maxLength": 160},
+        "caveat": {
+          "description": "A qualifier to show with the text, set on the trains-run insight: boards can miss trains that ran.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
       }
     },
     "unranked_reason": {

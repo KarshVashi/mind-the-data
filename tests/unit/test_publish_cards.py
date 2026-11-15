@@ -98,6 +98,7 @@ def test_honesty_gap_is_off_the_card_by_default(league: League) -> None:
     no_trains_run[strong[0]] = standings[strong[0]]
     fallback = pick_insight(replace(league, standings=tuple(no_trains_run)))
     assert fallback is not None and fallback.kind == "lowest_good_service"
+    assert fallback.caveat is None
 
 
 def _strong(standing: Any) -> bool:
@@ -142,6 +143,7 @@ def test_trains_run_insight_when_no_honesty_gap(league: League) -> None:
     assert insight.text == (
         f"Only 72% of {possessive(name)} timetabled trains showed on TfL's arrival boards."
     )
+    assert insight.caveat == "Boards can miss trains that ran."
     only_near = list(league.standings)
     only_near[strong[2]] = standings[strong[2]]
     fallback = pick_insight(replace(league, standings=tuple(only_near)))
@@ -283,6 +285,53 @@ def test_cards_render_at_their_sizes(browser: None, league: League, tmp_path: Pa
         header = path.read_bytes()[:24]
         assert header[:8] == b"\x89PNG\r\n\x1a\n"
         assert struct.unpack(">II", header[16:24]) == (size.width, size.height)
+
+
+def _trains_run_league(league: League) -> League:
+    standings = list(league.standings)
+    strong = [i for i, s in enumerate(standings) if _strong(s)]
+    standings[strong[0]] = replace(
+        standings[strong[0]], measured=MeasuredView(None, None, 0.0, 0.0, None, 0.72)
+    )
+    return replace(league, standings=tuple(standings))
+
+
+def test_trains_run_card_carries_its_caveat_on_both_sizes(
+    browser: None, league: League, tmp_path: Path
+) -> None:
+    trains_run = _trains_run_league(league)
+    insight = pick_insight(trains_run)
+    assert insight is not None and insight.kind == "trains_run"
+    for size in (LANDSCAPE, PORTRAIT):
+        html = card_html(trains_run, insight, size)
+        assert "Boards can miss trains that ran." in html
+        # Raises CardOverflow if the caveat pushes anything out of its box.
+        render_png(html, size, tmp_path / f"{size.name}.png")
+
+
+def test_landscape_falls_back_to_good_service_when_the_caveat_overflows(
+    league: League, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from mind_the_data.publish import share_card
+
+    trains_run = _trains_run_league(league)
+    insight = pick_insight(trains_run)
+    rendered: list[tuple[str, str]] = []
+
+    def fake_render(html: str, size: object, path: Path, *, channel: str | None = None) -> None:
+        name = getattr(size, "name", "")
+        rendered.append((name, "Boards can miss" in html and "caveat" or "plain"))
+        if name == "1200x675" and "Boards can miss" in html:
+            raise CardOverflow("1200x675: footer below the bottom edge")
+
+    monkeypatch.setattr(share_card, "render_png", fake_render)
+    share_card.render_cards(trains_run, insight, tmp_path, "card")
+    # Landscape retried with the Good Service insight; portrait kept the caveat.
+    assert rendered == [
+        ("1200x675", "caveat"),
+        ("1200x675", "plain"),
+        ("1080x1350", "caveat"),
+    ]
 
 
 def test_overflowing_card_is_refused(browser: None, league: League, tmp_path: Path) -> None:

@@ -37,6 +37,13 @@ class Insight:
     kind: str  # "honesty_gap", "trains_run" or "lowest_good_service"
     line_id: str
     text: str
+    # A qualifier the card prints under the text, when the claim alone can be misread.
+    caveat: str | None = None
+
+
+# 67% of trains showing on the boards reads as "33% cancelled", but the boards
+# can omit trains that did run (ADR-014, open item 2), so the card says so.
+TRAINS_RUN_CAVEAT = "Boards can miss trains that ran."
 
 
 def _measured_candidates(league: League) -> list[Standing]:
@@ -90,8 +97,14 @@ def pick_insight(
                 f"Only {share:.0%} of {possessive(standing.line.line_name)} timetabled trains "
                 "showed on TfL's arrival boards."
             ),
+            caveat=TRAINS_RUN_CAVEAT,
         )
 
+    return lowest_good_service_insight(league)
+
+
+def lowest_good_service_insight(league: League) -> Insight | None:
+    """The declared-view fact: the lowest Good Service % among ranked lines."""
     declared = [
         s
         for s in league.standings
