@@ -595,7 +595,7 @@
       }
     },
     "recovery_time": {
-      "description": "The Recovery Time table (D59): median recovery of the window's incidents, quickest first. Provisional while D18 is open.",
+      "description": "The Recovery Time table (D59): median recovery of the window's incidents, quickest first. Labelled provisional (D18 and D59 were accepted on 2026-11-15 as a first definition, to be reviewed on a full month of data).",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -605,7 +605,7 @@
       ],
       "properties": {
         "definition_status": {
-          "description": "provisional_d18 while D18 (incidents and recovery) is open.",
+          "description": "Always provisional_d18: the accepted D18 draft is labelled provisional until a month of incidents has been reviewed.",
           "enum": [
             "provisional_d18"
           ]

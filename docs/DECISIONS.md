@@ -179,7 +179,7 @@ D19 and D22 were settled by the owner on 2026-11-14 and are under "Settled". The
   - incident minutes separated by fewer than 5 quiet minutes merge;
   - an incident belongs to the London date and week it starts in;
   - recovery = minutes from the first to the last incident minute of a closed incident; open incidents have no recovery yet and are left out of the median.
-- **Also depends on it:** the Recovery Time table (D59) is built on this draft and is published labelled `provisional_d18` until D18 is settled.
+- **Also depends on it:** the Recovery Time table (D59) is built on this draft and is published labelled `provisional_d18`. D18 was accepted on 2026-11-15 as a first definition and the label stays (D59) until a full month of incidents has been reviewed.
 - **Alternatives:** let a long poller gap end an incident; measure recovery to the first Good Service minute specifically; count incidents in every day they touch.
 - **Default:** none. **Class:** `never-default`.
 - **Settled 2026-11-15 (owner):** Accepted: the draft definition of an incident and of recovery.
@@ -457,7 +457,7 @@ These come from publishing the measured view after the owner settled D42 on 2026
 - **Result (dev build, 14 November):** on 4 to 10 November the card reads "Only 68% of the District line's timetabled trains showed on TfL's arrival boards.", and on 9 to 13 November "Only 67% of ...". Under D38's order both would have led with a Honesty Gap count (on 9 to 13 November, Piccadilly: Good Service for 78 hours with long gaps, out of 86).
 - **Alternatives:** keep D38's order with a caveat on the card (no room on 1200x675 without crowding); drop the measured view from the card entirely.
 - **Class:** `never-default` (publishing). **Recommendation:** keep it off until open item 2 is answered (compare the boards with TfL's own trains-operated figures for a week), then switch it on.
-- **Settled 2026-11-15 (owner):** Accepted: the Honesty Gap stays off the card. The trains-run insight now carries the footer "Boards can miss trains that ran." On the 1200x675 card it falls back to the Good Service % insight if the footer does not fit (it fits today).
+- **Settled 2026-11-15 (owner):** Accepted: the Honesty Gap stays off the card. The trains-run insight now carries the caveat "Boards can miss trains that ran." On the 1200x675 card it falls back to the Good Service % insight if the footer does not fit (it fits today).
 
 ### M6 league mechanics (D56 to D61)
 
@@ -531,7 +531,7 @@ These come from the rest of M6: divisions, the season table, the Recovery Time t
   - Each league file lists the action touching its window (`industrial_action`) and the variant (`strikes_excluded`, with `is_same_as_main`).
   - An `announced` row must be updated to `held` or `called_off` once its date passes. `assert_announced_industrial_action_is_current` warns three days after an announced action's last day if it has not been updated, and the daily ops report lists the row as a problem (owner-directed: a missed hand update must never stop the nightly build; runbook, "Industrial action seed").
   - `rmt-tube-2026-04-23` is marked `held` on the TfL announcement and later reports that drivers struck twice in April; no report from the day was found. It is before collection began, so it changes no published number.
-- **Not included:** the Evening Standard's report that 16 and 18 June were replaced by 2 and 4 June (no primary source found), and the 2027 dates of the same dispute.
+- **Not included:** the Evening Standard's report that 16 and 18 June were replaced by 2 and 4 June (no primary source found). The 2027 dates were added on 2026-11-15 (see Settled).
 - **Alternatives:** drop only the strike hours (noon to noon), not whole days; exclude only the lines that ran no service, from TfL's status that day.
 - **Class:** `never-default` (metric semantics, publishing).
 - **Settled 2026-11-15 (owner):** Accepted. The 26 and 27 November and December rows are confirmed as `announced`, and the five January and February 2027 rows are added (ITV, 6 November 2026, corroborated by Time Out and ianVisits).
@@ -578,6 +578,7 @@ These come from the M7 hardening work (`feat/collate-c-m7`). D62 was not used. T
 - **IAM:** the transform role's existing rights cover both statements: `glue:UpdateTable` on the prod database, and get, put and delete objects under the curated bucket's `prod/` prefix. No Terraform change.
 - **Alternatives:** run it on every Iceberg table, which rescans tables rebuilt that morning for nothing; compact every partition each week; keep snapshots longer by setting `vacuum_max_snapshot_age_seconds` on the staging tables.
 - **Class:** `auto-apply`. VACUUM is in the plan, and the scope only leaves out tables that have nothing to compact. **Default:** as implemented.
+- **Settled 2026-11-15 (owner):** Accepted: weekly OPTIMIZE and VACUUM on the incremental tables as built.
 
 ## Settled
 
@@ -597,7 +598,6 @@ These come from the M7 hardening work (`feat/collate-c-m7`). D62 was not used. T
 | 2026-11-14 | D49 Monday Morning Index (owner) | As recommended: the Disruption Index over each Monday 07:00 to 10:00 London time. |
 | 2026-11-14 | D50 Engineering Works table (owner) | As recommended: weekly, per line, Part Closure counted in full. |
 | 2026-11-14 | D55 A failing gate never holds back the declared view (owner) | Directed by the owner. The measured columns moved from `fct_line_weekly` to `fct_line_weekly_measured`, so the gate test at `error` skips only the measured models; the declared tables, league, divisions and season always build. Weeks the measured tables did not finish are withheld (`measured_not_rebuilt`). ADR-014, "Gate failures and the declared view"; checked by `tests/unit/test_dbt_gate_isolation.py`. |
-- **Settled 2026-11-15 (owner):** Accepted: weekly OPTIMIZE and VACUUM on the incremental tables as built.
 | 2026-11-15 | D2, D3, D4 Accept ADR-007, ADR-008, ADR-009 (owner) | All three accepted. D1 / ADR-006 stays open until the Lambda concurrency quota is granted. |
 | 2026-11-15 | D5 to D7, D9 Station budget, sqlfluff, plan checkbox, dbt unit tests in prod (owner) | The recommended option each: 50 stations, config kept, as written, tests kept. |
 | 2026-11-15 | D8 Null-keyed prod rows (owner) | Settled by the D45 refresh. |
@@ -607,6 +607,6 @@ These come from the M7 hardening work (`feat/collate-c-m7`). D62 was not used. T
 | 2026-11-15 | D16 to D18, D20, D21, D23, D24 M3 definitions and ADR-012, ADR-013 (owner) | All accepted as implemented. |
 | 2026-11-15 | D25 to D35, D37 to D41, D43 Measured-view readings (owner) | All accepted. D27: Victoria and the eight lines link by vehicle id, District out. D25: same-destination condition is a later refinement. |
 | 2026-11-15 | D45 `stg_arrivals` key and full refresh (owner) | Done: the prod refresh ran on 2026-11-14; transform-daily has passed since, including 493 of 493 on 2026-11-15. |
-| 2026-11-15 | D51 to D54 Measured-view publishing (owner) | All accepted. The trains-run insight gets the footer "Boards can miss trains that ran."; the 1200x675 card falls back to Good Service % if it does not fit. |
+| 2026-11-15 | D51 to D54 Measured-view publishing (owner) | All accepted. The trains-run insight gets the caveat "Boards can miss trains that ran."; the 1200x675 card falls back to Good Service % if it does not fit. |
 | 2026-11-15 | D56 to D61 League mechanics, ADR-015 (owner) | All accepted. D57 amended: a provisional month moves no one. D60: five 2027 strike rows added. |
 | 2026-11-15 | D63, D64 Open data licence and Iceberg maintenance (owner) | CC BY 4.0 for the published figures; `LICENSE` and `LICENSE-DATA` added. Maintenance as built. |

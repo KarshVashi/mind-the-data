@@ -6,6 +6,7 @@ Chromium through Playwright: the browser Playwright installs
 Chrome. Rendering fails rather than writing a card whose content overflows.
 """
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -16,6 +17,8 @@ from string import Template
 
 from mind_the_data.publish.insight import Insight, lowest_good_service_insight
 from mind_the_data.publish.league import League, Standing
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -293,6 +296,11 @@ def render_cards(
             if size is not LANDSCAPE or insight is None or not insight.caveat:
                 raise
             fallback = lowest_good_service_insight(league)
+            # The JSON and the numbers sheet still carry the trains-run text,
+            # so say loudly that this card does not match them.
+            logger.warning(
+                "landscape card fell back to the Good Service insight: caveat did not fit"
+            )
             render_png(card_html(league, fallback, size), size, path, channel=channel)
         paths.append(path)
     return paths

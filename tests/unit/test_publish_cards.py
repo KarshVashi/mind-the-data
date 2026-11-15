@@ -320,7 +320,7 @@ def test_landscape_falls_back_to_good_service_when_the_caveat_overflows(
 
     def fake_render(html: str, size: object, path: Path, *, channel: str | None = None) -> None:
         name = getattr(size, "name", "")
-        rendered.append((name, "Boards can miss" in html and "caveat" or "plain"))
+        rendered.append((name, "caveat" if "Boards can miss" in html else "plain"))
         if name == "1200x675" and "Boards can miss" in html:
             raise CardOverflow("1200x675: footer below the bottom edge")
 

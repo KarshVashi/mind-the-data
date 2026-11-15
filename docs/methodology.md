@@ -295,47 +295,47 @@ On 15 November 2026 the owner accepted every recommended reading below, so each 
 | Decision | Subject | Affects |
 | --- | --- | --- |
 | [ADR-004](adr/004-multiple-statuses.md) | Highest weight wins when statuses overlap | declared (accepted) |
-| [ADR-013](adr/013-poll-per-line-minute.md), D23 | Which poll and entries describe a minute | declared |
-| D16 | Service Closed is left out of the score | declared |
-| D17 | Scheduled hours; estimates for 7 lines | both |
-| D18 | Incidents and recovery | declared |
+| [ADR-013](adr/013-poll-per-line-minute.md), D23 | Which poll and entries describe a minute | declared (decided) |
+| D16 | Service Closed is left out of the score | declared (decided) |
+| D17 | Scheduled hours; estimates for 7 lines | both (decided) |
+| D18 | Incidents and recovery | declared (decided) |
 | D19 | Disruption Index: time-weighted mean severity, 0 to 800 | declared (decided) |
-| D20 | Ties, unranked and provisional lines | declared |
-| D21 | Time bands follow the London calendar day | declared |
+| D20 | Ties, unranked and provisional lines | declared (decided) |
+| D21 | Time bands follow the London calendar day | declared (decided) |
 | D22 | Ranked only if open at least half the scheduled hours | declared (decided) |
-| D25 | Duplicate predictions (15 s) | measured |
-| D26, D40 | Linking sightings, arrival rule, time to go | measured |
+| D25 | Duplicate predictions (15 s) | measured (decided) |
+| D26, D40 | Linking sightings, arrival rule, time to go | measured (decided) |
 | D27 | Vehicle-id linking (Victoria and eight more Tube lines; not District) | measured (decided) |
-| D28, D29 | Boards, failed polls, pooled platforms | measured |
-| D30, D31, D32 | Hours of a gap, same-minute departures, timetable versions | measured |
-| D33 | Fallback frequencies (Elizabeth line, Overground) | measured |
-| D34 | Long gap against the longest scheduled gap | measured |
-| D35 | Provisional when 25% or more is closures | declared, publishing |
+| D28, D29 | Boards, failed polls, pooled platforms | measured (decided) |
+| D30, D31, D32 | Hours of a gap, same-minute departures, timetable versions | measured (decided) |
+| D33 | Fallback frequencies (Elizabeth line, Overground) | measured (decided) |
+| D34 | Long gap against the longest scheduled gap | measured (decided) |
+| D35 | Provisional when 25% or more is closures | declared, publishing (decided) |
 | D36 | Publish with provisional labels while decisions are open | publishing (decided) |
-| D37 | Typical bad hours | publishing |
-| D38 | The card's insight line | publishing |
-| D39 | Past weeks rewritten each run | publishing |
+| D37 | Typical bad hours | publishing (decided) |
+| D38 | The card's insight line | publishing (decided) |
+| D39 | Past weeks rewritten each run | publishing (decided) |
 | D42 | Gate grain, denominators, Honesty Gap; publish the measured view | measured, publishing (decided) |
-| D43 | Lines not measured | measured |
+| D43 | Lines not measured | measured (decided) |
 | D44 | Gate test fails the build | measured (decided) |
 | [ADR-014](adr/014-gate-tests-inference-fidelity.md), D46 | Gate tests inference against trains on the boards; trains run reported | measured (decided) |
 | D47 | Line of the Week | declared, publishing (decided) |
 | D48 | Wooden Spoon and worst incident | declared, publishing (decided) |
 | D49 | Monday Morning Index | declared, publishing (decided) |
 | D50 | Engineering Works table per week | declared, publishing (decided) |
-| D51 | A line-week's own gate decides whether its measured numbers are published | measured, publishing |
-| D52 | Circle and Hammersmith & City measured view withheld | measured, publishing |
-| D53 | Weak-evidence lines shown but not ranked on Experienced Reliability | measured, publishing |
-| D54 | The card's insight leaves out the Honesty Gap for now | measured, publishing |
+| D51 | A line-week's own gate decides whether its measured numbers are published | measured, publishing (decided) |
+| D52 | Circle and Hammersmith & City measured view withheld | measured, publishing (decided) |
+| D53 | Weak-evidence lines shown but not ranked on Experienced Reliability | measured, publishing (decided) |
+| D54 | The card's insight leaves out the Honesty Gap for now | measured, publishing (decided) |
 | D55 | A failing gate never holds back the declared view | measured (decided) |
-| D63 | The open dataset's contents and licence | publishing |
-| D64 | Iceberg maintenance scope (auto-apply) | operations |
-| [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing |
-| D57 | Division size, monthly measure, promotion and relegation | declared, publishing |
-| D58 | Season table, April to March | declared, publishing |
-| D59 | Recovery Time table (provisional on D18) | declared, publishing |
-| D60 | Industrial action seed and strikes-excluded table | declared, publishing |
-| D61 | Sensitivity weight sets | declared, publishing |
+| D63 | The open dataset's contents and licence | publishing (decided) |
+| D64 | Iceberg maintenance scope (auto-apply) | operations (decided) |
+| [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing (decided) |
+| D57 | Division size, monthly measure, promotion and relegation | declared, publishing (decided) |
+| D58 | Season table, April to March | declared, publishing (decided) |
+| D59 | Recovery Time table (provisional on D18) | declared, publishing (decided) |
+| D60 | Industrial action seed and strikes-excluded table | declared, publishing (decided) |
+| D61 | Sensitivity weight sets | declared, publishing (decided) |
 
 The weights for the status codes the plan names, and the time-band weights, are the build plan's values. D16 adds Service Closed to the weights, and D21 decides how the bands map onto calendar days. Sensitivity under three alternative weight sets is reported each week in `meta/methodology.json` (see Sensitivity above, D61).
 

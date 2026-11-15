@@ -283,6 +283,7 @@ def test_typical_bad_hours_ranks_by_share() -> None:
     assert typical_bad_hours(rows)[0]["disrupted_share"] == 0.9
 
 
+# Kept as a literal on purpose: a change to the published list must show up in review.
 # Owner decisions settled and published in meta/methodology.json (all but D1, 2026-11-15).
 SETTLED_IDS = [
     16,

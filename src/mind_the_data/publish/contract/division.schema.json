@@ -168,6 +168,7 @@
                 "completeness",
                 "is_provisional",
                 "movement",
+                "movement_held_reason",
                 "next_division"
               ],
               "properties": {
@@ -214,6 +215,13 @@
                     "promoted",
                     "relegated",
                     "stays"
+                  ]
+                },
+                "movement_held_reason": {
+                  "description": "provisional_month when the month was provisional (a ranked line observed under 90%), so no line moved whatever its rank (D57); otherwise null.",
+                  "enum": [
+                    null,
+                    "provisional_month"
                   ]
                 },
                 "next_division": {

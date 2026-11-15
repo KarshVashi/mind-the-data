@@ -574,6 +574,7 @@ def divisions_document(
                         "completeness": _round(r.completeness, 4),
                         "is_provisional": r.is_provisional,
                         "movement": r.movement,
+                        "movement_held_reason": r.movement_held_reason,
                         "next_division": r.next_division,
                     }
                     for r in state.rows
