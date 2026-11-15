@@ -4,8 +4,8 @@
     uv run python -m mind_the_data.publish.upload --dir build/publish --dry-run
 
 The layout, content types, cache headers and upload order follow
-docs/site-integration.md (section 2): week files, line files, cards and the
-methodology first, then league/latest.json, then meta/index.json, so a
+docs/site-integration.md (section 2): week, line, division and season files,
+cards and the methodology first, then league/latest.json, then meta/index.json, so a
 reader never sees an index that lists a file not yet uploaded. The Pages
 deploy hook is called only after every upload succeeded.
 
@@ -45,7 +45,7 @@ PNG = "image/png"
 PARQUET = "application/vnd.apache.parquet"
 MARKDOWN = "text/markdown; charset=utf-8"
 
-# Overwritten every Monday.
+# Overwritten each weekly run.
 SHORT_CACHE = "public, max-age=300"
 # Rewritten each run (D39) but changes only with the methodology or marts.
 WEEK_CACHE = "public, max-age=3600"
@@ -73,6 +73,9 @@ RULES: tuple[tuple[re.Pattern[str], str, str], ...] = (
     (re.compile(rf"league/{_WEEK}\.json"), JSON, WEEK_CACHE),
     (re.compile(r"lines/[a-z-]+\.json"), JSON, SHORT_CACHE),
     (re.compile(r"meta/(index|methodology)\.json"), JSON, SHORT_CACHE),
+    # Rewritten each run while the month or season is still open (D57, D58).
+    (re.compile(rf"divisions/{_MONTH}\.json"), JSON, SHORT_CACHE),
+    (re.compile(r"season/\d{4}-\d{2}\.json"), JSON, SHORT_CACHE),
     (re.compile(rf"cards/{_WEEK}(-1080x1350)?\.png"), PNG, CARD_CACHE),
     (
         re.compile(rf"open-data/{_MONTH}/({'|'.join(OPEN_DATASETS)})(-\d{{3}})?\.parquet"),

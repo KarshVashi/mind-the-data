@@ -49,6 +49,8 @@ EXPORT = (
     "meta/methodology.json",
     "cards/2026-W46.png",
     "cards/2026-W46-1080x1350.png",
+    "divisions/2026-11.json",
+    "season/2026-27.json",
 )
 
 
@@ -70,6 +72,8 @@ def export_dir(root: Path, files: tuple[str, ...] = EXPORT) -> Path:
         ("meta/methodology.json", JSON, SHORT_CACHE),
         ("cards/2026-W46.png", PNG, CARD_CACHE),
         ("cards/2026-W46-1080x1350.png", PNG, CARD_CACHE),
+        ("divisions/2026-11.json", JSON, SHORT_CACHE),
+        ("season/2026-27.json", JSON, SHORT_CACHE),
     ],
 )
 def test_classify_follows_the_site_integration_table(
@@ -89,6 +93,8 @@ def test_classify_follows_the_site_integration_table(
         "meta/secrets.json",
         "numbers.md",
         "open-data/2026-11/lines.parquet",
+        "divisions/2026-13.json",
+        "season/2026.json",
     ],
 )
 def test_classify_refuses_anything_else(key: str) -> None:
