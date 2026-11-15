@@ -172,7 +172,9 @@ seeding as (
                 count_if(division = 1 and unranked_reason is null) over (),
                 count_if(division = 2 and unranked_reason is null) over ()
             ) as moves,
-            -- A thin month for any ranked line holds the whole month (D57).
+            -- A thin month for any ranked line holds the whole month (D57). A
+            -- line with no scheduled minutes reads as completeness 0 here, but
+            -- it is unranked unless it also has scored minutes.
             count_if(
                 unranked_reason is null
                 and completeness < {{ var('provisional_completeness') }}

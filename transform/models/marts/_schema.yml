@@ -749,7 +749,7 @@ models:
       - name: recovery_rank
         description: 1 = quickest median; ties to fewer incidents, then shared.
       - name: definition_status
-        description: "`provisional_d18` until D18 is settled."
+        description: "`provisional_d18`: the accepted D18 draft stays labelled provisional until a month of incidents has been reviewed (D59)."
         data_tests:
           - not_null
           - accepted_values:
