@@ -404,36 +404,30 @@ What `publish-weekly.yml` needs before it publishes. Background and the reasons 
    The site itself fetches at build time and needs no CORS. This rule is for anyone reading the files from a browser.
 4. **API token.** R2 Object Storage → Manage API tokens → Create Account API token → name `mind-the-data publish`, permission **Object Read & Write**, "Apply to specific buckets only" → `mind-the-data-public`, no expiry or a dated one you will rotate. Keep the page open: it shows the access key id and secret once. The account id is on the R2 overview page (32 hex characters).
 5. **Deploy hook.** Workers & Pages → `karsh-vashi-website` → Settings → Builds → Deploy hooks → Add → name `mind-the-data weekly`, branch `main` → Save, and copy the URL. Anyone holding it can start builds, so treat it as a secret.
-6. **GitHub secrets** on this repository. Each command prompts for the value, so nothing lands in shell history:
+6. **GitHub secrets** on this repository (`-R` keeps them off whichever repo the current folder belongs to). Each command prompts for the value, so nothing lands in shell history:
 
    ```sh
-   gh secret set R2_ACCOUNT_ID
-   gh secret set R2_ACCESS_KEY_ID
-   gh secret set R2_SECRET_ACCESS_KEY
-   gh secret set R2_BUCKET               # mind-the-data-public
-   gh secret set PAGES_DEPLOY_HOOK_URL
-   gh secret list                        # all five listed
+   gh secret set R2_ACCOUNT_ID -R KarshVashi/mind-the-data
+   gh secret set R2_ACCESS_KEY_ID -R KarshVashi/mind-the-data
+   gh secret set R2_SECRET_ACCESS_KEY -R KarshVashi/mind-the-data
+   gh secret set R2_BUCKET -R KarshVashi/mind-the-data               # mind-the-data-public
+   gh secret set PAGES_DEPLOY_HOOK_URL -R KarshVashi/mind-the-data
+   gh secret list -R KarshVashi/mind-the-data                        # all five listed
    ```
 
-7. **Dry run, then a real run,** both on `main`:
+7. **Dry run, then a real run,** both on `main`. Run these from the mind-the-data checkout: `gh` picks the repository from the current folder, and from another repo it answers `HTTP 404: workflow publish-weekly.yml not found`. `-R` makes that explicit:
 
    ```sh
-   gh workflow run publish-weekly.yml --ref main -f dry_run=true
+   gh workflow run publish-weekly.yml -R KarshVashi/mind-the-data --ref main -f dry_run=true
    sleep 10   # let the run register before looking it up
-   run=$(gh run list --workflow publish-weekly.yml --event workflow_dispatch --limit 1 --json databaseId -q '.[0].databaseId')
-   gh run watch "$run" --exit-status
-   gh run download "$run" --name "publish-$run" --dir ~/mtd-publish
+   run=$(gh run list -R KarshVashi/mind-the-data --workflow publish-weekly.yml --event workflow_dispatch --limit 1 --json databaseId -q '.[0].databaseId')
+   gh run watch "$run" -R KarshVashi/mind-the-data --exit-status
+   gh run download "$run" -R KarshVashi/mind-the-data --name "publish-$run" --dir ~/mtd-publish
    # check the JSON and the cards in ~/mtd-publish/, then the real run:
-   gh workflow run publish-weekly.yml --ref main -f dry_run=false
+   gh workflow run publish-weekly.yml -R KarshVashi/mind-the-data --ref main -f dry_run=false
    ```
 
    The real run uploads and calls the deploy hook, so it is the first public publish.
-9. **Switch on the Monday schedule.** Scheduled runs publish only when this repository variable is `true`, so the secrets can be set and checked before anything goes out on its own (D36):
-
-   ```sh
-   gh variable set PUBLISH_ENABLED --body true    # off again: gh variable delete PUBLISH_ENABLED
-   ```
-
 8. **Check** the bucket and the headers after the real run:
 
    ```sh
@@ -442,6 +436,12 @@ What `publish-weekly.yml` needs before it publishes. Background and the reasons 
    ```
 
    Expect `200`, `cache-control: public, max-age=300`, `content-type: application/json; charset=utf-8` and `access-control-allow-origin: *`. Then check that a new production deployment of the site started (Workers & Pages → `karsh-vashi-website` → Deployments).
+
+9. **Switch on the Monday schedule.** Scheduled runs publish only when this repository variable is `true`, so the secrets can be set and checked before anything goes out on its own (D36):
+
+   ```sh
+   gh variable set PUBLISH_ENABLED -R KarshVashi/mind-the-data --body true    # off again: gh variable delete PUBLISH_ENABLED -R KarshVashi/mind-the-data
+   ```
 
 **Rotating the token.** Create a new token as in step 4, `gh secret set R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` with its values, run step 7's dry run and a real run, then delete the old token. A leaked deploy hook URL: delete the hook, add a new one, and `gh secret set PAGES_DEPLOY_HOOK_URL`.
 
