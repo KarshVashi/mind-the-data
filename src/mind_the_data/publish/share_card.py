@@ -34,9 +34,10 @@ class CardSize:
 
 
 LANDSCAPE = CardSize("1200x675", 1200, 675, 2, 34, 15, 30, 21)
-# Row height leaves room for a worst-case footer (partial window plus every
-# provisional group) under the trains-run insight and its caveat.
-PORTRAIT = CardSize("1080x1350", 1080, 1350, 1, 36, 20, 44, 28)
+# 20 rows x 35px leave room for a worst-case footer (partial window, four
+# lines in every provisional group) under the trains-run insight and caveat.
+# The portrait card has no fallback, so an overflow stops the publish.
+PORTRAIT = CardSize("1080x1350", 1080, 1350, 1, 35, 20, 44, 28)
 SIZES = (LANDSCAPE, PORTRAIT)
 
 # Card text is plain ASCII, so no font on any runner can lack a glyph for it

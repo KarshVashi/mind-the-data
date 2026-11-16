@@ -325,9 +325,13 @@ def test_portrait_fits_the_longest_footer_under_the_caveat(
     insight = pick_insight(trains_run)
     codes = ("mostly_engineering_works", "low_completeness", "no_scheduled_minutes")
     standings = list(trains_run.standings)
-    for i in range(12):
-        reason = ProvisionalReason(codes[i % 3], (), "stress")
-        standings[i + 2] = replace(standings[i + 2], provisional_reasons=(reason,))
+    # The footer names at most four lines per group, so the longest case is the
+    # four longest ranked names, each in every group.
+    ranked = [i for i, s in enumerate(standings) if s.unranked_reason != "engineering_works"]
+    longest = sorted(ranked, key=lambda i: -len(standings[i].line.line_name))[:4]
+    for i in longest:
+        reasons = tuple(ProvisionalReason(code, decisions=(), detail="") for code in codes)
+        standings[i] = replace(standings[i], provisional_reasons=reasons)
     worst = replace(
         trains_run,
         standings=tuple(standings),
