@@ -10,7 +10,13 @@ import pytest
 from mind_the_data.ops.athena import QueryResult
 from mind_the_data.publish import marts as marts_module
 from mind_the_data.publish.insight import line_label, pick_insight, possessive
-from mind_the_data.publish.league import League, MeasuredView, Window, league_from_daily
+from mind_the_data.publish.league import (
+    League,
+    MeasuredView,
+    ProvisionalReason,
+    Window,
+    league_from_daily,
+)
 from mind_the_data.publish.marts import (
     AthenaMarts,
     RecordedMarts,
@@ -307,6 +313,33 @@ def test_trains_run_card_carries_its_caveat_on_both_sizes(
         assert "Boards can miss trains that ran." in html
         # Raises CardOverflow if the caveat pushes anything out of its box.
         render_png(html, size, tmp_path / f"{size.name}.png")
+
+
+def test_portrait_fits_the_longest_footer_under_the_caveat(
+    browser: None, league: League, tmp_path: Path
+) -> None:
+    # The 1080x1350 card has no fallback, so it must fit the worst case: the
+    # trains-run insight with its caveat, a partial window, and every
+    # provisional group in the footer.
+    trains_run = _trains_run_league(league)
+    insight = pick_insight(trains_run)
+    codes = ("mostly_engineering_works", "low_completeness", "no_scheduled_minutes")
+    standings = list(trains_run.standings)
+    # The footer names at most four lines per group, so the longest case is the
+    # four longest ranked names, each in every group.
+    ranked = [i for i, s in enumerate(standings) if s.unranked_reason != "engineering_works"]
+    longest = sorted(ranked, key=lambda i: -len(standings[i].line.line_name))[:4]
+    for i in longest:
+        reasons = tuple(ProvisionalReason(code, decisions=(), detail="") for code in codes)
+        standings[i] = replace(standings[i], provisional_reasons=reasons)
+    worst = replace(
+        trains_run,
+        standings=tuple(standings),
+        is_complete=False,
+        latest_data_london=datetime(2026, 11, 8, 18, 21),
+    )
+    assert len(worst.standings) == 20
+    render_png(card_html(worst, insight, PORTRAIT), PORTRAIT, tmp_path / "portrait.png")
 
 
 def test_landscape_falls_back_to_good_service_when_the_caveat_overflows(
