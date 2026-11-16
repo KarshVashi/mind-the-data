@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Remove finished worktrees under .claude/worktrees/ and report the space freed.
+# Remove finished worktrees under $WORKTREE_DIR and report the space freed.
 #
 #   scripts/prune_worktrees.sh            # remove
 #   scripts/prune_worktrees.sh --dry-run  # only say what would go
@@ -9,7 +9,7 @@
 #     as .venv and .terraform go with it);
 #   - it is not locked, not the worktree this script runs from, and nothing
 #     in it (the directory, index or HEAD) changed in the last IDLE_HOURS
-#     hours (default 24), so a session still working there is left alone;
+#     hours (default 24), so work still in progress there is left alone;
 #   - its work is safe elsewhere: HEAD is already in origin/main, or a merged
 #     pull request's head is exactly HEAD (squash merges leave no ancestry,
 #     so the PR is the proof that nothing is unpushed).
@@ -28,12 +28,27 @@ esac
 
 common_dir=$(git rev-parse --path-format=absolute --git-common-dir)
 repo_root=$(dirname "$common_dir")
-worktrees_dir="$repo_root/.claude/worktrees"
+worktree_setting=${WORKTREE_DIR:-.worktrees}
+case "$worktree_setting" in
+  /*) worktrees_dir=$worktree_setting ;;
+  *) worktrees_dir="$repo_root/$worktree_setting" ;;
+esac
 here=$(git rev-parse --show-toplevel)
 
+# Resolve to a real path first, so "." / ".." / symlinks cannot slip past the
+# checks below and the result matches what `git worktree list` prints.
 if [ ! -d "$worktrees_dir" ]; then
   echo "no $worktrees_dir; nothing to prune"
   exit 0
+fi
+worktrees_dir=$(cd "$worktrees_dir" && pwd -P)
+repo_root=$(cd "$repo_root" && pwd -P)
+# The prune only acts on paths strictly inside worktrees_dir, so refuse the
+# repo root, the filesystem root, or any parent of the repo root.
+if [[ "$worktrees_dir" != *[!/]* ]] || [ "$worktrees_dir" = "$repo_root" ] \
+  || [[ "$repo_root/" == "$worktrees_dir/"* ]]; then
+  echo "WORKTREE_DIR must hold the worktrees, not be the repo root or a parent of it: $worktrees_dir" >&2
+  exit 2
 fi
 
 git -C "$repo_root" fetch --quiet --prune origin

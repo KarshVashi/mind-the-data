@@ -808,16 +808,16 @@ Without the variable, both workflows skip with a warning and leave issues alone.
 ```sh
 aws sso login --sso-session mtd
 make status                      # PRs and checks, last workflow runs, alarms, raw age per feed, open ops issues
-make prune-worktrees DRY_RUN=1   # which .claude/worktrees are finished, and the space they hold
+make prune-worktrees DRY_RUN=1   # which local worktrees are finished, and the space they hold
 make prune-worktrees             # remove them
 ```
 
 `make status` uses the read-only `mtd-dev` profile (override with `MTD_PROFILE`). Any part it can't reach is shown as unavailable, and the rest still prints.
 
-`make prune-worktrees` removes a worktree only when all of these hold:
+`make prune-worktrees` looks only inside `WORKTREE_DIR` (default `.worktrees` in the repo root; set it to wherever you keep local worktrees, relative to the repo root or absolute; the repo root itself or a parent of it is refused), and removes a worktree only when all of these hold:
 
 - it has no uncommitted or untracked changes and isn't locked;
-- nothing in it changed in the last 24 hours (`IDLE_HOURS` overrides this), so a session still working there is left alone;
+- nothing in it changed in the last 24 hours (`IDLE_HOURS` overrides this), so work still in progress there is left alone;
 - its work is safe elsewhere: it is already in `origin/main`, or a merged pull request's head is exactly its HEAD.
 
 Ignored files in a removed worktree (`.venv`, `.terraform`, dbt `target/`, local `.env` copies) go with it. Its local branch is deleted. Remote branches are never touched.

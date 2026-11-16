@@ -9,7 +9,7 @@ Decisions waiting on the owner. Every PR updates this page. When a decision is s
   - security boundaries, IAM or OIDC;
   - money or quotas;
   - metric semantics;
-  - deviations from `docs/PLAN.md`;
+  - deviations from the delivery plan (kept privately, outside this repo);
   - publishing;
   - data deletion.
 

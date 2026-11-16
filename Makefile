@@ -184,7 +184,7 @@ status: ## PRs, workflow runs, alarms, raw freshness, ops issues (read-only, pro
 	@$(UV_RUN) python scripts/status.py
 
 .PHONY: prune-worktrees
-prune-worktrees: ## Remove finished .claude/worktrees (DRY_RUN=1 to preview)
+prune-worktrees: ## Remove finished worktrees in WORKTREE_DIR (default .worktrees; DRY_RUN=1 to preview)
 	scripts/prune_worktrees.sh $(if $(DRY_RUN),--dry-run,)
 
 .PHONY: plan
