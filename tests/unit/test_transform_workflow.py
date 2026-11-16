@@ -142,3 +142,14 @@ def test_maintenance_follows_the_build_as_the_transform_role() -> None:
     assert maintenance["run"].endswith(
         "dbt run-operation iceberg_maintenance --target prod --profiles-dir ."
     )
+
+
+def test_stale_tmp_tables_are_dropped_before_the_build() -> None:
+    names = [s.get("name") or s.get("id") for s in load()["jobs"]["build"]["steps"]]
+    assert names.index("creds") < names.index("drop stale tmp tables") < names.index("dbt build")
+    cleanup = step("build", "name", "drop stale tmp tables")
+    # A failed cleanup must never stop the build from running.
+    assert cleanup["continue-on-error"] is True
+    assert cleanup["run"].endswith(
+        "dbt run-operation drop_stale_tmp_relations --target prod --profiles-dir ."
+    )

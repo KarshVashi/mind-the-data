@@ -125,3 +125,11 @@ macros:
       - name: columns
         type: list[string]
         description: Column expressions making up the grain.
+  - name: stale_tmp_identifiers
+    description: "The names, sorted, that end in `__dbt_tmp`: tables dbt-athena leaves behind when a run fails part way."
+  - name: drop_stale_tmp_relations
+    description: >
+      Run with `dbt run-operation` before the daily build: drops every
+      `__dbt_tmp` table in the target schema, so a leftover from a failed run
+      does not stop the next one with TABLE_ALREADY_EXISTS. `dry_run` only
+      logs what it would drop.

@@ -193,6 +193,14 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: transform-${{ github.run_id }}
 
+      # A failed run can leave `__dbt_tmp` tables that make the next build
+      # stop with TABLE_ALREADY_EXISTS. If this step fails, the build still
+      # runs, which is no worse than not cleaning up.
+      - name: drop stale tmp tables
+        working-directory: transform
+        continue-on-error: true
+        run: uv run --locked dbt run-operation drop_stale_tmp_relations --target prod --profiles-dir .
+
       - name: dbt build
         working-directory: transform
         env:
