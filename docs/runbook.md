@@ -497,6 +497,21 @@ Once it passes again, the next daily run rebuilds the measured tables and the fo
 
 ---
 
+## Stale tmp tables
+
+A dbt run that fails or is cancelled part way can leave `<model>__dbt_tmp` tables in `mind_the_data_prod`. The next build would then stop with `TABLE_ALREADY_EXISTS` on that model. `transform-daily` drops them before every build (`dbt run-operation drop_stale_tmp_relations`), so normally nothing is needed.
+
+If the run shows the "stale tmp cleanup failed" warning, see what is left, read-only:
+
+```sh
+cd transform
+uv run dbt run-operation drop_stale_tmp_relations --target prod --profiles-dir . --args '{dry_run: true}'
+```
+
+Then rerun `transform-daily`, or drop the listed tables as `mtd-admin` with `aws glue delete-table` and remove their S3 location.
+
+---
+
 ## Weekly publish
 
 `.github/workflows/publish-weekly.yml` publishes the league every Monday at 06:30 London time, three hours after `transform-daily` has built Sunday. It runs as `mtd-ci-publish` (read-only on the prod marts, queries through the `mind-the-data-prod` workgroup) and:

@@ -197,9 +197,14 @@ jobs:
       # stop with TABLE_ALREADY_EXISTS. If this step fails, the build still
       # runs, which is no worse than not cleaning up.
       - name: drop stale tmp tables
+        id: tmp_cleanup
         working-directory: transform
         continue-on-error: true
         run: uv run --locked dbt run-operation drop_stale_tmp_relations --target prod --profiles-dir .
+
+      - name: warn on failed tmp cleanup
+        if: ${{ steps.tmp_cleanup.outcome == 'failure' }}
+        run: echo "::warning title=stale tmp cleanup failed::Leftover __dbt_tmp tables may make the build fail with TABLE_ALREADY_EXISTS (docs/runbook.md, Stale tmp tables)."
 
       - name: dbt build
         working-directory: transform
