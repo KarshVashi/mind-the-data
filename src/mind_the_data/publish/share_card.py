@@ -34,7 +34,9 @@ class CardSize:
 
 
 LANDSCAPE = CardSize("1200x675", 1200, 675, 2, 34, 15, 30, 21)
-PORTRAIT = CardSize("1080x1350", 1080, 1350, 1, 39, 20, 44, 28)
+# Row height leaves room for a worst-case footer (partial window plus every
+# provisional group) under the trains-run insight and its caveat.
+PORTRAIT = CardSize("1080x1350", 1080, 1350, 1, 36, 20, 44, 28)
 SIZES = (LANDSCAPE, PORTRAIT)
 
 # Card text is plain ASCII, so no font on any runner can lack a glyph for it
