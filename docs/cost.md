@@ -52,6 +52,19 @@ From 10 November the collector, the daily transform and the ops checks ran with 
 
 **What drives it.** S3 PUT requests are two thirds of the bill. The poller writes about five objects a minute (one per feed per poll, ADR-003), about 216,000 a month, against the plan's estimate of 140,000 (PLAN 11). They cost about 1.15 USD a month and do not grow. Storage grows by about 0.2 GB a day and is the only line that rises month on month; it reaches the plan's figure of about £1.50 a month after a year. Athena in prod is pennies: staging reads two days of raw a run.
 
+## Every station (M8, ADR-016)
+
+From the M8 deploy, the collector also reads `Line/{id}/Arrivals` for every line each minute. That adds one object a minute and about 20 calls a minute. Estimated from the 50-station feed (about 51 KB gzipped a minute at 08:00 on 16 November):
+
+| Item | Added per 30 days | USD per 30 days |
+| --- | --- | --- |
+| S3 PUT (Tier 1) | ~43,000 requests | ~0.23 |
+| S3 storage | ~10 GB more each month | ~0.25 for each month kept |
+| Athena (two staging models each read the feed's lookback window, ~0.36 GB gzipped a day) | ~65 GB scanned | ~0.33 |
+| Lambda (poller at 1024 MB, ~216,000 GB-s), Glue | inside the free tier | 0 |
+
+That is about $0.80 a month more at first, rising by about $0.25 for each month of data kept, before Intelligent-Tiering lowers older objects. The first full month after the deploy is checked against Cost Explorer and recorded here.
+
 ## Dev Athena scans inflate the partial month
 
 The first two weeks included the week-one review, the M4 gate rechecks and dbt runs against the dev database, all through the dev workgroup. Athena's per-workgroup metrics for 1 to 13 November (CloudWatch `AWS/Athena ProcessedBytes`, successful queries):

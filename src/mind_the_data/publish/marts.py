@@ -9,7 +9,7 @@ raw string cells Athena gives back, parsed here into typed rows.
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -291,6 +291,54 @@ class StatusMixRow:
     scored_minutes: int
 
 
+@dataclass(frozen=True)
+class StationInfo:
+    """One row of dim_station: a station-level NaPTAN id and what serves it."""
+
+    naptan_id: str
+    station_name: str
+    lat: float
+    lon: float
+    line_ids: tuple[str, ...]
+    modes: tuple[str, ...]
+    is_measurement_station: bool
+
+
+@dataclass(frozen=True)
+class StationDisruptionRow:
+    """One row of fct_station_disruption_weekly."""
+
+    week_start: date
+    naptan_id: str
+    closure_hours: float
+    step_free_hours: float
+    other_disruption_hours: float
+    disruptions: int
+    observed_share: float
+
+
+@dataclass(frozen=True)
+class StationMeasuredRow:
+    """One row of fct_station_weekly_measured: a station, line and direction in a week."""
+
+    week_start: date
+    naptan_id: str
+    line_id: str
+    direction: str
+    observed_hours: float
+    trains_observed: int | None
+    trains_per_hour: float | None
+    median_gap_minutes: float | None
+    long_gaps_per_100_hours: float | None
+    scheduled_trains: int | None
+    trains_on_boards_share: float | None
+    excess_wait_minutes: float | None
+    gate_judged_hours: int
+    gate_pass_share: float | None
+    measured_status: str
+    measured_withheld_reason: str | None
+
+
 class Marts(Protocol):
     def latest_minute_london(self) -> datetime | None: ...
     def lines(self) -> list[LineInfo]: ...
@@ -306,6 +354,9 @@ class Marts(Protocol):
     def seasons(self) -> list[SeasonRow]: ...
     def strikes_excluded(self) -> list[StrikesExcludedRow]: ...
     def status_mix(self) -> list[StatusMixRow]: ...
+    def stations(self) -> list[StationInfo]: ...
+    def station_disruption_weekly(self, end: date) -> list[StationDisruptionRow]: ...
+    def station_measured_weekly(self, end: date) -> list[StationMeasuredRow]: ...
 
 
 # ---- Parsing ---------------------------------------------------------------
@@ -583,6 +634,59 @@ def parse_status_mix(cells: Cells) -> StatusMixRow:
     )
 
 
+def _list(cells: Cells, name: str) -> tuple[str, ...]:
+    # Athena prints array(varchar) as "[a, b]".
+    text = _req(cells, name).strip()
+    if not (text.startswith("[") and text.endswith("]")):
+        raise ValueError(f"column {name} is not an array: {text!r}")
+    return tuple(item.strip() for item in text[1:-1].split(",") if item.strip())
+
+
+def parse_station(cells: Cells) -> StationInfo:
+    return StationInfo(
+        naptan_id=_req(cells, "naptan_id"),
+        station_name=_req(cells, "station_name"),
+        lat=_float(cells, "lat"),
+        lon=_float(cells, "lon"),
+        line_ids=_list(cells, "line_ids"),
+        modes=_list(cells, "modes"),
+        is_measurement_station=_bool(cells, "is_measurement_station"),
+    )
+
+
+def parse_station_disruption(cells: Cells) -> StationDisruptionRow:
+    return StationDisruptionRow(
+        week_start=_date(cells, "week_start"),
+        naptan_id=_req(cells, "naptan_id"),
+        closure_hours=_float(cells, "closure_hours"),
+        step_free_hours=_float(cells, "step_free_hours"),
+        other_disruption_hours=_float(cells, "other_disruption_hours"),
+        disruptions=_int(cells, "disruptions"),
+        observed_share=_float(cells, "observed_share"),
+    )
+
+
+def parse_station_measured(cells: Cells) -> StationMeasuredRow:
+    return StationMeasuredRow(
+        week_start=_date(cells, "week_start"),
+        naptan_id=_req(cells, "naptan_id"),
+        line_id=_req(cells, "line_id"),
+        direction=_req(cells, "direction"),
+        observed_hours=_float(cells, "observed_hours"),
+        trains_observed=_opt_int(cells, "trains_observed"),
+        trains_per_hour=_opt_float(cells, "trains_per_hour"),
+        median_gap_minutes=_opt_float(cells, "median_gap_minutes"),
+        long_gaps_per_100_hours=_opt_float(cells, "long_gaps_per_100_hours"),
+        scheduled_trains=_opt_int(cells, "scheduled_trains"),
+        trains_on_boards_share=_opt_float(cells, "trains_on_boards_share"),
+        excess_wait_minutes=_opt_float(cells, "excess_wait_minutes"),
+        gate_judged_hours=_int(cells, "gate_judged_hours"),
+        gate_pass_share=_opt_float(cells, "gate_pass_share"),
+        measured_status=_req(cells, "measured_status"),
+        measured_withheld_reason=_opt(cells, "measured_withheld_reason"),
+    )
+
+
 # ---- Queries ---------------------------------------------------------------
 
 DAILY_COLUMNS = (
@@ -656,6 +760,33 @@ STRIKES_EXCLUDED_COLUMNS = (
     "unranked_reason, disruption_rank"
 )
 STATUS_MIX_COLUMNS = "line_id, week_start, status_severity, is_planned, time_band, scored_minutes"
+
+
+# Station files carry a bounded history: about 430 stations with two or more
+# line-directions each would pass the 50,000-row guard after roughly 30 weeks.
+STATION_HISTORY_WEEKS = 12
+STATION_STEMS = ("stations", "station_disruption", "station_measured")
+
+
+def station_history_filter(end: date) -> str:
+    """The last STATION_HISTORY_WEEKS weeks up to the export week, not up to today."""
+    # queries() builds every statement, with date.min for the windowless ones.
+    span = timedelta(weeks=STATION_HISTORY_WEEKS)
+    start = date.min if end - date.min < span else end - span
+    return f"week_start between date '{start.isoformat()}' and date '{end.isoformat()}'"
+
+
+STATION_COLUMNS = "naptan_id, station_name, lat, lon, line_ids, modes, is_measurement_station"
+STATION_DISRUPTION_COLUMNS = (
+    "week_start, naptan_id, closure_hours, step_free_hours, other_disruption_hours, "
+    "disruptions, observed_share"
+)
+STATION_MEASURED_COLUMNS = (
+    "week_start, naptan_id, line_id, direction, observed_hours, trains_observed, "
+    "trains_per_hour, median_gap_minutes, long_gaps_per_100_hours, scheduled_trains, "
+    "trains_on_boards_share, excess_wait_minutes, gate_judged_hours, gate_pass_share, "
+    "measured_status, measured_withheld_reason"
+)
 
 
 def queries(database: str, start: date, end: date) -> dict[str, str]:
@@ -739,6 +870,18 @@ def queries(database: str, start: date, end: date) -> dict[str, str]:
         "status_mix": (
             f"select {STATUS_MIX_COLUMNS} from {database}.rpt_weekly_status_mix "
             "order by week_start, line_id, status_severity, is_planned, time_band"
+        ),
+        "stations": (f"select {STATION_COLUMNS} from {database}.dim_station order by naptan_id"),
+        "station_disruption": (
+            f"select {STATION_DISRUPTION_COLUMNS} "
+            f"from {database}.fct_station_disruption_weekly "
+            f"where {station_history_filter(end)} order by week_start, naptan_id"
+        ),
+        "station_measured": (
+            f"select {STATION_MEASURED_COLUMNS} "
+            f"from {database}.fct_station_weekly_measured "
+            f"where {station_history_filter(end)} "
+            "order by week_start, naptan_id, line_id, direction"
         ),
     }
 
@@ -835,6 +978,17 @@ class RecordedMarts:
     def status_mix(self) -> list[StatusMixRow]:
         return [parse_status_mix(c) for c in self._optional("status_mix")]
 
+    # The station marts are empty before the first line_arrivals data, and a
+    # recording made before M8 has no files for them.
+    def stations(self) -> list[StationInfo]:
+        return [parse_station(c) for c in self._optional("stations")]
+
+    def station_disruption_weekly(self, end: date) -> list[StationDisruptionRow]:
+        return [parse_station_disruption(c) for c in self._optional("station_disruption")]
+
+    def station_measured_weekly(self, end: date) -> list[StationMeasuredRow]:
+        return [parse_station_measured(c) for c in self._optional("station_measured")]
+
 
 class AthenaMarts:
     """Read-only queries against a Glue database through an Athena workgroup.
@@ -921,6 +1075,28 @@ class AthenaMarts:
 
     def status_mix(self) -> list[StatusMixRow]:
         return [parse_status_mix(c) for c in self._run("status_mix", date.min, date.min)]
+
+    def _run_station(self, stem: str, end: date) -> list[dict[str, str | None]]:
+        """A station mart's rows; empty only if that exact table does not exist yet.
+
+        The station marts arrive with M8's first dbt build, and the Monday
+        league publish must not depend on them. Any other failure raises.
+        """
+        try:
+            return self._run(stem, end, end)
+        except RuntimeError as exc:
+            if stem in STATION_STEMS and "TABLE_NOT_FOUND" in str(exc):
+                return []
+            raise
+
+    def stations(self) -> list[StationInfo]:
+        return [parse_station(c) for c in self._run_station("stations", date.min)]
+
+    def station_disruption_weekly(self, end: date) -> list[StationDisruptionRow]:
+        return [parse_station_disruption(c) for c in self._run_station("station_disruption", end)]
+
+    def station_measured_weekly(self, end: date) -> list[StationMeasuredRow]:
+        return [parse_station_measured(c) for c in self._run_station("station_measured", end)]
 
 
 def rows_by_line[

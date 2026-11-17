@@ -132,8 +132,8 @@ if [ "$ref_count" != "0" ]; then
   echo "smoke test: reference data present in raw; not invoking $reference"
   exit 0
 fi
-# Reference timeout is 300 s.
-invoke "$reference" 330
+# Reference timeout is 600 s.
+invoke "$reference" 630
 if [ "$skipped" -eq 1 ]; then
   exit 0
 fi

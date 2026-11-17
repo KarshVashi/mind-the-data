@@ -220,7 +220,14 @@ jobs:
       - name: export
         env:
           WEEK: ${{ needs.gate.outputs.week }}
+          STATIONS_ENABLED_VAR: ${{ vars.STATIONS_PUBLISH_ENABLED }}
         run: |
+          # Station files (M8) go out only once STATIONS_PUBLISH_ENABLED is
+          # true, after the first-week coverage check (ADR-016). A dry run
+          # always includes them so they can be inspected first.
+          if [ "$STATIONS_ENABLED_VAR" = "true" ] || [ "$DRY_RUN" = "true" ]; then
+            export STATIONS_PUBLISH_ENABLED=true
+          fi
           args=(--publish-workgroup --out-dir "$OUT_DIR")
           if [ -n "$WEEK" ]; then args+=(--week "$WEEK"); fi
           uv run --locked python -m mind_the_data.publish.export "${args[@]}"

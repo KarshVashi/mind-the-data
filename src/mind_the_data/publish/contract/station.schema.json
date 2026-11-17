@@ -1,0 +1,361 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Station detail",
+  "description": "stations/{naptan_id}.json: one station's weekly measured history per line and direction and its weekly disruption history. A station with no line_arrivals data still has a file: summary.measured_status is not_measured and measured_history is empty, which must never be shown as good service.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "data_window",
+    "completeness",
+    "git_sha",
+    "station",
+    "summary",
+    "measured_history",
+    "disruption_history"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "league.schema.json#/$defs/schema_version"
+    },
+    "generated_at": {
+      "$ref": "league.schema.json#/$defs/utc_timestamp"
+    },
+    "data_window": {
+      "$ref": "league.schema.json#/$defs/data_window"
+    },
+    "completeness": {
+      "$ref": "league.schema.json#/$defs/nullable_share"
+    },
+    "git_sha": {
+      "$ref": "league.schema.json#/$defs/git_sha"
+    },
+    "station": {
+      "$ref": "#/$defs/station"
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "measured_history": {
+      "description": "Per line and direction, weeks oldest first.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "line_id",
+          "direction",
+          "weeks"
+        ],
+        "properties": {
+          "line_id": {
+            "$ref": "league.schema.json#/$defs/line_id"
+          },
+          "direction": {
+            "type": "string",
+            "minLength": 1
+          },
+          "weeks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "iso_week",
+                "week_start",
+                "observed_hours",
+                "trains_observed",
+                "trains_per_hour",
+                "median_gap_minutes",
+                "long_gaps_per_100_hours",
+                "scheduled_trains",
+                "trains_on_boards_share",
+                "excess_wait_minutes",
+                "gate_judged_hours",
+                "gate_pass_share",
+                "schedule_source",
+                "measured_status",
+                "measured_withheld_reason"
+              ],
+              "properties": {
+                "iso_week": {
+                  "$ref": "league.schema.json#/$defs/iso_week"
+                },
+                "week_start": {
+                  "$ref": "league.schema.json#/$defs/london_date"
+                },
+                "observed_hours": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "trains_observed": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "trains_per_hour": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "median_gap_minutes": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "long_gaps_per_100_hours": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "scheduled_trains": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "trains_on_boards_share": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "excess_wait_minutes": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "gate_judged_hours": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "gate_pass_share": {
+                  "$ref": "league.schema.json#/$defs/nullable_share"
+                },
+                "measured_status": {
+                  "enum": [
+                    "measured",
+                    "not_measured",
+                    "withheld"
+                  ]
+                },
+                "measured_withheld_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "schedule_source": {
+                  "description": "timetable when scheduled_trains exists; observed_only when TfL publishes no timetable (Elizabeth line, Overground), so gaps there can hide a suspension. Show distinctly.",
+                  "enum": [
+                    "timetable",
+                    "observed_only"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "disruption_history": {
+      "description": "Weeks with a disruption row, oldest first.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "iso_week",
+          "week_start",
+          "week_end",
+          "closure_hours",
+          "step_free_hours",
+          "other_disruption_hours",
+          "disruptions",
+          "observed_share"
+        ],
+        "properties": {
+          "iso_week": {
+            "$ref": "league.schema.json#/$defs/iso_week"
+          },
+          "week_start": {
+            "$ref": "league.schema.json#/$defs/london_date"
+          },
+          "week_end": {
+            "$ref": "league.schema.json#/$defs/london_date"
+          },
+          "closure_hours": {
+            "type": "number",
+            "minimum": 0
+          },
+          "step_free_hours": {
+            "type": "number",
+            "minimum": 0
+          },
+          "other_disruption_hours": {
+            "type": "number",
+            "minimum": 0
+          },
+          "disruptions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "observed_share": {
+            "$ref": "league.schema.json#/$defs/share"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "naptan_id": {
+      "type": "string",
+      "pattern": "^[0-9A-Za-z]+$"
+    },
+    "station": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "naptan_id",
+        "name",
+        "lat",
+        "lon",
+        "lines",
+        "modes",
+        "is_measurement_station"
+      ],
+      "properties": {
+        "naptan_id": {
+          "$ref": "#/$defs/naptan_id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lat": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "lon": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "modes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "is_measurement_station": {
+          "type": "boolean"
+        }
+      }
+    },
+    "disruption_summary": {
+      "description": "The export week's disruption hours; null when the feed has no row for the station (unknown, not zero).",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "closure_hours",
+            "step_free_hours",
+            "other_disruption_hours",
+            "disruptions",
+            "observed_share"
+          ],
+          "properties": {
+            "closure_hours": {
+              "type": "number",
+              "minimum": 0
+            },
+            "step_free_hours": {
+              "type": "number",
+              "minimum": 0
+            },
+            "other_disruption_hours": {
+              "type": "number",
+              "minimum": 0
+            },
+            "disruptions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "observed_share": {
+              "$ref": "league.schema.json#/$defs/share"
+            }
+          }
+        }
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "iso_week",
+        "measured_status",
+        "status_reasons",
+        "directions_measured",
+        "directions_total",
+        "disruption"
+      ],
+      "properties": {
+        "iso_week": {
+          "$ref": "league.schema.json#/$defs/iso_week"
+        },
+        "measured_status": {
+          "enum": [
+            "measured",
+            "not_measured",
+            "withheld"
+          ]
+        },
+        "status_reasons": {
+          "description": "Why directions are not measured; never empty unless every direction is measured.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "directions_measured": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "directions_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "disruption": {
+          "$ref": "#/$defs/disruption_summary"
+        }
+      }
+    }
+  }
+}

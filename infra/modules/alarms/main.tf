@@ -127,11 +127,11 @@ resource "aws_cloudwatch_metric_alarm" "request_failures" {
   ok_actions         = local.actions
 }
 
-# The weekly reference fetch runs once; any error in the hour after it is
-# worth an email.
+# The daily reference fetch runs once a day; any error in the hour after it
+# is worth an email.
 resource "aws_cloudwatch_metric_alarm" "reference_errors" {
   alarm_name          = "${var.reference_function_name}-errors"
-  alarm_description   = "The weekly reference fetch failed."
+  alarm_description   = "The daily reference fetch failed."
   namespace           = "AWS/Lambda"
   metric_name         = "Errors"
   dimensions          = { FunctionName = var.reference_function_name }

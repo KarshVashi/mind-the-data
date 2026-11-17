@@ -24,8 +24,9 @@ A collector polls TfL's Unified API every minute and keeps every response unchan
 | Line status (Tube, Elizabeth line, DLR, Overground, tram) | every minute | the declared view |
 | Line disruption | every minute | reason text for incidents |
 | Arrivals at about 50 measurement stations | every minute | the measured view |
+| Arrivals for every stop, one call per line (from M8, ADR-016) | every minute | station views |
 | Stop disruption | every 5 minutes | context |
-| Timetables, route sequences, severity codes | weekly | scheduled service, reference |
+| Timetables, route sequences, severity codes | weekly (timetables for other stations: a seventh of them each day) | scheduled service, reference |
 
 Collection started on **4 November 2026**. None of it can be backfilled, so the first week (2 to 8 November) is partial.
 
@@ -250,6 +251,24 @@ Only the hour in which the long gap ends is checked for Good Service. A gap that
 
 **A known risk.** The boards list about 85% of timetabled trains, and whether the rest ran is not known (ADR-014). If they ran, the gaps around them exist only on the boards, so the Honesty Gap reads high. Long gaps are frequent on several Tube lines (about 70 to 125 per 100 measured hours on 9 to 13 November, Bakerloo 17), so the Honesty Gap is large there: the Piccadilly line had long gaps in 78 of its 86 measured Good Service hours. These are published as measured, with this caveat beside them, until the boards can be checked against an independent count.
 
+### Station views (M8)
+
+From M8 the same method is applied at every station, not only the 50 measurement stations (ADR-016). Station views sit beside the line scores and never feed them: the line scores keep reading the 50-station feed.
+
+- **Source.** `Line/{id}/Arrivals` for every line each minute, which lists predictions for every stop on the line.
+- **Per station, line and direction**, each ISO week:
+  - trains seen on the boards and trains per hour
+  - the median gap between trains
+  - long gaps per 100 hours, by the same long-gap rule as lines
+  - where TfL publishes a timetable: scheduled trains, the share of them on the boards, and excess wait
+- **Observed hours.** An hour counts when the line's feed has at least 54 successful polls in it and no collection gap touches it.
+- **Gate.** Each hour is judged on the same 80% to 120% band as lines (ADR-014). A station-direction is published as measured only when at least 70% of its judged hours are in band and it was measured for at least half its hours of service. Otherwise it is not measured, with the reason: no observed hours, gate not judged, gate failed, or too few measured hours.
+- **Withheld lines.** Lines withheld at line level (Circle and Hammersmith & City, and lines not measured) are withheld at every station on them.
+- **No timetable.** TfL returns no timetable for Elizabeth line and Overground stations. They get observed figures only, and the timetable-based ones are left empty.
+- **Station disruption.** Closures, lift and step-free outages, and other disruptions come from the network-wide stop disruption feed, counted in 5-minute slots. Standing information notices are left out. A missing poll lowers the observed share and is never read as no disruption, so the hours are a lower bound.
+
+Station figures start provisional: one full week for a first snapshot, four for trends.
+
 ---
 
 ## 4. What is published
@@ -284,6 +303,8 @@ The card's insight line names, in order: the lowest trains-run share under 95%; 
 - **Platform changes.** A train that switches platform during its approach can count at both (D28).
 - **Strikes** are kept in the main table. The strikes-excluded table drops whole days, so a noon-to-noon strike also drops the unaffected half of each day (D60). The seed is maintained by hand from public sources; an announced strike is updated once its date passes.
 - **Divisions seeded on two weeks.** One unusual week can put a line in the wrong division for a month; the seeding is marked provisional until four weeks exist (ADR-015).
+- **Station views at termini and split interchanges.** The line view leaves termini out of its gate because trains there are counted twice (D33). Station views judge termini on their own hours, so termini often show as not measured. An interchange with both a Tube and a rail id (for example Canada Water) appears as two stations.
+- **Disruption categories are a judgement.** They follow TfL's own types plus a keyword match for lifts and step-free access; Part Closure counts as a closure.
 - **No external validation yet.** Once three 4-week periods exist, the ranking will be compared with TfL's own share of scheduled trips operated, and the rank correlation reported here.
 
 ---

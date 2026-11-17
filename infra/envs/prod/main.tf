@@ -1,7 +1,7 @@
 # Production stack. Deployed by the infra workflow when a pull request is
 # merged into main (ADR-005). CI role permissions live in infra/bootstrap.
 #
-# The collector: a poller Lambda every minute and a reference Lambda weekly,
+# The collector: a poller Lambda every minute and a reference Lambda daily,
 # both writing gzipped NDJSON to the raw bucket (ADR-003), with alarms on
 # errors, throttles and missing writes.
 
@@ -26,7 +26,7 @@ locals {
   # key in state, which every pull request plan can read (ADR-005).
   app_key_parameter_arn = "arn:aws:ssm:${var.aws_region}:${local.account_id}:parameter${var.tfl_app_key_parameter}"
 
-  poller_feeds    = ["line_status", "line_disruption", "arrivals", "stop_disruption"]
+  poller_feeds    = ["line_status", "line_disruption", "arrivals", "line_arrivals", "stop_disruption"]
   reference_feeds = ["ref_route_sequence", "ref_timetable", "ref_severity"]
 
   # Glue database names cannot contain hyphens.
@@ -104,16 +104,21 @@ module "poller" {
   source = "../../modules/lambda_function"
 
   function_name            = "${local.prefix}-poller"
-  description              = "Polls TfL line status, disruptions and arrivals every minute into raw."
+  description              = "Polls TfL line status, disruptions, station and line arrivals every minute into raw."
   handler                  = "mind_the_data.ingest.poller.handler"
   zip_path                 = var.lambda_zip_path
-  memory_mb                = 512
+  memory_mb                = 1024
   timeout_seconds          = 60
   reserved_concurrency     = var.poller_reserved_concurrency
   log_retention_days       = var.log_retention_days
   policy_json              = data.aws_iam_policy_document.poller.json
   permissions_boundary_arn = data.aws_iam_policy.workload_boundary.arn
 
+  # 1024 MB: before M8 the 52-call poll peaked at 130 MB, but the line-wide
+  # boards (ADR-016, about 7 MB of JSON a poll at peak) are unmeasured by day,
+  # and running out of memory would lose that minute for every feed. It also
+  # doubles the CPU share. About 216,000 GB-s a month, inside the free tier;
+  # check Max Memory Used in the first week and size down if there is room.
   environment = merge(local.common_env, {
     POLL_BUDGET_SECONDS = "45"
     MAX_CONCURRENCY     = "10"
@@ -129,21 +134,23 @@ module "reference" {
   source = "../../modules/lambda_function"
 
   function_name = "${local.prefix}-reference"
-  description   = "Fetches TfL route sequences, timetables and severity codes weekly into raw."
+  description   = "Fetches TfL route sequences, timetables and severity codes daily into raw."
   handler       = "mind_the_data.ingest.reference.handler"
   zip_path      = var.lambda_zip_path
-  # Larger than the plan's 60 s / 512 MB: about 199 calls and up to ~560 MB
-  # peak in the offline measurement (ADR-007).
+  # Memory per ADR-007 (245 MB used by the 197-call Monday run). The daily
+  # runs (ADR-016) make 153 to 197 calls; at TfL's 03:00 timetable latency
+  # (about 5 s a call, 30 s timeouts) a 197-call run took 230 to 245 s, so the
+  # budget and timeout leave twice that.
   memory_mb                = 1024
-  timeout_seconds          = 300
+  timeout_seconds          = 600
   log_retention_days       = var.log_retention_days
   policy_json              = data.aws_iam_policy_document.reference.json
   permissions_boundary_arn = data.aws_iam_policy.workload_boundary.arn
 
-  # Concurrency 4 keeps the weekly fetch from crowding out the poller's
+  # Concurrency 4 keeps the reference fetch from crowding out the poller's
   # requests under the 500 per minute key limit.
   environment = merge(local.common_env, {
-    POLL_BUDGET_SECONDS = "240"
+    POLL_BUDGET_SECONDS = "540"
     MAX_CONCURRENCY     = "4"
   })
 
@@ -169,9 +176,10 @@ module "schedules" {
       # A late run keeps its scheduled minute's cadence (stop disruption every 5).
       input = jsonencode({ scheduled_time = "<aws.scheduler.scheduled-time>" })
     }
-    "${local.prefix}-reference-weekly" = {
-      description           = "Invoke the reference fetch every Monday at 03:00 London time."
-      expression            = "cron(0 3 ? * MON *)"
+    # Daily since M8 (ADR-016): each run fetches one day's share of timetables.
+    "${local.prefix}-reference-daily" = {
+      description           = "Invoke the reference fetch every day at 03:00 London time."
+      expression            = "cron(0 3 * * ? *)"
       timezone              = "Europe/London"
       function_arn          = module.reference.function_arn
       retry_attempts        = 2
@@ -191,7 +199,7 @@ module "alarms" {
   metric_namespace        = var.metric_namespace
   poller_function_name    = module.poller.function_name
   reference_function_name = module.reference.function_name
-  no_write_feeds          = ["line_status", "line_disruption", "arrivals"]
+  no_write_feeds          = ["line_status", "line_disruption", "arrivals", "line_arrivals"]
   request_failure_feed    = "line_status"
 }
 

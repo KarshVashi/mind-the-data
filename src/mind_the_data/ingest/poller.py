@@ -1,4 +1,5 @@
-"""Per-minute poller: line status, line disruption, arrivals, and stop disruption every 5 minutes.
+"""Per-minute poller: line status, line disruption, station and line-wide arrivals,
+and stop disruption every 5 minutes.
 
 Lambda entry point: ``mind_the_data.ingest.poller.handler``.
 Local run: ``uv run python -m mind_the_data.ingest.poller --local --out ./tmp``.
@@ -52,6 +53,10 @@ def plan_poll(
     ]
     if slot.minute % STOP_DISRUPTION_EVERY_MINUTES == 0:
         planned.append(PlannedRequest(Feed.STOP_DISRUPTION, f"/StopPoint/Mode/{modes}/Disruption"))
+    # Line-wide boards (ADR-016) go last: requests take concurrency slots in
+    # plan order, so a slow line endpoint can only use up its own share of
+    # the budget, never the station boards' continuous history.
+    planned += [PlannedRequest(Feed.LINE_ARRIVALS, f"/Line/{line.id}/Arrivals") for line in lines]
     return planned
 
 

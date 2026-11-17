@@ -599,3 +599,271 @@ models:
         description: The same over scheduled headways.
       - name: excess_wait_seconds
         description: actual minus scheduled average wait; negative kept.
+
+  - name: int_station_inferred_arrivals
+    description: >
+      Train arrivals at every station on every line (M8), inferred from the
+      line feed (stg_line_arrivals, stg_line_arrival_polls) with exactly the
+      rules of int_inferred_arrivals (macros/inference.sql). A board is one
+      stop's platform and direction within a line's response, and the next
+      poll is the line's next successful poll. Incremental: each run deletes
+      and recomputes the arrivals dated in the staging window, reading one
+      day of polls before it (macros/window_rebuild.sql), because the line
+      feed is too large to rebuild in full. Tests cover the last 7 days.
+    columns:
+      - name: arrival_key
+        description: Row key, a hash of (board_key, last poll, expected arrival). Merge key.
+        data_tests:
+          - unique:
+              config:
+                where: "dt >= current_date - interval '7' day"
+          - not_null:
+              config:
+                where: "dt >= current_date - interval '7' day"
+      - name: board_key
+        description: Hash of (request_path, naptan_id, line_id, platform_name, direction).
+      - name: request_path
+        description: "Line request, `/Line/{lineId}/Arrivals`."
+      - name: naptan_id
+        description: Stop the train arrived at.
+      - name: line_id
+        description: TfL line id.
+      - name: platform_name
+        description: Platform as TfL names it.
+      - name: direction
+        description: "`inbound` or `outbound`; null for trains arriving to terminate."
+      - name: arrival_time
+        description: Inferred arrival, UTC (the last sighting's expected arrival).
+      - name: rule
+        description: "`left_board` or `at_platform`, as in int_inferred_arrivals."
+      - name: last_poll_id
+        description: Poll of the train's last sighting.
+      - name: last_prediction_id
+        description: TfL prediction id at the last sighting.
+      - name: last_seconds_to_arrival
+        description: Seconds to go at the last sighting, from the poll time.
+      - name: last_time_to_station
+        description: TfL's timeToStation at the last sighting.
+      - name: last_vehicle_id
+        description: Vehicle id at the last sighting; null for none or a placeholder.
+      - name: links_by_vehicle_id
+        description: True when the line links sightings by vehicle id (seed_vehicle_id_lines).
+      - name: last_seen_at
+        description: Poll time of the last sighting, UTC.
+      - name: confirmed_at
+        description: The next successful poll, which no longer carried the train; null at the end of the input.
+      - name: dt
+        description: UTC date of the arrival. Partition column.
+
+  - name: int_station_vehicle_passes
+    description: >
+      Trains seen on every station's boards in the line feed, counted by
+      vehicle id, with exactly the rules of int_vehicle_passes
+      (macros/inference.sql); the station quality gate's count of trains on
+      the boards. Incremental like int_station_inferred_arrivals, by the
+      London date of the pass. Tests cover the last 7 days.
+    columns:
+      - name: vehicle_pass_key
+        description: Row key, a hash of (line_id, naptan_id, direction, vehicle_id, first_seen_at). Merge key.
+        data_tests:
+          - unique:
+              config:
+                where: "london_date >= current_date - interval '7' day"
+          - not_null:
+              config:
+                where: "london_date >= current_date - interval '7' day"
+      - name: line_id
+        description: TfL line id.
+      - name: naptan_id
+        description: Stop.
+      - name: direction
+        description: "`inbound` or `outbound`."
+      - name: vehicle_id
+        description: TfL vehicle id.
+      - name: visit_number
+        description: Visit count within the run's read window; not stable across runs.
+      - name: first_seen_at
+        description: First sighting of the visit, UTC.
+      - name: last_seen_at
+        description: Last sighting of the visit, UTC.
+      - name: sightings
+        description: Sightings in the visit.
+      - name: min_seconds_to_arrival
+        description: Closest the train came, in seconds to go.
+      - name: pass_time
+        description: Expected arrival at the last sighting, UTC.
+      - name: london_date
+        description: London date of the pass. Partition column.
+      - name: london_hour
+        description: London hour of the pass.
+
+  - name: int_station_headways
+    description: >
+      Gaps between consecutive inferred arrivals per line, station and
+      direction for every station (M8), from int_station_inferred_arrivals,
+      with exactly the rules of int_headways (macros/inference.sql): platforms
+      pooled, terminating trains left out, each gap in the London hour of the
+      arrival that ends it, and gaps across a gap in the line feed's polls
+      flagged (D28).
+    columns:
+      - name: headway_key
+        description: The arrival_key of the arrival that ends the gap.
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Station.
+        data_tests: [not_null]
+      - name: request_path
+        description: Line request.
+        data_tests: [not_null]
+      - name: direction
+        description: "`inbound` or `outbound`."
+        data_tests: [not_null]
+      - name: previous_arrival_time
+        description: Arrival that starts the gap, UTC.
+        data_tests: [not_null]
+      - name: arrival_time
+        description: Arrival that ends the gap, UTC.
+        data_tests: [not_null]
+      - name: headway_seconds
+        description: Length of the gap in seconds.
+        data_tests: [not_null]
+      - name: spans_collection_gap
+        description: True when the line went more than collection_gap_seconds between successful polls inside the gap.
+        data_tests: [not_null]
+      - name: previous_london_ts
+        description: previous_arrival_time in London time.
+      - name: london_ts
+        description: arrival_time in London time.
+      - name: london_date
+        description: London date of the ending arrival.
+      - name: london_hour
+        description: London hour of the ending arrival.
+      - name: week_start
+        description: Monday of the London week of the ending arrival.
+
+  - name: int_station_measured_hours
+    description: >
+      The measured view's hours for every station (M8): one row per line,
+      station, direction and London hour of service, with the quality gate
+      of int_measured_hours (ADR-014) on the line feed. Hours of service are
+      the timetable's where the station-direction has one that day
+      (is_scheduled), otherwise the hours in which any train was inferred or
+      seen (Elizabeth line and Overground stations have no TfL timetable).
+      Only days on which the line's feed had a successful poll. The model
+      comment has the full rules.
+    columns:
+      - name: station_measured_hour_key
+        description: Row key, a hash of (line_id, naptan_id, direction, london_date, london_hour).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Station.
+        data_tests: [not_null]
+      - name: request_path
+        description: The line's request, whose polls decide whether the hour was observed.
+        data_tests: [not_null]
+      - name: direction
+        description: "`inbound` or `outbound`."
+        data_tests: [not_null]
+      - name: london_date
+        description: London date.
+        data_tests: [not_null]
+      - name: london_hour
+        description: London hour, 0 to 23.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: is_scheduled
+        description: True when the hour comes from a timetable; false when it is an hour with trains at a station-direction with no timetable that day.
+        data_tests: [not_null]
+      - name: is_fallback
+        description: True when the timetable is seed_line_frequencies' estimate; null without a timetable.
+      - name: successful_polls
+        description: Successful line_arrivals polls of the line in the hour.
+        data_tests: [not_null]
+      - name: is_observed
+        description: At least min_polls_per_hour polls, no collection gap touching the hour, and one UTC hour.
+        data_tests: [not_null]
+      - name: scheduled_departures
+        description: Timetabled trains in the hour; null without a timetable.
+      - name: scheduled_sum_headway_seconds
+        description: Sum of the hour's scheduled gaps; null without a timetable.
+      - name: scheduled_sum_headway_squared_seconds
+        description: Sum of the squares of the hour's scheduled gaps; null without a timetable.
+      - name: scheduled_max_headway_seconds
+        description: Longest scheduled gap of the hour, for the long-gap rule (D34); null without a timetable.
+      - name: inferred_arrivals
+        description: Trains inferred in the hour (int_station_inferred_arrivals).
+        data_tests: [not_null]
+      - name: vehicle_passes
+        description: Vehicle-id passes in the hour (int_station_vehicle_passes).
+        data_tests: [not_null]
+      - name: inferred_without_vehicle_id
+        description: Inferred trains with no vehicle id.
+        data_tests: [not_null]
+      - name: observed_trains
+        description: Trains on the boards, vehicle_passes + inferred_without_vehicle_id.
+        data_tests: [not_null]
+      - name: fidelity_ratio
+        description: inferred_arrivals / observed_trains; null with no train on the boards.
+      - name: is_gate_judged
+        description: Observed, with anything on the boards or inferred.
+        data_tests: [not_null]
+      - name: is_in_band
+        description: Observed and the fidelity ratio within gate_low_ratio to gate_high_ratio.
+        data_tests: [not_null]
+      - name: scheduled_average_wait_seconds
+        description: Expected wait for a passenger arriving at random, from the timetable; null without one.
+
+  - name: int_station_service_headways
+    description: >
+      The gaps the station measured view uses (M8): gaps from
+      int_station_headways that span no collection gap and whose every
+      London hour is an hour of service in int_station_measured_hours, so an
+      overnight break or a run of hours without trains at an untimetabled
+      station is never one long gap. Each carries the hour it ends in.
+    columns:
+      - name: headway_key
+        description: The arrival_key of the arrival that ends the gap.
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Station.
+        data_tests: [not_null]
+      - name: direction
+        description: "`inbound` or `outbound`."
+        data_tests: [not_null]
+      - name: london_date
+        description: London date of the ending arrival.
+        data_tests: [not_null]
+      - name: london_hour
+        description: London hour of the ending arrival.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week of the ending arrival.
+        data_tests: [not_null]
+      - name: previous_arrival_time
+        description: Arrival that starts the gap, UTC.
+      - name: arrival_time
+        description: Arrival that ends the gap, UTC.
+      - name: headway_seconds
+        description: Length of the gap in seconds.
+        data_tests: [not_null]
+      - name: is_scheduled
+        description: Whether the ending hour has a timetable.
+        data_tests: [not_null]
+      - name: scheduled_max_headway_seconds
+        description: Longest scheduled gap of the ending hour; null without a timetable.
+      - name: is_in_band
+        description: Whether the ending hour passed the quality gate.
+        data_tests: [not_null]
+      - name: is_long_gap
+        description: More than twice the ending hour's longest scheduled gap (D34); null without a timetable (no scheduled gap to judge it by).

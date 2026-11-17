@@ -570,9 +570,9 @@ Every alarm emails the `mind-the-data-alerts` topic ("Alert email"). The table i
 | --- | --- |
 | `mind-the-data-poller-error-rate` | Read the last errors: `aws logs tail /aws/lambda/mind-the-data-poller --profile mtd-dev --region eu-west-2 --since 30m --filter-pattern ERROR`. A TfL outage clears on its own; 401 or 403 is the key (see "Rotating the TfL key"); a parse error means TfL changed a payload, and raw still holds every response for replay once the model is fixed. |
 | `mind-the-data-poller-throttles` | Check the reserved concurrency and the account limit ("Lambda concurrency quota"). A poll running past a minute shows as a duration near the 45 s budget in the logs. |
-| `mind-the-data-no-objects-<feed>` | Is the schedule enabled? `aws scheduler get-schedule --profile mtd-dev --region eu-west-2 --name mind-the-data-poller --query State`. Then the poller logs. If only `arrivals` stopped, check `config/stations.yaml` against the last deploy. |
+| `mind-the-data-no-objects-<feed>` | Is the schedule enabled? `aws scheduler get-schedule --profile mtd-dev --region eu-west-2 --name mind-the-data-poller --query State`. Then the poller logs. If only `arrivals` stopped, check `config/stations.yaml` against the last deploy. If only `line_arrivals` stopped, check the `line_arrivals` write errors in the poller logs; the other feeds keep being written. |
 | `mind-the-data-tfl-failures-line-status` | Every line-status call fails: the key first, then TfL's own status page. |
-| `mind-the-data-reference-errors` | The weekly reference fetch failed. Nothing is lost until the next Monday; re-run it with the invoke command in "Collector alarms". |
+| `mind-the-data-reference-errors` | The daily reference fetch failed. A missed day leaves that day's sixth of the network (or, on Mondays, the measurement stations) on last week's timetables until the same weekday next week. Re-run it for the same day with the invoke command in "Collector alarms". |
 
 **Gaps.** Data the poller missed cannot be fetched again: TfL's API has no history. The minutes stay `is_missing` and lower that week's completeness, which the league shows; they are never read as Good Service. Note the cause in the week's data-quality page if it is more than a few minutes.
 
@@ -742,8 +742,9 @@ It has returned 1000 since 2026-11-07, and `poller_reserved_concurrency` in `inf
 | `mind-the-data-no-objects-line-status` | No `line_status` object is written for 10 minutes, including when the poller isn't running at all | Schedule state, then poller logs |
 | `mind-the-data-no-objects-line-disruption` | No `line_disruption` object is written for 10 minutes | Poller logs |
 | `mind-the-data-no-objects-arrivals` | No `arrivals` object is written for 10 minutes | Poller logs; station config |
+| `mind-the-data-no-objects-line-arrivals` | No `line_arrivals` object (one `Line/{id}/Arrivals` call per configured line, ADR-016) is written for 10 minutes | Poller logs |
 | `mind-the-data-tfl-failures-line-status` | Every line status request to TfL fails for 5 minutes | The app key (H8), then TfL's status |
-| `mind-the-data-reference-errors` | The weekly reference fetch ends in an error | Reference logs (`/aws/lambda/mind-the-data-reference`) |
+| `mind-the-data-reference-errors` | The daily reference fetch ends in an error | Reference logs (`/aws/lambda/mind-the-data-reference`) |
 
 A request that TfL rejects is still written to raw, as a failure envelope (ADR-003). When every request for a feed fails, which is what a revoked or disabled key looks like, the poller writes those envelopes and then ends the invocation in an error.
 
@@ -755,12 +756,29 @@ A request that TfL rejects is still written to raw, as a failure envelope (ADR-0
 
 A 401 or 403 also makes the next run read the key from SSM again, so a rotated key is picked up without a redeploy.
 
-**After the collector's first deploy**, run the reference fetch once rather than waiting for Monday 03:00:
+The same applies to `line_arrivals` alone: if every line-wide request fails, its failure envelopes and every other feed are still written, and the invocation then ends in an error, so the error-rate alarm fires.
+
+**Collection volumes (M8, ADR-016).** Each poll makes one Arrivals call per measurement station (50), one `Line/{id}/Arrivals` call per configured line (20), line status and line disruption: 72 calls a minute, 73 every fifth minute with stop disruption. That is about 15% of the 500 a minute key limit, at concurrency 10 inside the 45-second budget. `config/` is rejected at load if a poll would exceed 80 calls. The line-wide calls are queued last, so if TfL is slow they run out of budget first (`budget_exhausted` envelopes) and the station boards are unaffected.
+
+**Reference fetch cadence.** The reference Lambda runs daily at 03:00 London time (`mind-the-data-reference-daily`). Every run fetches severity codes and 40 route sequences. Monday's run fetches the measurement stations' timetables (156 calls, as when the job was weekly). Tuesday to Sunday each fetch about 110 to 145 timetables: one sixth of every other station on the tube, DLR and tram lines, taken from that run's route sequences, both directions. A station's day comes from a CRC-32 of `line/naptan`, so it is the same every week. Elizabeth line and Overground stations other than the measurement ones are skipped: TfL returns 404 for all their timetables. Runs are 153 to 197 calls at concurrency 4, within a 540-second budget (600-second timeout); at TfL's usual 03:00 timetable latency a 197-call run took about 240 seconds.
+
+**After the collector's first deploy**, run the reference fetch once rather than waiting for 03:00:
 
 ```sh
 aws lambda invoke --profile mtd-admin --region eu-west-2 \
   --function-name mind-the-data-reference --invocation-type Event /dev/null
 ```
+
+To re-run a given day's share (for example after a failed run), pass that day's scheduled time:
+
+```sh
+aws lambda invoke --profile mtd-admin --region eu-west-2 \
+  --function-name mind-the-data-reference --invocation-type Event \
+  --cli-binary-format raw-in-base64-out \
+  --payload '{"scheduled_time": "2026-11-17T03:00:00Z"}' /dev/null
+```
+
+Locally, `uv run python -m mind_the_data.ingest.reference --local --out ./tmp --date 2026-11-17` fetches the same share into `./tmp`.
 
 ---
 
@@ -792,6 +810,26 @@ uv run --locked dbt build --target dev --profiles-dir . --select stg_arrivals --
 A merge never deletes rows, so a logic change that drops rows needs `--full-refresh`. Never combine `--full-refresh` with `start_date`/`end_date`: the table would keep only that window, so dbt refuses to compile it.
 
 A change to a staging model's merge key (D45 for `stg_arrivals`) needs the same full refresh in prod, before the next daily run. Until then the daily run rereads its days under the new key beside the old rows, `assert_staged_arrivals_match_raw` fails, and everything downstream of `stg_arrivals` is skipped, `fct_line_weekly` included: it keeps its last build until the refresh. The prod command is in docs/STATUS.md, "Owner steps outstanding".
+
+---
+
+## Station models
+
+The every-station models (M8, ADR-016) carry the dbt tag `station`: `stg_line_arrivals`, `stg_line_arrival_polls`, `stg_route_station`, `dim_station`, `fct_station_disruption_weekly`, the `int_station_*` models and `fct_station_weekly_measured`. Nothing outside the tag depends on them, so the daily transform builds them in their own step (`--select tag:station`) that may fail without stopping the league build. A failure there leaves the station tables at their last good build; the line-level tables are unaffected.
+
+**Windowed models.** The line feed is about 10 GB of raw a month, and the workgroup stops any query over 10 GiB, so `int_station_inferred_arrivals` and `int_station_vehicle_passes` are never rebuilt in full. Each run deletes the days of its window (the last `lookback_days` UTC days, or `start_date` to `end_date`) and recomputes them, reading one day before the window. A first build or a `--full-refresh` without `start_date` covers only the last `station_initial_days` days (default 7), and so do `stg_line_arrivals` and `stg_line_arrival_polls`.
+
+**Backfilling.** Load older days in chunks of a few days, oldest first, after the first build has created the tables:
+
+```sh
+cd transform
+uv run --locked dbt build --target prod --profiles-dir . --select tag:station \
+  --vars '{start_date: "2026-11-18", end_date: "2026-11-21"}'
+```
+
+The staging models merge those days, the two windowed models replace them, and the tables downstream rebuild in full from what is there. Keep each chunk's line feed under the 10 GiB scan limit (a few days at the current volume).
+
+**After a failed run.** The windowed models delete their window's days in a pre-hook before recomputing them. If the run fails after the delete, those days are missing from `int_station_inferred_arrivals` or `int_station_vehicle_passes` (and so from the station views) until the next green run recomputes them. Nothing is lost: raw and `stg_line_arrivals` still hold every poll. If the failure lasted longer than `lookback_days`, rebuild the missed days with `start_date`/`end_date` as above.
 
 ---
 

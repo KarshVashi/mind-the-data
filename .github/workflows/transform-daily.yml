@@ -216,6 +216,10 @@ jobs:
           if [ -n "${SELECT// /}" ]; then
             read -ra words <<< "$SELECT"
             args+=(--select "${words[@]}")
+          else
+            # Station models (M8) build in their own step below, so a failure
+            # there never turns the line-level build red.
+            args+=(--exclude tag:station)
           fi
           if [ "$FULL_REFRESH" = "true" ]; then
             args+=(--full-refresh)
@@ -223,6 +227,20 @@ jobs:
           fi
           echo "dbt ${args[*]}"
           uv run --locked dbt "${args[@]}"
+
+      # Station views (M8, ADR-016) are new and read a new feed. They build
+      # after the line models and may fail without failing the job; a failure
+      # shows as a warning on the run.
+      - name: dbt build station models
+        id: station_build
+        if: ${{ !cancelled() && steps.creds.outcome == 'success' && needs.gate.outputs.select == '' }}
+        working-directory: transform
+        continue-on-error: true
+        run: uv run --locked dbt build --target prod --profiles-dir . --select tag:station
+
+      - name: warn on failed station build
+        if: ${{ steps.station_build.outcome == 'failure' }}
+        run: echo "::warning title=station models failed::The line-level build is unaffected; station files keep last week's data or say not measured (docs/runbook.md, Station models)."
 
       # Runs after a failed build too: compaction does not depend on the
       # tests passing, and the job still ends failed.

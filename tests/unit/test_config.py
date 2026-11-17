@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from mind_the_data.common.config import (
+    MAX_CALLS_PER_POLL,
     MAX_DISTINCT_STATIONS,
     ConfigError,
     Line,
@@ -16,6 +17,7 @@ from mind_the_data.common.config import (
     load_config,
     load_lines,
     load_stations,
+    max_calls_per_poll,
     validate_stations,
 )
 
@@ -24,6 +26,9 @@ REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
 # budget from 5.3. Stop disruption runs every fifth minute and is the headroom.
 FIXED_CALLS_PER_MINUTE = 2
 CALL_BUDGET_PER_MINUTE = 52
+# M8 (ADR-016) adds one line-wide Arrivals call per line: 72 a minute, 73 on
+# a fifth minute.
+POLL_CALLS_WITH_LINE_ARRIVALS = 73
 MODES_IN_SCOPE = {"tube", "elizabeth-line", "dlr", "overground", "tram"}
 
 # Plausible station-level ids for the small test files.
@@ -89,6 +94,43 @@ def test_distinct_stations_fit_the_call_budget(
     distinct = distinct_station_ids(stations)
     assert len(distinct) <= MAX_DISTINCT_STATIONS == 50
     assert len(distinct) + FIXED_CALLS_PER_MINUTE <= CALL_BUDGET_PER_MINUTE
+
+
+def test_poll_with_line_arrivals_fits_the_call_budget(
+    real_config: tuple[list[Line], list[Station]],
+) -> None:
+    lines, stations = real_config
+    assert max_calls_per_poll(lines, stations) == POLL_CALLS_WITH_LINE_ARRIVALS
+    assert POLL_CALLS_WITH_LINE_ARRIVALS <= MAX_CALLS_PER_POLL == 80
+
+
+def test_too_many_lines_for_the_poll_budget_rejected() -> None:
+    # 30 lines with 3 shared stations each: few stations, but one line-wide
+    # call per line takes the poll over budget (3 + 30 + 48 = 81).
+    lines = [
+        Line(
+            id=f"line-{chr(97 + n // 26)}{chr(97 + n % 26)}",
+            name="L",
+            mode=Mode.TUBE,
+            colour="#000000",
+            low_volume=False,
+        )
+        for n in range(30)
+    ]
+    stations = [
+        Station(
+            line_id=line.id,
+            naptan_id=f"940GZZLU{(3 * n + i) % 48:02d}X",
+            name=f"S{(3 * n + i) % 48}",
+            role=StationRole.CORE,
+            reason="test",
+        )
+        for n, line in enumerate(lines)
+        for i in range(3)
+    ]
+    assert len(distinct_station_ids(stations)) == 48
+    with pytest.raises(ConfigError, match="calls per poll exceeds the budget of 80"):
+        validate_stations(lines, stations)
 
 
 def test_low_volume_lines_match_the_plan(real_config: tuple[list[Line], list[Station]]) -> None:

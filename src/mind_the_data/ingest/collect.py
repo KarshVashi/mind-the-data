@@ -63,6 +63,8 @@ class CollectionSummary:
     polled_at: datetime
     duration_ms: int = 0
     feeds: dict[Feed, FeedOutcome] = field(default_factory=dict)
+    # Set when planning the follow-up round raised; the first round is still written.
+    follow_up_error: str | None = None
 
     @property
     def write_failures(self) -> list[Feed]:
@@ -85,6 +87,7 @@ class CollectionSummary:
             "request_failures": sum(o.failures for o in self.feeds.values()),
             "objects_written": sum(o.written_key is not None for o in self.feeds.values()),
             "invalid_records": sum(o.invalid_records for o in self.feeds.values()),
+            "follow_up_error": self.follow_up_error,
             "feeds": {
                 f.value: {
                     "requests": o.requests,
@@ -105,6 +108,7 @@ _LIST_MODELS: dict[Feed, type[BaseModel]] = {
     Feed.LINE_STATUS: models.LineStatus,
     Feed.LINE_DISRUPTION: models.Disruption,
     Feed.ARRIVALS: models.Arrival,
+    Feed.LINE_ARRIVALS: models.Arrival,
     Feed.STOP_DISRUPTION: models.StopDisruption,
     Feed.REF_SEVERITY: models.Severity,
 }
@@ -143,6 +147,11 @@ def count_records(feed: Feed, payload: Any) -> tuple[int, int]:
     return valid, invalid
 
 
+# Plans more requests from the first round's responses (the reference fetch
+# plans timetables from the route sequences it has just fetched).
+FollowUp = Callable[[Sequence[tuple[PlannedRequest, RequestResult]]], Sequence[PlannedRequest]]
+
+
 def to_envelope(feed: Feed, result: RequestResult, poll_id: UUID, polled_at: datetime) -> Envelope:
     return Envelope(
         poll_id=poll_id,
@@ -165,13 +174,26 @@ async def collect(
     polled_at: datetime,
     budget_s: float,
     clock: Callable[[], float] = time.monotonic,
+    follow_up: FollowUp | None = None,
 ) -> CollectionSummary:
     started = clock()
-    results = await client.get_many(
-        [(p.path, p.params) for p in planned], deadline=started + budget_s
-    )
-
+    deadline = started + budget_s
+    planned = list(planned)
+    results = await client.get_many([(p.path, p.params) for p in planned], deadline=deadline)
     summary = CollectionSummary(poll_id=poll_id, polled_at=polled_at)
+    if follow_up is not None:
+        more: list[PlannedRequest] = []
+        try:
+            more = list(follow_up(list(zip(planned, results, strict=True))))
+        except Exception as exc:
+            # A planning bug must not cost the responses already in hand; the
+            # run still fails after the writes, so the alarm fires.
+            summary.follow_up_error = type(exc).__name__
+            logger.exception("follow-up planning failed")
+        # Shares the deadline: the follow-up gets whatever budget is left.
+        results += await client.get_many([(p.path, p.params) for p in more], deadline=deadline)
+        planned += more
+
     by_feed: dict[Feed, list[Envelope]] = {}
     for request, result in zip(planned, results, strict=True):
         by_feed.setdefault(request.feed, []).append(
@@ -236,6 +258,7 @@ def run_collection(
     message: str,
     client_factory: Callable[..., TflClient] = TflClient,
     on_auth_failure: Callable[[], None] = lambda: None,
+    follow_up: FollowUp | None = None,
 ) -> CollectionSummary:
     """Run one collection end to end and raise if it should alarm."""
 
@@ -243,7 +266,13 @@ def run_collection(
         # One client per invocation: its connection pool belongs to this event loop.
         async with client_factory(app_key, max_concurrency=max_concurrency) as client:
             return await collect(
-                client, writer, planned, poll_id=uuid4(), polled_at=polled_at, budget_s=budget_s
+                client,
+                writer,
+                planned,
+                poll_id=uuid4(),
+                polled_at=polled_at,
+                budget_s=budget_s,
+                follow_up=follow_up,
             )
 
     summary = asyncio.run(go())
@@ -254,6 +283,8 @@ def run_collection(
         on_auth_failure()
     problems = [f"raw write failed for {f.value}" for f in summary.write_failures]
     problems += [f"every request failed for {f.value}" for f in summary.outage_feeds]
+    if summary.follow_up_error is not None:
+        problems.append(f"follow-up planning failed: {summary.follow_up_error}")
     if problems:
         raise CollectionFailed("; ".join(problems))
     return summary

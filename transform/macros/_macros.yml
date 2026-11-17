@@ -6,10 +6,19 @@ macros:
       The raw days a staging run reads, as {start, end} 'YYYY-MM-DD' strings
       (inclusive, UTC). `start_date`/`end_date` vars win; otherwise an
       incremental run starts `lookback_days` before today and a full refresh
-      starts at `raw_start_date`. The end defaults to today. Fails compilation
-      on a malformed date or an inverted window.
+      starts at `raw_start_date`, or with `initial_days` that many days back
+      (not before raw_start_date). The end defaults to today. Fails
+      compilation on a malformed date or an inverted window.
+    arguments:
+      - name: initial_days
+        type: integer
+        description: Optional bound on a first build or full refresh without start_date (station models).
   - name: raw_dt_filter
     description: "`dt between '<start>' and '<end>'` for the current staging window, as literals so partition projection prunes."
+    arguments:
+      - name: initial_days
+        type: integer
+        description: Passed to staging_window.
   - name: staging_incremental_predicates
     description: >
       The merge's predicate on the existing staging table: `target.dt` from
@@ -83,10 +92,13 @@ macros:
     arguments:
       - name: feed
         type: string
-        description: Raw table name, one of raw_feeds().
+        description: Raw table name in the `raw` source.
       - name: successful_only
         type: bool
         description: Keep only `is_ok` envelopes (default true).
+      - name: initial_days
+        type: integer
+        description: Passed to staging_window; bounds a first build or full refresh.
   - name: utc_timestamp
     description: ISO 8601 text with a zone to a zoneless UTC timestamp(6), the type Iceberg on Athena stores.
     arguments:
@@ -142,3 +154,80 @@ macros:
       - name: dry_run
         type: bool
         description: Log what would be dropped without dropping it.
+  - name: athena__safe_cast
+    description: >
+      Overrides dbt_athena.athena__safe_cast (checked against dbt-athena
+      1.11.1) so a YAML list in a unit-test fixture row casts as an Athena
+      array (`array['a', 'b']`); everything else is try_cast as before.
+    arguments:
+      - name: field
+        type: string
+        description: SQL expression, or a list of values from a fixture row.
+      - name: type
+        type: string
+        description: Target Athena type.
+  - name: inferred_arrivals
+    description: >
+      The train-arrival inference (PLAN 7.2), shared by int_inferred_arrivals
+      (per-station feed) and int_station_inferred_arrivals (line feed). With
+      the measurement-station arguments it renders the SQL
+      int_inferred_arrivals held before it was shared.
+    arguments:
+      - name: predictions
+        type: string
+        description: Relation shaped like stg_arrivals.
+      - name: polls
+        type: string
+        description: Relation shaped like stg_polls.
+      - name: predictions_where
+        type: string
+        description: Predicate bounding the predictions read (alias `arrivals`).
+      - name: polls_where
+        type: string
+        description: Predicate choosing the successful polls read.
+      - name: output_where
+        type: string
+        description: Optional predicate on the arrivals written (on expected_arrival).
+  - name: vehicle_passes
+    description: Vehicle-id passes (ADR-014), shared by int_vehicle_passes and int_station_vehicle_passes.
+    arguments:
+      - name: predictions
+        type: string
+        description: Relation shaped like stg_arrivals.
+      - name: predictions_where
+        type: string
+        description: Predicate bounding the predictions read.
+      - name: output_where
+        type: string
+        description: Optional predicate on the visits written (on pass_time).
+  - name: headways
+    description: Gaps between inferred arrivals with collection-gap flags (D28), shared by int_headways and int_station_headways.
+    arguments:
+      - name: arrivals
+        type: string
+        description: Relation shaped like int_inferred_arrivals.
+      - name: polls
+        type: string
+        description: Relation shaped like stg_polls.
+      - name: polls_where
+        type: string
+        description: Predicate choosing the successful polls read.
+      - name: stations
+        type: string
+        description: Optional relation of (line_id, naptan_id) pairs to keep.
+  - name: window_rebuild_bounds
+    description: >
+      The every-station inference models' window as {read_start, start, end}
+      'YYYY-MM-DD' strings: the staging window, plus one day read before it.
+  - name: delete_window_rows
+    description: Pre-hook for the windowed models; on an incremental run, deletes the window's rows of `column`.
+    arguments:
+      - name: column
+        type: string
+        description: Date column the window applies to.
+  - name: window_incremental_predicates
+    description: As staging_incremental_predicates, on any date column of the target.
+    arguments:
+      - name: column
+        type: string
+        description: Date column of the target.

@@ -1,0 +1,58 @@
+{
+ "columns": [
+  "naptan_id",
+  "station_name",
+  "lat",
+  "lon",
+  "line_ids",
+  "modes",
+  "is_measurement_station"
+ ],
+ "rows": [
+  [
+   "910GKNGX",
+   "King's Cross St. Pancras",
+   "51.5308",
+   "-0.1238",
+   "[circle, hammersmith-city, metropolitan, northern, piccadilly, victoria]",
+   "[national-rail, tube]",
+   "false"
+  ],
+  [
+   "940GZZLUBNK",
+   "Bank Underground Station",
+   "51.5133",
+   "-0.0886",
+   "[central, northern, waterloo-city]",
+   "[tube]",
+   "true"
+  ],
+  [
+   "940GZZLUOXC",
+   "Oxford Circus Underground Station",
+   "51.5152",
+   "-0.1415",
+   "[bakerloo, central, victoria]",
+   "[tube]",
+   "true"
+  ],
+  [
+   "940GZZLUUPK",
+   "Upminster Underground Station",
+   "51.5590",
+   "0.2510",
+   "[district]",
+   "[tube]",
+   "false"
+  ],
+  [
+   "940GZZDLBNK",
+   "Bank DLR Station",
+   "51.5133",
+   "-0.0891",
+   "[dlr]",
+   "[dlr]",
+   "false"
+  ]
+ ]
+}

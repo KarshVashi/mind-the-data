@@ -1,0 +1,295 @@
+version: 2
+
+# Hand-computed cases for the every-station measured view (PLAN M8). Inputs
+# read from models that only the line_arrivals feed fills are given as SQL,
+# so the tests run before that raw table exists.
+
+unit_tests:
+  - name: int_station_inferred_arrivals_reads_the_line_feed_across_midnight
+    description: >
+      One Victoria line request lists stops X, Y and Z (GMT, so London time
+      is UTC). Polls p1 23:58:30 and p2 23:59:30 on 4 November, p3 00:00:30
+      on the 5th; the run's window starts on the 5th, so polls from the 4th
+      are read (the extra day) but arrivals dated the 4th are not written.
+      X: vehicle 201 due 23:59:40 at p1 and 23:59:45 at p2, gone at p3: it
+      arrived at 23:59:45 on the 4th, outside the window, so no row.
+      Y: vehicle 202 due 00:00:05 at p2 (35 s out), gone at p3: an arrival
+      at 00:00:05 on the 5th, found only because the 4th's polls were read.
+      Z: vehicle 203 due 00:00:30 at p3, the last poll, 0 s out: at the
+      platform, an arrival. A failed Central poll ends nothing.
+    model: int_station_inferred_arrivals
+    overrides:
+      macros:
+        is_incremental: false
+      vars:
+        raw_start_date: "2026-11-05"
+        start_date: null
+        end_date: "2026-11-05"
+        # Read from raw_start_date, as a backfill would, not the last days.
+        station_initial_days: null
+        placeholder_vehicle_ids: ["000", "001"]
+    given:
+      - input: ref('seed_vehicle_id_lines')
+        rows:
+          - {line_id: victoria, link_by_vehicle_id: true}
+      - input: ref('stg_line_arrival_polls')
+        format: sql
+        rows: |
+          select
+              poll_id, '/Line/victoria/Arrivals' as request_path, polled_at, is_ok,
+              cast(polled_at as date) as dt
+          from (
+              values
+                  ('p1', timestamp '2026-11-04 23:58:30', true),
+                  ('p2', timestamp '2026-11-04 23:59:30', true),
+                  ('p3', timestamp '2026-11-05 00:00:30', true)
+          ) as t (poll_id, polled_at, is_ok)
+          union all
+          select 'c1', '/Line/central/Arrivals', timestamp '2026-11-05 00:00:00', false, date '2026-11-05'
+      - input: ref('stg_line_arrivals')
+        format: sql
+        rows: |
+          select
+              poll_id,
+              '/Line/victoria/Arrivals' as request_path,
+              naptan_id,
+              'victoria' as line_id,
+              'Platform 1' as platform_name,
+              'outbound' as direction,
+              '-1' as prediction_id,
+              vehicle_id,
+              expected_arrival,
+              60 as time_to_station,
+              cast(polled_at as date) as dt
+          from (
+              values
+                  ('p1', timestamp '2026-11-04 23:58:30', 'X', '201', timestamp '2026-11-04 23:59:40'),
+                  ('p2', timestamp '2026-11-04 23:59:30', 'X', '201', timestamp '2026-11-04 23:59:45'),
+                  ('p2', timestamp '2026-11-04 23:59:30', 'Y', '202', timestamp '2026-11-05 00:00:05'),
+                  ('p3', timestamp '2026-11-05 00:00:30', 'Z', '203', timestamp '2026-11-05 00:00:30')
+          ) as t (poll_id, polled_at, naptan_id, vehicle_id, expected_arrival)
+    expect:
+      rows:
+        - {naptan_id: Y, arrival_time: "2026-11-05 00:00:05", rule: left_board, last_poll_id: p2, last_seconds_to_arrival: 35, last_vehicle_id: "202", dt: "2026-11-05"}
+        - {naptan_id: Z, arrival_time: "2026-11-05 00:00:30", rule: at_platform, last_poll_id: p3, last_seconds_to_arrival: 0, last_vehicle_id: "203", dt: "2026-11-05"}
+
+  - name: int_station_vehicle_passes_keeps_the_window_by_london_date
+    description: >
+      Window from 5 November (GMT). Vehicle 301 at X is seen at 23:59:00 on
+      the 4th, 70 s out, and at 00:00:00 on the 5th, 10 s out (due
+      00:00:10): one visit, a pass at 00:00:10 on the 5th, kept although it
+      began on the 4th. Vehicle 302 passes at 23:50:30 on the 4th: before
+      the window, not written.
+    model: int_station_vehicle_passes
+    overrides:
+      macros:
+        is_incremental: false
+      vars:
+        raw_start_date: "2026-11-05"
+        start_date: null
+        end_date: "2026-11-05"
+        # Read from raw_start_date, as a backfill would, not the last days.
+        station_initial_days: null
+        placeholder_vehicle_ids: ["000", "001"]
+        vehicle_pass_visit_gap_seconds: 600
+        vehicle_pass_threshold_seconds: 120
+    given:
+      - input: ref('stg_line_arrivals')
+        format: sql
+        rows: |
+          select
+              'victoria' as line_id, 'X' as naptan_id, 'outbound' as direction,
+              vehicle_id, polled_at, expected_arrival, cast(polled_at as date) as dt
+          from (
+              values
+                  ('301', timestamp '2026-11-04 23:59:00', timestamp '2026-11-05 00:00:10'),
+                  ('301', timestamp '2026-11-05 00:00:00', timestamp '2026-11-05 00:00:10'),
+                  ('302', timestamp '2026-11-04 23:50:00', timestamp '2026-11-04 23:50:30')
+          ) as t (vehicle_id, polled_at, expected_arrival)
+    expect:
+      rows:
+        - {vehicle_id: "301", first_seen_at: "2026-11-04 23:59:00", sightings: 2, min_seconds_to_arrival: 10, pass_time: "2026-11-05 00:00:10", london_date: "2026-11-05", london_hour: 0}
+
+  - name: int_station_measured_hours_spine_gate_and_missing_polls
+    description: >
+      Wednesday 4 November (GMT). X is on the Victoria line, with a
+      timetable: outbound hours 8, 9 and 10 and inbound hour 8, 20 trains
+      each. E is on the Elizabeth line, with none. The Victoria feed polls
+      every minute 08:00:10 to 09:59:10 except 09:20:10 to 09:22:10, so
+      hour 9 has 57 polls and a 240 s gap (over 150 s): not observed. Hour
+      10 has no poll: not observed, 0 trains, a row all the same (a
+      scheduled hour is never dropped). The Elizabeth feed polls 08:00:10 to
+      08:59:10 only.
+      X outbound hour 8: 18 inferred (2 without a vehicle id) against 17
+      passes: 17 + 2 = 19 on the boards, 18 / 19 = 0.95, judged and in
+      band. Hour 9: 20 and 20, not observed so not judged. An inferred
+      train at 07:30 is outside the timetable on a timetabled day: dropped.
+      X inbound hour 8: 30 inferred against 20 passes, 1.5: judged, out of
+      band (a failed gate hour).
+      E has no timetable, so its hours of service are those with trains:
+      hour 8 (10 inferred, no ids, so 10 on the boards; judged, in band)
+      and hour 9 (6 inferred, no polls: not observed). W is not a station in
+      dim_station and a null-direction arrival is a terminating train: both
+      left out.
+    model: int_station_measured_hours
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+        collection_gap_seconds: 150
+        min_polls_per_hour: 54
+        gate_low_ratio: 0.8
+        gate_high_ratio: 1.2
+    given:
+      - input: ref('dim_station')
+        rows:
+          - {naptan_id: X, line_ids: [victoria]}
+          - {naptan_id: E, line_ids: [elizabeth]}
+      - input: ref('day_types')
+        rows:
+          - {iso_day_of_week: 1, day_type: mon_thu}
+          - {iso_day_of_week: 2, day_type: mon_thu}
+          - {iso_day_of_week: 3, day_type: mon_thu}
+          - {iso_day_of_week: 4, day_type: mon_thu}
+          - {iso_day_of_week: 5, day_type: fri}
+          - {iso_day_of_week: 6, day_type: sat}
+          - {iso_day_of_week: 7, day_type: sun}
+      - input: ref('int_scheduled_headways')
+        rows:
+          - {line_id: victoria, naptan_id: X, direction: outbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 20, sum_headway_seconds: 3600, sum_headway_squared_seconds: 648000, max_headway_seconds: 180, is_fallback: false}
+          - {line_id: victoria, naptan_id: X, direction: outbound, day_type: mon_thu, service_hour: 9, london_hour: 9, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 20, sum_headway_seconds: 3600, sum_headway_squared_seconds: 648000, max_headway_seconds: 180, is_fallback: false}
+          - {line_id: victoria, naptan_id: X, direction: outbound, day_type: mon_thu, service_hour: 10, london_hour: 10, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 20, sum_headway_seconds: 3600, sum_headway_squared_seconds: 648000, max_headway_seconds: 180, is_fallback: false}
+          - {line_id: victoria, naptan_id: X, direction: inbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 20, sum_headway_seconds: 3600, sum_headway_squared_seconds: 648000, max_headway_seconds: 180, is_fallback: false}
+      - input: ref('stg_line_arrival_polls')
+        format: sql
+        rows: |
+          select
+              request_path || format_datetime(polled_at, 'HHmmss') as poll_id,
+              request_path,
+              polled_at,
+              true as is_ok,
+              cast(polled_at as date) as dt
+          from (
+              select '/Line/victoria/Arrivals' as request_path, polled_at
+              from unnest(
+                  sequence(
+                      timestamp '2026-11-04 08:00:10', timestamp '2026-11-04 09:19:10', interval '1' minute
+                  )
+                  || sequence(
+                      timestamp '2026-11-04 09:23:10', timestamp '2026-11-04 09:59:10', interval '1' minute
+                  )
+              ) as t (polled_at)
+              union all
+              select '/Line/elizabeth/Arrivals', polled_at
+              from unnest(
+                  sequence(
+                      timestamp '2026-11-04 08:00:10', timestamp '2026-11-04 08:59:10', interval '1' minute
+                  )
+              ) as t (polled_at)
+          )
+      - input: ref('int_station_inferred_arrivals')
+        format: sql
+        rows: |
+          select
+              line_id, naptan_id, direction,
+              date_add('second', n * 30, start_at) as arrival_time,
+              if(n < without_id, cast(null as varchar), 'v') as last_vehicle_id
+          from (
+              values
+                  ('victoria', 'X', 'outbound', timestamp '2026-11-04 08:00:00', 18, 2),
+                  ('victoria', 'X', 'outbound', timestamp '2026-11-04 09:00:00', 20, 0),
+                  ('victoria', 'X', 'outbound', timestamp '2026-11-04 07:30:00', 1, 0),
+                  ('victoria', 'X', 'inbound', timestamp '2026-11-04 08:00:00', 30, 0),
+                  ('elizabeth', 'E', 'outbound', timestamp '2026-11-04 08:00:00', 10, 10),
+                  ('elizabeth', 'E', 'outbound', timestamp '2026-11-04 09:00:00', 6, 6),
+                  ('victoria', 'W', 'outbound', timestamp '2026-11-04 08:00:00', 5, 0),
+                  ('victoria', 'X', null, timestamp '2026-11-04 08:00:00', 3, 0)
+          ) as runs (line_id, naptan_id, direction, start_at, trains, without_id)
+          cross join unnest(sequence(0, runs.trains - 1)) as t (n)
+      - input: ref('int_station_vehicle_passes')
+        format: sql
+        rows: |
+          select
+              line_id, naptan_id, direction, date '2026-11-04' as london_date, london_hour
+          from (
+              values
+                  ('victoria', 'X', 'outbound', 8, 17),
+                  ('victoria', 'X', 'outbound', 9, 20),
+                  ('victoria', 'X', 'inbound', 8, 20)
+          ) as runs (line_id, naptan_id, direction, london_hour, passes)
+          cross join unnest(sequence(1, runs.passes)) as t (n)
+    expect:
+      rows:
+        - {naptan_id: X, direction: outbound, london_hour: 8, is_scheduled: true, scheduled_departures: 20, successful_polls: 60, is_observed: true, inferred_arrivals: 18, vehicle_passes: 17, inferred_without_vehicle_id: 2, observed_trains: 19, is_gate_judged: true, is_in_band: true}
+        - {naptan_id: X, direction: outbound, london_hour: 9, is_scheduled: true, scheduled_departures: 20, successful_polls: 57, is_observed: false, inferred_arrivals: 20, vehicle_passes: 20, inferred_without_vehicle_id: 0, observed_trains: 20, is_gate_judged: false, is_in_band: false}
+        - {naptan_id: X, direction: outbound, london_hour: 10, is_scheduled: true, scheduled_departures: 20, successful_polls: 0, is_observed: false, inferred_arrivals: 0, vehicle_passes: 0, inferred_without_vehicle_id: 0, observed_trains: 0, is_gate_judged: false, is_in_band: false}
+        - {naptan_id: X, direction: inbound, london_hour: 8, is_scheduled: true, scheduled_departures: 20, successful_polls: 60, is_observed: true, inferred_arrivals: 30, vehicle_passes: 20, inferred_without_vehicle_id: 0, observed_trains: 20, is_gate_judged: true, is_in_band: false}
+        - {naptan_id: E, direction: outbound, london_hour: 8, is_scheduled: false, scheduled_departures: null, successful_polls: 60, is_observed: true, inferred_arrivals: 10, vehicle_passes: 0, inferred_without_vehicle_id: 10, observed_trains: 10, is_gate_judged: true, is_in_band: true}
+        - {naptan_id: E, direction: outbound, london_hour: 9, is_scheduled: false, scheduled_departures: null, successful_polls: 0, is_observed: false, inferred_arrivals: 6, vehicle_passes: 0, inferred_without_vehicle_id: 6, observed_trains: 6, is_gate_judged: false, is_in_band: false}
+
+  - name: int_station_service_headways_midnight_unserved_hours_and_no_timetable
+    description: >
+      Sunday 8 to Monday 9 November (GMT). X Victoria outbound has hours of
+      service 23:00 on the 8th (longest scheduled gap 300 s), 00:00 on the
+      9th (600 s), 05:00 (360 s) and 08:00 (120 s, out of band).
+      h1 23:49 to 00:10 crosses midnight and the week boundary; both hours
+      are in service, so it counts in hour 0 of Monday 9 November, week of
+      the 9th; 1260 > 2 x 600 is long. h2 00:30 to 05:10 spans hours 1 to 4
+      with no service: dropped. h3 05:10 to 05:16, 360 s, not long. h4 spans
+      a collection gap: dropped. h5 08:05 to 08:10, 300 > 240: long, in an
+      hour out of band. E (Elizabeth, no timetable) serves hours 8 and 9:
+      e1 08:50 to 09:05 counts, with no scheduled gap to call it long
+      (null); e2 09:05 to 11:00 crosses hour 10, which had no train: dropped.
+    model: int_station_service_headways
+    given:
+      - input: ref('int_station_headways')
+        format: sql
+        rows: |
+          select
+              headway_key, line_id, naptan_id, direction,
+              previous_arrival_time, arrival_time,
+              date_diff('millisecond', previous_arrival_time, arrival_time) / 1e3 as headway_seconds,
+              spans_collection_gap,
+              previous_arrival_time as previous_london_ts,
+              arrival_time as london_ts,
+              cast(arrival_time as date) as london_date,
+              hour(arrival_time) as london_hour
+          from (
+              values
+                  ('h1', 'victoria', 'X', 'outbound', timestamp '2026-11-08 23:49:00', timestamp '2026-11-09 00:10:00', false),
+                  ('h2', 'victoria', 'X', 'outbound', timestamp '2026-11-09 00:30:00', timestamp '2026-11-09 05:10:00', false),
+                  ('h3', 'victoria', 'X', 'outbound', timestamp '2026-11-09 05:10:00', timestamp '2026-11-09 05:16:00', false),
+                  ('h4', 'victoria', 'X', 'outbound', timestamp '2026-11-09 07:58:00', timestamp '2026-11-09 08:05:00', true),
+                  ('h5', 'victoria', 'X', 'outbound', timestamp '2026-11-09 08:05:00', timestamp '2026-11-09 08:10:00', false),
+                  ('e1', 'elizabeth', 'E', 'outbound', timestamp '2026-11-09 08:50:00', timestamp '2026-11-09 09:05:00', false),
+                  ('e2', 'elizabeth', 'E', 'outbound', timestamp '2026-11-09 09:05:00', timestamp '2026-11-09 11:00:00', false)
+          ) as t (
+              headway_key, line_id, naptan_id, direction, previous_arrival_time, arrival_time,
+              spans_collection_gap
+          )
+      - input: ref('int_station_measured_hours')
+        format: sql
+        rows: |
+          select
+              line_id, naptan_id, direction, london_date, london_hour,
+              date_trunc('week', london_date) as week_start,
+              is_scheduled, scheduled_max_headway_seconds, is_in_band,
+              line_id || naptan_id || cast(london_date as varchar) || cast(london_hour as varchar)
+                  as station_measured_hour_key
+          from (
+              values
+                  ('victoria', 'X', 'outbound', date '2026-11-08', 23, true, 300e0, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 0, true, 600e0, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 5, true, 360e0, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 8, true, 120e0, false),
+                  ('elizabeth', 'E', 'outbound', date '2026-11-09', 8, false, null, true),
+                  ('elizabeth', 'E', 'outbound', date '2026-11-09', 9, false, null, true)
+          ) as t (
+              line_id, naptan_id, direction, london_date, london_hour, is_scheduled,
+              scheduled_max_headway_seconds, is_in_band
+          )
+    expect:
+      rows:
+        - {headway_key: h1, london_date: "2026-11-09", london_hour: 0, week_start: "2026-11-09", headway_seconds: 1260, is_scheduled: true, is_in_band: true, is_long_gap: true}
+        - {headway_key: h3, london_date: "2026-11-09", london_hour: 5, week_start: "2026-11-09", headway_seconds: 360, is_scheduled: true, is_in_band: true, is_long_gap: false}
+        - {headway_key: h5, london_date: "2026-11-09", london_hour: 8, week_start: "2026-11-09", headway_seconds: 300, is_scheduled: true, is_in_band: false, is_long_gap: true}
+        - {headway_key: e1, london_date: "2026-11-09", london_hour: 9, week_start: "2026-11-09", headway_seconds: 900, is_scheduled: false, is_in_band: true, is_long_gap: null}

@@ -579,6 +579,7 @@ def test_every_exported_path_has_an_upload_rule(marts: RecordedMarts) -> None:
     paths = [o.path for o in outputs]
     assert any(p.startswith("divisions/") for p in paths)
     assert any(p.startswith("season/") for p in paths)
+    assert "stations/index.json" in paths and "stations/940GZZLUOXC.json" in paths
     iso_week = iso_week_of(WEEK)
     paths += [f"cards/{iso_week}.png", f"cards/{iso_week}-1080x1350.png"]
     for path in paths:

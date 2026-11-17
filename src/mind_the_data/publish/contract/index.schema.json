@@ -20,18 +20,42 @@
     "seasons"
   ],
   "properties": {
-    "schema_version": {"$ref": "league.schema.json#/$defs/schema_version"},
-    "generated_at": {"$ref": "league.schema.json#/$defs/utc_timestamp"},
-    "data_window": {"$ref": "league.schema.json#/$defs/data_window"},
-    "completeness": {"$ref": "league.schema.json#/$defs/nullable_share"},
-    "git_sha": {"$ref": "league.schema.json#/$defs/git_sha"},
+    "schema_version": {
+      "$ref": "league.schema.json#/$defs/schema_version"
+    },
+    "generated_at": {
+      "$ref": "league.schema.json#/$defs/utc_timestamp"
+    },
+    "data_window": {
+      "$ref": "league.schema.json#/$defs/data_window"
+    },
+    "completeness": {
+      "$ref": "league.schema.json#/$defs/nullable_share"
+    },
+    "git_sha": {
+      "$ref": "league.schema.json#/$defs/git_sha"
+    },
     "data_through": {
       "description": "The newest minute in the data, London wall-clock time.",
-      "oneOf": [{"type": "null"}, {"$ref": "league.schema.json#/$defs/london_timestamp"}]
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "league.schema.json#/$defs/london_timestamp"
+        }
+      ]
     },
     "latest_week": {
       "description": "The ISO week league/latest.json holds; null before the first complete week.",
-      "oneOf": [{"type": "null"}, {"$ref": "league.schema.json#/$defs/iso_week"}]
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "league.schema.json#/$defs/iso_week"
+        }
+      ]
     },
     "weeks": {
       "description": "Every complete ISO week with observed data, newest first. Each league file is rewritten on every run from the current marts and code (D39).",
@@ -39,12 +63,26 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["iso_week", "week_start", "week_end", "path"],
+        "required": [
+          "iso_week",
+          "week_start",
+          "week_end",
+          "path"
+        ],
         "properties": {
-          "iso_week": {"$ref": "league.schema.json#/$defs/iso_week"},
-          "week_start": {"$ref": "league.schema.json#/$defs/london_date"},
-          "week_end": {"$ref": "league.schema.json#/$defs/london_date"},
-          "path": {"type": "string", "pattern": "^league/\\d{4}-W\\d{2}\\.json$"}
+          "iso_week": {
+            "$ref": "league.schema.json#/$defs/iso_week"
+          },
+          "week_start": {
+            "$ref": "league.schema.json#/$defs/london_date"
+          },
+          "week_end": {
+            "$ref": "league.schema.json#/$defs/london_date"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^league/\\d{4}-W\\d{2}\\.json$"
+          }
         }
       }
     },
@@ -54,21 +92,48 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["line_id", "line_name", "mode", "colour", "is_low_volume", "path"],
+        "required": [
+          "line_id",
+          "line_name",
+          "mode",
+          "colour",
+          "is_low_volume",
+          "path"
+        ],
         "properties": {
-          "line_id": {"$ref": "league.schema.json#/$defs/line_id"},
-          "line_name": {"type": "string", "minLength": 1},
-          "mode": {"type": "string", "minLength": 1},
-          "colour": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
-          "is_low_volume": {"type": "boolean"},
-          "path": {"type": "string", "pattern": "^lines/[a-z-]+\\.json$"}
+          "line_id": {
+            "$ref": "league.schema.json#/$defs/line_id"
+          },
+          "line_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mode": {
+            "type": "string",
+            "minLength": 1
+          },
+          "colour": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          },
+          "is_low_volume": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^lines/[a-z-]+\\.json$"
+          }
         }
       }
     },
-    "views": {"$ref": "league.schema.json#/$defs/views"},
+    "views": {
+      "$ref": "league.schema.json#/$defs/views"
+    },
     "open_decisions": {
       "type": "array",
-      "items": {"$ref": "league.schema.json#/$defs/decision_id"},
+      "items": {
+        "$ref": "league.schema.json#/$defs/decision_id"
+      },
       "uniqueItems": true
     },
     "months": {
@@ -116,6 +181,36 @@
             "type": "string",
             "pattern": "^season/\\d{4}-\\d{2}\\.json$"
           }
+        }
+      }
+    },
+    "stations": {
+      "description": "The station files: the index the map reads and every station id with a detail file. Absent when the station export is switched off.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index_path",
+        "path_template",
+        "count",
+        "naptan_ids"
+      ],
+      "properties": {
+        "index_path": {
+          "const": "stations/index.json"
+        },
+        "path_template": {
+          "const": "stations/{naptan_id}.json"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "naptan_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "station.schema.json#/$defs/naptan_id"
+          },
+          "uniqueItems": true
         }
       }
     }
