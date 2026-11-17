@@ -60,10 +60,10 @@ From the M8 deploy, the collector also reads `Line/{id}/Arrivals` for every line
 | --- | --- | --- |
 | S3 PUT (Tier 1) | ~43,000 requests | ~0.23 |
 | S3 storage | ~10 GB more each month | ~0.25 for each month kept |
-| Athena (daily staging, lookback window) | ~30 GB scanned | ~0.15 |
-| Lambda, Glue | inside the free tier | 0 |
+| Athena (two staging models each read the feed's lookback window, ~0.36 GB gzipped a day) | ~65 GB scanned | ~0.33 |
+| Lambda (poller at 1024 MB, ~216,000 GB-s), Glue | inside the free tier | 0 |
 
-That is about $0.60 a month more at first, rising by about $0.25 for each month of data kept, before Intelligent-Tiering lowers older objects. The first full month after the deploy is checked against Cost Explorer and recorded here.
+That is about $0.80 a month more at first, rising by about $0.25 for each month of data kept, before Intelligent-Tiering lowers older objects. The first full month after the deploy is checked against Cost Explorer and recorded here.
 
 ## Dev Athena scans inflate the partial month
 
