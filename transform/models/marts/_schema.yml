@@ -19,6 +19,39 @@ models:
         description: Shown but flagged as low volume.
         data_tests: [not_null]
 
+  - name: dim_station
+    description: >
+      Every station on every line in scope (M8), one row per station-level
+      NaPTAN id, from each line's latest route sequences (both directions).
+      Name and coordinates come from the latest route sequence listing the
+      station. An interchange TfL gives both a 940G and a 910G id (e.g.
+      Canada Water) is two rows, matching the ids the arrivals and
+      disruption feeds use.
+    columns:
+      - name: naptan_id
+        description: Station-level NaPTAN id (940GZZ... or 910G...).
+        data_tests: [unique, not_null]
+      - name: station_name
+        description: >
+          TfL's name without its stop-type suffix (" Underground Station",
+          " Rail Station", " DLR Station", " Tram Stop"); null if no route
+          sequence's `stations` list describes the station.
+      - name: tfl_station_name
+        description: TfL's name as sent, e.g. `Green Park Underground Station`.
+      - name: lat
+        description: Latitude, WGS84.
+      - name: lon
+        description: Longitude, WGS84.
+      - name: line_ids
+        description: Lines in scope that stop here, sorted.
+        data_tests: [not_null]
+      - name: modes
+        description: Modes of those lines (the `lines` seed's mode_name), sorted.
+        data_tests: [not_null]
+      - name: is_measurement_station
+        description: True when the station is in seed_measurement_stations for any line.
+        data_tests: [not_null]
+
   - name: dim_service_hours
     description: >
       Scheduled operating minutes per line, London date and time band, the

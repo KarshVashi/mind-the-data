@@ -1,0 +1,52 @@
+version: 2
+
+# Hand-computed cases for the station views (PLAN M8). Every expected value
+# is worked out in the description. Inputs read from models that only the
+# line_arrivals feed fills are given as SQL, so the tests run before that
+# raw table exists.
+
+unit_tests:
+  - name: dim_station_latest_sequences_lines_and_names
+    description: >
+      Victoria inbound was fetched twice: the older fetch (v1) lists Pimlico,
+      the latest (v2) does not, so Pimlico is not a station any more.
+      Victoria outbound (v3) and Jubilee outbound (j1) both list Green Park,
+      which gets line_ids [jubilee, victoria] and one mode, tube. Oxford
+      Circus is a measurement station. Abbey Wood is on the Elizabeth line
+      (mode elizabeth-line). A sequence for thameslink, not in the lines
+      seed, adds nothing. Green Park's name and coordinates come from the
+      latest fetch describing it (j1, 2026-11-04), with " Underground
+      Station" dropped; Abbey Wood's " Rail Station" likewise.
+    model: dim_station
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_route_sequence')
+        rows:
+          - {poll_id: v1, request_path: /Line/victoria/Route/Sequence/inbound, polled_at: "2026-11-02 02:00:00", line_id: victoria, direction: inbound, naptan_id: 940GZZLUPCO, dt: "2026-11-02"}
+          - {poll_id: v1, request_path: /Line/victoria/Route/Sequence/inbound, polled_at: "2026-11-02 02:00:00", line_id: victoria, direction: inbound, naptan_id: 940GZZLUOXC, dt: "2026-11-02"}
+          - {poll_id: v2, request_path: /Line/victoria/Route/Sequence/inbound, polled_at: "2026-11-09 02:00:00", line_id: victoria, direction: inbound, naptan_id: 940GZZLUOXC, dt: "2026-11-09"}
+          - {poll_id: v3, request_path: /Line/victoria/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: victoria, direction: outbound, naptan_id: 940GZZLUGPK, dt: "2026-11-09"}
+          - {poll_id: j1, request_path: /Line/jubilee/Route/Sequence/outbound, polled_at: "2026-11-04 02:00:00", line_id: jubilee, direction: outbound, naptan_id: 940GZZLUGPK, dt: "2026-11-04"}
+          - {poll_id: e1, request_path: /Line/elizabeth/Route/Sequence/outbound, polled_at: "2026-11-04 02:00:00", line_id: elizabeth, direction: outbound, naptan_id: 910GABWDXR, dt: "2026-11-04"}
+          - {poll_id: t1, request_path: /Line/thameslink/Route/Sequence/outbound, polled_at: "2026-11-04 02:00:00", line_id: thameslink, direction: outbound, naptan_id: 910GBLFR, dt: "2026-11-04"}
+      - input: ref('stg_route_station')
+        rows:
+          - {naptan_id: 940GZZLUGPK, polled_at: "2026-11-03 02:00:00", station_name: Green Park Old Name, lat: 1.0, lon: 1.0, dt: "2026-11-03"}
+          - {naptan_id: 940GZZLUGPK, polled_at: "2026-11-04 02:00:00", station_name: Green Park Underground Station, lat: 51.506947, lon: -0.142787, dt: "2026-11-04"}
+          - {naptan_id: 940GZZLUOXC, polled_at: "2026-11-09 02:00:00", station_name: Oxford Circus Underground Station, lat: 51.515224, lon: -0.141903, dt: "2026-11-09"}
+          - {naptan_id: 910GABWDXR, polled_at: "2026-11-04 02:00:00", station_name: Abbey Wood Rail Station, lat: 51.491, lon: 0.1214, dt: "2026-11-04"}
+      - input: ref('lines')
+        rows:
+          - {line_id: victoria, mode_name: tube}
+          - {line_id: jubilee, mode_name: tube}
+          - {line_id: elizabeth, mode_name: elizabeth-line}
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: victoria, naptan_id: 940GZZLUOXC, station_name: Oxford Circus, role: core}
+    expect:
+      rows:
+        - {naptan_id: 940GZZLUGPK, station_name: Green Park, lat: 51.506947, lon: -0.142787, line_ids: [jubilee, victoria], modes: [tube], is_measurement_station: false}
+        - {naptan_id: 940GZZLUOXC, station_name: Oxford Circus, lat: 51.515224, lon: -0.141903, line_ids: [victoria], modes: [tube], is_measurement_station: true}
+        - {naptan_id: 910GABWDXR, station_name: Abbey Wood, lat: 51.491, lon: 0.1214, line_ids: [elizabeth], modes: [elizabeth-line], is_measurement_station: false}

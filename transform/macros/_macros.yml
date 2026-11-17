@@ -142,3 +142,15 @@ macros:
       - name: dry_run
         type: bool
         description: Log what would be dropped without dropping it.
+  - name: athena__safe_cast
+    description: >
+      Overrides dbt_athena.athena__safe_cast (checked against dbt-athena
+      1.11.1) so a YAML list in a unit-test fixture row casts as an Athena
+      array (`array['a', 'b']`); everything else is try_cast as before.
+    arguments:
+      - name: field
+        type: string
+        description: SQL expression, or a list of values from a fixture row.
+      - name: type
+        type: string
+        description: Target Athena type.

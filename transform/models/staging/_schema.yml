@@ -451,14 +451,16 @@ models:
 
   - name: stg_route_station
     description: >
-      Stations a route sequence lists (its `stations` array) at a grain of
-      fetch x line x direction x station, with TfL's name, coordinates and
-      modes. dim_station describes each station from the latest fetch that
-      lists it. Line membership is stg_route_sequence's job. Only successful
-      envelopes.
+      Stop points a route sequence describes (`stopPointSequences[].stopPoint[]`)
+      at a grain of fetch x line x direction x stop-point sequence x stop, with
+      TfL's name and coordinates. Their ids match the routes' `naptanIds`;
+      the top-level `stations` list is not used because it gives hub ids
+      for some interchanges. dim_station describes each station from the
+      latest fetch that lists it. Line membership is stg_route_sequence's
+      job. Only successful envelopes.
     columns:
       - name: route_station_key
-        description: Row key, a hash of (poll_id, request_path, station_ordinal). Merge key.
+        description: Row key, a hash of (poll_id, request_path, sequence_ordinal, stop_ordinal). Merge key.
         data_tests: [unique, not_null]
       - name: poll_id
         description: Collector run that fetched the sequence.
@@ -474,8 +476,11 @@ models:
         data_tests: [not_null]
       - name: direction
         description: "`inbound` or `outbound`."
-      - name: station_ordinal
-        description: 1-based position of the station in the response's `stations` array.
+      - name: sequence_ordinal
+        description: 1-based position of the stop-point sequence (a branch) in the response.
+        data_tests: [not_null]
+      - name: stop_ordinal
+        description: 1-based position of the stop within that sequence.
         data_tests: [not_null]
       - name: naptan_id
         description: Station-level NaPTAN id (940G..., 910G...).
@@ -488,9 +493,8 @@ models:
         description: Longitude, WGS84.
       - name: stop_type
         description: TfL stop type, e.g. `NaptanMetroStation`.
-      - name: modes
-        description: TfL modes serving the station; empty when TfL sends none.
-        data_tests: [not_null]
+      - name: top_most_parent_id
+        description: TfL's top-most parent (a HUB id at interchanges, else the station id).
       - name: dt
         description: UTC date of the raw partition. Partition column.
         data_tests: [not_null]
