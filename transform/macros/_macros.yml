@@ -154,3 +154,68 @@ macros:
       - name: type
         type: string
         description: Target Athena type.
+  - name: inferred_arrivals
+    description: >
+      The train-arrival inference (PLAN 7.2), shared by int_inferred_arrivals
+      (per-station feed) and int_station_inferred_arrivals (line feed). With
+      the measurement-station arguments it renders the SQL
+      int_inferred_arrivals held before it was shared.
+    arguments:
+      - name: predictions
+        type: string
+        description: Relation shaped like stg_arrivals.
+      - name: polls
+        type: string
+        description: Relation shaped like stg_polls.
+      - name: predictions_where
+        type: string
+        description: Predicate bounding the predictions read (alias `arrivals`).
+      - name: polls_where
+        type: string
+        description: Predicate choosing the successful polls read.
+      - name: output_where
+        type: string
+        description: Optional predicate on the arrivals written (on expected_arrival).
+  - name: vehicle_passes
+    description: Vehicle-id passes (ADR-014), shared by int_vehicle_passes and int_station_vehicle_passes.
+    arguments:
+      - name: predictions
+        type: string
+        description: Relation shaped like stg_arrivals.
+      - name: predictions_where
+        type: string
+        description: Predicate bounding the predictions read.
+      - name: output_where
+        type: string
+        description: Optional predicate on the visits written (on pass_time).
+  - name: headways
+    description: Gaps between inferred arrivals with collection-gap flags (D28), shared by int_headways and int_station_headways.
+    arguments:
+      - name: arrivals
+        type: string
+        description: Relation shaped like int_inferred_arrivals.
+      - name: polls
+        type: string
+        description: Relation shaped like stg_polls.
+      - name: polls_where
+        type: string
+        description: Predicate choosing the successful polls read.
+      - name: stations
+        type: string
+        description: Optional relation of (line_id, naptan_id) pairs to keep.
+  - name: window_rebuild_bounds
+    description: >
+      The every-station inference models' window as {read_start, start, end}
+      'YYYY-MM-DD' strings: the staging window, plus one day read before it.
+  - name: delete_window_rows
+    description: Pre-hook for the windowed models; on an incremental run, deletes the window's rows of `column`.
+    arguments:
+      - name: column
+        type: string
+        description: Date column the window applies to.
+  - name: window_incremental_predicates
+    description: As staging_incremental_predicates, on any date column of the target.
+    arguments:
+      - name: column
+        type: string
+        description: Date column of the target.
