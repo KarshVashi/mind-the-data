@@ -71,6 +71,9 @@ def _measured_week(row: StationMeasuredRow) -> dict[str, Any]:
         "excess_wait_minutes": _round(row.excess_wait_minutes, 2),
         "gate_judged_hours": row.gate_judged_hours,
         "gate_pass_share": _round(row.gate_pass_share, 4),
+        # Without a TfL timetable (Elizabeth line, Overground) a suspension
+        # can hide in the gaps, so the map must show these distinctly.
+        "schedule_source": "timetable" if row.scheduled_trains is not None else "observed_only",
         "measured_status": row.measured_status,
         "measured_withheld_reason": row.measured_withheld_reason,
     }
@@ -120,7 +123,7 @@ def _summary(
     }
 
 
-class _Grouped:
+class StationRows:
     """Rows up to the export week, grouped by station."""
 
     def __init__(
@@ -148,12 +151,10 @@ class _Grouped:
 
 def station_index_document(
     stations: Sequence[StationInfo],
-    disruption: Sequence[StationDisruptionRow],
-    measured: Sequence[StationMeasuredRow],
+    grouped: StationRows,
     stamp: Stamp,
-    window: Window,
 ) -> dict[str, Any]:
-    grouped = _Grouped(window, disruption, measured)
+    window = grouped.window
     return {
         **envelope(stamp, window, None),
         "latest_week": iso_week_of(window.start),
@@ -170,12 +171,10 @@ def station_index_document(
 
 def station_document(
     station: StationInfo,
-    disruption: Sequence[StationDisruptionRow],
-    measured: Sequence[StationMeasuredRow],
+    grouped: StationRows,
     stamp: Stamp,
-    window: Window,
 ) -> dict[str, Any]:
-    grouped = _Grouped(window, disruption, measured)
+    window = grouped.window
     history: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in grouped.measured[station.naptan_id]:
         history[(row.line_id, row.direction)].append(_measured_week(row))

@@ -10,6 +10,7 @@ from jsonschema import ValidationError
 from mind_the_data.publish import export, upload
 from mind_the_data.publish.documents import Stamp
 from mind_the_data.publish.marts import (
+    AthenaMarts,
     RecordedMarts,
     StationDisruptionRow,
     StationInfo,
@@ -24,8 +25,10 @@ W46 = date(2026, 11, 9)
 W45 = date(2026, 11, 2)
 
 
-def docs(marts: RecordedMarts, week: date = W46) -> dict[str, dict]:  # type: ignore[type-arg]
-    _, outputs = export.build_outputs(marts, week, STAMP, allow_incomplete=True)
+def docs(marts: RecordedMarts, week: date = W46, *, enabled: bool = True) -> dict[str, dict]:  # type: ignore[type-arg]
+    _, outputs = export.build_outputs(
+        marts, week, STAMP, allow_incomplete=True, stations_enabled=enabled
+    )
     return {o.path: o.document for o in outputs}
 
 
@@ -115,10 +118,10 @@ class NoStations(RecordedMarts):
     def stations(self) -> list[StationInfo]:
         return []
 
-    def station_disruption_weekly(self) -> list[StationDisruptionRow]:
+    def station_disruption_weekly(self, end: date) -> list[StationDisruptionRow]:
         return []
 
-    def station_measured_weekly(self) -> list[StationMeasuredRow]:
+    def station_measured_weekly(self, end: date) -> list[StationMeasuredRow]:
         return []
 
 
@@ -129,10 +132,10 @@ def test_empty_source_still_exports() -> None:
 
 
 class NoArrivals(RecordedMarts):
-    def station_measured_weekly(self) -> list[StationMeasuredRow]:
+    def station_measured_weekly(self, end: date) -> list[StationMeasuredRow]:
         return []
 
-    def station_disruption_weekly(self) -> list[StationDisruptionRow]:
+    def station_disruption_weekly(self, end: date) -> list[StationDisruptionRow]:
         return []
 
 
@@ -166,7 +169,7 @@ def test_station_schemas_reject_bad_documents() -> None:
     with pytest.raises(ValidationError):
         validate(index, "station_index")
     meta = json.loads(json.dumps(d["meta/index.json"]))
-    del meta["stations"]
+    meta["stations"]["count"] = "many"
     with pytest.raises(ValidationError):
         validate(meta, "index")
 
@@ -176,3 +179,74 @@ def test_station_upload_rules() -> None:
         assert upload.classify(key) == (upload.JSON, upload.SHORT_CACHE)
     with pytest.raises(upload.UploadError):
         upload.classify("stations/../x.json")
+
+
+def test_flag_off_writes_no_station_files_and_no_block() -> None:
+    d = docs(RecordedMarts(FIXTURES), enabled=False)
+    assert not [p for p in d if p.startswith("stations/")]
+    assert "stations" not in d["meta/index.json"]
+    validate(d["meta/index.json"], "index")
+
+
+def test_cli_flag_comes_from_the_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    args = ["--week", "2026-W46", "--recorded", str(FIXTURES), "--no-cards", "--allow-incomplete"]
+    monkeypatch.delenv(export.STATIONS_ENABLED_VAR, raising=False)
+    assert export.main([*args, "--out-dir", str(tmp_path / "off")]) == 0
+    assert not (tmp_path / "off" / "stations").exists()
+    monkeypatch.setenv(export.STATIONS_ENABLED_VAR, "true")
+    assert export.main([*args, "--out-dir", str(tmp_path / "on")]) == 0
+    assert (tmp_path / "on" / "stations" / "index.json").exists()
+
+
+def test_schedule_source() -> None:
+    doc = docs(RecordedMarts(FIXTURES))["stations/940GZZLUOXC.json"]
+    sources = {
+        (h["line_id"], h["direction"]): h["weeks"][0]["schedule_source"]
+        for h in doc["measured_history"]
+    }
+    assert sources[("victoria", "northbound")] == "timetable"
+    assert sources[("central", "eastbound")] == "observed_only"
+
+
+class MissingTables(AthenaMarts):
+    def __init__(self, error: str) -> None:
+        self.error = error
+        self.calls: list[str] = []
+
+    def _run(self, stem: str, start: date, end: date) -> list[dict[str, str | None]]:
+        self.calls.append(stem)
+        raise RuntimeError(self.error)
+
+
+def test_missing_station_tables_read_as_empty() -> None:
+    marts = MissingTables("query q FAILED: TABLE_NOT_FOUND: Table 'x' does not exist")
+    assert marts.stations() == []
+    assert marts.station_disruption_weekly(W46) == []
+    assert marts.station_measured_weekly(W46) == []
+
+
+def test_other_station_failures_still_raise() -> None:
+    marts = MissingTables("query q FAILED: SYNTAX_ERROR")
+    with pytest.raises(RuntimeError):
+        marts.stations()
+
+
+def test_history_window_follows_the_export_week() -> None:
+    from mind_the_data.publish.marts import queries
+
+    sql = queries("db", W46, W46)["station_measured"]
+    assert "between date '2026-08-17' and date '2026-11-09'" in sql
+    assert "current_date" not in sql
+
+
+class MissingStationMarts(RecordedMarts):
+    def stations(self) -> list[StationInfo]:
+        return []
+
+
+def test_league_files_survive_missing_station_marts() -> None:
+    d = docs(MissingStationMarts(FIXTURES))
+    assert "league/latest.json" in d
+    assert d["stations/index.json"]["stations"] == []

@@ -17,8 +17,7 @@
     "views",
     "open_decisions",
     "months",
-    "seasons",
-    "stations"
+    "seasons"
   ],
   "properties": {
     "schema_version": {
@@ -186,7 +185,7 @@
       }
     },
     "stations": {
-      "description": "The station files: the index the map reads and every station id with a detail file.",
+      "description": "The station files: the index the map reads and every station id with a detail file. Absent when the station export is switched off.",
       "type": "object",
       "additionalProperties": false,
       "required": [

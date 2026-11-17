@@ -9,7 +9,7 @@ raw string cells Athena gives back, parsed here into typed rows.
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -355,8 +355,8 @@ class Marts(Protocol):
     def strikes_excluded(self) -> list[StrikesExcludedRow]: ...
     def status_mix(self) -> list[StatusMixRow]: ...
     def stations(self) -> list[StationInfo]: ...
-    def station_disruption_weekly(self) -> list[StationDisruptionRow]: ...
-    def station_measured_weekly(self) -> list[StationMeasuredRow]: ...
+    def station_disruption_weekly(self, end: date) -> list[StationDisruptionRow]: ...
+    def station_measured_weekly(self, end: date) -> list[StationMeasuredRow]: ...
 
 
 # ---- Parsing ---------------------------------------------------------------
@@ -765,7 +765,17 @@ STATUS_MIX_COLUMNS = "line_id, week_start, status_severity, is_planned, time_ban
 # Station files carry a bounded history: about 430 stations with two or more
 # line-directions each would pass the 50,000-row guard after roughly 30 weeks.
 STATION_HISTORY_WEEKS = 12
-STATION_HISTORY_FILTER = f"week_start >= date_add('week', -{STATION_HISTORY_WEEKS}, current_date)"
+STATION_STEMS = ("stations", "station_disruption", "station_measured")
+
+
+def station_history_filter(end: date) -> str:
+    """The last STATION_HISTORY_WEEKS weeks up to the export week, not up to today."""
+    # queries() builds every statement, with date.min for the windowless ones.
+    span = timedelta(weeks=STATION_HISTORY_WEEKS)
+    start = date.min if end - date.min < span else end - span
+    return f"week_start between date '{start.isoformat()}' and date '{end.isoformat()}'"
+
+
 STATION_COLUMNS = "naptan_id, station_name, lat, lon, line_ids, modes, is_measurement_station"
 STATION_DISRUPTION_COLUMNS = (
     "week_start, naptan_id, closure_hours, step_free_hours, other_disruption_hours, "
@@ -865,12 +875,12 @@ def queries(database: str, start: date, end: date) -> dict[str, str]:
         "station_disruption": (
             f"select {STATION_DISRUPTION_COLUMNS} "
             f"from {database}.fct_station_disruption_weekly "
-            f"where {STATION_HISTORY_FILTER} order by week_start, naptan_id"
+            f"where {station_history_filter(end)} order by week_start, naptan_id"
         ),
         "station_measured": (
             f"select {STATION_MEASURED_COLUMNS} "
             f"from {database}.fct_station_weekly_measured "
-            f"where {STATION_HISTORY_FILTER} "
+            f"where {station_history_filter(end)} "
             "order by week_start, naptan_id, line_id, direction"
         ),
     }
@@ -973,10 +983,10 @@ class RecordedMarts:
     def stations(self) -> list[StationInfo]:
         return [parse_station(c) for c in self._optional("stations")]
 
-    def station_disruption_weekly(self) -> list[StationDisruptionRow]:
+    def station_disruption_weekly(self, end: date) -> list[StationDisruptionRow]:
         return [parse_station_disruption(c) for c in self._optional("station_disruption")]
 
-    def station_measured_weekly(self) -> list[StationMeasuredRow]:
+    def station_measured_weekly(self, end: date) -> list[StationMeasuredRow]:
         return [parse_station_measured(c) for c in self._optional("station_measured")]
 
 
@@ -1066,16 +1076,27 @@ class AthenaMarts:
     def status_mix(self) -> list[StatusMixRow]:
         return [parse_status_mix(c) for c in self._run("status_mix", date.min, date.min)]
 
+    def _run_station(self, stem: str, end: date) -> list[dict[str, str | None]]:
+        """A station mart's rows; empty only if that exact table does not exist yet.
+
+        The station marts arrive with M8's first dbt build, and the Monday
+        league publish must not depend on them. Any other failure raises.
+        """
+        try:
+            return self._run(stem, end, end)
+        except RuntimeError as exc:
+            if stem in STATION_STEMS and "TABLE_NOT_FOUND" in str(exc):
+                return []
+            raise
+
     def stations(self) -> list[StationInfo]:
-        return [parse_station(c) for c in self._run("stations", date.min, date.min)]
+        return [parse_station(c) for c in self._run_station("stations", date.min)]
 
-    def station_disruption_weekly(self) -> list[StationDisruptionRow]:
-        rows = self._run("station_disruption", date.min, date.min)
-        return [parse_station_disruption(c) for c in rows]
+    def station_disruption_weekly(self, end: date) -> list[StationDisruptionRow]:
+        return [parse_station_disruption(c) for c in self._run_station("station_disruption", end)]
 
-    def station_measured_weekly(self) -> list[StationMeasuredRow]:
-        rows = self._run("station_measured", date.min, date.min)
-        return [parse_station_measured(c) for c in rows]
+    def station_measured_weekly(self, end: date) -> list[StationMeasuredRow]:
+        return [parse_station_measured(c) for c in self._run_station("station_measured", end)]
 
 
 def rows_by_line[
