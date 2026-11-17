@@ -111,3 +111,108 @@ unit_tests:
         - {iso_week: 2026-W46, week_start: "2026-11-09", naptan_id: A, closure_hours: 0.16666666666666666, step_free_hours: 0, other_disruption_hours: 0, disruptions: 1, expected_slots: 4, observed_slots: 2, observed_share: 0.5}
         - {iso_week: 2026-W46, week_start: "2026-11-09", naptan_id: B, closure_hours: 0, step_free_hours: 0, other_disruption_hours: 0, disruptions: 0, expected_slots: 4, observed_slots: 2, observed_share: 0.5}
         - {iso_week: 2026-W46, week_start: "2026-11-09", naptan_id: D, closure_hours: 0, step_free_hours: 0, other_disruption_hours: 0, disruptions: 0, expected_slots: 4, observed_slots: 2, observed_share: 0.5}
+
+  - name: fct_station_weekly_measured_statuses_medians_and_withheld_lines
+    description: >
+      Week of Monday 9 November (2026-W46).
+      X Victoria outbound has 4 scheduled hours of 30 trains (scheduled
+      gaps 120 s, scheduled wait 432000 / 7200 = 60 s). Hours 8 to 10 are
+      observed, judged and in band (28, 30 and 10 trains on the boards);
+      hour 11 is not observed. Observed hours 3, trains 68, 68 / 3 =
+      22.667 an hour; scheduled trains in observed hours 90, share 68 / 90
+      = 0.7556. Gate 3 of 3; measured 3 >= 0.5 x 4: measured. In-band gaps
+      120, 120, 300 (hour 8), 240 (hour 9), 90, 150 (hour 10); the 600 s gap
+      in hour 11 is not in band. Sorted 90, 120, 120, 150, 240, 300: median
+      (120 + 150) / 2 = 135 s = 2.25 min. Only the 300 s gap is long:
+      100 x 1 / 3 = 33.333 per 100 hours. Excess wait: hour 8 118800 / 1080
+      - 60 = 50 s, hour 9 57600 / 480 - 60 = 60 s, hour 10 30600 / 480 - 60
+      = 3.75 s; mean 37.917 s = 0.63194 min.
+      X Victoria inbound: 2 judged hours, 1 in band, 1 / 2 < 0.7: gate
+      failed, not measured. Its train counts stay (65 trains, 32.5 an hour,
+      65 / 60 = 1.0833 of the timetable); gap measures are null.
+      E Elizabeth outbound has no timetable: two observed hours with trains,
+      both in band, so measured. Gaps 300, 360, 420: median 6 min. No
+      scheduled trains, share, excess wait or long-gap rate (null).
+      Y Circle outbound passes its gate but the line's view is withheld
+      (shared_section_misfiled): train counts and gap measures null, the
+      gate and scheduled trains kept. Z DLR, a line not measured: withheld,
+      line_not_measured. W Victoria outbound had its only scheduled hour
+      unobserved (missing polls): not_measured, no_observed_hours, with 0
+      trains and 0 scheduled trains in observed hours, never read as good.
+    model: fct_station_weekly_measured
+    overrides:
+      vars:
+        measured_view_withheld_lines: ["circle", "hammersmith-city"]
+        trains_run_withheld_lines: ["circle", "hammersmith-city"]
+        gate_max_out_of_band_share: 0.3
+        min_measured_share: 0.5
+    given:
+      - input: ref('seed_measured_lines')
+        rows:
+          - {line_id: victoria, is_measured: true}
+          - {line_id: elizabeth, is_measured: true}
+          - {line_id: circle, is_measured: true}
+          - {line_id: dlr, is_measured: false}
+      - input: ref('int_station_measured_hours')
+        format: sql
+        rows: |
+          select
+              line_id, naptan_id, direction, london_date, london_hour,
+              date '2026-11-09' as week_start,
+              is_scheduled, cast(null as boolean) as is_fallback, is_observed,
+              cast(scheduled_departures as bigint) as scheduled_departures,
+              if(is_scheduled, 3600e0) as scheduled_sum_headway_seconds,
+              if(is_scheduled, 3600e0 * 3600e0 / scheduled_departures)
+                  as scheduled_sum_headway_squared_seconds,
+              cast(observed_trains as bigint) as observed_trains,
+              is_gate_judged, is_in_band
+          from (
+              values
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 8, true, true, 30, 28, true, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 9, true, true, 30, 30, true, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 10, true, true, 30, 10, true, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 11, true, false, 30, 0, false, false),
+                  ('victoria', 'X', 'inbound', date '2026-11-09', 8, true, true, 30, 25, true, true),
+                  ('victoria', 'X', 'inbound', date '2026-11-09', 9, true, true, 30, 40, true, false),
+                  ('elizabeth', 'E', 'outbound', date '2026-11-10', 8, false, true, null, 10, true, true),
+                  ('elizabeth', 'E', 'outbound', date '2026-11-10', 9, false, true, null, 8, true, true),
+                  ('circle', 'Y', 'outbound', date '2026-11-09', 8, true, true, 20, 20, true, true),
+                  ('dlr', 'Z', 'outbound', date '2026-11-09', 8, true, true, 10, 10, true, true),
+                  ('victoria', 'W', 'outbound', date '2026-11-09', 8, true, false, 20, 0, false, false)
+          ) as t (
+              line_id, naptan_id, direction, london_date, london_hour, is_scheduled, is_observed,
+              scheduled_departures, observed_trains, is_gate_judged, is_in_band
+          )
+      - input: ref('int_station_service_headways')
+        format: sql
+        rows: |
+          select
+              line_id, naptan_id, direction, london_date, london_hour,
+              date '2026-11-09' as week_start,
+              line_id || naptan_id || direction || cast(london_hour as varchar)
+              || cast(headway_seconds as varchar) as headway_key,
+              headway_seconds, is_long_gap, is_in_band
+          from (
+              values
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 8, 120e0, false, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 8, 120.0e0, false, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 8, 300e0, true, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 9, 240e0, false, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 10, 90e0, false, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 10, 150e0, false, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 11, 600e0, true, false),
+                  ('elizabeth', 'E', 'outbound', date '2026-11-10', 8, 300e0, null, true),
+                  ('elizabeth', 'E', 'outbound', date '2026-11-10', 8, 360e0, null, true),
+                  ('elizabeth', 'E', 'outbound', date '2026-11-10', 9, 420e0, null, true)
+          ) as t (
+              line_id, naptan_id, direction, london_date, london_hour, headway_seconds,
+              is_long_gap, is_in_band
+          )
+    expect:
+      rows:
+        - {iso_week: 2026-W46, naptan_id: X, line_id: victoria, direction: outbound, measured_status: measured, measured_withheld_reason: null, observed_hours: 3, trains_observed: 68, trains_per_hour: 22.666666666666668, median_gap_minutes: 2.25, long_gaps_per_100_hours: 33.333333333333336, scheduled_trains: 90, trains_on_boards_share: 0.7555555555555555, excess_wait_minutes: 0.6319444444444444, gate_judged_hours: 3, gate_pass_share: 1}
+        - {iso_week: 2026-W46, naptan_id: X, line_id: victoria, direction: inbound, measured_status: not_measured, measured_withheld_reason: gate_failed, observed_hours: 2, trains_observed: 65, trains_per_hour: 32.5, median_gap_minutes: null, long_gaps_per_100_hours: null, scheduled_trains: 60, trains_on_boards_share: 1.0833333333333333, excess_wait_minutes: null, gate_judged_hours: 2, gate_pass_share: 0.5}
+        - {iso_week: 2026-W46, naptan_id: E, line_id: elizabeth, direction: outbound, measured_status: measured, measured_withheld_reason: null, observed_hours: 2, trains_observed: 18, trains_per_hour: 9, median_gap_minutes: 6, long_gaps_per_100_hours: null, scheduled_trains: null, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 2, gate_pass_share: 1}
+        - {iso_week: 2026-W46, naptan_id: Y, line_id: circle, direction: outbound, measured_status: withheld, measured_withheld_reason: shared_section_misfiled, observed_hours: 1, trains_observed: null, trains_per_hour: null, median_gap_minutes: null, long_gaps_per_100_hours: null, scheduled_trains: 20, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 1, gate_pass_share: 1}
+        - {iso_week: 2026-W46, naptan_id: Z, line_id: dlr, direction: outbound, measured_status: withheld, measured_withheld_reason: line_not_measured, observed_hours: 1, trains_observed: null, trains_per_hour: null, median_gap_minutes: null, long_gaps_per_100_hours: null, scheduled_trains: 10, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 1, gate_pass_share: 1}
+        - {iso_week: 2026-W46, naptan_id: W, line_id: victoria, direction: outbound, measured_status: not_measured, measured_withheld_reason: no_observed_hours, observed_hours: 0, trains_observed: 0, trains_per_hour: null, median_gap_minutes: null, long_gaps_per_100_hours: null, scheduled_trains: 0, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 0, gate_pass_share: null}
