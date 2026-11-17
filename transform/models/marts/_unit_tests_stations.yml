@@ -50,3 +50,64 @@ unit_tests:
         - {naptan_id: 940GZZLUGPK, station_name: Green Park, lat: 51.506947, lon: -0.142787, line_ids: [jubilee, victoria], modes: [tube], is_measurement_station: false}
         - {naptan_id: 940GZZLUOXC, station_name: Oxford Circus, lat: 51.515224, lon: -0.141903, line_ids: [victoria], modes: [tube], is_measurement_station: true}
         - {naptan_id: 910GABWDXR, station_name: Abbey Wood, lat: 51.491, lon: 0.1214, line_ids: [elizabeth], modes: [elizabeth-line], is_measurement_station: false}
+
+  - name: fct_station_disruption_weekly_week_boundary_and_missing_polls
+    description: >
+      November, so London time is UTC. stop_disruption polls at 23:45,
+      23:50 and 23:55 on Sunday 8 November succeed; on Monday 9 November
+      00:00 succeeds, 00:05 fails, 00:10 has no poll and 00:15 succeeds (the
+      feed's last attempt). Week of 2 November: 7 x 288 = 2016 slots, 3
+      observed, observed_share 3 / 2016 = 0.001488095238095238. Week of 9
+      November: slots 00:00 to 00:15, 4 expected, 2 observed, share 0.5. An
+      arrivals poll is ignored.
+      Arsenal (A) has a RealTime Closure whose text mentions a lift, listed
+      at 23:50, 23:55, 00:00 and 00:15: closure wins over step-free. It
+      spans the week boundary: 2 slots each side, 2 / 12 = 0.1667 closure
+      hours in each week, one disruption in each. The failed 00:05 poll and
+      the missing 00:10 slot do not count as closed or as open; they lower
+      observed_share. Canary Wharf (B) at 23:45 has a faulty-lift notice
+      listed under two concerned lines (one disruption, one slot, 1 / 12 =
+      0.0833 step-free hours) and an escalator fault (other, 0.0833 hours):
+      2 disruptions. B's Information notice at 00:00 is a standing notice,
+      not a disruption, so B's second week is all zeros. Burnham (C) has a
+      Part Closure that only starts at 01:00 on the 9th: not in force at any
+      poll, and C is not in dim_station, so C has no rows. Oxford Circus (D)
+      is in dim_station with no disruption: zero rows in both weeks.
+    model: fct_station_disruption_weekly
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_polls')
+        rows:
+          - {poll_id: s1, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-08 23:45:02", is_ok: true, dt: "2026-11-08"}
+          - {poll_id: s2, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-08 23:50:03", is_ok: true, dt: "2026-11-08"}
+          - {poll_id: s3, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-08 23:55:01", is_ok: true, dt: "2026-11-08"}
+          - {poll_id: s4, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-09 00:00:02", is_ok: true, dt: "2026-11-09"}
+          - {poll_id: s5, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-09 00:05:02", is_ok: false, dt: "2026-11-09"}
+          - {poll_id: s7, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-09 00:15:04", is_ok: true, dt: "2026-11-09"}
+          - {poll_id: a1, feed: arrivals, request_path: /StopPoint/940GZZLUOXC/Arrivals, polled_at: "2026-11-09 00:20:00", is_ok: true, dt: "2026-11-09"}
+      - input: ref('stg_stop_disruption')
+        rows:
+          - {poll_id: s1, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-08 23:45:02", atco_code: B, station_atco_code: B, disruption_type: Interchange Message, appearance: RealTime, description: "Canary Wharf: No Step Free Access - faulty lift", additional_information: null, valid_from: "2026-11-08 23:40:00", valid_to: null, dt: "2026-11-08"}
+          - {poll_id: s1, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-08 23:45:02", atco_code: B, station_atco_code: B, disruption_type: Interchange Message, appearance: RealTime, description: "Canary Wharf: No Step Free Access - faulty lift", additional_information: null, valid_from: "2026-11-08 23:40:00", valid_to: null, dt: "2026-11-08"}
+          - {poll_id: s1, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 2, polled_at: "2026-11-08 23:45:02", atco_code: B, station_atco_code: B, disruption_type: Interchange Message, appearance: RealTime, description: "Canary Wharf: reduced escalator service", additional_information: null, valid_from: null, valid_to: null, dt: "2026-11-08"}
+          - {poll_id: s2, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-08 23:50:03", atco_code: A, station_atco_code: A, disruption_type: Closure, appearance: RealTime, description: "Arsenal: Closed - lift and stairs works", additional_information: null, valid_from: "2026-11-08 23:46:00", valid_to: "2026-11-09 06:00:00", dt: "2026-11-08"}
+          - {poll_id: s3, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-08 23:55:01", atco_code: A, station_atco_code: A, disruption_type: Closure, appearance: RealTime, description: "Arsenal: Closed - lift and stairs works", additional_information: null, valid_from: "2026-11-08 23:46:00", valid_to: "2026-11-09 06:00:00", dt: "2026-11-08"}
+          - {poll_id: s4, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-09 00:00:02", atco_code: A, station_atco_code: A, disruption_type: Closure, appearance: RealTime, description: "Arsenal: Closed - lift and stairs works", additional_information: null, valid_from: "2026-11-08 23:46:00", valid_to: "2026-11-09 06:00:00", dt: "2026-11-09"}
+          - {poll_id: s4, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 2, polled_at: "2026-11-09 00:00:02", atco_code: B, station_atco_code: B, disruption_type: Information, appearance: Information, description: "Canary Wharf: travel in the front 8 coaches", additional_information: null, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: s4, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 3, polled_at: "2026-11-09 00:00:02", atco_code: C, station_atco_code: C, disruption_type: Part Closure, appearance: PlannedWork, description: "Burnham: no trains", additional_information: null, valid_from: "2026-11-09 01:00:00", valid_to: "2026-11-10 01:00:00", dt: "2026-11-09"}
+          - {poll_id: s7, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-09 00:15:04", atco_code: A, station_atco_code: A, disruption_type: Closure, appearance: RealTime, description: "Arsenal: Closed - lift and stairs works", additional_information: null, valid_from: "2026-11-08 23:46:00", valid_to: "2026-11-09 06:00:00", dt: "2026-11-09"}
+      - input: ref('dim_station')
+        rows:
+          - {naptan_id: A}
+          - {naptan_id: B}
+          - {naptan_id: D}
+    expect:
+      rows:
+        - {iso_week: 2026-W45, week_start: "2026-11-02", naptan_id: A, closure_hours: 0.16666666666666666, step_free_hours: 0, other_disruption_hours: 0, disruptions: 1, expected_slots: 2016, observed_slots: 3, observed_share: 0.001488095238095238}
+        - {iso_week: 2026-W45, week_start: "2026-11-02", naptan_id: B, closure_hours: 0, step_free_hours: 0.08333333333333333, other_disruption_hours: 0.08333333333333333, disruptions: 2, expected_slots: 2016, observed_slots: 3, observed_share: 0.001488095238095238}
+        - {iso_week: 2026-W45, week_start: "2026-11-02", naptan_id: D, closure_hours: 0, step_free_hours: 0, other_disruption_hours: 0, disruptions: 0, expected_slots: 2016, observed_slots: 3, observed_share: 0.001488095238095238}
+        - {iso_week: 2026-W46, week_start: "2026-11-09", naptan_id: A, closure_hours: 0.16666666666666666, step_free_hours: 0, other_disruption_hours: 0, disruptions: 1, expected_slots: 4, observed_slots: 2, observed_share: 0.5}
+        - {iso_week: 2026-W46, week_start: "2026-11-09", naptan_id: B, closure_hours: 0, step_free_hours: 0, other_disruption_hours: 0, disruptions: 0, expected_slots: 4, observed_slots: 2, observed_share: 0.5}
+        - {iso_week: 2026-W46, week_start: "2026-11-09", naptan_id: D, closure_hours: 0, step_free_hours: 0, other_disruption_hours: 0, disruptions: 0, expected_slots: 4, observed_slots: 2, observed_share: 0.5}
