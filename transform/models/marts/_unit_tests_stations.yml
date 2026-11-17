@@ -1,0 +1,218 @@
+version: 2
+
+# Hand-computed cases for the station views (PLAN M8). Every expected value
+# is worked out in the description. Inputs read from models that only the
+# line_arrivals feed fills are given as SQL, so the tests run before that
+# raw table exists.
+
+unit_tests:
+  - name: dim_station_latest_sequences_lines_and_names
+    description: >
+      Victoria inbound was fetched twice: the older fetch (v1) lists Pimlico,
+      the latest (v2) does not, so Pimlico is not a station any more.
+      Victoria outbound (v3) and Jubilee outbound (j1) both list Green Park,
+      which gets line_ids [jubilee, victoria] and one mode, tube. Oxford
+      Circus is a measurement station. Abbey Wood is on the Elizabeth line
+      (mode elizabeth-line). A sequence for thameslink, not in the lines
+      seed, adds nothing. Green Park's name and coordinates come from the
+      latest fetch describing it (j1, 2026-11-04), with " Underground
+      Station" dropped; Abbey Wood's " Rail Station" likewise.
+    model: dim_station
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_route_sequence')
+        rows:
+          - {poll_id: v1, request_path: /Line/victoria/Route/Sequence/inbound, polled_at: "2026-11-02 02:00:00", line_id: victoria, direction: inbound, naptan_id: 940GZZLUPCO, dt: "2026-11-02"}
+          - {poll_id: v1, request_path: /Line/victoria/Route/Sequence/inbound, polled_at: "2026-11-02 02:00:00", line_id: victoria, direction: inbound, naptan_id: 940GZZLUOXC, dt: "2026-11-02"}
+          - {poll_id: v2, request_path: /Line/victoria/Route/Sequence/inbound, polled_at: "2026-11-09 02:00:00", line_id: victoria, direction: inbound, naptan_id: 940GZZLUOXC, dt: "2026-11-09"}
+          - {poll_id: v3, request_path: /Line/victoria/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: victoria, direction: outbound, naptan_id: 940GZZLUGPK, dt: "2026-11-09"}
+          - {poll_id: j1, request_path: /Line/jubilee/Route/Sequence/outbound, polled_at: "2026-11-04 02:00:00", line_id: jubilee, direction: outbound, naptan_id: 940GZZLUGPK, dt: "2026-11-04"}
+          - {poll_id: e1, request_path: /Line/elizabeth/Route/Sequence/outbound, polled_at: "2026-11-04 02:00:00", line_id: elizabeth, direction: outbound, naptan_id: 910GABWDXR, dt: "2026-11-04"}
+          - {poll_id: t1, request_path: /Line/thameslink/Route/Sequence/outbound, polled_at: "2026-11-04 02:00:00", line_id: thameslink, direction: outbound, naptan_id: 910GBLFR, dt: "2026-11-04"}
+      - input: ref('stg_route_station')
+        rows:
+          - {naptan_id: 940GZZLUGPK, polled_at: "2026-11-03 02:00:00", station_name: Green Park Old Name, lat: 1.0, lon: 1.0, dt: "2026-11-03"}
+          - {naptan_id: 940GZZLUGPK, polled_at: "2026-11-04 02:00:00", station_name: Green Park Underground Station, lat: 51.506947, lon: -0.142787, dt: "2026-11-04"}
+          - {naptan_id: 940GZZLUOXC, polled_at: "2026-11-09 02:00:00", station_name: Oxford Circus Underground Station, lat: 51.515224, lon: -0.141903, dt: "2026-11-09"}
+          - {naptan_id: 910GABWDXR, polled_at: "2026-11-04 02:00:00", station_name: Abbey Wood Rail Station, lat: 51.491, lon: 0.1214, dt: "2026-11-04"}
+      - input: ref('lines')
+        rows:
+          - {line_id: victoria, mode_name: tube}
+          - {line_id: jubilee, mode_name: tube}
+          - {line_id: elizabeth, mode_name: elizabeth-line}
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: victoria, naptan_id: 940GZZLUOXC, station_name: Oxford Circus, role: core}
+    expect:
+      rows:
+        - {naptan_id: 940GZZLUGPK, station_name: Green Park, lat: 51.506947, lon: -0.142787, line_ids: [jubilee, victoria], modes: [tube], is_measurement_station: false}
+        - {naptan_id: 940GZZLUOXC, station_name: Oxford Circus, lat: 51.515224, lon: -0.141903, line_ids: [victoria], modes: [tube], is_measurement_station: true}
+        - {naptan_id: 910GABWDXR, station_name: Abbey Wood, lat: 51.491, lon: 0.1214, line_ids: [elizabeth], modes: [elizabeth-line], is_measurement_station: false}
+
+  - name: fct_station_disruption_weekly_week_boundary_and_missing_polls
+    description: >
+      November, so London time is UTC. stop_disruption polls at 23:45,
+      23:50 and 23:55 on Sunday 8 November succeed; on Monday 9 November
+      00:00 succeeds, 00:05 fails, 00:10 has no poll and 00:15 succeeds (the
+      feed's last attempt). Week of 2 November: 7 x 288 = 2016 slots, 3
+      observed, observed_share 3 / 2016 = 0.001488095238095238. Week of 9
+      November: slots 00:00 to 00:15, 4 expected, 2 observed, share 0.5. An
+      arrivals poll is ignored.
+      Arsenal (A) has a RealTime Closure whose text mentions a lift, listed
+      at 23:50, 23:55, 00:00 and 00:15: closure wins over step-free. It
+      spans the week boundary: 2 slots each side, 2 / 12 = 0.1667 closure
+      hours in each week, one disruption in each. The failed 00:05 poll and
+      the missing 00:10 slot do not count as closed or as open; they lower
+      observed_share. Canary Wharf (B) at 23:45 has a faulty-lift notice
+      listed under two concerned lines (one disruption, one slot, 1 / 12 =
+      0.0833 step-free hours) and an escalator fault (other, 0.0833 hours):
+      2 disruptions. B's Information notice at 00:00 is a standing notice,
+      not a disruption, so B's second week is all zeros. Burnham (C) has a
+      Part Closure that only starts at 01:00 on the 9th: not in force at any
+      poll, and C is not in dim_station, so C has no rows. Oxford Circus (D)
+      is in dim_station with no disruption: zero rows in both weeks.
+    model: fct_station_disruption_weekly
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_polls')
+        rows:
+          - {poll_id: s1, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-08 23:45:02", is_ok: true, dt: "2026-11-08"}
+          - {poll_id: s2, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-08 23:50:03", is_ok: true, dt: "2026-11-08"}
+          - {poll_id: s3, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-08 23:55:01", is_ok: true, dt: "2026-11-08"}
+          - {poll_id: s4, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-09 00:00:02", is_ok: true, dt: "2026-11-09"}
+          - {poll_id: s5, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-09 00:05:02", is_ok: false, dt: "2026-11-09"}
+          - {poll_id: s7, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-09 00:15:04", is_ok: true, dt: "2026-11-09"}
+          - {poll_id: a1, feed: arrivals, request_path: /StopPoint/940GZZLUOXC/Arrivals, polled_at: "2026-11-09 00:20:00", is_ok: true, dt: "2026-11-09"}
+      - input: ref('stg_stop_disruption')
+        rows:
+          - {poll_id: s1, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-08 23:45:02", atco_code: B, station_atco_code: B, disruption_type: Interchange Message, appearance: RealTime, description: "Canary Wharf: No Step Free Access - faulty lift", additional_information: null, valid_from: "2026-11-08 23:40:00", valid_to: null, dt: "2026-11-08"}
+          - {poll_id: s1, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-08 23:45:02", atco_code: B, station_atco_code: B, disruption_type: Interchange Message, appearance: RealTime, description: "Canary Wharf: No Step Free Access - faulty lift", additional_information: null, valid_from: "2026-11-08 23:40:00", valid_to: null, dt: "2026-11-08"}
+          - {poll_id: s1, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 2, polled_at: "2026-11-08 23:45:02", atco_code: B, station_atco_code: B, disruption_type: Interchange Message, appearance: RealTime, description: "Canary Wharf: reduced escalator service", additional_information: null, valid_from: null, valid_to: null, dt: "2026-11-08"}
+          - {poll_id: s2, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-08 23:50:03", atco_code: A, station_atco_code: A, disruption_type: Closure, appearance: RealTime, description: "Arsenal: Closed - lift and stairs works", additional_information: null, valid_from: "2026-11-08 23:46:00", valid_to: "2026-11-09 06:00:00", dt: "2026-11-08"}
+          - {poll_id: s3, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-08 23:55:01", atco_code: A, station_atco_code: A, disruption_type: Closure, appearance: RealTime, description: "Arsenal: Closed - lift and stairs works", additional_information: null, valid_from: "2026-11-08 23:46:00", valid_to: "2026-11-09 06:00:00", dt: "2026-11-08"}
+          - {poll_id: s4, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-09 00:00:02", atco_code: A, station_atco_code: A, disruption_type: Closure, appearance: RealTime, description: "Arsenal: Closed - lift and stairs works", additional_information: null, valid_from: "2026-11-08 23:46:00", valid_to: "2026-11-09 06:00:00", dt: "2026-11-09"}
+          - {poll_id: s4, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 2, polled_at: "2026-11-09 00:00:02", atco_code: B, station_atco_code: B, disruption_type: Information, appearance: Information, description: "Canary Wharf: travel in the front 8 coaches", additional_information: null, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: s4, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 3, polled_at: "2026-11-09 00:00:02", atco_code: C, station_atco_code: C, disruption_type: Part Closure, appearance: PlannedWork, description: "Burnham: no trains", additional_information: null, valid_from: "2026-11-09 01:00:00", valid_to: "2026-11-10 01:00:00", dt: "2026-11-09"}
+          - {poll_id: s7, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-09 00:15:04", atco_code: A, station_atco_code: A, disruption_type: Closure, appearance: RealTime, description: "Arsenal: Closed - lift and stairs works", additional_information: null, valid_from: "2026-11-08 23:46:00", valid_to: "2026-11-09 06:00:00", dt: "2026-11-09"}
+      - input: ref('dim_station')
+        rows:
+          - {naptan_id: A}
+          - {naptan_id: B}
+          - {naptan_id: D}
+    expect:
+      rows:
+        - {iso_week: 2026-W45, week_start: "2026-11-02", naptan_id: A, closure_hours: 0.16666666666666666, step_free_hours: 0, other_disruption_hours: 0, disruptions: 1, expected_slots: 2016, observed_slots: 3, observed_share: 0.001488095238095238}
+        - {iso_week: 2026-W45, week_start: "2026-11-02", naptan_id: B, closure_hours: 0, step_free_hours: 0.08333333333333333, other_disruption_hours: 0.08333333333333333, disruptions: 2, expected_slots: 2016, observed_slots: 3, observed_share: 0.001488095238095238}
+        - {iso_week: 2026-W45, week_start: "2026-11-02", naptan_id: D, closure_hours: 0, step_free_hours: 0, other_disruption_hours: 0, disruptions: 0, expected_slots: 2016, observed_slots: 3, observed_share: 0.001488095238095238}
+        - {iso_week: 2026-W46, week_start: "2026-11-09", naptan_id: A, closure_hours: 0.16666666666666666, step_free_hours: 0, other_disruption_hours: 0, disruptions: 1, expected_slots: 4, observed_slots: 2, observed_share: 0.5}
+        - {iso_week: 2026-W46, week_start: "2026-11-09", naptan_id: B, closure_hours: 0, step_free_hours: 0, other_disruption_hours: 0, disruptions: 0, expected_slots: 4, observed_slots: 2, observed_share: 0.5}
+        - {iso_week: 2026-W46, week_start: "2026-11-09", naptan_id: D, closure_hours: 0, step_free_hours: 0, other_disruption_hours: 0, disruptions: 0, expected_slots: 4, observed_slots: 2, observed_share: 0.5}
+
+  - name: fct_station_weekly_measured_statuses_medians_and_withheld_lines
+    description: >
+      Week of Monday 9 November (2026-W46).
+      X Victoria outbound has 4 scheduled hours of 30 trains (scheduled
+      gaps 120 s, scheduled wait 432000 / 7200 = 60 s). Hours 8 to 10 are
+      observed, judged and in band (28, 30 and 10 trains on the boards);
+      hour 11 is not observed. Observed hours 3, trains 68, 68 / 3 =
+      22.667 an hour; scheduled trains in observed hours 90, share 68 / 90
+      = 0.7556. Gate 3 of 3; measured 3 >= 0.5 x 4: measured. In-band gaps
+      120, 120, 300 (hour 8), 240 (hour 9), 90, 150 (hour 10); the 600 s gap
+      in hour 11 is not in band. Sorted 90, 120, 120, 150, 240, 300: median
+      (120 + 150) / 2 = 135 s = 2.25 min. Only the 300 s gap is long:
+      100 x 1 / 3 = 33.333 per 100 hours. Excess wait: hour 8 118800 / 1080
+      - 60 = 50 s, hour 9 57600 / 480 - 60 = 60 s, hour 10 30600 / 480 - 60
+      = 3.75 s; mean 37.917 s = 0.63194 min.
+      X Victoria inbound: 2 judged hours, 1 in band, 1 / 2 < 0.7: gate
+      failed, not measured. Its train counts stay (65 trains, 32.5 an hour,
+      65 / 60 = 1.0833 of the timetable); gap measures are null.
+      E Elizabeth outbound has no timetable: two observed hours with trains,
+      both in band, so measured. Gaps 300, 360, 420: median 6 min. No
+      scheduled trains, share, excess wait or long-gap rate (null).
+      Y Circle outbound passes its gate but the line's view is withheld
+      (shared_section_misfiled): train counts and gap measures null, the
+      gate and scheduled trains kept. Z DLR, a line not measured: withheld,
+      line_not_measured. W Victoria outbound had its only scheduled hour
+      unobserved (missing polls): not_measured, no_observed_hours, with 0
+      trains and 0 scheduled trains in observed hours, never read as good.
+    model: fct_station_weekly_measured
+    overrides:
+      vars:
+        measured_view_withheld_lines: ["circle", "hammersmith-city"]
+        trains_run_withheld_lines: ["circle", "hammersmith-city"]
+        gate_max_out_of_band_share: 0.3
+        min_measured_share: 0.5
+    given:
+      - input: ref('seed_measured_lines')
+        rows:
+          - {line_id: victoria, is_measured: true}
+          - {line_id: elizabeth, is_measured: true}
+          - {line_id: circle, is_measured: true}
+          - {line_id: dlr, is_measured: false}
+      - input: ref('int_station_measured_hours')
+        format: sql
+        rows: |
+          select
+              line_id, naptan_id, direction, london_date, london_hour,
+              date '2026-11-09' as week_start,
+              is_scheduled, cast(null as boolean) as is_fallback, is_observed,
+              cast(scheduled_departures as bigint) as scheduled_departures,
+              if(is_scheduled, 3600e0) as scheduled_sum_headway_seconds,
+              if(is_scheduled, 3600e0 * 3600e0 / scheduled_departures)
+                  as scheduled_sum_headway_squared_seconds,
+              cast(observed_trains as bigint) as observed_trains,
+              is_gate_judged, is_in_band
+          from (
+              values
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 8, true, true, 30, 28, true, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 9, true, true, 30, 30, true, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 10, true, true, 30, 10, true, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 11, true, false, 30, 0, false, false),
+                  ('victoria', 'X', 'inbound', date '2026-11-09', 8, true, true, 30, 25, true, true),
+                  ('victoria', 'X', 'inbound', date '2026-11-09', 9, true, true, 30, 40, true, false),
+                  ('elizabeth', 'E', 'outbound', date '2026-11-10', 8, false, true, null, 10, true, true),
+                  ('elizabeth', 'E', 'outbound', date '2026-11-10', 9, false, true, null, 8, true, true),
+                  ('circle', 'Y', 'outbound', date '2026-11-09', 8, true, true, 20, 20, true, true),
+                  ('dlr', 'Z', 'outbound', date '2026-11-09', 8, true, true, 10, 10, true, true),
+                  ('victoria', 'W', 'outbound', date '2026-11-09', 8, true, false, 20, 0, false, false)
+          ) as t (
+              line_id, naptan_id, direction, london_date, london_hour, is_scheduled, is_observed,
+              scheduled_departures, observed_trains, is_gate_judged, is_in_band
+          )
+      - input: ref('int_station_service_headways')
+        format: sql
+        rows: |
+          select
+              line_id, naptan_id, direction, london_date, london_hour,
+              date '2026-11-09' as week_start,
+              line_id || naptan_id || direction || cast(london_hour as varchar)
+              || cast(headway_seconds as varchar) as headway_key,
+              headway_seconds, is_long_gap, is_in_band
+          from (
+              values
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 8, 120e0, false, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 8, 120.0e0, false, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 8, 300e0, true, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 9, 240e0, false, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 10, 90e0, false, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 10, 150e0, false, true),
+                  ('victoria', 'X', 'outbound', date '2026-11-09', 11, 600e0, true, false),
+                  ('elizabeth', 'E', 'outbound', date '2026-11-10', 8, 300e0, null, true),
+                  ('elizabeth', 'E', 'outbound', date '2026-11-10', 8, 360e0, null, true),
+                  ('elizabeth', 'E', 'outbound', date '2026-11-10', 9, 420e0, null, true)
+          ) as t (
+              line_id, naptan_id, direction, london_date, london_hour, headway_seconds,
+              is_long_gap, is_in_band
+          )
+    expect:
+      rows:
+        - {iso_week: 2026-W46, naptan_id: X, line_id: victoria, direction: outbound, measured_status: measured, measured_withheld_reason: null, observed_hours: 3, trains_observed: 68, trains_per_hour: 22.666666666666668, median_gap_minutes: 2.25, long_gaps_per_100_hours: 33.333333333333336, scheduled_trains: 90, trains_on_boards_share: 0.7555555555555555, excess_wait_minutes: 0.6319444444444444, gate_judged_hours: 3, gate_pass_share: 1}
+        - {iso_week: 2026-W46, naptan_id: X, line_id: victoria, direction: inbound, measured_status: not_measured, measured_withheld_reason: gate_failed, observed_hours: 2, trains_observed: 65, trains_per_hour: 32.5, median_gap_minutes: null, long_gaps_per_100_hours: null, scheduled_trains: 60, trains_on_boards_share: 1.0833333333333333, excess_wait_minutes: null, gate_judged_hours: 2, gate_pass_share: 0.5}
+        - {iso_week: 2026-W46, naptan_id: E, line_id: elizabeth, direction: outbound, measured_status: measured, measured_withheld_reason: null, observed_hours: 2, trains_observed: 18, trains_per_hour: 9, median_gap_minutes: 6, long_gaps_per_100_hours: null, scheduled_trains: null, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 2, gate_pass_share: 1}
+        - {iso_week: 2026-W46, naptan_id: Y, line_id: circle, direction: outbound, measured_status: withheld, measured_withheld_reason: shared_section_misfiled, observed_hours: 1, trains_observed: null, trains_per_hour: null, median_gap_minutes: null, long_gaps_per_100_hours: null, scheduled_trains: 20, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 1, gate_pass_share: 1}
+        - {iso_week: 2026-W46, naptan_id: Z, line_id: dlr, direction: outbound, measured_status: withheld, measured_withheld_reason: line_not_measured, observed_hours: 1, trains_observed: null, trains_per_hour: null, median_gap_minutes: null, long_gaps_per_100_hours: null, scheduled_trains: 10, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 1, gate_pass_share: 1}
+        - {iso_week: 2026-W46, naptan_id: W, line_id: victoria, direction: outbound, measured_status: not_measured, measured_withheld_reason: no_observed_hours, observed_hours: 0, trains_observed: 0, trains_per_hour: null, median_gap_minutes: null, long_gaps_per_100_hours: null, scheduled_trains: 0, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 0, gate_pass_share: null}

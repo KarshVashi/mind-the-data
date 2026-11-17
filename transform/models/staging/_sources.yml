@@ -78,6 +78,15 @@ sources:
         config: *minute_freshness
         columns: *envelope_columns
 
+      - name: line_arrivals
+        description: >
+          `Line/{lineId}/Arrivals` for each line in config/lines.yaml, polled
+          every minute (ADR-016). One row per line per poll; payload is an
+          array of predictions for every stop on the line, in the same shape
+          as `arrivals`.
+        config: *minute_freshness
+        columns: *envelope_columns
+
       - name: stop_disruption
         description: "`StopPoint/Mode/{modes}/Disruption`, polled every 5 minutes. Payload is an array of disrupted points."
         columns: *envelope_columns
@@ -87,7 +96,7 @@ sources:
         columns: *envelope_columns
 
       - name: ref_timetable
-        description: "`Line/{id}/Timetable/{stopPointId}?direction=...`, fetched weekly per measurement station. Payload is one timetable object."
+        description: "`Line/{id}/Timetable/{stopPointId}?direction=...`, fetched weekly per measurement station and, in a daily one-seventh slice, for every other station (ADR-016). Payload is one timetable object."
         columns: *envelope_columns
 
       - name: ref_severity

@@ -19,6 +19,178 @@ models:
         description: Shown but flagged as low volume.
         data_tests: [not_null]
 
+  - name: dim_station
+    description: >
+      Every station on every line in scope (M8), one row per station-level
+      NaPTAN id, from each line's latest route sequences (both directions).
+      Name and coordinates come from the latest route sequence listing the
+      station. An interchange TfL gives both a 940G and a 910G id (e.g.
+      Canada Water) is two rows, matching the ids the arrivals and
+      disruption feeds use.
+    columns:
+      - name: naptan_id
+        description: Station-level NaPTAN id (940GZZ... or 910G...).
+        data_tests: [unique, not_null]
+      - name: station_name
+        description: >
+          TfL's name without its stop-type suffix (" Underground Station",
+          " Rail Station", " DLR Station", " Tram Stop"); null if no route
+          sequence's `stations` list describes the station.
+      - name: tfl_station_name
+        description: TfL's name as sent, e.g. `Green Park Underground Station`.
+      - name: lat
+        description: Latitude, WGS84.
+      - name: lon
+        description: Longitude, WGS84.
+      - name: line_ids
+        description: Lines in scope that stop here, sorted.
+        data_tests: [not_null]
+      - name: modes
+        description: Modes of those lines (the `lines` seed's mode_name), sorted.
+        data_tests: [not_null]
+      - name: is_measurement_station
+        description: True when the station is in seed_measurement_stations for any line.
+        data_tests: [not_null]
+
+  - name: fct_station_disruption_weekly
+    description: >
+      Station disruption per ISO week (London) and station (M8), from the
+      network-wide stop disruption feed (every 5 minutes). Time is counted
+      in 5-minute UTC slots; a slot counts toward a category when a
+      successful poll in it lists a disruption of that category in force
+      for the station. Failed or missing polls never count as undisrupted:
+      they lower observed_share, so hours are a lower bound when it is
+      under 1. Categories in order: closure (TfL type Closure or Part
+      Closure), step_free (text names step-free access or a lift), other.
+      Standing notices (appearance Information) are left out. One row per
+      week for every dim_station station, plus any other station with a
+      counted disruption that week. The model comment has the full rules.
+    columns:
+      - name: station_disruption_weekly_key
+        description: Row key, a hash of (naptan_id, week_start).
+        data_tests: [unique, not_null]
+      - name: iso_week
+        description: "ISO week of week_start, 'YYYY-Www'."
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: >
+          Station id: the disrupted point's parent station code, or its own
+          code when TfL gives no parent.
+        data_tests: [not_null]
+      - name: closure_hours
+        description: Hours the station was closed or not served by some of its trains (observed slots only).
+        data_tests: [not_null]
+      - name: step_free_hours
+        description: Hours with a step-free access or lift outage (observed slots only).
+        data_tests: [not_null]
+      - name: other_disruption_hours
+        description: Hours with any other disruption, e.g. escalator faults (observed slots only).
+        data_tests: [not_null]
+      - name: disruptions
+        description: Distinct disruptions (station, type, appearance, description) in force in the week.
+        data_tests: [not_null]
+      - name: expected_slots
+        description: 5-minute slots in the week up to the feed's latest poll attempt.
+        data_tests: [not_null]
+      - name: observed_slots
+        description: Of those, slots with a successful poll.
+        data_tests: [not_null]
+      - name: observed_share
+        description: observed_slots / expected_slots, the share of the week's 5-minute polls that succeeded.
+        data_tests: [not_null]
+
+  - name: fct_station_weekly_measured
+    description: >
+      The measured view per ISO week (London), station, line and direction
+      (M8), one row for each with any hour of service in
+      int_station_measured_hours. The same inference, gate and long-gap rule
+      as fct_line_weekly_measured, judged for the station's own hours.
+      measured_status is `withheld` when the line-level view withholds the
+      whole line (line_not_measured: seed_measured_lines; or
+      shared_section_misfiled: measured_view_withheld_lines),
+      `not_measured` when the station-direction-week fails (no_observed_hours,
+      gate_not_judged, gate_failed, too_few_measured_hours, in that order),
+      else `measured`. Gap measures are null unless measured; train counts
+      are null when withheld. Stations without a TfL timetable (Elizabeth
+      line, Overground) have null scheduled trains, trains-on-boards share,
+      excess wait and long-gap rate. Missing polls never read as good: those
+      hours are not observed and not judged.
+    columns:
+      - name: station_weekly_measured_key
+        description: Row key, a hash of (naptan_id, line_id, direction, week_start).
+        data_tests: [unique, not_null]
+      - name: iso_week
+        description: "ISO week of week_start, 'YYYY-Www'."
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Station (dim_station).
+        data_tests: [not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: direction
+        description: "`inbound` or `outbound`, TfL's direction on the line."
+        data_tests: [not_null]
+      - name: measured_status
+        description: "`measured`, `not_measured` or `withheld`; see the model description."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [measured, not_measured, withheld]
+      - name: measured_withheld_reason
+        description: Why the row is not measured; null when it is.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - line_not_measured
+                  - shared_section_misfiled
+                  - no_observed_hours
+                  - gate_not_judged
+                  - gate_failed
+                  - too_few_measured_hours
+      - name: observed_hours
+        description: Hours of service that were observed (enough polls, no collection gap).
+        data_tests: [not_null]
+      - name: trains_observed
+        description: Trains on the boards (vehicle-id passes plus inferred trains without an id) in observed hours; null when withheld.
+      - name: trains_per_hour
+        description: trains_observed / observed_hours; null when withheld or with no observed hour.
+      - name: median_gap_minutes
+        description: Median in-service gap ending in a gated hour, in minutes (mean of the two middle gaps for an even count); null unless measured.
+      - name: long_gaps
+        description: Gaps over twice the hour's longest scheduled gap, in gated timetabled hours; null unless measured.
+      - name: long_gaps_per_100_hours
+        description: 100 x long_gaps / gated timetabled hours; null unless measured or without a timetable.
+      - name: scheduled_trains
+        description: Timetabled trains in observed hours, the denominator of trains_on_boards_share; null when the week has no timetabled hour (no TfL timetable, e.g. Elizabeth line and Overground).
+      - name: trains_on_boards_share
+        description: Trains on the boards / scheduled trains, in observed timetabled hours (trains run, ADR-014); null when withheld, for trains_run_withheld_lines, or with no scheduled trains.
+      - name: excess_wait_minutes
+        description: Mean over gated timetabled hours with an in-service gap of actual minus scheduled average wait (PLAN 7.3), minutes; null unless measured or without a timetable.
+      - name: gate_judged_hours
+        description: Observed hours with anything on the boards or inferred.
+        data_tests: [not_null]
+      - name: gate_pass_share
+        description: Share of judged hours inside the gate band; null when none was judged.
+      - name: service_hours
+        description: Hours of service in the week (timetabled, or hours with trains without a timetable), the denominator of the too_few_measured_hours rule.
+      - name: scheduled_hours
+        description: Of those, hours from a timetable.
+      - name: measured_hours
+        description: Hours inside the gate band.
+      - name: gate_in_band_hours
+        description: Judged hours inside the gate band.
+      - name: fallback_measured_hours
+        description: Gated hours judged against seed_line_frequencies' estimate rather than a TfL timetable (weak evidence, D33).
+
   - name: dim_service_hours
     description: >
       Scheduled operating minutes per line, London date and time band, the

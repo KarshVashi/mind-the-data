@@ -511,3 +511,136 @@ unit_tests:
       rows:
         - {mode_name: tube, severity_level: 6, description: Severe Delays}
         - {mode_name: cable-car, severity_level: 0, description: Special Service}
+
+  - name: stg_line_arrivals_parses_every_stop_and_dedupes_like_stg_arrivals
+    description: >
+      One line_arrivals poll for the Victoria line lists Oxford Circus twice
+      (the same prediction, the copy with the older TfL timestamp dropped)
+      and Green Park once: two rows, one per stop. A failed request for the
+      Central line gives no rows. The placeholder timeToLive becomes null.
+    model: stg_line_arrivals
+    overrides: *full_history_window
+    given:
+      - input: source('raw', 'line_arrivals')
+        format: sql
+        rows: |
+          select
+              'p1' as poll_id,
+              '2026-11-03T08:15:00.123Z' as polled_at,
+              'line_arrivals' as feed,
+              cast(row('/Line/victoria/Arrivals') as row(path varchar)) as request,
+              200 as http_status,
+              420 as latency_ms,
+              cast(null as varchar) as error,
+              '[{"id": "-1", "vehicleId": "205", "naptanId": "940GZZLUOXC",
+                 "stationName": "Oxford Circus Underground Station", "lineId": "victoria",
+                 "lineName": "Victoria", "platformName": "Southbound - Platform 5",
+                 "direction": "inbound", "destinationNaptanId": "940GZZLUBXN",
+                 "timestamp": "2026-11-03T08:14:20.1000000Z", "timeToStation": 100,
+                 "expectedArrival": "2026-11-03T08:16:40Z",
+                 "timeToLive": "0001-01-01T00:00:00", "modeName": "tube"},
+                {"id": "-1", "vehicleId": "205", "naptanId": "940GZZLUOXC",
+                 "lineId": "victoria", "platformName": "Southbound - Platform 5",
+                 "direction": "inbound", "destinationNaptanId": "940GZZLUBXN",
+                 "timestamp": "2026-11-03T08:14:50.1000000Z", "timeToStation": 70,
+                 "expectedArrival": "2026-11-03T08:16:40Z",
+                 "timeToLive": "0001-01-01T00:00:00", "modeName": "tube"},
+                {"id": "-1", "vehicleId": "205", "naptanId": "940GZZLUGPK",
+                 "stationName": "Green Park Underground Station", "lineId": "victoria",
+                 "lineName": "Victoria", "platformName": "Southbound - Platform 4",
+                 "direction": "inbound", "destinationNaptanId": "940GZZLUBXN",
+                 "timestamp": "2026-11-03T08:14:50.1000000Z", "timeToStation": 160,
+                 "expectedArrival": "2026-11-03T08:18:10Z",
+                 "timeToLive": "0001-01-01T00:00:00", "modeName": "tube"}]' as payload,
+              '2026-11-03' as dt,
+              '08' as hour
+          union all
+          select
+              'p1',
+              '2026-11-03T08:15:00.456Z',
+              'line_arrivals',
+              cast(row('/Line/central/Arrivals') as row(path varchar)),
+              503,
+              900,
+              'http_error',
+              cast(null as varchar),
+              '2026-11-03',
+              '08'
+    expect:
+      rows:
+        - {request_path: /Line/victoria/Arrivals, naptan_id: 940GZZLUOXC, line_id: victoria, vehicle_id: "205", time_to_station: 70, expected_arrival: "2026-11-03 08:16:40", prediction_timestamp: "2026-11-03 08:14:50.100", time_to_live: null}
+        - {request_path: /Line/victoria/Arrivals, naptan_id: 940GZZLUGPK, line_id: victoria, vehicle_id: "205", time_to_station: 160, expected_arrival: "2026-11-03 08:18:10", prediction_timestamp: "2026-11-03 08:14:50.100", time_to_live: null}
+
+  - name: stg_line_arrival_polls_keeps_failed_requests
+    description: >
+      A successful and a failed line request in one poll both give a row;
+      only the first is ok.
+    model: stg_line_arrival_polls
+    overrides: *full_history_window
+    given:
+      - input: source('raw', 'line_arrivals')
+        format: sql
+        rows: |
+          select
+              'p1' as poll_id,
+              '2026-11-03T08:15:00.000Z' as polled_at,
+              'line_arrivals' as feed,
+              cast(row('/Line/victoria/Arrivals') as row(path varchar)) as request,
+              200 as http_status,
+              420 as latency_ms,
+              cast(null as varchar) as error,
+              '[]' as payload,
+              '2026-11-03' as dt,
+              '08' as hour
+          union all
+          select
+              'p1',
+              '2026-11-03T08:15:00.000Z',
+              'line_arrivals',
+              cast(row('/Line/central/Arrivals') as row(path varchar)),
+              cast(null as integer),
+              45000,
+              'timeout',
+              cast(null as varchar),
+              '2026-11-03',
+              '08'
+    expect:
+      rows:
+        - {request_path: /Line/victoria/Arrivals, is_ok: true, http_status: 200}
+        - {request_path: /Line/central/Arrivals, is_ok: false, http_status: null}
+
+  - name: stg_route_station_reads_names_and_coordinates
+    description: >
+      A route sequence with two branches, one stop each, gives one row per
+      stop with TfL's name, coordinates and stop type, numbered within its
+      branch. The top-level `stations` list (hub ids) is not read.
+    model: stg_route_station
+    overrides: *full_history_window
+    given:
+      - input: source('raw', 'ref_route_sequence')
+        format: sql
+        rows: |
+          select
+              'p1' as poll_id,
+              '2026-11-03T02:00:00.000Z' as polled_at,
+              'ref_route_sequence' as feed,
+              cast(row('/Line/elizabeth/Route/Sequence/outbound') as row(path varchar)) as request,
+              200 as http_status,
+              300 as latency_ms,
+              cast(null as varchar) as error,
+              '{"lineId": "elizabeth", "direction": "outbound", "mode": "elizabeth-line",
+                "stations": [{"id": "HUBABW", "name": "Abbey Wood"}],
+                "stopPointSequences": [
+                  {"branchId": 0, "stopPoint": [
+                    {"id": "910GABWDXR", "name": "Abbey Wood Rail Station", "topMostParentId": "HUBABW",
+                     "stopType": "NaptanRailStation", "lat": 51.491, "lon": 0.1214}]},
+                  {"branchId": 1, "stopPoint": [
+                    {"id": "910GSHENFLD", "name": "Shenfield Rail Station",
+                     "lat": 51.6309, "lon": 0.3299}]}],
+                "orderedLineRoutes": []}' as payload,
+              '2026-11-03' as dt,
+              '02' as hour
+    expect:
+      rows:
+        - {line_id: elizabeth, direction: outbound, sequence_ordinal: 1, stop_ordinal: 1, naptan_id: 910GABWDXR, station_name: Abbey Wood Rail Station, lat: 51.491, lon: 0.1214, stop_type: NaptanRailStation, top_most_parent_id: HUBABW}
+        - {line_id: elizabeth, direction: outbound, sequence_ordinal: 2, stop_ordinal: 1, naptan_id: 910GSHENFLD, station_name: Shenfield Rail Station, lat: 51.6309, lon: 0.3299, stop_type: null, top_most_parent_id: null}
