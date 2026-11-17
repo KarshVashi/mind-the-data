@@ -1,7 +1,9 @@
 """Record TfL API responses as test fixtures in tests/fixtures/tfl/.
 
-Run once by hand: ``uv run python scripts/record_fixtures.py``. It calls the
-API anonymously (no key is read or sent) and paces requests well under the
+Run once by hand: ``uv run python scripts/record_fixtures.py``. Pass
+``--only NAME`` (repeatable) to record just those fixtures and leave the rest
+untouched, so adding a fixture does not re-record ones that tests count on. It
+calls the API anonymously (no key is read or sent) and paces requests well under the
 anonymous limit. Each fixture wraps the unchanged response with the request
 path, the HTTP status and the time it was recorded.
 
@@ -15,6 +17,7 @@ Nothing needed trimming at the last recording.
 Any non-200 response aborts the run before a single file is written.
 """
 
+import argparse
 import json
 import sys
 import time
@@ -40,12 +43,17 @@ ARRIVAL_STOPS = {
     "910GHGHI": "Highbury & Islington Rail Station (Overground)",
 }
 
+# Line-wide boards (M8): Bakerloo for a busy board of 940GZZ ids, the
+# Elizabeth line for 910G ids, and Liberty, which is often empty at night.
+LINE_ARRIVALS = ("bakerloo", "elizabeth", "liberty")
+
 # (fixture name, request path)
 REQUESTS: list[tuple[str, str]] = [
     ("line_status", f"/Line/Mode/{MODES}/Status"),
     ("line_disruption", f"/Line/Mode/{MODES}/Disruption"),
     ("stop_disruption", f"/StopPoint/Mode/{MODES}/Disruption"),
     *[(f"arrivals_{stop}", f"/StopPoint/{stop}/Arrivals") for stop in ARRIVAL_STOPS],
+    *[(f"line_arrivals_{line}", f"/Line/{line}/Arrivals") for line in LINE_ARRIVALS],
     ("route_sequence_victoria_inbound", "/Line/victoria/Route/Sequence/inbound"),
     ("route_sequence_victoria_outbound", "/Line/victoria/Route/Sequence/outbound"),
     # Without a direction TfL answers with a disambiguation, not a timetable.
@@ -107,11 +115,22 @@ def fetch(client: httpx.Client, name: str, path: str) -> dict[str, Any]:
     return document
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Record TfL responses as test fixtures.")
+    parser.add_argument(
+        "--only", action="append", metavar="NAME", help="record only this fixture (repeatable)"
+    )
+    args = parser.parse_args(argv)
+    known = {name for name, _ in REQUESTS}
+    unknown = sorted(set(args.only or ()) - known)
+    if unknown:
+        parser.error(f"unknown fixture names: {unknown}")
+    selected = [(n, p) for n, p in REQUESTS if not args.only or n in args.only]
+
     headers = {"User-Agent": "mind-the-data fixture recorder"}
     documents: dict[str, dict[str, Any]] = {}
     with httpx.Client(base_url=BASE_URL, headers=headers, timeout=30.0) as client:
-        for index, (name, path) in enumerate(REQUESTS):
+        for index, (name, path) in enumerate(selected):
             if index:
                 time.sleep(PAUSE_SECONDS)
             documents[name] = fetch(client, name, path)

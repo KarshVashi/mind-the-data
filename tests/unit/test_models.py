@@ -236,6 +236,23 @@ def test_empty_arrival_board_parses(stop: str) -> None:
     assert parse_arrivals(load(f"arrivals_{stop}")) == []
 
 
+@pytest.mark.parametrize(("line", "prefix"), [("bakerloo", "940GZZ"), ("elizabeth", "910G")])
+def test_line_wide_board_parses_as_predictions_for_many_stations(line: str, prefix: str) -> None:
+    # Line/{id}/Arrivals (ADR-016) uses the same Prediction shape as a station board.
+    raw = load(f"line_arrivals_{line}")
+    arrivals = parse_arrivals(raw)
+    assert len(arrivals) == len(raw) > 0
+    assert {a.line_id for a in arrivals} == {line}
+    assert len({a.naptan_id for a in arrivals}) > 1
+    assert all(a.naptan_id.startswith(prefix) for a in arrivals)
+    assert all(is_utc(a.expected_arrival) and is_utc(a.timestamp) for a in arrivals)
+
+
+def test_empty_line_wide_board_parses() -> None:
+    # Liberty recorded overnight: no trains is an empty list, not an error.
+    assert parse_arrivals(load("line_arrivals_liberty")) == []
+
+
 # ---- Route sequence -------------------------------------------------------------
 
 

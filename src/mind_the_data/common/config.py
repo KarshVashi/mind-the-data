@@ -23,11 +23,15 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, Validation
 NAPTAN_ID_PATTERN = r"^(940GZZ[A-Z0-9]{5,}|910G[A-Z0-9]+)$"
 MAX_STATIONS_PER_LINE = 5
 DEFAULT_MIN_STATIONS = 3
-# One Arrivals call per distinct station each minute, plus line status and line
-# disruption: 52 calls a minute (53 every fifth minute, with stop disruption)
-# against the 500/min key limit (PLAN 5.3). Checked at load so a bad CONFIG_DIR
+# Each poll makes one Arrivals call per distinct station, one line-wide Arrivals
+# call per line (ADR-016), line status and line disruption, and stop disruption
+# every fifth minute: 72 calls a minute (73 every fifth minute) with 50
+# stations and 20 lines, against the 500/min key limit (PLAN 5.3) and inside
+# the 45 s poll budget at concurrency 10. Checked at load so a bad CONFIG_DIR
 # bundle fails at cold start rather than by quietly overspending the budget.
 MAX_DISTINCT_STATIONS = 50
+FIXED_CALLS_PER_POLL = 3
+MAX_CALLS_PER_POLL = 80
 
 LineId = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z-]*$")]
 NaptanId = Annotated[str, StringConstraints(pattern=NAPTAN_ID_PATTERN)]
@@ -176,6 +180,14 @@ def validate_stations(lines: Sequence[Line], stations: Sequence[Station]) -> Non
         raise ConfigError(
             f"{distinct} distinct stations exceeds the budget of {MAX_DISTINCT_STATIONS}"
         )
+    calls = max_calls_per_poll(lines, stations)
+    if calls > MAX_CALLS_PER_POLL:
+        raise ConfigError(f"{calls} calls per poll exceeds the budget of {MAX_CALLS_PER_POLL}")
+
+
+def max_calls_per_poll(lines: Sequence[Line], stations: Sequence[Station]) -> int:
+    """Requests in the largest poll (a fifth minute): fixed feeds, one per line, one per station."""
+    return FIXED_CALLS_PER_POLL + len(lines) + len(distinct_station_ids(stations))
 
 
 def distinct_station_ids(stations: Sequence[Station]) -> list[str]:
