@@ -18,7 +18,9 @@ Volume, measured on 16 November 2026: at 08:00 the 50-station feed wrote about 5
 
 1. **A new raw feed, `line_arrivals`.** One `GET /Line/{line_id}/Arrivals` per configured line every minute, written as one object per poll with the existing envelope, failures included.
 2. **Keep the 50-station `arrivals` feed and every line-level model unchanged.** The line scores keep a continuous history. The overlap at the 50 stations is the check that the per-line endpoint lists the same trains as the station boards.
-3. **Timetables for every station.** The reference job fetches `Line/{line}/Timetable/{station}` for every station on every line, spread over the week in a fixed daily slice of about a seventh. Measurement stations keep their current cadence.
+3. **Timetables for every station TfL publishes them for.** The reference job now runs daily. Monday fetches the measurement stations, as before. Tuesday to Sunday each fetch a fixed sixth of every other Tube, DLR and tram station-line pair, chosen by a stable hash, so each pair is fetched once a week (about 110 to 145 calls a day). The station list comes from that day's route sequences.
+   - Elizabeth line and Overground stations are left out. TfL has returned 404 for every timetable request with a 910G id since collection began.
+   - Those stations get observed figures (trains seen, gaps, the gate), but no timetable-based ones (trains on the boards against the timetable, excess wait). Their measurement stations are still requested on Mondays, so the first success shows if TfL starts publishing them.
 4. **Station views reuse the M4 method.** The same arrival inference, the same gate (inferred trains within 80% to 120% of the trains on the boards, ADR-014), and the same long-gap rule are applied per station, line and direction. A station that fails the gate or lacks data is published as not measured, with the reason.
 
 ## Consequences

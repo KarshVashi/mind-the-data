@@ -762,6 +762,10 @@ STRIKES_EXCLUDED_COLUMNS = (
 STATUS_MIX_COLUMNS = "line_id, week_start, status_severity, is_planned, time_band, scored_minutes"
 
 
+# Station files carry a bounded history: about 430 stations with two or more
+# line-directions each would pass the 50,000-row guard after roughly 30 weeks.
+STATION_HISTORY_WEEKS = 12
+STATION_HISTORY_FILTER = f"week_start >= date_add('week', -{STATION_HISTORY_WEEKS}, current_date)"
 STATION_COLUMNS = "naptan_id, station_name, lat, lon, line_ids, modes, is_measurement_station"
 STATION_DISRUPTION_COLUMNS = (
     "week_start, naptan_id, closure_hours, step_free_hours, other_disruption_hours, "
@@ -860,11 +864,13 @@ def queries(database: str, start: date, end: date) -> dict[str, str]:
         "stations": (f"select {STATION_COLUMNS} from {database}.dim_station order by naptan_id"),
         "station_disruption": (
             f"select {STATION_DISRUPTION_COLUMNS} "
-            f"from {database}.fct_station_disruption_weekly order by week_start, naptan_id"
+            f"from {database}.fct_station_disruption_weekly "
+            f"where {STATION_HISTORY_FILTER} order by week_start, naptan_id"
         ),
         "station_measured": (
             f"select {STATION_MEASURED_COLUMNS} "
             f"from {database}.fct_station_weekly_measured "
+            f"where {STATION_HISTORY_FILTER} "
             "order by week_start, naptan_id, line_id, direction"
         ),
     }
