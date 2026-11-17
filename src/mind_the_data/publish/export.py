@@ -13,7 +13,9 @@ validates and lists the files without writing them.
 
 Written: league/{iso_week}.json for the week and for every complete week
 before it, league/latest.json, lines/{line_id}.json, meta/methodology.json,
-stations/index.json, stations/{naptan_id}.json, meta/index.json and cards/{iso_week}.png plus the 1080x1350 variant.
+meta/index.json and cards/{iso_week}.png plus the 1080x1350 variant. With
+STATIONS_PUBLISH_ENABLED=true it also writes stations/index.json and
+stations/{naptan_id}.json, and meta/index.json lists them; otherwise neither.
 Each league file carries the week's highlights (Wooden Spoon, Line of the
 Week, worst incident), Monday Morning Index, Engineering Works and Recovery
 Time tables, the industrial action in the week and the strikes-excluded
@@ -66,13 +68,16 @@ from mind_the_data.publish.sensitivity import (
     load_weight_sets,
     sensitivity_document,
 )
-from mind_the_data.publish.stations import station_document, station_index_document
+from mind_the_data.publish.stations import StationRows, station_document, station_index_document
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_WORKGROUP = "mind-the-data-dev"
 DEFAULT_DATABASE = "mind_the_data_prod"
 # The only workgroup the publish role's policy allows (infra/modules/ci_role).
 PUBLISH_WORKGROUP = "mind-the-data-prod"
+# The station files are written only when this is "true", so a missing or broken
+# station mart can never stop the Monday league publish.
+STATIONS_ENABLED_VAR = "STATIONS_PUBLISH_ENABLED"
 
 
 class IncompleteWeek(RuntimeError):
@@ -135,6 +140,7 @@ def build_outputs(
     weekly: Sequence[WeeklyRow] | None = None,
     transform_dir: Path = REPO_ROOT / "transform",
     allow_incomplete: bool = False,
+    stations_enabled: bool = True,
 ) -> tuple[League, list[Output]]:
     """Every JSON document for the week, validated against its schema.
 
@@ -267,26 +273,32 @@ def build_outputs(
         marts.status_mix(),
         weight_sets,
     )
-    stations = marts.stations()
-    station_disruption = marts.station_disruption_weekly()
-    station_measured = marts.station_measured_weekly()
-    outputs.append(
-        Output(
-            "stations/index.json",
-            station_index_document(stations, station_disruption, station_measured, stamp, window),
-            "station_index",
-            compact=True,
+    station_ids: list[str] | None = None
+    if stations_enabled:
+        stations = marts.stations()
+        grouped = StationRows(
+            window,
+            marts.station_disruption_weekly(window.start) if stations else [],
+            marts.station_measured_weekly(window.start) if stations else [],
         )
-    )
-    for info in sorted(stations, key=lambda st: st.naptan_id):
         outputs.append(
             Output(
-                f"stations/{info.naptan_id}.json",
-                station_document(info, station_disruption, station_measured, stamp, window),
-                "station",
+                "stations/index.json",
+                station_index_document(stations, grouped, stamp),
+                "station_index",
                 compact=True,
             )
         )
+        for info in sorted(stations, key=lambda st: st.naptan_id):
+            outputs.append(
+                Output(
+                    f"stations/{info.naptan_id}.json",
+                    station_document(info, grouped, stamp),
+                    "station",
+                    compact=True,
+                )
+            )
+        station_ids = [st.naptan_id for st in stations]
     outputs.append(
         Output(
             "meta/methodology.json",
@@ -311,7 +323,7 @@ def build_outputs(
                 latest_data_london=latest_minute,
                 division_months=states,
                 seasons=seasons,
-                station_ids=[st.naptan_id for st in stations],
+                station_ids=station_ids,
             ),
             "index",
         )
@@ -400,7 +412,12 @@ def main(argv: list[str] | None = None) -> int:
     stamp = Stamp(generated_at=datetime.now(UTC), git_sha=git_sha())
     try:
         league, outputs = build_outputs(
-            marts, week_start, stamp, weekly=weekly, allow_incomplete=args.allow_incomplete
+            marts,
+            week_start,
+            stamp,
+            weekly=weekly,
+            allow_incomplete=args.allow_incomplete,
+            stations_enabled=os.environ.get(STATIONS_ENABLED_VAR) == "true",
         )
     except IncompleteWeek as exc:
         raise SystemExit(str(exc)) from exc

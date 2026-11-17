@@ -75,6 +75,7 @@
                 "excess_wait_minutes",
                 "gate_judged_hours",
                 "gate_pass_share",
+                "schedule_source",
                 "measured_status",
                 "measured_withheld_reason"
               ],
@@ -155,6 +156,13 @@
                   "type": [
                     "string",
                     "null"
+                  ]
+                },
+                "schedule_source": {
+                  "description": "timetable when scheduled_trains exists; observed_only when TfL publishes no timetable (Elizabeth line, Overground), so gaps there can hide a suspension. Show distinctly.",
+                  "enum": [
+                    "timetable",
+                    "observed_only"
                   ]
                 }
               }

@@ -236,12 +236,14 @@ Stable slugs (`line_id`, `^[a-z-]+$`, used in every path), display names (`line_
 
 ### Changed for every station (`schema_version` 0.7.0, additive)
 
-- **`meta/index.json`** gains `stations`: `index_path` (`stations/index.json`), `path_template` (`stations/{naptan_id}.json`), `count` and `naptan_ids[]`. Read it first, as for lines.
+- **`meta/index.json`** gains `stations` (absent while the station export is switched off: it runs only when `STATIONS_PUBLISH_ENABLED` is `true`, so the site must treat a missing block as "no station pages"): `index_path` (`stations/index.json`), `path_template` (`stations/{naptan_id}.json`), `count` and `naptan_ids[]`. Read it first, as for lines.
 - **`stations/index.json`** (new, `contract/station_index.schema.json`): every station in `dim_station`, by `naptan_id`, with `name`, `lat`, `lon`, `lines[]`, `modes[]`, `is_measurement_station`, `path` and a `summary` of the export week (`latest_week`). Fetch this one file to draw the map; do not fetch every station file for it.
   - `summary.measured_status`: `measured` (at least one line and direction measured), `withheld` (rows exist, none passed the gate) or `not_measured`. `directions_measured` / `directions_total` count line and direction rows; `status_reasons[]` lists why the others are not measured (`no_line_arrivals_data` when the station has no arrivals data at all).
   - `summary.disruption`: closure, step-free and other disruption hours, `disruptions` and `observed_share` for the week, or `null` when the feed has no row for the station. `null` means unknown, not zero.
 - **`stations/{naptan_id}.json`** (new, `contract/station.schema.json`): one file per station in the index, written even when there is no data. Fields: `station`, `summary` (as above), `measured_history[]` (per `line_id` and `direction`, `weeks[]` oldest first with the weekly measured fields and `measured_status` / `measured_withheld_reason`) and `disruption_history[]` (weekly hours, oldest first). History covers up to the last 12 weeks and stops at the export week.
 - The files are written compact (no indentation). About 430 files rewrite weekly; the site fetches them at build time, only for station pages it renders.
+
+Each measured week carries `schedule_source`: `timetable`, or `observed_only` where TfL publishes no timetable (Elizabeth line, Overground), so gaps there can hide a suspension. The map and station pages should show `observed_only` distinctly (for example "compared with observed trains only").
 
 How the map should consume them: colour by `summary.measured_status`, and show `not_measured` and `withheld` as "no data" with the reason, never as good service. Show a disruption marker from `summary.disruption` only when it is not `null`. Link each station to its detail page from `path`. Before the first arrivals data lands, every station is `not_measured` with `no_line_arrivals_data`.
 
