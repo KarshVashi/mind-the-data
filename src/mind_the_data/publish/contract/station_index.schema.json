@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Station index",
+  "description": "stations/index.json: every station with its position, lines and a summary of the export week, so the map can colour stations from one file. not_measured and withheld are never good service.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "data_window",
+    "completeness",
+    "git_sha",
+    "latest_week",
+    "stations"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "league.schema.json#/$defs/schema_version"
+    },
+    "generated_at": {
+      "$ref": "league.schema.json#/$defs/utc_timestamp"
+    },
+    "data_window": {
+      "$ref": "league.schema.json#/$defs/data_window"
+    },
+    "completeness": {
+      "$ref": "league.schema.json#/$defs/nullable_share"
+    },
+    "git_sha": {
+      "$ref": "league.schema.json#/$defs/git_sha"
+    },
+    "latest_week": {
+      "$ref": "league.schema.json#/$defs/iso_week"
+    },
+    "stations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "naptan_id",
+          "name",
+          "lat",
+          "lon",
+          "lines",
+          "modes",
+          "is_measurement_station",
+          "path",
+          "summary"
+        ],
+        "properties": {
+          "naptan_id": {
+            "$ref": "station.schema.json#/$defs/naptan_id"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "lat": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "lon": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "modes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "is_measurement_station": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^stations/[0-9A-Za-z]+\\.json$"
+          },
+          "summary": {
+            "$ref": "station.schema.json#/$defs/summary"
+          }
+        }
+      }
+    }
+  }
+}

@@ -642,6 +642,7 @@ def index_document(
     latest_data_london: datetime | None,
     division_months: Sequence[DivisionState] = (),
     seasons: Sequence[str] = (),
+    station_ids: Sequence[str] = (),
 ) -> dict[str, Any]:
     """meta/index.json: the archived weeks, the latest week and the lines with history files.
 
@@ -694,6 +695,12 @@ def index_document(
             {"season": season, "path": f"season/{season}.json"}
             for season in sorted(seasons, reverse=True)
         ],
+        "stations": {
+            "index_path": "stations/index.json",
+            "path_template": "stations/{naptan_id}.json",
+            "count": len(station_ids),
+            "naptan_ids": sorted(station_ids),
+        },
         "views": {
             "declared": "published",
             "measured": "published" if measured else "not_measured",
