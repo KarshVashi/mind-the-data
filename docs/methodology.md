@@ -24,8 +24,9 @@ A collector polls TfL's Unified API every minute and keeps every response unchan
 | Line status (Tube, Elizabeth line, DLR, Overground, tram) | every minute | the declared view |
 | Line disruption | every minute | reason text for incidents |
 | Arrivals at about 50 measurement stations | every minute | the measured view |
+| Arrivals for every stop, one call per line (from M8, ADR-016) | every minute | station views |
 | Stop disruption | every 5 minutes | context |
-| Timetables, route sequences, severity codes | weekly | scheduled service, reference |
+| Timetables, route sequences, severity codes | weekly (timetables for other stations: a seventh of them each day) | scheduled service, reference |
 
 Collection started on **4 November 2026**. None of it can be backfilled, so the first week (2 to 8 November) is partial.
 
