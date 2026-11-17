@@ -9,7 +9,7 @@ output "poller_function_name" {
 }
 
 output "reference_function_name" {
-  description = "Name of the weekly reference Lambda."
+  description = "Name of the daily reference Lambda."
   value       = module.reference.function_name
 }
 
