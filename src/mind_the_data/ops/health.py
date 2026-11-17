@@ -21,17 +21,19 @@ if TYPE_CHECKING:
 
 ALARM_PREFIX = "mind-the-data-"
 LAMBDA_FUNCTIONS = ("mind-the-data-poller", "mind-the-data-reference")
-LIVE_FEEDS = ("line_status", "line_disruption", "arrivals", "stop_disruption")
+LIVE_FEEDS = ("line_status", "line_disruption", "arrivals", "line_arrivals", "stop_disruption")
 REFERENCE_FEEDS = ("ref_route_sequence", "ref_timetable", "ref_severity")
-# Polled every minute, every fifth minute, or weekly; older than this is stale.
+# Polled every minute, every fifth minute, or daily; older than this is stale.
 MAX_AGE = {
     "line_status": timedelta(minutes=10),
     "line_disruption": timedelta(minutes=10),
     "arrivals": timedelta(minutes=10),
+    "line_arrivals": timedelta(minutes=10),
     "stop_disruption": timedelta(minutes=20),
-    "ref_route_sequence": timedelta(days=8),
-    "ref_timetable": timedelta(days=8),
-    "ref_severity": timedelta(days=8),
+    # Daily since M8, with a day's slack for a failed run and its retries.
+    "ref_route_sequence": timedelta(days=2),
+    "ref_timetable": timedelta(days=2),
+    "ref_severity": timedelta(days=2),
 }
 AWS_ERRORS = (BotoCoreError, ClientError)
 ALWAYS_RUNNING = frozenset({"mind-the-data-poller"})
