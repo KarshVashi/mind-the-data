@@ -26,7 +26,7 @@ Volume, measured on 16 November 2026: at 08:00 the 50-station feed wrote about 5
 ## Consequences
 
 - About 72 calls a minute (20 more), well inside the rate limit and the poll budget.
-- Cost: S3 storage grows by about 10 GB a month (about $0.25 a month for each month kept). Daily staging scans about 1 GB of the new feed for its lookback window, a few cents a month. Requests and Lambda stay in the free tier. The total stays inside the £5 budget (H5), and `docs/cost.md` is checked against Cost Explorer after the first full month.
+- Cost: S3 storage grows by about 10 GB a month (about $0.25 a month for each month kept). Daily staging scans about 1 GB of the new feed for its lookback window, a few cents a month. S3 writes add about $0.23 a month (one more object a minute); Lambda stays in the free tier. The total stays inside the £5 budget (H5), and `docs/cost.md` is checked against Cost Explorer after the first full month.
 - Station figures start provisional: one full ISO week for a first snapshot, two for comparisons, four for trends and rankings.
 - The first full week includes a check that the per-line feed lists the trains the station feed lists at the 50 stations. If it lists materially fewer, station figures stay unpublished, and this ADR is revisited (per-station polling for the stations that matter most, under the rate limit).
 
