@@ -83,7 +83,7 @@ macros:
     arguments:
       - name: feed
         type: string
-        description: Raw table name, one of raw_feeds().
+        description: Raw table name in the `raw` source.
       - name: successful_only
         type: bool
         description: Keep only `is_ok` envelopes (default true).

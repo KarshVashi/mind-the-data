@@ -2,7 +2,8 @@ version: 2
 
 # Every staging model:
 # - reads whole raw days inside the staging window (macros/staging_window.sql),
-# - keeps only successful envelopes, except stg_polls which keeps them all,
+# - keeps only successful envelopes, except stg_polls and stg_line_arrival_polls,
+#   which keep them all,
 # - merges on its row key, so rerunning a day gives the same rows (ADR-008),
 # - stores timestamps as UTC timestamp(6) and TfL's 0001-01-01 placeholder as null.
 # Uniqueness and not-null tests run over the last 7 days of `dt`
@@ -11,8 +12,8 @@ version: 2
 models:
   - name: stg_polls
     description: >
-      One row per raw envelope (one HTTP request) across every feed, failed
-      ones included. This is the record of which minutes had a successful
+      One row per raw envelope (one HTTP request) across every feed except
+      line_arrivals (stg_line_arrival_polls), failed ones included. This is the record of which minutes had a successful
       poll, so the minute-level models can tell missing data from a quiet
       line: a minute with no `is_ok` row for a feed is missing, never Good
       Service. Duplicate copies of one (poll_id, request_path) keep the
@@ -329,6 +330,167 @@ models:
         data_tests: [not_null]
       - name: time_to_live
         description: When TfL considers the prediction expired, UTC; null for the 0001-01-01 placeholder.
+      - name: dt
+        description: UTC date of the raw partition. Partition column.
+        data_tests: [not_null]
+
+  - name: stg_line_arrivals
+    description: >
+      Arrival predictions from the line feed (ADR-016) at a grain of poll x
+      line request x prediction, covering every stop on the line. Parsed,
+      keyed and deduplicated exactly as stg_arrivals, so the shared inference
+      (macros/inference.sql) reads both feeds the same way. Only successful
+      envelopes; a line whose request failed has no rows for that poll and
+      shows as not ok in stg_line_arrival_polls.
+    columns:
+      - name: line_arrival_prediction_key
+        description: >
+          Row key, a hash of (poll_id, request_path, prediction_id, line_id,
+          naptan_id, platform_name, direction, vehicle_id,
+          destination_naptan_id, expected_arrival). Merge key.
+        data_tests: [unique, not_null]
+      - name: poll_id
+        description: Collector run that fetched the line. Shared by every line of that run.
+        data_tests: [not_null]
+      - name: request_path
+        description: "TfL path requested, `/Line/{lineId}/Arrivals`, which names the line."
+        data_tests: [not_null]
+      - name: polled_at
+        description: Poll start, UTC.
+        data_tests: [not_null]
+      - name: poll_minute
+        description: "`polled_at` truncated to the minute, UTC."
+        data_tests: [not_null]
+      - name: prediction_id
+        description: TfL prediction id. Not unique within a board; see the model description.
+        data_tests: [not_null]
+      - name: vehicle_id
+        description: TfL vehicle id; null when TfL sends it empty. Stability is checked in the week-one review.
+      - name: naptan_id
+        description: NaPTAN id of the stop point the prediction is for.
+        data_tests: [not_null]
+      - name: station_name
+        description: Stop point name.
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: line_name
+        description: TfL line name.
+      - name: mode_name
+        description: TfL mode.
+      - name: platform_name
+        description: Platform as TfL names it, e.g. `Southbound - Platform 3`.
+      - name: direction
+        description: "`inbound` or `outbound`; null when TfL sends it empty."
+      - name: destination_naptan_id
+        description: NaPTAN id of the train's destination.
+      - name: destination_name
+        description: Destination name.
+      - name: towards
+        description: TfL's "towards" text shown on platform boards.
+      - name: current_location
+        description: TfL's text for where the train is now.
+      - name: time_to_station
+        description: Seconds until the predicted arrival, as of `prediction_timestamp`.
+        data_tests: [not_null]
+      - name: expected_arrival
+        description: Predicted arrival, UTC. Inferred arrival times come from this, not from poll time (ADR-002).
+        data_tests: [not_null]
+      - name: prediction_timestamp
+        description: When TfL made the prediction, UTC (millisecond precision).
+        data_tests: [not_null]
+      - name: time_to_live
+        description: When TfL considers the prediction expired, UTC; null for the 0001-01-01 placeholder.
+      - name: dt
+        description: UTC date of the raw partition. Partition column.
+        data_tests: [not_null]
+
+
+  - name: stg_line_arrival_polls
+    description: >
+      One row per line_arrivals envelope (one HTTP request per line per
+      minute), failed ones included, in the shape of stg_polls. The record
+      of which minutes each line was observed in: a station hour on a line
+      whose polls failed is not observed, never quiet. Kept apart from
+      stg_polls so a missing line feed cannot stop the line-level models.
+    columns:
+      - name: poll_key
+        description: Row key, a hash of (poll_id, request_path). Merge key.
+        data_tests: [unique, not_null]
+      - name: poll_id
+        description: UUID of the collector run. Shared by every line of that run.
+        data_tests: [not_null]
+      - name: feed
+        description: Raw feed the envelope came from.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [line_arrivals]
+      - name: request_path
+        description: "TfL path requested, `/Line/{lineId}/Arrivals`."
+        data_tests: [not_null]
+      - name: polled_at
+        description: Poll start, UTC.
+        data_tests: [not_null]
+      - name: poll_minute
+        description: "`polled_at` truncated to the minute, UTC."
+        data_tests: [not_null]
+      - name: http_status
+        description: HTTP status, or null when no response came back.
+      - name: latency_ms
+        description: Request latency in milliseconds.
+      - name: error
+        description: Failure type when no usable response came back; null on success.
+      - name: is_ok
+        description: True when TfL answered 2xx, the collector recorded no error and a payload was stored.
+        data_tests: [not_null]
+      - name: dt
+        description: UTC date of the raw partition. Partition column.
+        data_tests: [not_null]
+
+  - name: stg_route_station
+    description: >
+      Stations a route sequence lists (its `stations` array) at a grain of
+      fetch x line x direction x station, with TfL's name, coordinates and
+      modes. dim_station describes each station from the latest fetch that
+      lists it. Line membership is stg_route_sequence's job. Only successful
+      envelopes.
+    columns:
+      - name: route_station_key
+        description: Row key, a hash of (poll_id, request_path, station_ordinal). Merge key.
+        data_tests: [unique, not_null]
+      - name: poll_id
+        description: Collector run that fetched the sequence.
+        data_tests: [not_null]
+      - name: request_path
+        description: TfL path requested.
+        data_tests: [not_null]
+      - name: polled_at
+        description: Fetch time, UTC.
+        data_tests: [not_null]
+      - name: line_id
+        description: TfL line id of the sequence.
+        data_tests: [not_null]
+      - name: direction
+        description: "`inbound` or `outbound`."
+      - name: station_ordinal
+        description: 1-based position of the station in the response's `stations` array.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Station-level NaPTAN id (940G..., 910G...).
+        data_tests: [not_null]
+      - name: station_name
+        description: TfL's station name, e.g. `Green Park Underground Station`.
+      - name: lat
+        description: Latitude, WGS84.
+      - name: lon
+        description: Longitude, WGS84.
+      - name: stop_type
+        description: TfL stop type, e.g. `NaptanMetroStation`.
+      - name: modes
+        description: TfL modes serving the station; empty when TfL sends none.
+        data_tests: [not_null]
       - name: dt
         description: UTC date of the raw partition. Partition column.
         data_tests: [not_null]
