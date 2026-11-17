@@ -326,10 +326,10 @@ class StationMeasuredRow:
     line_id: str
     direction: str
     observed_hours: float
-    trains_observed: int
-    trains_per_hour: float
-    median_gap_minutes: float
-    long_gaps_per_100_hours: float
+    trains_observed: int | None
+    trains_per_hour: float | None
+    median_gap_minutes: float | None
+    long_gaps_per_100_hours: float | None
     scheduled_trains: int | None
     trains_on_boards_share: float | None
     excess_wait_minutes: float | None
@@ -673,10 +673,10 @@ def parse_station_measured(cells: Cells) -> StationMeasuredRow:
         line_id=_req(cells, "line_id"),
         direction=_req(cells, "direction"),
         observed_hours=_float(cells, "observed_hours"),
-        trains_observed=_int(cells, "trains_observed"),
-        trains_per_hour=_float(cells, "trains_per_hour"),
-        median_gap_minutes=_float(cells, "median_gap_minutes"),
-        long_gaps_per_100_hours=_float(cells, "long_gaps_per_100_hours"),
+        trains_observed=_opt_int(cells, "trains_observed"),
+        trains_per_hour=_opt_float(cells, "trains_per_hour"),
+        median_gap_minutes=_opt_float(cells, "median_gap_minutes"),
+        long_gaps_per_100_hours=_opt_float(cells, "long_gaps_per_100_hours"),
         scheduled_trains=_opt_int(cells, "scheduled_trains"),
         trains_on_boards_share=_opt_float(cells, "trains_on_boards_share"),
         excess_wait_minutes=_opt_float(cells, "excess_wait_minutes"),
