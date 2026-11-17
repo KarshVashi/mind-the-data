@@ -24,7 +24,7 @@ variable "poller_function_name" {
 
 variable "reference_function_name" {
   type        = string
-  description = "Name of the weekly reference Lambda."
+  description = "Name of the daily reference Lambda."
 }
 
 variable "error_rate_threshold_percent" {

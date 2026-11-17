@@ -22,6 +22,7 @@ class Feed(StrEnum):
     LINE_STATUS = "line_status"
     LINE_DISRUPTION = "line_disruption"
     ARRIVALS = "arrivals"
+    LINE_ARRIVALS = "line_arrivals"
     STOP_DISRUPTION = "stop_disruption"
     REF_ROUTE_SEQUENCE = "ref_route_sequence"
     REF_TIMETABLE = "ref_timetable"
