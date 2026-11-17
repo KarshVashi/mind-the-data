@@ -73,6 +73,8 @@ RULES: tuple[tuple[re.Pattern[str], str, str], ...] = (
     (re.compile(rf"league/{_WEEK}\.json"), JSON, WEEK_CACHE),
     (re.compile(r"lines/[a-z-]+\.json"), JSON, SHORT_CACHE),
     (re.compile(r"meta/(index|methodology)\.json"), JSON, SHORT_CACHE),
+    # Rewritten every run like the line files; stations/index.json is one of them.
+    (re.compile(r"stations/[0-9A-Za-z]+\.json"), JSON, SHORT_CACHE),
     # Rewritten each run while the month or season is still open (D57, D58).
     (re.compile(rf"divisions/{_MONTH}\.json"), JSON, SHORT_CACHE),
     (re.compile(r"season/\d{4}-\d{2}\.json"), JSON, SHORT_CACHE),
