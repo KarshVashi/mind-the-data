@@ -813,6 +813,26 @@ A change to a staging model's merge key (D45 for `stg_arrivals`) needs the same 
 
 ---
 
+## Station models
+
+The every-station models (M8, ADR-016) carry the dbt tag `station`: `stg_line_arrivals`, `stg_line_arrival_polls`, `stg_route_station`, `dim_station`, `fct_station_disruption_weekly`, the `int_station_*` models and `fct_station_weekly_measured`. Nothing outside the tag depends on them, so the daily transform builds them in their own step (`--select tag:station`) that may fail without stopping the league build. A failure there leaves the station tables at their last good build; the line-level tables are unaffected.
+
+**Windowed models.** The line feed is about 10 GB of raw a month, and the workgroup stops any query over 10 GiB, so `int_station_inferred_arrivals` and `int_station_vehicle_passes` are never rebuilt in full. Each run deletes the days of its window (the last `lookback_days` UTC days, or `start_date` to `end_date`) and recomputes them, reading one day before the window. A first build or a `--full-refresh` without `start_date` covers only the last `station_initial_days` days (default 7), and so do `stg_line_arrivals` and `stg_line_arrival_polls`.
+
+**Backfilling.** Load older days in chunks of a few days, oldest first, after the first build has created the tables:
+
+```sh
+cd transform
+uv run --locked dbt build --target prod --profiles-dir . --select tag:station \
+  --vars '{start_date: "2026-11-18", end_date: "2026-11-21"}'
+```
+
+The staging models merge those days, the two windowed models replace them, and the tables downstream rebuild in full from what is there. Keep each chunk's line feed under the 10 GiB scan limit (a few days at the current volume).
+
+**After a failed run.** The windowed models delete their window's days in a pre-hook before recomputing them. If the run fails after the delete, those days are missing from `int_station_inferred_arrivals` or `int_station_vehicle_passes` (and so from the station views) until the next green run recomputes them. Nothing is lost: raw and `stg_line_arrivals` still hold every poll. If the failure lasted longer than `lookback_days`, rebuild the missed days with `start_date`/`end_date` as above.
+
+---
+
 ## Ops workflows
 
 Scheduled checks that answer "is the collector healthy?" without anyone asking. Both run read-only as the `mtd-ci-observer` role, created by the bootstrap. The role trusts these two workflow files by name, so don't rename them.

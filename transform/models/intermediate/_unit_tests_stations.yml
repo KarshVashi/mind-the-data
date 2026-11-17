@@ -25,6 +25,8 @@ unit_tests:
         raw_start_date: "2026-11-05"
         start_date: null
         end_date: "2026-11-05"
+        # Read from raw_start_date, as a backfill would, not the last days.
+        station_initial_days: null
         placeholder_vehicle_ids: ["000", "001"]
     given:
       - input: ref('seed_vehicle_id_lines')
@@ -86,6 +88,8 @@ unit_tests:
         raw_start_date: "2026-11-05"
         start_date: null
         end_date: "2026-11-05"
+        # Read from raw_start_date, as a backfill would, not the last days.
+        station_initial_days: null
         placeholder_vehicle_ids: ["000", "001"]
         vehicle_pass_visit_gap_seconds: 600
         vehicle_pass_threshold_seconds: 120

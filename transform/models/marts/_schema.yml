@@ -166,7 +166,7 @@ models:
       - name: median_gap_minutes
         description: Median in-service gap ending in a gated hour, in minutes (mean of the two middle gaps for an even count); null unless measured.
       - name: long_gaps
-        description: Gaps over twice the hour's longest scheduled gap, in gated timetabled hours; null unless measured.
+        description: Gaps over twice the hour's longest scheduled gap, in gated timetabled hours; null unless measured with at least one gated timetabled hour (no timetable means not computable, not 0).
       - name: long_gaps_per_100_hours
         description: 100 x long_gaps / gated timetabled hours; null unless measured or without a timetable.
       - name: scheduled_trains

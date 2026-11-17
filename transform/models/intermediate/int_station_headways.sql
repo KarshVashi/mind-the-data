@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='table', tags=['station']) }}
 
 -- Gaps between consecutive inferred arrivals per line, station and
 -- direction for every station (M8), flagging gaps that span a gap in the

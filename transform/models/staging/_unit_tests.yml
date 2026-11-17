@@ -21,6 +21,7 @@ unit_tests:
         start_date: null
         end_date: null
         raw_start_date: "2026-11-01"
+        station_initial_days: null
     given:
       - input: source('raw', 'line_status')
         format: sql

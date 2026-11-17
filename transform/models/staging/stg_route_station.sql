@@ -1,5 +1,6 @@
 {{
     config(
+        tags=['station'],
         unique_key='route_station_key',
         incremental_predicates=staging_incremental_predicates(),
     )

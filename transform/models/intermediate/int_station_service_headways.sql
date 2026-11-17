@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='table', tags=['station']) }}
 
 -- The gaps the station measured view uses (M8): gaps from
 -- int_station_headways that span no collection gap (D28) and whose every

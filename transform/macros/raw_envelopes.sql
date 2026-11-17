@@ -27,8 +27,8 @@
   Kept out of staging_window.sql: sqlfluff's jinja templater only honours a
   macro's return() when it is called from another file.
 #}
-{% macro raw_dt_filter() %}
-    {%- set window = staging_window() -%}
+{% macro raw_dt_filter(initial_days=none) %}
+    {%- set window = staging_window(initial_days) -%}
     dt between '{{ window.start }}' and '{{ window.end }}'
 {%- endmacro %}
 
@@ -43,8 +43,9 @@
   the minute-level models choose between them.
 
   successful_only=true keeps only envelopes whose payload can be parsed.
+  initial_days bounds a first build or full refresh (staging_window).
 #}
-{% macro raw_envelopes(feed, successful_only=true) %}
+{% macro raw_envelopes(feed, successful_only=true, initial_days=none) %}
     select
         ranked.poll_id,
         ranked.feed,
@@ -81,7 +82,7 @@
                     src.payload
             ) as envelope_rank
         from {{ source('raw', feed) }} as src
-        where src.{{ raw_dt_filter() }}
+        where src.{{ raw_dt_filter(initial_days) }}
     ) as ranked
     where ranked.envelope_rank = 1
     {%- if successful_only %}

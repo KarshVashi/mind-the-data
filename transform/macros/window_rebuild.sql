@@ -7,11 +7,15 @@
   the window so a train last seen just before midnight is still found.
   Rerunning a day gives the same rows.
 
+  A first build or full refresh without start_date covers only the last
+  `station_initial_days` days; older days are backfilled in chunks with
+  start_date/end_date (docs/runbook.md, Station models).
+
   window_rebuild_bounds(): {'read_start', 'start', 'end'} as 'YYYY-MM-DD'
   literals, from staging_window().
 #}
 {% macro window_rebuild_bounds() %}
-    {%- set window = staging_window() -%}
+    {%- set window = staging_window(var('station_initial_days')) -%}
     {%- set read_start = (
         modules.datetime.date.fromisoformat(window.start) - modules.datetime.timedelta(days=1)
     ).isoformat() -%}

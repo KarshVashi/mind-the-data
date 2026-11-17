@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='table', tags=['station']) }}
 
 -- Every station on every line in scope (M8), one row per station-level
 -- NaPTAN id. Membership comes from each line's latest route sequences, so
