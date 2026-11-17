@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='table', tags=['station']) }}
 
 -- Station disruption per ISO week (London) and station (M8), from the
 -- network-wide stop disruption feed polled every 5 minutes.

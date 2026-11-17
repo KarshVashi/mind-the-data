@@ -1,5 +1,6 @@
 {{
     config(
+        tags=['station'],
         materialized='incremental',
         incremental_strategy='merge',
         unique_key='vehicle_pass_key',

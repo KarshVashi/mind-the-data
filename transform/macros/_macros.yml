@@ -6,10 +6,19 @@ macros:
       The raw days a staging run reads, as {start, end} 'YYYY-MM-DD' strings
       (inclusive, UTC). `start_date`/`end_date` vars win; otherwise an
       incremental run starts `lookback_days` before today and a full refresh
-      starts at `raw_start_date`. The end defaults to today. Fails compilation
-      on a malformed date or an inverted window.
+      starts at `raw_start_date`, or with `initial_days` that many days back
+      (not before raw_start_date). The end defaults to today. Fails
+      compilation on a malformed date or an inverted window.
+    arguments:
+      - name: initial_days
+        type: integer
+        description: Optional bound on a first build or full refresh without start_date (station models).
   - name: raw_dt_filter
     description: "`dt between '<start>' and '<end>'` for the current staging window, as literals so partition projection prunes."
+    arguments:
+      - name: initial_days
+        type: integer
+        description: Passed to staging_window.
   - name: staging_incremental_predicates
     description: >
       The merge's predicate on the existing staging table: `target.dt` from
@@ -87,6 +96,9 @@ macros:
       - name: successful_only
         type: bool
         description: Keep only `is_ok` envelopes (default true).
+      - name: initial_days
+        type: integer
+        description: Passed to staging_window; bounds a first build or full refresh.
   - name: utc_timestamp
     description: ISO 8601 text with a zone to a zoneless UTC timestamp(6), the type Iceberg on Athena stores.
     arguments:

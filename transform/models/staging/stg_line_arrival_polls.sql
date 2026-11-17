@@ -1,5 +1,6 @@
 {{
     config(
+        tags=['station'],
         unique_key='poll_key',
         incremental_predicates=staging_incremental_predicates(),
     )
@@ -12,7 +13,9 @@
 -- decide which station hours were observed; failed ones are missing data.
 
 with envelopes as (
-    {{ raw_envelopes('line_arrivals', successful_only=false) }}
+    {{ raw_envelopes(
+        'line_arrivals', successful_only=false, initial_days=var('station_initial_days'),
+    ) }}
 )
 
 select

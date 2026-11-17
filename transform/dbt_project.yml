@@ -17,6 +17,12 @@ clean-targets: ["target", "dbt_packages"]
 vars:
   # First raw day read by a full refresh.
   raw_start_date: "2026-11-01"
+  # Days a first build or full refresh of the line-feed station models
+  # (stg_line_arrivals, stg_line_arrival_polls, int_station_inferred_arrivals,
+  # int_station_vehicle_passes) reads without start_date: the feed is ~10 GB
+  # a month raw and the workgroup stops a query over 10 GiB. Older days are
+  # backfilled in chunks (docs/runbook.md, Station models).
+  station_initial_days: 7
   # Whole UTC days an incremental run reprocesses, counting back from today,
   # so a late raw object or a rerun after a failure is picked up.
   lookback_days: 2

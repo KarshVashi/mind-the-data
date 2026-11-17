@@ -3,8 +3,14 @@
 
   Rendered as literals, not SQL date arithmetic, so Athena's partition
   projection prunes `dt` before listing S3.
+
+  initial_days: when given, a first build or full refresh without
+  start_date reads only that many days back from today (never before
+  raw_start_date) instead of all history. The station models use it
+  (`station_initial_days`): the line feed is too large to read whole in one
+  query, so older days are backfilled in chunks with start_date/end_date.
 #}
-{% macro staging_window() %}
+{% macro staging_window(initial_days=none) %}
     {%- set today = modules.datetime.datetime.now(modules.pytz.utc).date() -%}
     {#- A full refresh rebuilds the table from the window alone, so a backfill
         window would silently drop every other day. -#}
@@ -15,6 +21,9 @@
         {%- set start = var('start_date') | string -%}
     {%- elif is_incremental() -%}
         {%- set start = (today - modules.datetime.timedelta(days=var('lookback_days') | int)).isoformat() -%}
+    {%- elif initial_days is not none -%}
+        {%- set recent = (today - modules.datetime.timedelta(days=initial_days | int)).isoformat() -%}
+        {%- set start = [recent, var('raw_start_date') | string] | max -%}
     {%- else -%}
         {%- set start = var('raw_start_date') | string -%}
     {%- endif -%}

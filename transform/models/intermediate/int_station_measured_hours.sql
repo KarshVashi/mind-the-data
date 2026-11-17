@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='table', tags=['station']) }}
 
 -- The measured view's hours for every station (M8): one row per line,
 -- station, direction and London hour of service, with the quality gate of

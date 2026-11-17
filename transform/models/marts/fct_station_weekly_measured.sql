@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='table', tags=['station']) }}
 
 -- The measured view per ISO week (London), station, line and direction
 -- (M8), for every station with line_arrivals data. The station twin of
@@ -27,7 +27,8 @@
 --
 -- Stations without a timetable (Elizabeth line and Overground, which TfL
 -- serves no timetables for) have no scheduled trains, trains-on-boards
--- share, excess wait or long gaps: those stay null. Their hours of service
+-- share, excess wait, long gaps or long-gap rate: a long gap is judged
+-- against the scheduled gap, so with none those stay null, never 0. Their hours of service
 -- are the hours with trains, so trains_per_hour describes running hours.
 
 with hours as (
@@ -193,7 +194,12 @@ select
     if(measured_status <> 'withheld' and observed_hours > 0, 1e0 * trains_observed / observed_hours)
         as trains_per_hour,
     if(measured_status = 'measured', median_gap_minutes) as median_gap_minutes,
-    if(measured_status = 'measured', cast(long_gaps as integer)) as long_gaps,
+    -- Long gaps are judged against the timetable (D34): without a gated
+    -- timetabled hour there is nothing to judge, which is null, not 0.
+    if(
+        measured_status = 'measured' and measured_scheduled_hours > 0,
+        cast(long_gaps as integer)
+    ) as long_gaps,
     if(
         measured_status = 'measured' and measured_scheduled_hours > 0,
         100e0 * long_gaps / measured_scheduled_hours

@@ -1,5 +1,6 @@
 {{
     config(
+        tags=['station'],
         unique_key='line_arrival_prediction_key',
         incremental_predicates=staging_incremental_predicates(),
     )
@@ -11,7 +12,7 @@
 -- response.
 
 with envelopes as (
-    {{ raw_envelopes('line_arrivals') }}
+    {{ raw_envelopes('line_arrivals', initial_days=var('station_initial_days')) }}
 ),
 
 predictions as (
