@@ -123,8 +123,9 @@ unit_tests:
       (excess wait 60 s with 1 long gap, and 0 s) and 09:00 at two (30 s and
       30 s). The 10:00 hour is out of band (600 s, 5 long gaps) and is left
       out. Measured hours 4, excess-wait hours 4, excess wait summed 120 s,
-      long gaps 1. Trains run sums observed hours only: 30 + 30 = 60 on the
-      boards against 40 + 40 + 10 + 10 + 10 = 110 scheduled. Station b is a
+      long gaps 1. Trains run sums observed hours at core and branch stations
+      only (D66): station a, 30 on the boards against 40 + 10 + 10 = 60
+      scheduled; terminus b is left out. Station b is a
       terminus, so the line-week gate (D51) judges station a only: 3 judged
       hours, 2 in band. Declared status: 08:00 is Good Service in every
       minute, 09:00 has a Minor Delays minute, so 1 Good Service hour with a
@@ -160,7 +161,7 @@ unit_tests:
           - {line_id: dlr, london_date: "2026-10-27", london_ts: "2026-10-27 08:00:00", is_missing: false, status_severity: 10}
     expect:
       rows:
-        - {line_id: victoria, london_date: "2026-10-27", scheduled_measurement_hours: 5, observed_measurement_hours: 5, observed_trains: 60, observed_hours_scheduled_trains: 110, measured_hours: 4, excess_wait_hours: 4, sum_excess_wait_seconds: 120, long_gaps: 1, fallback_measured_hours: 0, gate_judged_hours: 3, gate_in_band_hours: 2, good_service_measured_hours: 1, honesty_gap_hours: 1}
+        - {line_id: victoria, london_date: "2026-10-27", scheduled_measurement_hours: 5, observed_measurement_hours: 5, observed_trains: 30, observed_hours_scheduled_trains: 60, measured_hours: 4, excess_wait_hours: 4, sum_excess_wait_seconds: 120, long_gaps: 1, fallback_measured_hours: 0, gate_judged_hours: 3, gate_in_band_hours: 2, good_service_measured_hours: 1, honesty_gap_hours: 1}
         - {line_id: bakerloo, london_date: "2026-10-27", scheduled_measurement_hours: 1, observed_measurement_hours: 1, observed_trains: 0, observed_hours_scheduled_trains: 0, measured_hours: 1, excess_wait_hours: 1, sum_excess_wait_seconds: -30, long_gaps: 0, fallback_measured_hours: 1, gate_judged_hours: 1, gate_in_band_hours: 1, good_service_measured_hours: 1, honesty_gap_hours: 0}
         - {line_id: central, london_date: "2026-10-27", scheduled_measurement_hours: 4, observed_measurement_hours: 2, observed_trains: 0, observed_hours_scheduled_trains: 20, measured_hours: 1, excess_wait_hours: 1, sum_excess_wait_seconds: 0, long_gaps: 0, fallback_measured_hours: 0, gate_judged_hours: 2, gate_in_band_hours: 1, good_service_measured_hours: 0, honesty_gap_hours: 0}
 

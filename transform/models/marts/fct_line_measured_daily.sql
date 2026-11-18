@@ -65,9 +65,14 @@ daily as (
         count(*) as scheduled_measurement_hours,
         count_if(is_observed) as observed_measurement_hours,
         -- Trains run against the timetable (ADR-014): trains seen on the
-        -- boards over scheduled trains, in observed hours.
-        sum(if(is_observed, observed_trains, 0)) as observed_trains,
-        sum(if(is_observed, scheduled_departures, 0)) as observed_hours_scheduled_trains,
+        -- boards over scheduled trains, in observed hours at core and
+        -- branch stations (D66). At a terminus TfL lists departing trains
+        -- with no direction, or arriving ones on several platforms, so it
+        -- reads far under or over the timetable; the gate leaves termini
+        -- out for the same reason (D33, D51).
+        sum(if(is_observed and role <> 'terminus', observed_trains, 0)) as observed_trains,
+        sum(if(is_observed and role <> 'terminus', scheduled_departures, 0))
+            as observed_hours_scheduled_trains,
         count_if(counts_for_reliability) as measured_hours,
         -- A gated hour with no in-service gap ending in it has no excess
         -- wait, so excess wait has its own denominator.
