@@ -409,14 +409,14 @@ models:
       - name: measured_share
         description: measured_hours / scheduled_measurement_hours; the measured view's coverage.
       - name: observed_trains
-        description: Trains observed on the boards in observed station-direction-hours (int_measured_hours, ADR-014).
+        description: Trains observed on the boards in observed station-direction-hours at core and branch stations (int_measured_hours, ADR-014, D66).
       - name: observed_hours_scheduled_trains
-        description: Scheduled trains in the same observed hours.
+        description: Scheduled trains in the same observed hours, core and branch stations only (D66).
       - name: trains_run_share
         description: >
           observed_trains / observed_hours_scheduled_trains: trains run
-          against the timetable (ADR-014). The boards may omit trains, so it
-          is a lower bound. Withheld (null) for the lines in
+          against the timetable at core and branch stations (ADR-014, D66).
+          The boards may omit trains, so it is a lower bound. Withheld (null) for the lines in
           `trains_run_withheld_lines`, whose boards misfile trains.
       - name: is_measured_provisional
         description: measured_share below `min_measured_share` (0.5), so the line gets no experienced_rank (D42); null when the line is not measured.
@@ -524,9 +524,9 @@ models:
       - name: observed_measurement_hours
         description: Of those, hours with complete arrivals polling.
       - name: observed_trains
-        description: Trains on the boards in observed hours (ADR-014).
+        description: Trains on the boards in observed hours at core and branch stations (ADR-014, D66).
       - name: observed_hours_scheduled_trains
-        description: Scheduled trains in observed hours.
+        description: Scheduled trains in observed hours, core and branch stations only (D66).
       - name: measured_hours
         description: Hours inside the quality gate, which feed the measured metrics.
         data_tests: [not_null]

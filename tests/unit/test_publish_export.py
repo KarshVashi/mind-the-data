@@ -29,6 +29,7 @@ from mind_the_data.publish.league import (
     MEASURED_VIEW_WITHHELD_LINES,
     MIN_MEASURED_SHARE,
     MIN_OPEN_SHARE_TO_RANK,
+    OPEN_METRIC_DECISIONS,
     PROVISIONAL_COMPLETENESS,
     TRAINS_RUN_WITHHELD_LINES,
     MeasuredView,
@@ -332,6 +333,8 @@ SETTLED_IDS = [
     61,
     63,
     64,
+    65,
+    66,
 ]
 
 
@@ -353,6 +356,7 @@ def test_methodology_thresholds_follow_dbt(marts: RecordedMarts) -> None:
     # D19: the index is a time-weighted mean severity x 100, so Suspended (8) tops it.
     assert (doc["disruption_index"]["min"], doc["disruption_index"]["max"]) == (0.0, 800.0)
     assert doc["open_decisions"] == []
+    assert OPEN_METRIC_DECISIONS == ()
     assert doc["settled_decisions"] == [f"D{n}" for n in SETTLED_IDS]
     assert not set(doc["settled_decisions"]) & set(doc["open_decisions"])
     # The measured view's thresholds and withheld lines mirror the dbt vars.

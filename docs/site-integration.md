@@ -247,6 +247,14 @@ Each measured week carries `schedule_source`: `timetable`, or `observed_only` wh
 
 How the map should consume them: colour by `summary.measured_status`, and show `not_measured` and `withheld` as "no data" with the reason, never as good service. Show a disruption marker from `summary.disruption` only when it is not `null`. Link each station to its detail page from `path`. Before the first arrivals data lands, every station is `not_measured` with `no_line_arrivals_data`.
 
+### Changed by D65 and D66 (`schema_version` 0.8.0, change of meaning)
+
+- **`measured.trains_run_share`** now counts trains on the boards against the timetable at core and branch stations only (D66); termini are left out, as in the gate. TfL lists departures at some termini with no direction and arrivals at others on several platforms, so termini read far under or over the timetable. No field is added or removed, but the meaning changes, so the minor version moves (as for D19 in 0.3.0).
+- **Measured fields** also move slightly through D65, which gives predictions TfL lists with no direction the direction the same train or its platform shows. The Metropolitan's excess wait in W46 falls from 3.76 to 3.17 minutes; other lines move by under 0.1 minutes.
+- Every archived week is rewritten on the next export (D39). W46 is restated: Metropolitan trains run 67.6% to 76.7%, District 68.2% to 74.0%, Overground and Elizabeth line 20 to 70 points lower (for example Mildmay 108% to 86%). The weekly insight line may name a different line.
+- The owner settled D65 and D66 on 18 November 2026, so `open_decisions` stays empty and both are in `settled_decisions`.
+- Station files are unchanged in meaning: `trains_on_boards_share` per station still includes termini (see D66).
+
 ### Still needed
 
 | Gap | Needed for | Where |

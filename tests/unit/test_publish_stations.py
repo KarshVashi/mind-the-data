@@ -33,7 +33,7 @@ def docs(marts: RecordedMarts, week: date = W46, *, enabled: bool = True) -> dic
 
 
 def test_schema_version_is_0_7_0() -> None:
-    assert SCHEMA_VERSION == "0.7.0"
+    assert SCHEMA_VERSION == "0.8.0"
 
 
 def test_array_cells_parse() -> None:

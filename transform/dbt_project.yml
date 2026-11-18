@@ -26,6 +26,11 @@ vars:
   # Whole UTC days an incremental run reprocesses, counting back from today,
   # so a late raw object or a rerun after a failure is picked up.
   lookback_days: 2
+  # Filling a missing direction from the platform (D65): of the platform's
+  # predictions that day that list a direction, at least this share (and
+  # at least this many) list the same one.
+  direction_fill_platform_share: 0.95
+  direction_fill_min_predictions: 20
   # Explicit backfill window ('YYYY-MM-DD', inclusive). Override both on the
   # command line, e.g. --vars '{start_date: "2026-11-03", end_date: "2026-11-05"}'.
   start_date: null

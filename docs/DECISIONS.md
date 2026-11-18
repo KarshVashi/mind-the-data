@@ -23,6 +23,56 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 Only D1 is still open.
 
+## Settled on 2026-11-18, with the detail
+
+### D65. A prediction with no direction takes one where the boards show it
+
+- **Entered:** 2026-11-18. **Class:** `never-default` (it changes how a board is formed). **Settled 2026-11-18 (owner):** accepted as implemented.
+- **Context:** TfL lists many predictions with no direction. In W46, 79% of the Metropolitan's on Liverpool Street westbound platform 2 and 53% at King's Cross westbound had none. So did most at termini, and those of trains terminating at the stop. The inference keys a board on direction (D28), and the headways and vehicle passes leave a null direction out, so such trains were neither counted nor given an arrival.
+- **Implemented** (`macros/fill_missing_direction.sql`; views `int_arrivals_directed` and `int_station_arrivals_directed`, which the inference now reads instead of the staging tables). A missing direction is taken, in order:
+  1. from the same vehicle id's other sightings on the same request, stop, line and platform that UTC day, when they all list one direction. Only on the lines `seed_vehicle_id_lines` links by vehicle id (D27).
+  2. from the platform, when of its predictions that day that list a direction, at least 95% (and at least 20) list the same one (`direction_fill_platform_share`, `direction_fill_min_predictions`). Not at a turnback, a stop that is the destination of any of the line's trains that day. One short-turned train turns the rule off at that stop for the day, which is conservative.
+  - Never filled: a train terminating at the stop, or a prediction on "Platform Unknown".
+  - Every lookup is per UTC day, so reruns give the same rows. `direction_source` records the rule.
+- **Versions tried and dropped:**
+  - Filling terminating trains pushed the Overground's trains-on-the-boards share from about 110% to 160–290%: an arriving train that reverses counted twice.
+  - Filling from the platform at turnbacks pushed District outbound at Barking to 1.21 trains per timetabled train. Most direction-less predictions have no destination, so a train ending its trip there cannot be told from one passing through.
+  - The vehicle rule on lines with unstable ids carries a direction across trains.
+- **Parity:** the Python reference (`analysis/arrivals.py`) and the SQL inference now both start from the filled rows (`scripts/check_arrival_parity.py` reads `int_arrivals_directed`). The fill itself is checked by the dbt unit test `int_arrivals_directed_fills_a_missing_direction`, not by the reference. Parity on 12 Nov at Liverpool Street, King's Cross, Earl's Court and Barking, with the final rules: identical, 7,003 arrivals.
+- **Cost:** the view reads its staging table up to four times (the predictions, the vehicle lookup, the turnbacks and the platform counts). The reading models' `dt` bounds reach every read: one day through `int_arrivals_directed` scans 19 MB, and one day through `int_station_arrivals_directed` scans 80 MB. All history since 4 November through `int_arrivals_directed` scans 227 MB, well under the 5 GB point at which D41 revisits the full rebuild. If the line feed's backfills near the 10 GiB workgroup cap, the per-day lookups can become a small incremental table.
+- **Effect on W46:** small on its own. The Metropolitan's trains on the boards rise from 67.5% to 68.9%, and its excess wait falls from 3.76 to 3.17 minutes. Every other line moves by under a point. The big change is D66.
+
+### D66. Trains run is measured at core and branch stations, not termini
+
+- **Entered:** 2026-11-18. **Class:** `never-default` (a published metric's definition). **Settled 2026-11-18 (owner):** accepted as implemented.
+- **Context:** trains on the boards (ADR-014) summed every measurement station, termini included.
+  - At some termini TfL lists departing trains with no direction, so they never count: Uxbridge on the Metropolitan read 0.00 trains per timetabled train, Wimbledon on the District 0.01, Amersham 0.12.
+  - At Overground termini arriving trains are listed on more than one platform, so they count over: Stratford on the Mildmay read 1.8, Richmond 2.3.
+  - The line-week gate already leaves termini out for this reason (D33, D51). The published headline "Only 68% of the Metropolitan line's timetabled trains showed on TfL's arrival boards" was mostly this effect.
+- **Implemented** (`fct_line_measured_daily`): `observed_trains` and `observed_hours_scheduled_trains` sum observed hours at core and branch stations only. A line with only termini (Liberty) has no trains-run share.
+- **Effect on W46, trains on the boards before → after D65 and D66:**
+
+  | Line | Before | After |
+  | --- | --- | --- |
+  | Metropolitan | 67.5% | 76.7% |
+  | District | 68.1% | 74.0% |
+  | Jubilee | 83.0% | 84.8% |
+  | Piccadilly | 85.3% | 86.9% |
+  | Bakerloo | 90.6% | 91.5% |
+  | Northern | 62.0% | 63.8% |
+  | Victoria, Central | 85.8%, 85.4% | 85.8%, 85.7% |
+  | Mildmay | 108% | 86.4% |
+  | Windrush | 121% | 99.1% |
+  | Elizabeth line | 111% | 100.5% |
+  | Weaver | 120% | 108.9% |
+  | Lioness | 200% | 129.8% |
+  | Liberty | 195% | none (termini only) |
+
+  Excess wait, long gaps and the Honesty Gap do not use this measure. They move only through D65: the Metropolitan's excess wait goes from 3.76 to 3.17 minutes, and every other line's by under 0.1 minutes.
+- **Station views:** `fct_station_weekly_measured.trains_on_boards_share` is per station and still includes termini, where it reads as above (Uxbridge about 0, Stratford about 1.8). Station publishing is switched off (`STATIONS_PUBLISH_ENABLED`). Before it is switched on, termini there should be withheld or labelled. D65 also reaches the station views through `int_station_arrivals_directed`. On 17 Nov (from 12:38 UTC) it filled 133,576 of the line feed's 842,955 predictions with no direction (15.8%; 2.3% of all 5.78 million). The effect per station is not yet measured.
+- **Alternatives:** keep termini and fill their directions (tried under D65, which over-counts at reversing termini); report termini separately.
+- **Note:** past weeks are rewritten on the next run (D39), so W46's published figures will be restated.
+
 ### D1. Accept ADR-006 (poller reserved concurrency waits for the quota)
 
 - **Context:** the poller runs unreserved because the account's concurrency quota is 10. The plan's reservation of 1 is the guarantee against overlap and runaway concurrency.
@@ -610,3 +660,4 @@ These come from the M7 hardening work (`feat/collate-c-m7`). D62 was not used. T
 | 2026-11-15 | D51 to D54 Measured-view publishing (owner) | All accepted. The trains-run insight gets the caveat "Boards can miss trains that ran."; the 1200x675 card falls back to Good Service % if it does not fit. |
 | 2026-11-15 | D56 to D61 League mechanics, ADR-015 (owner) | All accepted. D57 amended: a provisional month moves no one. D60: five 2027 strike rows added. |
 | 2026-11-15 | D63, D64 Open data licence and Iceberg maintenance (owner) | CC BY 4.0 for the published figures; `LICENSE` and `LICENSE-DATA` added. Maintenance as built. |
+| 2026-11-18 | D65, D66 Missing prediction directions and trains run without termini (owner) | Both accepted as implemented: a missing direction is filled from the same train (vehicle-id lines) or a one-way platform away from turnbacks, never for terminating trains or "Platform Unknown"; trains run is measured at core and branch stations only. Contract `schema_version` 0.8.0; W46 restated (Metropolitan trains run 67.5% to 76.7%, District 68.1% to 74.0%). |

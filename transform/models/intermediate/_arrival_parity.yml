@@ -29,7 +29,7 @@ unit_tests:
       - input: ref('stg_polls')
         format: csv
         fixture: arrival_parity_polls
-      - input: ref('stg_arrivals')
+      - input: ref('int_arrivals_directed')
         format: csv
         fixture: arrival_parity_predictions
       - input: ref('seed_vehicle_id_lines')

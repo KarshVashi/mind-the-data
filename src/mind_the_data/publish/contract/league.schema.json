@@ -213,7 +213,7 @@
           "minimum": 1
         },
         "trains_run_share": {
-          "description": "Trains observed on the boards over scheduled trains (ADR-014). The boards may omit trains, so this is a lower bound on what ran. Above 1 on weak-evidence lines means the estimated timetable is too low.",
+          "description": "Trains observed on the boards over scheduled trains, at core and branch stations only (ADR-014, D66). The boards may omit trains, so this is a lower bound on what ran. Above 1 on weak-evidence lines means the estimated timetable is too low.",
           "$ref": "#/$defs/nullable_non_negative"
         },
         "trains_run_withheld_reason": {

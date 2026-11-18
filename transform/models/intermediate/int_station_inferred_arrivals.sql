@@ -25,7 +25,7 @@
 {%- set bounds = window_rebuild_bounds() %}
 
 {{ inferred_arrivals(
-    predictions=ref('stg_line_arrivals'),
+    predictions=ref('int_station_arrivals_directed'),
     polls=ref('stg_line_arrival_polls'),
     predictions_where="arrivals.dt between date '" ~ bounds.read_start ~ "' and date '" ~ bounds.end ~ "'",
     polls_where="is_ok and dt between date '" ~ bounds.read_start ~ "' and date '" ~ bounds.end ~ "'",

@@ -7,6 +7,6 @@
 -- share. Rebuilt in full, like int_inferred_arrivals (D41).
 
 {{ vehicle_passes(
-    predictions=ref('stg_arrivals'),
+    predictions=ref('int_arrivals_directed'),
     predictions_where="dt >= date '" ~ var('raw_start_date') ~ "'",
 ) }}

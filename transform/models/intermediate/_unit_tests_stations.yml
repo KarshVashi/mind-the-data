@@ -46,7 +46,7 @@ unit_tests:
           ) as t (poll_id, polled_at, is_ok)
           union all
           select 'c1', '/Line/central/Arrivals', timestamp '2026-11-05 00:00:00', false, date '2026-11-05'
-      - input: ref('stg_line_arrivals')
+      - input: ref('int_station_arrivals_directed')
         format: sql
         rows: |
           select
@@ -94,7 +94,7 @@ unit_tests:
         vehicle_pass_visit_gap_seconds: 600
         vehicle_pass_threshold_seconds: 120
     given:
-      - input: ref('stg_line_arrivals')
+      - input: ref('int_station_arrivals_directed')
         format: sql
         rows: |
           select

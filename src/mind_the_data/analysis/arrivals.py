@@ -1,9 +1,10 @@
 """Arrival inference from successive arrival boards (PLAN 7.2).
 
 This is the reference implementation the SQL model ``int_inferred_arrivals``
-is checked against: both read the same rows (``stg_arrivals`` predictions and
-the successful arrivals polls from ``stg_polls``) and must return the same
-arrivals. The compared columns (``ARRIVAL_COLUMNS``) depend only on a
+is checked against: both read the same rows (``int_arrivals_directed``
+predictions, ``stg_arrivals`` with a missing direction filled (D65), and
+the successful arrivals polls from ``stg_polls``) and must return the
+same arrivals. The fill itself is checked by its dbt unit test, not here. The compared columns (``ARRIVAL_COLUMNS``) depend only on a
 sighting, the station's next successful poll and the arrivals beside it on
 the same board, so SQL can compute them set-based, without recursion. The
 chain-derived fields of ``InferredArrival`` (``first_seen_at``,

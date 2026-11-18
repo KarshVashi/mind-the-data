@@ -22,7 +22,7 @@
 {%- set bounds = window_rebuild_bounds() %}
 
 {{ vehicle_passes(
-    predictions=ref('stg_line_arrivals'),
+    predictions=ref('int_station_arrivals_directed'),
     predictions_where="dt between date '" ~ bounds.read_start ~ "' and date '" ~ bounds.end ~ "'",
     output_where="cast(" ~ london_local('pass_time') ~ " as date) between date '" ~ bounds.start ~ "' and date '" ~ bounds.end ~ "'",
 ) }}

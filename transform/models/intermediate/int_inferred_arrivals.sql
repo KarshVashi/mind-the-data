@@ -14,7 +14,7 @@
 -- into a moving train.
 
 {{ inferred_arrivals(
-    predictions=ref('stg_arrivals'),
+    predictions=ref('int_arrivals_directed'),
     polls=ref('stg_polls'),
     predictions_where="arrivals.dt >= date '" ~ var('raw_start_date') ~ "'",
     polls_where="feed = 'arrivals' and is_ok and dt >= date '" ~ var('raw_start_date') ~ "'",

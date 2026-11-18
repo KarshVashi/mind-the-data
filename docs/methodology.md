@@ -9,7 +9,7 @@ The table ranks every line two ways:
 
 The gap between the two, hours in which TfL said Good Service while the boards showed a long gap, is the **Honesty Gap**.
 
-**Status, methodology v0.3.** Both views are built and run daily, and the weekly files carry both. On 14 November 2026 the owner settled: the Disruption Index is a time-weighted mean severity on a 0 to 800 scale (D19); a line is ranked only if it ran at least half its scheduled hours (D22); publishing goes ahead while other definitions are open, with provisional labels (D36); the quality gate tests the inference against the trains on the boards (ADR-014, D46) and fails the run when it fails, skipping only the measured tables, so the declared league always builds (D44, D55); the measured view is **published** for each line-week whose own gate passes (D42); and the weekly highlights (D47 to D50). Public publishing starts once the Cloudflare setup is done. On 15 November 2026 the owner accepted the remaining readings below, so `open_decisions` in the published files is now empty. Each is tagged with its decision number (`D16`) from [DECISIONS.md](DECISIONS.md) or its record (`ADR-004`) in [adr/](adr/), and the table at the end says which are decided. Every published file lists the open decisions it rests on in `open_decisions`.
+**Status, methodology v0.3.** Both views are built and run daily, and the weekly files carry both. On 14 November 2026 the owner settled: the Disruption Index is a time-weighted mean severity on a 0 to 800 scale (D19); a line is ranked only if it ran at least half its scheduled hours (D22); publishing goes ahead while other definitions are open, with provisional labels (D36); the quality gate tests the inference against the trains on the boards (ADR-014, D46) and fails the run when it fails, skipping only the measured tables, so the declared league always builds (D44, D55); the measured view is **published** for each line-week whose own gate passes (D42); and the weekly highlights (D47 to D50). Public publishing starts once the Cloudflare setup is done. On 15 November 2026 the owner accepted the remaining readings below, so `open_decisions` in the published files is empty. On 18 November 2026 the owner also accepted D65 (filling a missing prediction direction) and D66 (trains run without termini). Each is tagged with its decision number (`D16`) from [DECISIONS.md](DECISIONS.md) or its record (`ADR-004`) in [adr/](adr/), and the table at the end says which are decided. Every published file lists the open decisions it rests on in `open_decisions`.
 
 ---
 
@@ -166,7 +166,11 @@ On the first published week (4 to 8 November, collected from a Wednesday, so abo
 
 TfL does not publish when trains actually arrived. Each Arrivals board shows predictions, polled every minute, and an arrival is inferred from how a train's predictions end. The rules, with a Python reference implementation (`src/mind_the_data/analysis/arrivals.py`) that the SQL model is tested against row for row:
 
-1. **A board** is one platform and direction at a station (D28).
+1. **A board** is one platform and direction at a station (D28). TfL lists some predictions with no direction. A prediction with no direction takes one of two:
+   - on lines that link by vehicle id, the direction the same train's other sightings on that platform list that day;
+   - otherwise the platform's direction, when of its predictions that day that list a direction at least 95% list the same one, except at a stop where some of the line's trains end their trip.
+
+   A train terminating at the station, or listed on "Platform Unknown", is never given one. Any other prediction with no direction is left out (D65).
 2. **Duplicates.** Within one board in one poll, a prediction within 15 s of the one before it is the same train listed twice, and is dropped (D25).
 3. **Linking sightings across polls.** Predictions in consecutive successful polls are the same train when they are each other's nearest match and their expected arrivals are within 45 s. A train standing at the platform links by a separate rule. On lines whose vehicle ids are stable, sightings link by vehicle id instead; that is the Victoria line and, since 15 November 2026, Bakerloo, Central, Circle, Hammersmith & City, Jubilee, Metropolitan, Northern and Piccadilly (D26, D27). District is left out because its ids are not stable (78.5% followed from Victoria to Earl's Court).
 4. **Arrival.** A train has arrived when its last sighting was at most 120 s from the platform and the next successful poll no longer shows it, or when it shows 0 s at the last poll. Time to go is computed from the poll time, not TfL's `time_to_station`, which counts from an older timestamp (D40).
@@ -233,7 +237,7 @@ The Elizabeth line and the Overground are measured against estimated frequencies
 
 ### Trains run against the timetable
 
-Trains on the boards divided by scheduled trains, over observed station-direction-hours: **0.85** across the measured Tube lines on 9 to 13 November, from 0.72 (District) to 0.92 (Bakerloo). The boards may leave trains out, so this is a lower bound on what ran, not a count of cancellations. On the shared section of the Circle and Hammersmith & City lines the boards file every westbound train under Hammersmith & City, so both lines' figures are withheld until trains there can be assigned by vehicle-id history (ADR-014).
+Trains on the boards divided by scheduled trains, over observed station-direction-hours at core and branch stations (D66). Termini are left out, as in the gate: at some, TfL lists departing trains with no direction, so they never count, and at others it lists arriving trains on more than one platform. In W46 (9 to 15 November), with D65 and D66, it ran across the published Tube lines from 0.74 (District) to 0.92 (Bakerloo). Before D66 the Metropolitan read 0.68, mostly because Uxbridge and Amersham showed almost no departures. The boards may leave trains out, so this is a lower bound on what ran, not a count of cancellations. On the shared section of the Circle and Hammersmith & City lines the boards file every westbound train under Hammersmith & City, so both lines' figures are withheld until trains there can be assigned by vehicle-id history (ADR-014).
 
 ### Lines not measured
 
@@ -351,6 +355,8 @@ On 15 November 2026 the owner accepted every recommended reading below, so each 
 | D55 | A failing gate never holds back the declared view | measured (decided) |
 | D63 | The open dataset's contents and licence | publishing (decided) |
 | D64 | Iceberg maintenance scope (auto-apply) | operations (decided) |
+| D65 | A prediction with no direction takes one where the boards show it | measured (decided) |
+| D66 | Trains run measured at core and branch stations, not termini | measured, publishing (decided) |
 | [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing (decided) |
 | D57 | Division size, monthly measure, promotion and relegation | declared, publishing (decided) |
 | D58 | Season table, April to March | declared, publishing (decided) |

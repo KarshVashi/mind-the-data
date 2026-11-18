@@ -4,7 +4,7 @@
     AWS_PROFILE=mtd-dev uv run python scripts/check_arrival_parity.py --date 2026-11-06 \\
         --station 940GZZLUOXC --station 940GZZLUKSX
 
-Reads stg_arrivals and stg_polls for the day with an hour either side (an
+Reads int_arrivals_directed and stg_polls for the day with an hour either side (an
 arrival needs the station's next poll, and a repeat is collapsed against a
 neighbouring arrival that may have been last seen before midnight), runs
 ``infer_arrivals_from_rows`` with the vehicle-id lines from
@@ -119,12 +119,12 @@ def main(argv: list[str] | None = None) -> int:
         + _station_filter("request_path", args.station),
         *query,
     )
-    print("stg_arrivals", file=sys.stderr)
+    print("int_arrivals_directed", file=sys.stderr)
     predictions = _select(
         athena,
         s3,
         "select poll_id, request_path, naptan_id, line_id, platform_name, direction,"
-        " prediction_id, vehicle_id, expected_arrival, time_to_station from stg_arrivals"
+        " prediction_id, vehicle_id, expected_arrival, time_to_station from int_arrivals_directed"
         f" where {window}" + _station_filter("request_path", args.station),
         *query,
     )

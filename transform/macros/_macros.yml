@@ -166,6 +166,17 @@ macros:
       - name: type
         type: string
         description: Target Athena type.
+  - name: fill_missing_direction
+    description: >
+      Predictions with a missing direction filled where the boards show it
+      (D65): from the same vehicle id's sightings on the platform that UTC
+      day on vehicle-id lines, else from a one-way platform away from
+      turnbacks; never for a train terminating at the stop or on "Platform
+      Unknown". Used by int_arrivals_directed and int_station_arrivals_directed.
+    arguments:
+      - name: predictions
+        type: string
+        description: Relation shaped like stg_arrivals, read in full; the reading model's dt filter bounds it.
   - name: inferred_arrivals
     description: >
       The train-arrival inference (PLAN 7.2), shared by int_inferred_arrivals

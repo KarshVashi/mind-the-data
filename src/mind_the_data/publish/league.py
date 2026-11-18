@@ -84,9 +84,9 @@ WITHHELD_SHARED_SECTION = "shared_section_misfiled"
 WITHHELD_NOT_REBUILT = "measured_not_rebuilt"
 
 # Open owner decisions that change published numbers or flags (docs/DECISIONS.md).
-# The owner settled every one on 2026-11-15, so the list is empty. It stays in
-# the contract: a decision that opens later is added here, and the files and
-# the site list it (D36).
+# None is open: the owner settled D65 and D66 on 2026-11-18. It stays in the
+# contract: a decision that opens later is added here, and the files and the
+# site list it (D36).
 OPEN_METRIC_DECISIONS: tuple[str, ...] = ()
 
 # Owner decisions behind the published numbers that have been settled, listed
@@ -138,6 +138,8 @@ SETTLED_METRIC_DECISIONS: tuple[str, ...] = (
     "D61",
     "D63",
     "D64",
+    "D65",
+    "D66",
 )
 
 
