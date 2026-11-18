@@ -21,11 +21,13 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
-D1, D65 and D66 are open.
+Only D1 is still open.
+
+## Settled on 2026-11-18, with the detail
 
 ### D65. A prediction with no direction takes one where the boards show it
 
-- **Entered:** 2026-11-18. **Deadline:** 2026-11-21 02:00 UTC. **Class:** `never-default` (it changes how a board is formed). **Default:** accept.
+- **Entered:** 2026-11-18. **Class:** `never-default` (it changes how a board is formed). **Settled 2026-11-18 (owner):** accepted as implemented.
 - **Context:** TfL lists many predictions with no direction. In W46, 79% of the Metropolitan's on Liverpool Street westbound platform 2 and 53% at King's Cross westbound had none. So did most at termini, and those of trains terminating at the stop. The inference keys a board on direction (D28), and the headways and vehicle passes leave a null direction out, so such trains were neither counted nor given an arrival.
 - **Implemented** (`macros/fill_missing_direction.sql`; views `int_arrivals_directed` and `int_station_arrivals_directed`, which the inference now reads instead of the staging tables). A missing direction is taken, in order:
   1. from the same vehicle id's other sightings on the same request, stop, line and platform that UTC day, when they all list one direction. Only on the lines `seed_vehicle_id_lines` links by vehicle id (D27).
@@ -42,7 +44,7 @@ D1, D65 and D66 are open.
 
 ### D66. Trains run is measured at core and branch stations, not termini
 
-- **Entered:** 2026-11-18. **Deadline:** 2026-11-21 02:00 UTC. **Class:** `never-default` (a published metric's definition). **Default:** accept.
+- **Entered:** 2026-11-18. **Class:** `never-default` (a published metric's definition). **Settled 2026-11-18 (owner):** accepted as implemented.
 - **Context:** trains on the boards (ADR-014) summed every measurement station, termini included.
   - At some termini TfL lists departing trains with no direction, so they never count: Uxbridge on the Metropolitan read 0.00 trains per timetabled train, Wimbledon on the District 0.01, Amersham 0.12.
   - At Overground termini arriving trains are listed on more than one platform, so they count over: Stratford on the Mildmay read 1.8, Richmond 2.3.
@@ -658,3 +660,4 @@ These come from the M7 hardening work (`feat/collate-c-m7`). D62 was not used. T
 | 2026-11-15 | D51 to D54 Measured-view publishing (owner) | All accepted. The trains-run insight gets the caveat "Boards can miss trains that ran."; the 1200x675 card falls back to Good Service % if it does not fit. |
 | 2026-11-15 | D56 to D61 League mechanics, ADR-015 (owner) | All accepted. D57 amended: a provisional month moves no one. D60: five 2027 strike rows added. |
 | 2026-11-15 | D63, D64 Open data licence and Iceberg maintenance (owner) | CC BY 4.0 for the published figures; `LICENSE` and `LICENSE-DATA` added. Maintenance as built. |
+| 2026-11-18 | D65, D66 Missing prediction directions and trains run without termini (owner) | Both accepted as implemented: a missing direction is filled from the same train (vehicle-id lines) or a one-way platform away from turnbacks, never for terminating trains or "Platform Unknown"; trains run is measured at core and branch stations only. Contract `schema_version` 0.8.0; W46 restated (Metropolitan trains run 67.5% to 76.7%, District 68.1% to 74.0%). |
