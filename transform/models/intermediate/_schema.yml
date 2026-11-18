@@ -336,13 +336,14 @@ models:
 
   - name: int_arrivals_directed
     description: >
-      stg_arrivals with a missing direction filled where the boards show it (D65,
+      stg_arrivals with a missing direction filled (D65,
       macros/fill_missing_direction.sql): from the same vehicle id's other
-      sightings on the platform that UTC day when they all list one
-      direction, otherwise from the platform's direction when at least
-      direction_fill_platform_share of its predictions that day, and at
-      least direction_fill_min_predictions, list one. The measurement-station inference reads this. A view
-      over the staging table; every lookup is per day.
+      sightings on the platform that UTC day, on the lines
+      seed_vehicle_id_lines links by vehicle id; otherwise from a platform
+      that lists one direction that day, except at a stop where any of the
+      line's trains terminate that day. Never for a train terminating at
+      the stop or on "Platform Unknown". The measurement-station inference reads this
+      view; every lookup is per day.
     columns:
       - name: direction
         description: Listed direction, or the filled one; null when neither rule applies.
@@ -625,13 +626,14 @@ models:
 
   - name: int_station_arrivals_directed
     description: >
-      stg_line_arrivals with a missing direction filled where the boards show it (D65,
+      stg_line_arrivals with a missing direction filled (D65,
       macros/fill_missing_direction.sql): from the same vehicle id's other
-      sightings on the platform that UTC day when they all list one
-      direction, otherwise from the platform's direction when at least
-      direction_fill_platform_share of its predictions that day, and at
-      least direction_fill_min_predictions, list one. The every-station inference reads this. A view
-      over the staging table; every lookup is per day.
+      sightings on the platform that UTC day, on the lines
+      seed_vehicle_id_lines links by vehicle id; otherwise from a platform
+      that lists one direction that day, except at a stop where any of the
+      line's trains terminate that day. Never for a train terminating at
+      the stop or on "Platform Unknown". The every-station inference reads this
+      view; every lookup is per day.
     columns:
       - name: direction
         description: Listed direction, or the filled one; null when neither rule applies.
