@@ -353,7 +353,8 @@ def test_methodology_thresholds_follow_dbt(marts: RecordedMarts) -> None:
     assert doc["thresholds"]["min_open_share_to_rank"] == 0.5
     # D19: the index is a time-weighted mean severity x 100, so Suspended (8) tops it.
     assert (doc["disruption_index"]["min"], doc["disruption_index"]["max"]) == (0.0, 800.0)
-    assert doc["open_decisions"] == list(OPEN_METRIC_DECISIONS)
+    assert doc["open_decisions"] == ["D65", "D66"]
+    assert list(OPEN_METRIC_DECISIONS) == ["D65", "D66"]
     assert doc["settled_decisions"] == [f"D{n}" for n in SETTLED_IDS]
     assert not set(doc["settled_decisions"]) & set(doc["open_decisions"])
     # The measured view's thresholds and withheld lines mirror the dbt vars.

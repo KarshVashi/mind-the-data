@@ -12,10 +12,12 @@
        request, stop, line and platform that UTC day lists one direction.
        Only on the lines seed_vehicle_id_lines links by vehicle id (D27):
        elsewhere an id can pass to another train and carry its direction.
-    2. the platform: at least `direction_fill_platform_share` of its
-       predictions that day, and at least `direction_fill_min_predictions`,
-       list one direction. Not at a turnback: a stop that is the
-       destination of any of the line's trains that day.
+    2. the platform: of its predictions that day that list a direction,
+       at least `direction_fill_platform_share` (and at least
+       `direction_fill_min_predictions`) list the same one. Not at a
+       turnback: a stop that is the destination of any of the line's
+       trains that day. One short-turned train turns the rule off at that
+       stop for the day, which is conservative.
   Otherwise it stays null and is left out as before.
 
   Never filled:

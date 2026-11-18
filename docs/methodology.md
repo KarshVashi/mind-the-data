@@ -168,7 +168,7 @@ TfL does not publish when trains actually arrived. Each Arrivals board shows pre
 
 1. **A board** is one platform and direction at a station (D28). TfL lists some predictions with no direction. A prediction with no direction takes one of two:
    - on lines that link by vehicle id, the direction the same train's other sightings on that platform list that day;
-   - otherwise the platform's direction, when at least 95% of its predictions that day list one, except at a stop where some of the line's trains end their trip.
+   - otherwise the platform's direction, when of its predictions that day that list a direction at least 95% list the same one, except at a stop where some of the line's trains end their trip.
 
    A train terminating at the station, or listed on "Platform Unknown", is never given one. Any other prediction with no direction is left out (D65, open).
 2. **Duplicates.** Within one board in one poll, a prediction within 15 s of the one before it is the same train listed twice, and is dropped (D25).
@@ -237,7 +237,7 @@ The Elizabeth line and the Overground are measured against estimated frequencies
 
 ### Trains run against the timetable
 
-Trains on the boards divided by scheduled trains, over observed station-direction-hours at core and branch stations (D66, open). Termini are left out, as in the gate: at some, TfL lists departing trains with no direction, so they never count, and at others it lists arriving trains on more than one platform. In W46 (9 to 15 November), with D65 and D66, it ran from 0.64 (Northern) and 0.74 (District) to 0.92 (Bakerloo). Before D66 the Metropolitan read 0.68, mostly because Uxbridge and Amersham showed almost no departures. The boards may leave trains out, so this is a lower bound on what ran, not a count of cancellations. On the shared section of the Circle and Hammersmith & City lines the boards file every westbound train under Hammersmith & City, so both lines' figures are withheld until trains there can be assigned by vehicle-id history (ADR-014).
+Trains on the boards divided by scheduled trains, over observed station-direction-hours at core and branch stations (D66, open). Termini are left out, as in the gate: at some, TfL lists departing trains with no direction, so they never count, and at others it lists arriving trains on more than one platform. In W46 (9 to 15 November), with D65 and D66, it ran across the published Tube lines from 0.74 (District) to 0.92 (Bakerloo). Before D66 the Metropolitan read 0.68, mostly because Uxbridge and Amersham showed almost no departures. The boards may leave trains out, so this is a lower bound on what ran, not a count of cancellations. On the shared section of the Circle and Hammersmith & City lines the boards file every westbound train under Hammersmith & City, so both lines' figures are withheld until trains there can be assigned by vehicle-id history (ADR-014).
 
 ### Lines not measured
 
