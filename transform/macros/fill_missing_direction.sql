@@ -16,6 +16,14 @@
   Otherwise it stays null and the prediction is left out as before. A
   platform used both ways (a terminus bay) fails both tests.
 
+  A train terminating at the stop (destination = the stop) is never
+  filled. TfL gives such arrivals no direction, they are not departures in
+  the timetable the gaps are compared with, and an arriving train that
+  reverses would otherwise count again when it leaves. The filled
+  predictions are trains with no destination, or one further on. Nor is
+  a prediction on "Platform Unknown": at Overground termini the same train
+  is listed on its real platform too, so filling it would count it twice.
+
   Every lookup is grouped by `dt`, so a filter on `dt` gives the same
   result as reading all of history, and a day's directions do not change
   once the day is complete. `direction_source` says which rule applied
@@ -37,6 +45,9 @@ with listed as (
         platform_name,
         coalesce(platform_name, '') as platform_key,
         nullif(trim(direction), '') as listed_direction,
+        nullif(trim(direction), '') is null
+        and coalesce(destination_naptan_id, '') <> naptan_id
+        and lower(coalesce(platform_name, '')) not like '%unknown%' as is_fillable,
         case
             when
                 vehicle_id in (
@@ -123,7 +134,7 @@ select
 from listed
 left join vehicle_directions
     on
-        listed.listed_direction is null
+        listed.is_fillable
         and listed.request_path = vehicle_directions.request_path
         and listed.naptan_id = vehicle_directions.naptan_id
         and listed.line_id = vehicle_directions.line_id
@@ -132,7 +143,7 @@ left join vehicle_directions
         and listed.dt = vehicle_directions.dt
 left join platform_directions
     on
-        listed.listed_direction is null
+        listed.is_fillable
         and listed.request_path = platform_directions.request_path
         and listed.naptan_id = platform_directions.naptan_id
         and listed.line_id = platform_directions.line_id

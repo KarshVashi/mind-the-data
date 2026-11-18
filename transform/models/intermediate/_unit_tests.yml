@@ -631,7 +631,10 @@ unit_tests:
       P2 lists inbound once and outbound twice, under 95% one way, and
       vehicle 202 lists both ways there, so 202's null sighting stays null.
       Vehicle 201 again on 11 Nov, when nothing on P1 lists a direction,
-      stays null: the rules look only at the same UTC day.
+      stays null: the rules look only at the same UTC day. Vehicle 203
+      terminating at X (destination X) is never filled, though its own
+      sightings and P1 both say outbound. Vehicle 201 on "Platform
+      Unknown" is never filled either.
     model: int_arrivals_directed
     overrides:
       vars:
@@ -641,17 +644,19 @@ unit_tests:
     given:
       - input: ref('stg_arrivals')
         rows:
-          - {poll_id: p1, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "201", direction: outbound, dt: "2026-11-10"}
-          - {poll_id: p2, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "201", direction: null, dt: "2026-11-10"}
-          - {poll_id: p1, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "203", direction: outbound, dt: "2026-11-10"}
-          - {poll_id: p2, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "203", direction: outbound, dt: "2026-11-10"}
-          - {poll_id: p3, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "000", direction: null, dt: "2026-11-10"}
-          - {poll_id: p3, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "205", direction: "", dt: "2026-11-10"}
-          - {poll_id: p1, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P2, vehicle_id: "202", direction: inbound, dt: "2026-11-10"}
-          - {poll_id: p2, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P2, vehicle_id: "202", direction: outbound, dt: "2026-11-10"}
-          - {poll_id: p3, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P2, vehicle_id: "202", direction: null, dt: "2026-11-10"}
-          - {poll_id: p3, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P2, vehicle_id: "204", direction: outbound, dt: "2026-11-10"}
-          - {poll_id: p4, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "201", direction: null, dt: "2026-11-11"}
+          - {poll_id: p1, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "201", direction: outbound, destination_naptan_id: null, dt: "2026-11-10"}
+          - {poll_id: p2, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "201", direction: null, destination_naptan_id: null, dt: "2026-11-10"}
+          - {poll_id: p1, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "203", direction: outbound, destination_naptan_id: null, dt: "2026-11-10"}
+          - {poll_id: p2, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "203", direction: outbound, destination_naptan_id: null, dt: "2026-11-10"}
+          - {poll_id: p3, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "000", direction: null, destination_naptan_id: null, dt: "2026-11-10"}
+          - {poll_id: p3, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "205", direction: "", destination_naptan_id: null, dt: "2026-11-10"}
+          - {poll_id: p1, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P2, vehicle_id: "202", direction: inbound, destination_naptan_id: null, dt: "2026-11-10"}
+          - {poll_id: p2, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P2, vehicle_id: "202", direction: outbound, destination_naptan_id: null, dt: "2026-11-10"}
+          - {poll_id: p3, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P2, vehicle_id: "202", direction: null, destination_naptan_id: null, dt: "2026-11-10"}
+          - {poll_id: p3, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P2, vehicle_id: "204", direction: outbound, destination_naptan_id: null, dt: "2026-11-10"}
+          - {poll_id: p4, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "201", direction: null, destination_naptan_id: null, dt: "2026-11-11"}
+          - {poll_id: p3, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: P1, vehicle_id: "203", direction: null, destination_naptan_id: X, dt: "2026-11-10"}
+          - {poll_id: p3, request_path: R, naptan_id: X, line_id: metropolitan, platform_name: Platform Unknown, vehicle_id: "201", direction: null, destination_naptan_id: null, dt: "2026-11-10"}
     expect:
       rows:
         - {poll_id: p1, platform_name: P1, vehicle_id: "201", direction: outbound, direction_source: listed, dt: "2026-11-10"}
@@ -665,3 +670,5 @@ unit_tests:
         - {poll_id: p3, platform_name: P2, vehicle_id: "202", direction: null, direction_source: null, dt: "2026-11-10"}
         - {poll_id: p3, platform_name: P2, vehicle_id: "204", direction: outbound, direction_source: listed, dt: "2026-11-10"}
         - {poll_id: p4, platform_name: P1, vehicle_id: "201", direction: null, direction_source: null, dt: "2026-11-11"}
+        - {poll_id: p3, platform_name: P1, vehicle_id: "203", direction: null, direction_source: null, dt: "2026-11-10"}
+        - {poll_id: p3, platform_name: Platform Unknown, vehicle_id: "201", direction: null, direction_source: null, dt: "2026-11-10"}
