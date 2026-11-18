@@ -580,6 +580,14 @@ These come from the M7 hardening work (`feat/collate-c-m7`). D62 was not used. T
 - **Class:** `auto-apply`. VACUUM is in the plan, and the scope only leaves out tables that have nothing to compact. **Default:** as implemented.
 - **Settled 2026-11-15 (owner):** Accepted: weekly OPTIMIZE and VACUUM on the incremental tables as built.
 
+### D65. A prediction with no direction takes one where the boards show it
+
+- **Context:** TfL lists many predictions with no direction at some through stations: in W46, 79% of Metropolitan predictions on Liverpool Street westbound platform 2, 53% at King's Cross westbound, 43–47% at Earl's Court and 45–88% on Barking westbound. The inference keys a board on direction (D28), and the headways and vehicle passes leave a null direction out, so those trains were neither counted on the boards nor given an arrival. At non-terminus measurement stations, about 7% of the Metropolitan's and the District's train-hours near the platform never had a direction, against about 0% on the other Tube lines. Their trains-on-the-boards share read low, and the gaps around a dropped train read long, which pushed excess wait and long gaps up.
+- **Implemented** (`macros/fill_missing_direction.sql`, views `int_arrivals_directed` and `int_station_arrivals_directed`, which the inference now reads instead of the staging tables): a missing direction is taken from the same vehicle id's other sightings on the same request, stop, line and platform that UTC day, when they all list one direction; otherwise from the platform's direction, when at least 95% of its predictions that day, and at least 20, list one (`direction_fill_platform_share`, `direction_fill_min_predictions`). Otherwise it stays null and is left out as before. A platform used both ways, such as a terminus bay, fails both tests. Every lookup is per UTC day, so a day's result is fixed once the day is complete and reruns give the same rows. `direction_source` records which rule applied. The inference and its Python reference are unchanged: the fill happens before both, and `scripts/check_arrival_parity.py` reads the filled view.
+- **Effect:** W46 before and after are in the PR.
+- **Alternatives:** read direction from the platform name ("Westbound - Platform 2"), which needs a per-line map from compass direction to TfL's inbound/outbound; leave null-direction predictions on their own board, which double-counts a train whose direction flickers.
+- **Class:** `auto-apply`, as a fix: it restores trains the boards listed and the pipeline dropped, and changes no definition. Past weeks are rewritten on the next run (D39). **Default:** as implemented.
+
 ## Settled
 
 | Date | Decision | Outcome |
