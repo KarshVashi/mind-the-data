@@ -1,0 +1,4 @@
+schedule_name,reason
+Tuesdays,"single weekday: summing it with Wednesdays and Thursdays under mon_thu would triple the timetable"
+Wednesdays,"single weekday: summing it with Tuesdays and Thursdays under mon_thu would triple the timetable"
+Thursdays,"single weekday: summing it with Tuesdays and Wednesdays under mon_thu would triple the timetable"
