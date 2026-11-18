@@ -158,6 +158,29 @@ seeds:
               arguments:
                 values: [mon_thu, fri, sat, sun]
 
+  - name: timetable_schedules_unmodelled
+    description: >
+      TfL schedule names known and left out on purpose (D67): their
+      departures are dropped from int_scheduled_headways, as for any name not
+      in timetable_schedule_day_types, but assert_timetable_schedules_are_mapped
+      accepts them. From 18 November 2026 TfL sends single-weekday schedules
+      ("Tuesdays", "Wednesdays", "Thursdays") for some District and
+      Metropolitan stops. int_scheduled_headways sums every schedule of a day
+      type, so mapping each to mon_thu would count it once per listed
+      weekday. Until a weekday can be modelled on its own, a stop-direction
+      whose timetable version holds only such schedules has no timetable
+      for the day types they would cover; int_station_measured_hours then
+      uses its no-timetable rule (hours in which a train was seen, never a
+      gap, so a suspension is not detected there). Never Good Service. At a
+      measurement station the mapping test still fails.
+    columns:
+      - name: schedule_name
+        description: TfL's schedule name, exactly as sent.
+        data_tests: [unique, not_null]
+      - name: reason
+        description: Why it is left out.
+        data_tests: [not_null]
+
   - name: seed_line_frequencies
     description: >
       Fallback scheduled frequencies (PLAN 6.2) for measurement stations
