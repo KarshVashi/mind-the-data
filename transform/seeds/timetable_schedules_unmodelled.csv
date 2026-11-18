@@ -1,4 +1,4 @@
 schedule_name,reason
-Tuesdays,"single weekday: summing it with Wednesdays and Thursdays under mon_thu would triple the timetable"
-Wednesdays,"single weekday: summing it with Tuesdays and Thursdays under mon_thu would triple the timetable"
-Thursdays,"single weekday: summing it with Tuesdays and Wednesdays under mon_thu would triple the timetable"
+Tuesdays,"single weekday: int_scheduled_headways sums schedules per day type, so mapping it to mon_thu would count it once per listed weekday"
+Wednesdays,"single weekday: int_scheduled_headways sums schedules per day type, so mapping it to mon_thu would count it once per listed weekday"
+Thursdays,"single weekday: int_scheduled_headways sums schedules per day type, so mapping it to mon_thu would count it once per listed weekday"
