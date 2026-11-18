@@ -21,7 +21,16 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
-Only D1 is still open.
+D1 and D67 are open.
+
+### D67. Single-weekday timetables are left out until a weekday can be modelled
+
+- **Entered:** 2026-11-18. **Deadline:** 2026-11-21 18:00 UTC. **Class:** `auto-apply` (no published figure moves). **Default:** as implemented.
+- **Context:** from 18 November 2026 TfL sends single-weekday schedules ("Tuesdays", "Wednesdays", "Thursdays") in the timetables of some District and Metropolitan stops, found by the daily reference job (ADR-016). The stops are Barbican, Euston Square, Wembley Park, Rickmansworth and Watford on the Metropolitan, and West Brompton and East Ham on the District. `assert_timetable_schedules_are_mapped` failed, and the transform skipped every model downstream of `stg_timetable`. The 12:06 and 17:05 UTC runs on 18 Nov both failed this way.
+- **Why not map them to `mon_thu`:** `int_scheduled_headways` sums every schedule of a day type in a timetable version. A stop with "Tuesdays", "Wednesdays" and "Thursdays" would get three days of trains on each of those days.
+- **Implemented:** seed `timetable_schedules_unmodelled` lists the names, each with a reason. The test accepts them, and the model drops their departures as it drops any unmapped name. Those stop-directions have no scheduled service on days that use such a version, so they are not measured then. That is missing data, never Good Service. None is a measurement station, so the league, the measured view and W46 do not change; only the unpublished station views do.
+- **Follow-up:** model a schedule that runs on one weekday, for example a nullable `iso_day_of_week` in `timetable_schedule_day_types`, carried through `int_scheduled_headways` and matched by the measured-hours models.
+
 
 ## Settled on 2026-11-18, with the detail
 
