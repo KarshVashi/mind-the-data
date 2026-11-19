@@ -628,6 +628,13 @@ models:
         description: Longest observed headway in the hour.
       - name: long_gaps
         description: Headways over twice scheduled_max_headway_seconds (D34).
+      - name: good_service_long_gaps
+        description: >
+          Of long_gaps, those whose whole span, from the minute of the train
+          before to the minute of the train that ends the gap, the line's
+          declared status was Good Service with no missing minute (D68). The
+          Honesty Gap's evidence.
+        data_tests: [not_null]
       - name: scheduled_max_headway_seconds
         description: Longest scheduled gap in the hour.
       - name: actual_average_wait_seconds

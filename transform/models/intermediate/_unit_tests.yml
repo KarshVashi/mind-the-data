@@ -636,6 +636,8 @@ unit_tests:
           - {headway_key: h8c, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 08:14:00", london_ts: "2026-11-04 08:19:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 300, spans_collection_gap: false}
           - {headway_key: h8d, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 08:19:00", london_ts: "2026-11-04 08:29:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 600, spans_collection_gap: true}
           - {headway_key: h9, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 08:59:00", london_ts: "2026-11-04 09:01:00", london_date: "2026-11-04", london_hour: 9, headway_seconds: 120, spans_collection_gap: false}
+      - input: ref('int_line_minute_status')
+        rows: []
     expect:
       rows:
         - {naptan_id: X, london_date: "2026-11-04", london_hour: 0, scheduled_departures: 6, inferred_arrivals: 8, vehicle_passes: 6, inferred_without_vehicle_id: 0, observed_trains: 6, successful_polls: 60, is_observed: true, is_gate_judged: true, is_in_band: false, counts_for_reliability: false, headways: 1, long_gaps: 0, excess_wait_seconds: 0}
@@ -645,6 +647,94 @@ unit_tests:
         - {naptan_id: X, london_date: "2026-11-04", london_hour: 8, scheduled_departures: 30, inferred_arrivals: 24, vehicle_passes: 16, inferred_without_vehicle_id: 4, observed_trains: 20, successful_polls: 60, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, headways: 3, long_gaps: 1, excess_wait_seconds: 50}
         - {naptan_id: X, london_date: "2026-11-04", london_hour: 9, scheduled_departures: 30, inferred_arrivals: 1, vehicle_passes: 0, inferred_without_vehicle_id: 0, observed_trains: 0, successful_polls: 53, is_observed: false, is_gate_judged: false, is_in_band: false, counts_for_reliability: false, headways: 1, long_gaps: 0, excess_wait_seconds: 0}
         - {naptan_id: Y, london_date: "2026-10-25", london_hour: 1, scheduled_departures: 6, inferred_arrivals: 12, vehicle_passes: 0, inferred_without_vehicle_id: 0, observed_trains: 0, successful_polls: 120, is_observed: false, is_gate_judged: false, is_in_band: false, counts_for_reliability: false, headways: 0, long_gaps: 0, excess_wait_seconds: null}
+
+  - name: int_measured_hours_good_service_long_gaps
+    description: >
+      D68. Station X, Victoria outbound, Wednesday 4 November 2026 (GMT, so
+      London time is UTC). Hours 7 and 8 are scheduled with a longest gap of
+      120 s, so a gap over 240 s is long. Polls every minute 07:00:10 to
+      08:59:10. Declared status: Good Service every minute, except Minor
+      Delays (severity 9) from 07:57 to 07:59 and a missing minute at 08:42.
+      Gaps ending in hour 8: g1 08:10:30 to 08:15:30 (300 s), all six
+      minutes Good Service: long and counted. g2 07:57:00 to 08:02:00
+      (300 s) starts in the delays: long, ends in an all-Good-Service hour,
+      not counted. g3 08:40:00 to 08:45:00 (300 s) spans the missing minute:
+      long, not counted. g4 08:50:00 to 08:52:00 (120 s) is not long. Hour
+      8: 3 long gaps, 1 of them with a Good Service span. Hour 7: no gap.
+    model: int_measured_hours
+    overrides:
+      vars:
+        raw_start_date: "2026-10-01"
+        collection_gap_seconds: 150
+        min_polls_per_hour: 54
+        gate_low_ratio: 0.8
+        gate_high_ratio: 1.2
+    given:
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: victoria, naptan_id: X, station_name: X, role: core}
+      - input: ref('seed_measured_lines')
+        rows:
+          - {line_id: victoria, is_measured: true}
+      - input: ref('day_types')
+        rows:
+          - {iso_day_of_week: 2, day_type: mon_thu}
+          - {iso_day_of_week: 3, day_type: mon_thu}
+      - input: ref('stg_polls')
+        format: sql
+        rows: |
+          select
+              'X' || format_datetime(polled_at, 'yyyyMMddHHmmss') as poll_id,
+              'arrivals' as feed,
+              '/StopPoint/X/Arrivals' as request_path,
+              polled_at,
+              200 as http_status,
+              100 as latency_ms,
+              cast(null as varchar) as error,
+              true as is_ok,
+              cast(polled_at as date) as dt,
+              'k' as poll_key,
+              date_trunc('minute', polled_at) as poll_minute
+          from unnest(
+              sequence(
+                  timestamp '2026-11-04 07:00:10', timestamp '2026-11-04 08:59:10', interval '1' minute
+              )
+          ) as t (polled_at)
+      - input: ref('int_scheduled_headways')
+        rows:
+          - {line_id: victoria, naptan_id: X, direction: outbound, day_type: mon_thu, service_hour: 7, london_hour: 7, is_next_calendar_day: false, scheduled_departures: 30, sum_headway_seconds: 3600, sum_headway_squared_seconds: 432000, max_headway_seconds: 120, is_fallback: false}
+          - {line_id: victoria, naptan_id: X, direction: outbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, scheduled_departures: 30, sum_headway_seconds: 3600, sum_headway_squared_seconds: 432000, max_headway_seconds: 120, is_fallback: false}
+      - input: ref('int_inferred_arrivals')
+        rows: []
+      - input: ref('int_vehicle_passes')
+        rows: []
+      - input: ref('int_headways')
+        rows:
+          - {headway_key: g1, line_id: victoria, naptan_id: X, direction: outbound, previous_arrival_time: "2026-11-04 08:10:30", arrival_time: "2026-11-04 08:15:30", previous_london_ts: "2026-11-04 08:10:30", london_ts: "2026-11-04 08:15:30", london_date: "2026-11-04", london_hour: 8, headway_seconds: 300, spans_collection_gap: false}
+          - {headway_key: g2, line_id: victoria, naptan_id: X, direction: outbound, previous_arrival_time: "2026-11-04 07:57:00", arrival_time: "2026-11-04 08:02:00", previous_london_ts: "2026-11-04 07:57:00", london_ts: "2026-11-04 08:02:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 300, spans_collection_gap: false}
+          - {headway_key: g3, line_id: victoria, naptan_id: X, direction: outbound, previous_arrival_time: "2026-11-04 08:40:00", arrival_time: "2026-11-04 08:45:00", previous_london_ts: "2026-11-04 08:40:00", london_ts: "2026-11-04 08:45:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 300, spans_collection_gap: false}
+          - {headway_key: g4, line_id: victoria, naptan_id: X, direction: outbound, previous_arrival_time: "2026-11-04 08:50:00", arrival_time: "2026-11-04 08:52:00", previous_london_ts: "2026-11-04 08:50:00", london_ts: "2026-11-04 08:52:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 120, spans_collection_gap: false}
+      - input: ref('int_line_minute_status')
+        format: sql
+        rows: |
+          select
+              'victoria' as line_id,
+              minute_utc,
+              minute_utc = timestamp '2026-11-04 08:42:00' as is_missing,
+              if(
+                  minute_utc between timestamp '2026-11-04 07:57:00' and timestamp '2026-11-04 07:59:00',
+                  9,
+                  10
+              ) as status_severity
+          from unnest(
+              sequence(
+                  timestamp '2026-11-04 07:00:00', timestamp '2026-11-04 08:59:00', interval '1' minute
+              )
+          ) as t (minute_utc)
+    expect:
+      rows:
+        - {naptan_id: X, london_date: "2026-11-04", london_hour: 7, headways: 0, long_gaps: 0, good_service_long_gaps: 0}
+        - {naptan_id: X, london_date: "2026-11-04", london_hour: 8, headways: 4, long_gaps: 3, good_service_long_gaps: 1}
 
   - name: int_vehicle_passes_visits_and_passes
     description: >
