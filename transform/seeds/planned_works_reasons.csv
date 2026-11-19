@@ -8,3 +8,6 @@ pattern,signal,note
 (^|[^a-z])taking longer than (expected|planned),overrun,works taking longer than expected or planned
 (^|[^a-z])later than (expected|planned),overrun,works finishing later than expected or planned
 (^|[^a-z])not (yet )?(been )?(completed|finished)([^a-z]|$),overrun,works not yet completed
+(^|[^a-z])not (yet )?complete([^a-z]|$),overrun,works not complete or not yet complete
+(^|[^a-z])(will|would) not be (completed|finished)([^a-z]|$),overrun,works that will not be completed on time
+(^|[^a-z])taking longer to (complete|finish)([^a-z]|$),overrun,works taking longer to complete

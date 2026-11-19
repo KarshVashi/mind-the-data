@@ -125,6 +125,17 @@ def _reason_signals(reason: str) -> set[str]:
         ("Engineering work overran at Gospel Oak.", {"overrun"}),
         ("Delays after a late finish of engineering works.", {"overrun"}),
         ("Delays because engineering works finished late.", {"overrun"}),
+        (
+            "Part suspended as planned engineering work is not complete.",
+            {"overrun", "planned_works"},
+        ),
+        ("Severe delays; engineering work not yet complete at Neasden.", {"overrun"}),
+        ("Part suspended; engineering work will not be completed until 07:00.", {"overrun"}),
+        ("Severe delays as engineering work would not be finished on time.", {"overrun"}),
+        ("Part suspended; engineering works taking longer to complete.", {"overrun"}),
+        ("Severe delays as works are taking longer to finish.", {"overrun"}),
+        # A word that only starts like "complete" is not an overrun.
+        ("Minor delays; not completely clear of the platform.", set()),
     ],
 )
 def test_planned_works_reason_patterns(reason: str, signals: set[str]) -> None:

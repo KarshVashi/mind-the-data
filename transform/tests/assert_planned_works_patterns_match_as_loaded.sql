@@ -13,7 +13,10 @@ with cases as (
         ('unplanned engineering work', 'planned_works', false),
         ('overrunning engineering works', 'overrun', true),
         ('engineering works which are taking longer than expected', 'overrun', true),
-        ('works finishes late', 'overrun', true)
+        ('works finishes late', 'overrun', true),
+        ('planned engineering work is not complete', 'overrun', true),
+        ('engineering work will not be completed until 07:00', 'overrun', true),
+        ('engineering works taking longer to complete', 'overrun', true)
     ) as t (reason_text, pattern_signal, expected_match)
 ),
 
