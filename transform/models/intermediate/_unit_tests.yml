@@ -836,6 +836,88 @@ unit_tests:
         - {naptan_id: X, london_date: "2026-11-04", london_hour: 7, headways: 0, long_gaps: 0, good_service_long_gaps: 0}
         - {naptan_id: X, london_date: "2026-11-04", london_hour: 8, headways: 4, long_gaps: 3, good_service_long_gaps: 1}
 
+  - name: int_measured_hours_single_weekday_schedules
+    description: >
+      D67. Station T, Metropolitan, November 2026 (GMT, so London time is
+      UTC). One arrivals poll on each of Tuesday 10 (08:00:10), Wednesday 11
+      (08:00:10) and Saturday 14 (01:00:10), so those three days are
+      collected; one poll an hour is under 54, so no hour is observed.
+      Scheduled rows: outbound "Tuesdays" (mon_thu, weekday 2), hour 8: 2
+      trains, one 600 s gap. Inbound "Monday - Thursday" (mon_thu, no
+      weekday), hour 8: 12 trains, 12 gaps of 300 s, sum 3600 s, squares 12
+      x 90,000 = 1,080,000 s². Outbound "Fridays" (fri, weekday 5), service
+      hour 25 (01:00 the next calendar day): 4 trains, 3 gaps of 900 s, sum
+      2700 s, squares 2,430,000 s². Outbound "Thursdays" (mon_thu, weekday
+      4), service hour 25: 3 trains.
+      Tuesday 10, hour 8: outbound gets the Tuesdays row (2 trains, wait
+      360,000 / 1200 = 300 s); inbound gets the generic row (12 trains,
+      wait 1,080,000 / 7200 = 150 s). Wednesday 11, hour 8: the generic row
+      only (inbound, 12, 150 s); no outbound row, since the Tuesdays row is
+      not Wednesday's. Wednesday 11, hour 1: the Thursdays service hour 25
+      would need the previous day to be a Thursday; it is a Tuesday, so no
+      row. Saturday 14, hour 1: the previous day is Friday 13 (weekday 5),
+      so the Fridays service hour 25 applies: 4 trains, wait 2,430,000 /
+      5400 = 450 s.
+    model: int_measured_hours
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+        collection_gap_seconds: 150
+        min_polls_per_hour: 54
+        gate_low_ratio: 0.8
+        gate_high_ratio: 1.2
+    given:
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: metropolitan, naptan_id: T, station_name: T, role: core}
+      - input: ref('seed_measured_lines')
+        rows:
+          - {line_id: metropolitan, is_measured: true}
+      - input: ref('day_types')
+        rows: *day_types
+      - input: ref('stg_polls')
+        format: sql
+        rows: |
+          select
+              'T' || format_datetime(polled_at, 'yyyyMMddHHmmss') as poll_id,
+              'arrivals' as feed,
+              '/StopPoint/T/Arrivals' as request_path,
+              polled_at,
+              200 as http_status,
+              100 as latency_ms,
+              cast(null as varchar) as error,
+              true as is_ok,
+              cast(polled_at as date) as dt,
+              'k' as poll_key,
+              date_trunc('minute', polled_at) as poll_minute
+          from unnest(
+              array[
+                  timestamp '2026-11-10 08:00:10',
+                  timestamp '2026-11-11 08:00:10',
+                  timestamp '2026-11-14 01:00:10'
+              ]
+          ) as t (polled_at)
+      - input: ref('int_scheduled_headways')
+        rows:
+          - {line_id: metropolitan, naptan_id: T, direction: outbound, day_type: mon_thu, iso_day_of_week: 2, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 2, sum_headway_seconds: 600, sum_headway_squared_seconds: 360000, max_headway_seconds: 600, is_fallback: false}
+          - {line_id: metropolitan, naptan_id: T, direction: inbound, day_type: mon_thu, iso_day_of_week: null, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 12, sum_headway_seconds: 3600, sum_headway_squared_seconds: 1080000, max_headway_seconds: 300, is_fallback: false}
+          - {line_id: metropolitan, naptan_id: T, direction: outbound, day_type: fri, iso_day_of_week: 5, service_hour: 25, london_hour: 1, is_next_calendar_day: true, valid_from: null, valid_to: null, scheduled_departures: 4, sum_headway_seconds: 2700, sum_headway_squared_seconds: 2430000, max_headway_seconds: 900, is_fallback: false}
+          - {line_id: metropolitan, naptan_id: T, direction: outbound, day_type: mon_thu, iso_day_of_week: 4, service_hour: 25, london_hour: 1, is_next_calendar_day: true, valid_from: null, valid_to: null, scheduled_departures: 3, sum_headway_seconds: 1200, sum_headway_squared_seconds: 720000, max_headway_seconds: 600, is_fallback: false}
+      - input: ref('int_inferred_arrivals')
+        rows: []
+      - input: ref('int_vehicle_passes')
+        rows: []
+      - input: ref('int_headways')
+        rows: []
+      - input: ref('int_line_minute_status')
+        rows: []
+    expect:
+      rows:
+        - {naptan_id: T, direction: outbound, london_date: "2026-11-10", london_hour: 8, scheduled_departures: 2, scheduled_average_wait_seconds: 300, successful_polls: 1, is_observed: false}
+        - {naptan_id: T, direction: inbound, london_date: "2026-11-10", london_hour: 8, scheduled_departures: 12, scheduled_average_wait_seconds: 150, successful_polls: 1, is_observed: false}
+        - {naptan_id: T, direction: inbound, london_date: "2026-11-11", london_hour: 8, scheduled_departures: 12, scheduled_average_wait_seconds: 150, successful_polls: 1, is_observed: false}
+        - {naptan_id: T, direction: outbound, london_date: "2026-11-14", london_hour: 1, scheduled_departures: 4, scheduled_average_wait_seconds: 450, successful_polls: 1, is_observed: false}
+
   - name: int_vehicle_passes_visits_and_passes
     description: >
       Station X, Victoria, Wednesday 4 November 2026 (GMT, so London time is
