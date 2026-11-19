@@ -122,6 +122,7 @@ pooled as (
         service_hour,
         valid_from,
         valid_to,
+        'timetable' as schedule_source,
         count(*) as scheduled_departures,
         count(headway_minutes) as headway_count,
         coalesce(sum(60e0 * headway_minutes), 0e0) as sum_headway_seconds,
@@ -130,7 +131,6 @@ pooled as (
         -- An hour whose only gaps are same-minute pairs has no usable
         -- scheduled headway: 0 would make every observed gap "long".
         nullif(60e0 * max(headway_minutes), 0e0) as max_headway_seconds,
-        'timetable' as schedule_source,
         max(schedule_name) as source_detail,
         max(fetched_at) as timetable_fetched_at
     from gaps
@@ -145,84 +145,97 @@ pooled as (
         valid_to
 ),
 
--- The weekdays a version has a schedule of their own for.
-specific_weekdays as (
-    select distinct
+-- The weekdays each version has a schedule of their own for, per day type.
+specific_flags as (
+    select
         line_id,
         naptan_id,
         direction,
         day_type,
         valid_from,
-        iso_day_of_week
+        array_agg(distinct iso_day_of_week) as specific_weekdays
     from pooled
     where iso_day_of_week is not null
+    group by
+        line_id,
+        naptan_id,
+        direction,
+        day_type,
+        valid_from
+),
+
+flagged as (
+    -- valid_from is null for a timetable's first version; the sentinel lets
+    -- that version meet its own flags in an equality join.
+    select
+        pooled.*,
+        specific_flags.specific_weekdays,
+        coalesce(cardinality(specific_flags.specific_weekdays), 0)
+            as specific_weekday_count
+    from pooled
+    left join specific_flags
+        on
+            pooled.line_id = specific_flags.line_id
+            and pooled.naptan_id = specific_flags.naptan_id
+            and pooled.direction = specific_flags.direction
+            and pooled.day_type = specific_flags.day_type
+            and coalesce(pooled.valid_from, date '1900-01-01')
+            = coalesce(specific_flags.valid_from, date '1900-01-01')
 ),
 
 timetabled as (
     -- Single-weekday rows, and generic rows of a day type with no
     -- single-weekday schedule in the version, as they are.
-    select pooled.*
-    from pooled
+    select
+        line_id,
+        naptan_id,
+        direction,
+        day_type,
+        iso_day_of_week,
+        service_hour,
+        valid_from,
+        valid_to,
+        scheduled_departures,
+        headway_count,
+        sum_headway_seconds,
+        sum_headway_squared_seconds,
+        max_headway_seconds,
+        schedule_source,
+        source_detail,
+        timetable_fetched_at
+    from flagged
     where
-        pooled.iso_day_of_week is not null
-        or not exists (
-            select 1
-            from specific_weekdays
-            where
-                specific_weekdays.line_id = pooled.line_id
-                and specific_weekdays.naptan_id = pooled.naptan_id
-                and specific_weekdays.direction = pooled.direction
-                and specific_weekdays.day_type = pooled.day_type
-                and specific_weekdays.valid_from is not distinct from pooled.valid_from
-        )
+        iso_day_of_week is not null
+        or specific_weekday_count = 0
 
     union all
 
     -- A generic row of a day type that has single-weekday schedules: one
     -- copy for each weekday of the day type that has none of its own.
     select
-        pooled.line_id,
-        pooled.naptan_id,
-        pooled.direction,
-        pooled.day_type,
+        flagged.line_id,
+        flagged.naptan_id,
+        flagged.direction,
+        flagged.day_type,
         weekdays.iso_day_of_week,
-        pooled.service_hour,
-        pooled.valid_from,
-        pooled.valid_to,
-        pooled.scheduled_departures,
-        pooled.headway_count,
-        pooled.sum_headway_seconds,
-        pooled.sum_headway_squared_seconds,
-        pooled.max_headway_seconds,
-        pooled.schedule_source,
-        pooled.source_detail,
-        pooled.timetable_fetched_at
-    from pooled
+        flagged.service_hour,
+        flagged.valid_from,
+        flagged.valid_to,
+        flagged.scheduled_departures,
+        flagged.headway_count,
+        flagged.sum_headway_seconds,
+        flagged.sum_headway_squared_seconds,
+        flagged.max_headway_seconds,
+        flagged.schedule_source,
+        flagged.source_detail,
+        flagged.timetable_fetched_at
+    from flagged
     inner join {{ ref('day_types') }} as weekdays
-        on pooled.day_type = weekdays.day_type
+        on flagged.day_type = weekdays.day_type
     where
-        pooled.iso_day_of_week is null
-        and exists (
-            select 1
-            from specific_weekdays
-            where
-                specific_weekdays.line_id = pooled.line_id
-                and specific_weekdays.naptan_id = pooled.naptan_id
-                and specific_weekdays.direction = pooled.direction
-                and specific_weekdays.day_type = pooled.day_type
-                and specific_weekdays.valid_from is not distinct from pooled.valid_from
-        )
-        and not exists (
-            select 1
-            from specific_weekdays
-            where
-                specific_weekdays.line_id = pooled.line_id
-                and specific_weekdays.naptan_id = pooled.naptan_id
-                and specific_weekdays.direction = pooled.direction
-                and specific_weekdays.day_type = pooled.day_type
-                and specific_weekdays.valid_from is not distinct from pooled.valid_from
-                and specific_weekdays.iso_day_of_week = weekdays.iso_day_of_week
-        )
+        flagged.iso_day_of_week is null
+        and flagged.specific_weekday_count > 0
+        and not contains(flagged.specific_weekdays, weekdays.iso_day_of_week)
 ),
 
 timetabled_directions as (
