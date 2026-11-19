@@ -8,6 +8,8 @@ select
     timetable.poll_id,
     timetable.request_path,
     day_types.day_type,
+    -- 0 stands for a generic schedule (no weekday of its own), so generic
+    -- names group together; ISO weekdays run 1 to 7.
     coalesce(day_types.iso_day_of_week, 0) as iso_day_of_week,
     count(distinct timetable.schedule_name) as schedules
 from {{ ref('stg_timetable') }} as timetable
