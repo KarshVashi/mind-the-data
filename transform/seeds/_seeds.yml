@@ -27,7 +27,8 @@ seeds:
       higher weight wins a minute. `weight_planned` applies when the entry's
       disruption is filed as planned work; only Bus Service differs.
       Codes 4 and 5 are closures: a minute whose worst status is a closure is
-      engineering works and leaves the score. Code 20 (Service Closed) is not
+      engineering works and leaves the score; so is planned works under a
+      code with `is_works_when_planned` (D69). Code 20 (Service Closed) is not
       in the plan; it is TfL's overnight status and is weighted 0 and left out
       of the score (DECISIONS.md D16). A code missing here fails
       assert_line_status_codes_are_weighted rather than defaulting.
@@ -50,9 +51,39 @@ seeds:
       - name: is_service_closed
         description: TfL's Service Closed status.
         data_tests: [not_null]
+      - name: is_works_when_planned
+        description: >
+          Suspended, Part Suspended and Severe Delays. An entry with one of
+          these codes is engineering works, like a closure, when TfL files it
+          as planned work or its reason matches a `planned_works_reasons`
+          planned-works pattern, unless the reason matches an overrun pattern
+          (D69).
+        data_tests: [not_null]
       - name: source
         description: "`plan` (PLAN 7.1) or the DECISIONS.md item that set it."
         data_tests: [not_null]
+
+  - name: planned_works_reasons
+    description: >
+      Reason-text patterns that classify a suspension or delay entry (codes
+      with `is_works_when_planned`) as planned works or as an overrun (D69).
+      Patterns are regular expressions matched against the lower-cased
+      reason. An `overrun` match always wins: works that ran late are a
+      reliability failure and keep their weight. A `planned_works` match
+      makes the entry engineering works even when TfL files it as real-time.
+    columns:
+      - name: pattern
+        description: Regular expression, lower case.
+        data_tests: [unique, not_null]
+      - name: signal
+        description: "`planned_works` or `overrun`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [planned_works, overrun]
+      - name: note
+        description: What the pattern is for.
 
   - name: time_bands
     description: >

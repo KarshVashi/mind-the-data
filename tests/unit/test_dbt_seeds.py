@@ -7,6 +7,7 @@ full coverage of time.
 """
 
 import csv
+import re
 from pathlib import Path
 
 import pytest
@@ -66,6 +67,59 @@ def test_severity_weights_follow_the_plan() -> None:
     # Anything beyond the plan needs a recorded decision, never a silent default.
     for code in rows.keys() - PLAN_WEIGHTS.keys():
         assert rows[code]["source"].startswith("decision_"), code
+
+
+def test_works_when_planned_codes_are_the_suspensions_and_severe_delays() -> None:
+    rows = read_seed("severity_weights")
+    works = {int(row["severity_code"]) for row in rows if row["is_works_when_planned"] == "true"}
+    # D69: Suspended, Part Suspended, Severe Delays. Never a closure, which is
+    # engineering works whatever its filing.
+    assert works == {2, 3, 6}
+    assert all(row["is_works_when_planned"] in {"true", "false"} for row in rows)
+
+
+def _reason_signals(reason: str) -> set[str]:
+    # The model lower-cases the reason; Athena's regexp_like finds a match
+    # anywhere, as re.search does, and these patterns use no syntax on which
+    # the two engines differ.
+    return {
+        row["signal"]
+        for row in read_seed("planned_works_reasons")
+        if re.search(row["pattern"], reason.lower())
+    }
+
+
+@pytest.mark.parametrize(
+    ("reason", "signals"),
+    [
+        ("No service between A and B due to planned engineering work.", {"planned_works"}),
+        ("Severe delays due to Planned Engineering Works.", {"planned_works"}),
+        ("Part suspended because of planned works this weekend.", {"planned_works"}),
+        ("Part suspended during a planned closure of the branch.", {"planned_works"}),
+        ("Severe delays due to an earlier signal failure.", set()),
+        ("Part suspended after unplanned engineering work on the track.", set()),
+        ("Reduced service; trains later than planned.", set()),
+        ("Severe delays due to overrunning engineering works.", {"overrun"}),
+        (
+            "Severe delays due to over-running planned engineering work.",
+            {"overrun", "planned_works"},
+        ),
+        ("Part suspended as engineering works over run.", {"overrun"}),
+        ("Engineering work overran at Gospel Oak.", {"overrun"}),
+        ("Delays after a late finish of engineering works.", {"overrun"}),
+        ("Delays because engineering works finished late.", {"overrun"}),
+    ],
+)
+def test_planned_works_reason_patterns(reason: str, signals: set[str]) -> None:
+    assert _reason_signals(reason) == signals
+
+
+def test_planned_works_reason_signals_are_known() -> None:
+    rows = read_seed("planned_works_reasons")
+    assert {row["signal"] for row in rows} == {"planned_works", "overrun"}
+    for row in rows:
+        assert row["pattern"] == row["pattern"].lower(), row
+        re.compile(row["pattern"])
 
 
 @pytest.mark.parametrize("day_class", ["weekday", "weekend"])

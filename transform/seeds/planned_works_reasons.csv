@@ -1,0 +1,7 @@
+pattern,signal,note
+\bplanned (engineering )?works?\b,planned_works,"TfL's cause clause, e.g. ""due to planned engineering work""; the word boundary keeps ""unplanned"" out"
+\bplanned closures?\b,planned_works,a planned closure described in the reason of a suspension or delay
+\bover-?\s?run,overrun,"overrun, overrunning, over-running, over running: works that ran late are a reliability failure"
+\boverran\b,overrun,past tense of the above
+\blate finish,overrun,"e.g. ""late finish of engineering works"""
+\bfinish(ed|ing)? late\b,overrun,"e.g. ""engineering works finishing late"""

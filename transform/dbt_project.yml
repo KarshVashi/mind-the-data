@@ -154,7 +154,13 @@ seeds:
         weight_planned: double
         is_closure: boolean
         is_service_closed: boolean
+        is_works_when_planned: boolean
         source: varchar
+    planned_works_reasons:
+      +column_types:
+        pattern: varchar
+        signal: varchar
+        note: varchar
     time_bands:
       +column_types:
         day_class: varchar
