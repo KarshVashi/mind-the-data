@@ -78,6 +78,9 @@ MIN_MEASURED_SHARE = 0.5
 MEASURED_VIEW_WITHHELD_LINES: tuple[str, ...] = ("circle", "hammersmith-city")
 TRAINS_RUN_WITHHELD_LINES: tuple[str, ...] = ("circle", "hammersmith-city")
 WITHHELD_SHARED_SECTION = "shared_section_misfiled"
+# Too few core and branch measurement stations for two of them to agree, so
+# the Honesty Gap is unknown, not 0 (D68: Lioness, Windrush and Liberty).
+HONESTY_GAP_NOT_CORROBORABLE = "honesty_gap_not_corroborable"
 # The measured tables were not rebuilt with the declared ones (a failing
 # quality gate skips them, ADR-014) and the window had not ended when they
 # last were, so their numbers for it are partial.
@@ -195,6 +198,7 @@ class MeasuredView:
     # Judged against the fallback frequencies of D33: weak evidence, unranked (D53).
     is_weak_evidence: bool = False
     trains_run_withheld_reason: str | None = None
+    honesty_gap_withheld_reason: str | None = None
 
 
 def measured_withheld_reason(line: LineInfo, sums: MeasuredSums | None) -> str | None:
@@ -259,9 +263,9 @@ def measured_view(line: LineInfo, sums: MeasuredSums, experienced_rank: int | No
         long_gaps_per_100_hours=100 * sums.long_gaps / sums.measured_hours
         if sums.measured_hours
         else None,
-        honesty_gap_hours=float(sums.honesty_gap_hours),
+        honesty_gap_hours=None if sums.honesty_gap_hours is None else float(sums.honesty_gap_hours),
         honesty_gap_share=sums.honesty_gap_hours / sums.good_service_measured_hours
-        if sums.good_service_measured_hours
+        if sums.good_service_measured_hours and sums.honesty_gap_hours is not None
         else None,
         experienced_rank=experienced_rank,
         trains_run_share=sums.observed_trains / sums.observed_hours_scheduled_trains
@@ -277,6 +281,9 @@ def measured_view(line: LineInfo, sums: MeasuredSums, experienced_rank: int | No
         good_service_measured_hours=sums.good_service_measured_hours,
         is_weak_evidence=sums.fallback_measured_hours > 0,
         trains_run_withheld_reason=trains_run_withheld,
+        honesty_gap_withheld_reason=HONESTY_GAP_NOT_CORROBORABLE
+        if sums.honesty_gap_hours is None
+        else None,
     )
 
 
