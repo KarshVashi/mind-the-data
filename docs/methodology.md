@@ -385,7 +385,10 @@ On 15 November 2026 the owner accepted every recommended reading below, so each 
 | D64 | Iceberg maintenance scope (auto-apply) | operations (decided) |
 | D65 | A prediction with no direction takes one where the boards show it | measured (decided) |
 | D66 | Trains run measured at core and branch stations, not termini | measured, publishing (decided) |
+| D67 | A single-weekday timetable schedule applies on that weekday only | measured, stations (pending) |
+| D68 | The Honesty Gap counts an hour only when two stations agree | measured (pending) |
 | D69 | Planned works under a suspension or delay code are engineering works; overruns count | declared (pending) |
+| D70 | Station views withhold their measured figures at an end of the line | stations (pending) |
 | [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing (decided) |
 | D57 | Division size, monthly measure, promotion and relegation | declared, publishing (decided) |
 | D58 | Season table, April to March | declared, publishing (decided) |

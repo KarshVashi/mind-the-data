@@ -84,10 +84,10 @@ WITHHELD_SHARED_SECTION = "shared_section_misfiled"
 WITHHELD_NOT_REBUILT = "measured_not_rebuilt"
 
 # Open owner decisions that change published numbers or flags (docs/DECISIONS.md).
-# None is open: the owner settled D65 and D66 on 2026-11-18. It stays in the
-# contract: a decision that opens later is added here, and the files and the
-# site list it (D36).
-OPEN_METRIC_DECISIONS: tuple[str, ...] = ()
+# D68 (the corroborated Honesty Gap) and D69 (planned works under delay codes)
+# are pending; the files publish under them, labelled, until the owner settles
+# them (D36). D67 and D70 move nothing that is published today.
+OPEN_METRIC_DECISIONS: tuple[str, ...] = ("D68", "D69")
 
 # Owner decisions behind the published numbers that have been settled, listed
 # in meta/methodology.json.

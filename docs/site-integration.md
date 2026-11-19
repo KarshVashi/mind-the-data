@@ -255,6 +255,14 @@ How the map should consume them: colour by `summary.measured_status`, and show `
 - The owner settled D65 and D66 on 18 November 2026, so `open_decisions` stays empty and both are in `settled_decisions`.
 - Station files: see "Station views at an end of a line" below (D70).
 
+### Changed by D68 and D69 (`schema_version` 0.9.0, change of meaning)
+
+- **`measured.honesty_gap_hours` and `honesty_gap_share`** keep their names and types, but count an hour only when at least two measurement stations in the same direction recorded a long gap ending in it, each gap's whole span Good Service with no missing minute (D68). Values fall, for W46 roughly to the "two stations" figures in D68 (main Tube lines about 46 to 73% of measured Good Service hours, from 64 to 85%). The denominator is unchanged.
+- **Declared fields** move for lines whose planned engineering works TfL filed under Part Suspended, Suspended or Severe Delays (D69): those minutes now count as engineering works and leave the score, as Planned Closure does, while overrunning works still count. `disruption_index`, `good_service_pct`, ranks and engineering-works hours can change, mostly on the Northern and Suffragette. `is_engineering_works` now also covers these minutes.
+- Both are pending, so `open_decisions` lists `D68` and `D69` until the owner settles them (D36).
+- Station files gain the withheld reason `terminus` (D70, below). D67 changes no published field.
+- Every archived week is rewritten on the next export (D39).
+
 ### Station views at an end of a line (D70, station files only)
 
 Stations are judged per line. At a station that is the first or last stop of a line's routes (a terminus or the end of a branch), every row for that line is `measured_status: "withheld"` with `measured_withheld_reason: "terminus"`. In those rows:
