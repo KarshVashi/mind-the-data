@@ -35,13 +35,16 @@ corroborated_directions as (
     -- whole span was Good Service. One board dropping a train makes a gap
     -- at that station only. Directions are the line's own (inbound,
     -- outbound), so stations on different branches corroborate each other.
+    -- Termini are left out of the count: one train listed on two platforms
+    -- there reads as two boards agreeing, the artefact this rule filters
+    -- out (D33, D51, D66). Their gaps still count as long gaps.
     select
         line_id,
         london_date,
         london_hour,
         direction
     from hours
-    where counts_for_reliability and good_service_long_gaps > 0
+    where counts_for_reliability and good_service_long_gaps > 0 and role <> 'terminus'
     group by line_id, london_date, london_hour, direction
     having count(distinct naptan_id) >= {{ var('honesty_gap_min_stations') }}
 ),

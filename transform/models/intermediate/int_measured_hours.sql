@@ -275,6 +275,9 @@ good_service_long_gaps as (
     -- missing minute breaks the span: missing data is never Good Service.
     select gaps.headway_key
     from judged_headways as gaps
+    -- Trino's sequence() allows 10,000 elements (about 7 days of minutes).
+    -- A judged gap is in service throughout (D30), so the scheduled-hours
+    -- rule bounds it far below that.
     cross join
         unnest(
             sequence(
