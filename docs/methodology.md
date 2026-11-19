@@ -73,7 +73,16 @@ From `transform/seeds/severity_weights.csv`:
 
 An unknown status code fails a test and stops the build. It is never given a default weight.
 
-Planned statuses other than closures keep their weight: a planned Reduced Service scores 1.5.
+**Planned works under a suspension or delay code (D69, pending).** TfL sometimes labels planned engineering works Suspended, Part Suspended or Severe Delays instead of Planned Closure or Part Closure. Such an entry counts as a closure, with weight 0, when either:
+
+- TfL files its disruption as planned work (category `PlannedWork`); or
+- its reason text says so, by a pattern in `transform/seeds/planned_works_reasons.csv` such as "planned engineering work" or "planned closure". "Unplanned" does not match.
+
+An **overrun** always counts: if the reason says the works overran ("overrunning engineering works", "over-running", "late finish"), the entry keeps its full weight, whether TfL files it as planned or not. Works that run late are a reliability failure.
+
+Because the works entry weighs 0, any unplanned delay alongside it still wins the minute (ADR-004).
+
+Other planned statuses keep their weight: a planned Reduced Service scores 1.5, and a planned Minor Delays 1.
 
 ### Time weights
 
@@ -89,7 +98,7 @@ Because the band follows the calendar day, Friday's service after midnight count
 
 ### Scored minutes
 
-A minute is **scored** when it is scheduled, observed, and not under a closure or Service Closed. Engineering works are left out of the reliability score and reported separately (PLAN 7.4).
+A minute is **scored** when it is scheduled, observed, and not under a closure or Service Closed. Engineering works are left out of the reliability score and reported separately (PLAN 7.4). A minute counts as engineering works when its winning status is a Planned Closure, a Part Closure, or planned works under a suspension or delay code (D69). Such a minute is in the Engineering Works table, not in the index or Good Service %.
 
 ### The index
 
@@ -375,6 +384,7 @@ On 15 November 2026 the owner accepted every recommended reading below, so each 
 | D64 | Iceberg maintenance scope (auto-apply) | operations (decided) |
 | D65 | A prediction with no direction takes one where the boards show it | measured (decided) |
 | D66 | Trains run measured at core and branch stations, not termini | measured, publishing (decided) |
+| D69 | Planned works under a suspension or delay code are engineering works; overruns count | declared (pending) |
 | [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing (decided) |
 | D57 | Division size, monthly measure, promotion and relegation | declared, publishing (decided) |
 | D58 | Season table, April to March | declared, publishing (decided) |

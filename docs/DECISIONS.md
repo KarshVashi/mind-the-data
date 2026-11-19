@@ -21,7 +21,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
-D1, D67 and D68 are open.
+D1, D67, D68 and D69 are open.
 
 ### D67. A single-weekday timetable schedule applies on that weekday only
 
@@ -80,6 +80,35 @@ D1, D67 and D68 are open.
 - **Published files:** `honesty_gap_hours` and `honesty_gap_share` keep their names and types. Their values fall and their meaning tightens. Every archived week is rewritten with them (D39). `good_service_measured_hours` does not change. Nothing on the card changes, since D54 keeps the Honesty Gap off it. The contract's field description is updated, so this needs a `schema_version` bump. One number is kept, not two side by side: publishing a strict and a loose Honesty Gap together would let either be quoted.
 - **Remaining risk:** a train missing from every board still makes corroborated gaps (ADR-014, open item 2). On the District, two boards can each drop a different train in the same hour. Its figure should carry that caveat until the dropout test on 18 to 24 November is read.
 - **Recommendation:** accept as implemented.
+
+### D69. Planned works under a suspension or delay code are engineering works; overruns count
+
+- **Entered:** 2026-11-19. **Deadline:** 2026-11-22 (a reminder only). **Class:** `never-default` (metric semantics; it moves Disruption Index, Good Service % and league ranks). **Default:** none; nothing ships until answered. **Recommended:** accept as implemented.
+- **Context:** in W46 (9 to 15 November 2026) TfL labelled some planned engineering works Part Suspended or Severe Delays instead of Planned Closure or Part Closure: about 524 minutes on the Northern and 317 on the Suffragette. Only closure codes (4, 5) were engineering works, and `weight_planned` equals `weight_unplanned` for every code but Bus Service, so those minutes counted against the lines at full weight. That breaks PLAN 7.4: engineering works are left out of reliability.
+- **Signals:** staging already parses `disruption.category` into `stg_line_status.is_planned` (`PlannedWork`). TfL can also file a works status as `RealTime`, with the works named only in the reason ("... due to planned engineering work"). Its other disruption fields (`closureText`, `type`) do not say whether works were planned.
+- **Implemented:**
+  - Seed column `severity_weights.is_works_when_planned`, true for Suspended (2), Part Suspended (3) and Severe Delays (6).
+  - Seed `planned_works_reasons`: regular expressions on the lower-cased reason, each with a signal, `planned_works` or `overrun`. "Unplanned" does not match.
+  - In `int_line_minute_status`, an entry with one of those codes is planned works when it is filed `PlannedWork` or its reason matches a `planned_works` pattern, unless it matches an `overrun` pattern. It then weighs 0 and counts as a closure. The new column `planned_works_basis` (`planned_category` or `reason_text`) says why, and `is_planned` is set.
+  - The ADR-004 reduction is unchanged: an unplanned delay alongside still wins the minute, and only a minute won by the works entry is engineering works, in `rpt_engineering_works`.
+  - Other planned codes keep their weight: Reduced Service 1.5, Minor Delays 1.
+- **Tests:** unit test `int_line_minute_status_planned_works_under_unplanned_codes`, hand-computed. It covers:
+  - a Part Suspended filed `RealTime` but worded as planned works, which becomes engineering works;
+  - a Severe Delays filed `PlannedWork`, which becomes engineering works;
+  - an overrun, filed either way, which still counts at full weight;
+  - "unplanned engineering work", which still counts;
+  - a real delay on top of works, which counts at 3 (ADR-004);
+  - a works entry tied at 0 with Good Service, which becomes engineering works;
+  - a planned Reduced Service, which keeps 1.5.
+
+  The pytest cases in `test_dbt_seeds.py` check each pattern against sample reasons.
+- **Not yet verified on data:** dev Athena was unavailable while this was written. The analyses `d69_planned_works_reasons` (entries by filing and wording, with shortened example reasons) and `d69_planned_works_impact` (moved minutes, index, Good Service % and rank before and after, per line) give the W46 evidence. Run them before settling. They need `dbt seed --select planned_works_reasons` on dev. The impact query is an upper bound; a dev rebuild of `int_line_minute_status+` gives exact figures.
+- **Options:**
+  1. **As implemented:** category or wording, overrun wins.
+  2. **Category only:** trust `PlannedWork` alone. This misses works filed `RealTime`.
+  3. **Score planned works at weight 0 but keep them scored.** A closed line would then look reliable. Rejected.
+- **Risk:** a `RealTime` delay whose reason also mentions planned works elsewhere would be excluded. The reasons analysis lists such text for review before settling.
+- **Publishing:** this changes published values (index, Good Service %, rank, engineering-works hours) for lines with such works. Field meanings do not change.
 
 ## Settled on 2026-11-18, with the detail
 
