@@ -1,7 +1,7 @@
 """stations/index.json, stations/{naptan_id}.json and the stations block in meta/index.json."""
 
 import json
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -250,3 +250,69 @@ def test_league_files_survive_missing_station_marts() -> None:
     d = docs(MissingStationMarts(FIXTURES))
     assert "league/latest.json" in d
     assert d["stations/index.json"]["stations"] == []
+
+
+def test_terminus_rows_are_withheld_with_their_reason_and_never_read_as_good() -> None:
+    from mind_the_data.publish.league import Window
+    from mind_the_data.publish.stations import StationRows, station_document
+
+    def row(line: str, direction: str, status: str, reason: str | None) -> StationMeasuredRow:
+        withheld = status != "measured"
+        return StationMeasuredRow(
+            week_start=W46,
+            naptan_id="940GZZLUBST",
+            line_id=line,
+            direction=direction,
+            observed_hours=100.0,
+            trains_observed=None if withheld else 900,
+            trains_per_hour=None if withheld else 9.0,
+            median_gap_minutes=None if withheld else 6.5,
+            long_gaps_per_100_hours=None if withheld else 1.0,
+            scheduled_trains=1200,
+            trains_on_boards_share=None if withheld else 0.9,
+            excess_wait_minutes=None if withheld else 0.4,
+            gate_judged_hours=100,
+            gate_pass_share=1.0,
+            measured_status=status,
+            measured_withheld_reason=reason,
+        )
+
+    # A station that ends one line (withheld, terminus) and is a through station
+    # on another (measured): each row stands on its own.
+    station = StationInfo(
+        naptan_id="940GZZLUBST",
+        station_name="Baker Street",
+        lat=51.52,
+        lon=-0.157,
+        line_ids=("bakerloo", "metropolitan"),
+        modes=("tube",),
+        is_measurement_station=True,
+    )
+    rows = [
+        row("bakerloo", "inbound", "measured", None),
+        row("metropolitan", "inbound", "withheld", "terminus"),
+        row("metropolitan", "outbound", "withheld", "terminus"),
+    ]
+    window = Window(W46, W46 + timedelta(days=6))
+    doc = station_document(station, StationRows(window, [], rows), STAMP)
+    by_line = {h["line_id"] + h["direction"]: h["weeks"][0] for h in doc["measured_history"]}
+    end = by_line["metropolitaninbound"]
+    assert end["measured_status"] == "withheld"
+    assert end["measured_withheld_reason"] == "terminus"
+    for field in (
+        "trains_observed",
+        "trains_per_hour",
+        "median_gap_minutes",
+        "long_gaps_per_100_hours",
+        "trains_on_boards_share",
+        "excess_wait_minutes",
+    ):
+        assert end[field] is None
+    assert end["scheduled_trains"] == 1200
+    assert by_line["bakerlooinbound"]["measured_status"] == "measured"
+    assert doc["summary"]["status_reasons"] == ["terminus"]
+    assert (doc["summary"]["directions_measured"], doc["summary"]["directions_total"]) == (1, 3)
+
+    only_end = station_document(station, StationRows(window, [], rows[1:]), STAMP)
+    assert only_end["summary"]["measured_status"] == "withheld"
+    assert only_end["summary"]["status_reasons"] == ["terminus"]

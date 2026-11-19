@@ -112,6 +112,62 @@ unit_tests:
         - {iso_week: 2026-W46, week_start: "2026-11-09", naptan_id: B, closure_hours: 0, step_free_hours: 0, other_disruption_hours: 0, disruptions: 0, expected_slots: 4, observed_slots: 2, observed_share: 0.5}
         - {iso_week: 2026-W46, week_start: "2026-11-09", naptan_id: D, closure_hours: 0, step_free_hours: 0, other_disruption_hours: 0, disruptions: 0, expected_slots: 4, observed_slots: 2, observed_share: 0.5}
 
+  - name: dim_line_station_role_route_ends_and_seeded_termini
+    description: >
+      Metropolitan outbound (m1, latest) has route 1 A B C D and a branch
+      route 2 A B E; inbound (m2) is D C B A. A fetch older than m1 (m0:
+      B then X) is ignored. The first and last stop of each route are ends:
+      A, D and E. B is never an end. C is in the middle of every route but
+      seeded as a terminus: source seed. D is both an end and seeded:
+      route_and_seed. District outbound lists Z A Y: A is an end of the
+      Metropolitan but not of the District, so it is a terminus on the
+      Metropolitan row only. Thameslink is not in the lines seed and adds
+      nothing.
+    model: dim_line_station_role
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_route_sequence')
+        rows:
+          - {poll_id: m0, request_path: /Line/metropolitan/Route/Sequence/outbound, polled_at: "2026-11-02 02:00:00", line_id: metropolitan, direction: outbound, route_ordinal: 1, stop_sequence: 1, naptan_id: B, dt: "2026-11-02"}
+          - {poll_id: m0, request_path: /Line/metropolitan/Route/Sequence/outbound, polled_at: "2026-11-02 02:00:00", line_id: metropolitan, direction: outbound, route_ordinal: 1, stop_sequence: 2, naptan_id: X, dt: "2026-11-02"}
+          - {poll_id: m1, request_path: /Line/metropolitan/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: metropolitan, direction: outbound, route_ordinal: 1, stop_sequence: 1, naptan_id: A, dt: "2026-11-09"}
+          - {poll_id: m1, request_path: /Line/metropolitan/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: metropolitan, direction: outbound, route_ordinal: 1, stop_sequence: 2, naptan_id: B, dt: "2026-11-09"}
+          - {poll_id: m1, request_path: /Line/metropolitan/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: metropolitan, direction: outbound, route_ordinal: 1, stop_sequence: 3, naptan_id: C, dt: "2026-11-09"}
+          - {poll_id: m1, request_path: /Line/metropolitan/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: metropolitan, direction: outbound, route_ordinal: 1, stop_sequence: 4, naptan_id: D, dt: "2026-11-09"}
+          - {poll_id: m1, request_path: /Line/metropolitan/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: metropolitan, direction: outbound, route_ordinal: 2, stop_sequence: 1, naptan_id: A, dt: "2026-11-09"}
+          - {poll_id: m1, request_path: /Line/metropolitan/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: metropolitan, direction: outbound, route_ordinal: 2, stop_sequence: 2, naptan_id: B, dt: "2026-11-09"}
+          - {poll_id: m1, request_path: /Line/metropolitan/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: metropolitan, direction: outbound, route_ordinal: 2, stop_sequence: 3, naptan_id: E, dt: "2026-11-09"}
+          - {poll_id: m2, request_path: /Line/metropolitan/Route/Sequence/inbound, polled_at: "2026-11-09 02:00:00", line_id: metropolitan, direction: inbound, route_ordinal: 1, stop_sequence: 1, naptan_id: D, dt: "2026-11-09"}
+          - {poll_id: m2, request_path: /Line/metropolitan/Route/Sequence/inbound, polled_at: "2026-11-09 02:00:00", line_id: metropolitan, direction: inbound, route_ordinal: 1, stop_sequence: 2, naptan_id: C, dt: "2026-11-09"}
+          - {poll_id: m2, request_path: /Line/metropolitan/Route/Sequence/inbound, polled_at: "2026-11-09 02:00:00", line_id: metropolitan, direction: inbound, route_ordinal: 1, stop_sequence: 3, naptan_id: B, dt: "2026-11-09"}
+          - {poll_id: m2, request_path: /Line/metropolitan/Route/Sequence/inbound, polled_at: "2026-11-09 02:00:00", line_id: metropolitan, direction: inbound, route_ordinal: 1, stop_sequence: 4, naptan_id: A, dt: "2026-11-09"}
+          - {poll_id: d1, request_path: /Line/district/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: district, direction: outbound, route_ordinal: 1, stop_sequence: 1, naptan_id: Z, dt: "2026-11-09"}
+          - {poll_id: d1, request_path: /Line/district/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: district, direction: outbound, route_ordinal: 1, stop_sequence: 2, naptan_id: A, dt: "2026-11-09"}
+          - {poll_id: d1, request_path: /Line/district/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: district, direction: outbound, route_ordinal: 1, stop_sequence: 3, naptan_id: Y, dt: "2026-11-09"}
+          - {poll_id: t1, request_path: /Line/thameslink/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: thameslink, direction: outbound, route_ordinal: 1, stop_sequence: 1, naptan_id: P, dt: "2026-11-09"}
+          - {poll_id: t1, request_path: /Line/thameslink/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: thameslink, direction: outbound, route_ordinal: 1, stop_sequence: 2, naptan_id: Q, dt: "2026-11-09"}
+      - input: ref('lines')
+        rows:
+          - {line_id: metropolitan}
+          - {line_id: district}
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: metropolitan, naptan_id: C, role: terminus}
+          - {line_id: metropolitan, naptan_id: D, role: terminus}
+          - {line_id: metropolitan, naptan_id: B, role: core}
+    expect:
+      rows:
+        - {line_id: metropolitan, naptan_id: A, is_terminus: true, terminus_source: route}
+        - {line_id: metropolitan, naptan_id: B, is_terminus: false, terminus_source: null}
+        - {line_id: metropolitan, naptan_id: C, is_terminus: true, terminus_source: seed}
+        - {line_id: metropolitan, naptan_id: D, is_terminus: true, terminus_source: route_and_seed}
+        - {line_id: metropolitan, naptan_id: E, is_terminus: true, terminus_source: route}
+        - {line_id: district, naptan_id: Z, is_terminus: true, terminus_source: route}
+        - {line_id: district, naptan_id: A, is_terminus: false, terminus_source: null}
+        - {line_id: district, naptan_id: Y, is_terminus: true, terminus_source: route}
+
   - name: fct_station_weekly_measured_statuses_medians_and_withheld_lines
     description: >
       Week of Monday 9 November (2026-W46).
@@ -140,6 +196,13 @@ unit_tests:
       line_not_measured. W Victoria outbound had its only scheduled hour
       unobserved (missing polls): not_measured, no_observed_hours, with 0
       trains and 0 scheduled trains in observed hours, never read as good.
+      T Victoria outbound is a terminus (dim_line_station_role): one
+      observed, judged, in-band hour of 20 scheduled and 20 trains seen, and
+      it is withheld with reason terminus: trains, share and gap measures
+      null, scheduled trains 20 and the gate (1 of 1) kept. X is listed as
+      not a terminus and is measured as before. S Victoria outbound, a
+      terminus whose hour is not observed, reads terminus too, not
+      no_observed_hours: the reason of the end of the line comes first.
     model: fct_station_weekly_measured
     overrides:
       vars:
@@ -154,6 +217,11 @@ unit_tests:
           - {line_id: elizabeth, is_measured: true}
           - {line_id: circle, is_measured: true}
           - {line_id: dlr, is_measured: false}
+      - input: ref('dim_line_station_role')
+        rows:
+          - {line_id: victoria, naptan_id: X, is_terminus: false}
+          - {line_id: victoria, naptan_id: T, is_terminus: true}
+          - {line_id: victoria, naptan_id: S, is_terminus: true}
       - input: ref('int_station_measured_hours')
         format: sql
         rows: |
@@ -179,7 +247,9 @@ unit_tests:
                   ('elizabeth', 'E', 'outbound', date '2026-11-10', 9, false, true, null, 8, true, true),
                   ('circle', 'Y', 'outbound', date '2026-11-09', 8, true, true, 20, 20, true, true),
                   ('dlr', 'Z', 'outbound', date '2026-11-09', 8, true, true, 10, 10, true, true),
-                  ('victoria', 'W', 'outbound', date '2026-11-09', 8, true, false, 20, 0, false, false)
+                  ('victoria', 'W', 'outbound', date '2026-11-09', 8, true, false, 20, 0, false, false),
+                  ('victoria', 'T', 'outbound', date '2026-11-09', 8, true, true, 20, 20, true, true),
+                  ('victoria', 'S', 'outbound', date '2026-11-09', 8, true, false, 20, 0, false, false)
           ) as t (
               line_id, naptan_id, direction, london_date, london_hour, is_scheduled, is_observed,
               scheduled_departures, observed_trains, is_gate_judged, is_in_band
@@ -216,4 +286,6 @@ unit_tests:
         - {iso_week: 2026-W46, naptan_id: E, line_id: elizabeth, direction: outbound, measured_status: measured, measured_withheld_reason: null, observed_hours: 2, trains_observed: 18, trains_per_hour: 9, median_gap_minutes: 6, long_gaps: null, long_gaps_per_100_hours: null, scheduled_trains: null, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 2, gate_pass_share: 1}
         - {iso_week: 2026-W46, naptan_id: Y, line_id: circle, direction: outbound, measured_status: withheld, measured_withheld_reason: shared_section_misfiled, observed_hours: 1, trains_observed: null, trains_per_hour: null, median_gap_minutes: null, long_gaps: null, long_gaps_per_100_hours: null, scheduled_trains: 20, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 1, gate_pass_share: 1}
         - {iso_week: 2026-W46, naptan_id: Z, line_id: dlr, direction: outbound, measured_status: withheld, measured_withheld_reason: line_not_measured, observed_hours: 1, trains_observed: null, trains_per_hour: null, median_gap_minutes: null, long_gaps: null, long_gaps_per_100_hours: null, scheduled_trains: 10, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 1, gate_pass_share: 1}
+        - {iso_week: 2026-W46, naptan_id: T, line_id: victoria, direction: outbound, measured_status: withheld, measured_withheld_reason: terminus, observed_hours: 1, trains_observed: null, trains_per_hour: null, median_gap_minutes: null, long_gaps: null, long_gaps_per_100_hours: null, scheduled_trains: 20, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 1, gate_pass_share: 1}
+        - {iso_week: 2026-W46, naptan_id: S, line_id: victoria, direction: outbound, measured_status: withheld, measured_withheld_reason: terminus, observed_hours: 0, trains_observed: null, trains_per_hour: null, median_gap_minutes: null, long_gaps: null, long_gaps_per_100_hours: null, scheduled_trains: 0, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 0, gate_pass_share: null}
         - {iso_week: 2026-W46, naptan_id: W, line_id: victoria, direction: outbound, measured_status: not_measured, measured_withheld_reason: no_observed_hours, observed_hours: 0, trains_observed: 0, trains_per_hour: null, median_gap_minutes: null, long_gaps: null, long_gaps_per_100_hours: null, scheduled_trains: 0, trains_on_boards_share: null, excess_wait_minutes: null, gate_judged_hours: 0, gate_pass_share: null}
