@@ -437,9 +437,11 @@ models:
         description: long_gaps per 100 measured station-direction-hours (D42).
       - name: honesty_gap_hours
         description: >
-          PLAN 7.3 Honesty Gap: London hours in which the line's declared
-          status was Good Service for the whole hour and at least one
-          measured station-direction-hour of the line recorded a long gap.
+          PLAN 7.3 Honesty Gap (D68): London hours in which the line's
+          declared status was Good Service for the whole hour and at least
+          two measurement stations in the same direction each had a measured
+          hour with a long gap ending in it whose whole span was Good
+          Service.
       - name: good_service_measured_hours
         description: London hours of whole-hour Good Service with at least one measured station-direction-hour; the Honesty Gap's denominator.
       - name: honesty_gap_share
@@ -545,7 +547,10 @@ models:
       - name: good_service_measured_hours
         description: London hours of whole-hour Good Service with at least one measured hour of the line.
       - name: honesty_gap_hours
-        description: Of those, hours with at least one long gap (PLAN 7.3 Honesty Gap).
+        description: >
+          Of those, hours in which long gaps with a whole Good Service span
+          ended at at least `honesty_gap_min_stations` measurement stations
+          in the same direction (PLAN 7.3 Honesty Gap, D68).
 
   - name: rpt_weekly_highlights
     description: >

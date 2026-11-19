@@ -90,6 +90,11 @@ vars:
   # fct_line_weekly_measured ranks a line on the measured view only when at least
   # this share of its scheduled station-direction-hours passed the gate.
   min_measured_share: 0.5
+  # fct_line_measured_daily counts a Good Service hour toward the Honesty
+  # Gap only when at least this many measurement stations, in the same
+  # direction, had a long gap ending in it whose whole span was Good Service
+  # (D68). Fixed before the 18 to 24 November 2026 data was examined.
+  honesty_gap_min_stations: 2
   # Divisions (M6, ADR-015): seeded from the first this-many complete weeks
   # (every line's week ended, at least `provisional_completeness` observed).
   # The plan's four weeks were shortened to two; the seeding is marked

@@ -200,7 +200,7 @@
           "$ref": "#/$defs/nullable_non_negative"
         },
         "honesty_gap_hours": {
-          "description": "Hours of whole-hour declared Good Service in which a measurement station recorded a long gap (PLAN 7.3).",
+          "description": "Hours of whole-hour declared Good Service in which at least two measurement stations in the same direction recorded a long gap whose whole span was Good Service (PLAN 7.3, D68).",
           "$ref": "#/$defs/nullable_non_negative"
         },
         "honesty_gap_share": {

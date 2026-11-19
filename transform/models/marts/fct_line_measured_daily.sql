@@ -19,15 +19,39 @@ with hours as (
 
 measured_line_hours as (
     -- One row per line and London hour with a measured station-direction-
-    -- hour, for the Honesty Gap.
+    -- hour: the Honesty Gap's denominator, once joined to Good Service.
+    select distinct
+        line_id,
+        london_date,
+        london_hour
+    from hours
+    where counts_for_reliability
+),
+
+corroborated_directions as (
+    -- D68: the hour counts toward the Honesty Gap only when at least
+    -- `honesty_gap_min_stations` measurement stations, in the same
+    -- direction, each had a measured hour with a long gap ending in it whose
+    -- whole span was Good Service. One board dropping a train makes a gap
+    -- at that station only. Directions are the line's own (inbound,
+    -- outbound), so stations on different branches corroborate each other.
     select
         line_id,
         london_date,
         london_hour,
-        sum(long_gaps) as long_gaps
+        direction
     from hours
-    where counts_for_reliability
-    group by line_id, london_date, london_hour
+    where counts_for_reliability and good_service_long_gaps > 0
+    group by line_id, london_date, london_hour, direction
+    having count(distinct naptan_id) >= {{ var('honesty_gap_min_stations') }}
+),
+
+corroborated_line_hours as (
+    select distinct
+        line_id,
+        london_date,
+        london_hour
+    from corroborated_directions
 ),
 
 good_service_hours as (
@@ -47,13 +71,18 @@ honesty as (
         measured_line_hours.line_id,
         measured_line_hours.london_date,
         count(*) as good_service_measured_hours,
-        count_if(measured_line_hours.long_gaps > 0) as honesty_gap_hours
+        count(corroborated_line_hours.line_id) as honesty_gap_hours
     from measured_line_hours
     inner join good_service_hours
         on
             measured_line_hours.line_id = good_service_hours.line_id
             and measured_line_hours.london_date = good_service_hours.london_date
             and measured_line_hours.london_hour = good_service_hours.london_hour
+    left join corroborated_line_hours
+        on
+            measured_line_hours.line_id = corroborated_line_hours.line_id
+            and measured_line_hours.london_date = corroborated_line_hours.london_date
+            and measured_line_hours.london_hour = corroborated_line_hours.london_hour
     group by measured_line_hours.line_id, measured_line_hours.london_date
 ),
 
