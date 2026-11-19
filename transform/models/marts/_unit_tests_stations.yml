@@ -119,7 +119,8 @@ unit_tests:
       B then X) is ignored. The first and last stop of each route are ends:
       A, D and E. B is never an end. C is in the middle of every route but
       seeded as a terminus: source seed. D is both an end and seeded:
-      route_and_seed. District outbound lists Z A Y: A is an end of the
+      route_and_seed. S is seeded as a terminus but is on no route at all
+      (a fetch that dropped it): it still counts, source seed. District outbound lists Z A Y: A is an end of the
       Metropolitan but not of the District, so it is a terminus on the
       Metropolitan row only. Thameslink is not in the lines seed and adds
       nothing.
@@ -157,6 +158,7 @@ unit_tests:
           - {line_id: metropolitan, naptan_id: C, role: terminus}
           - {line_id: metropolitan, naptan_id: D, role: terminus}
           - {line_id: metropolitan, naptan_id: B, role: core}
+          - {line_id: metropolitan, naptan_id: S, role: terminus}
     expect:
       rows:
         - {line_id: metropolitan, naptan_id: A, is_terminus: true, terminus_source: route}
@@ -164,6 +166,7 @@ unit_tests:
         - {line_id: metropolitan, naptan_id: C, is_terminus: true, terminus_source: seed}
         - {line_id: metropolitan, naptan_id: D, is_terminus: true, terminus_source: route_and_seed}
         - {line_id: metropolitan, naptan_id: E, is_terminus: true, terminus_source: route}
+        - {line_id: metropolitan, naptan_id: S, is_terminus: true, terminus_source: seed}
         - {line_id: district, naptan_id: Z, is_terminus: true, terminus_source: route}
         - {line_id: district, naptan_id: A, is_terminus: false, terminus_source: null}
         - {line_id: district, naptan_id: Y, is_terminus: true, terminus_source: route}

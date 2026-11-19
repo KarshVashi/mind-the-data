@@ -263,7 +263,7 @@ Every westbound train at Baker Street, King's Cross and Liverpool Street is list
 An hour counts towards the Honesty Gap when all three hold (D68, pending):
 
 1. **Good Service for the whole hour.** The line's worst declared status was Good Service in every minute of the London hour, with no missing minute.
-2. **Long gaps at two or more stations, in the same direction.** At least two of the line's measurement stations, in the same direction, each had a gated hour (one that passed the quality gate) with a long gap ending in that hour.
+2. **Long gaps at two or more stations, in the same direction.** At least two of the line's core and branch measurement stations (not termini), in the same direction, each had a gated hour (one that passed the quality gate) with a long gap ending in that hour.
 3. **Good Service over each gap.** For each of those gaps, the declared status was Good Service in every minute it spans, from the minute of the train before to the minute of the train that ends it, with no missing minute.
 
 It is reported as hours per week and as a share of the line's Good Service hours with at least one gated measurement. That denominator is unchanged (D42).
@@ -274,9 +274,9 @@ The terms are exact:
 - **Same hour:** both gaps end in the same London calendar hour. A gap belongs to the hour of the train that ends it (D30).
 - **Same direction:** the direction the boards give the trains, inbound or outbound, filled where missing (D65).
 - **Branches:** not told apart. The status covers the whole line, so a station on each branch can corroborate.
-- **Stations:** the line's measurement stations, termini included, as for every other measured figure. Station views (M8) are not used.
+- **Stations:** the line's core and branch measurement stations. Termini are left out of the two-station count, as they are from trains run (D66) and the gate (D51): at a terminus one train can be listed on two platforms, which would read as two boards agreeing, the artefact this rule filters out. Their gaps still count as long gaps and their hours stay in the denominator. This was decided on 19 November, before the 18 to 24 November data was examined. Station views (M8) are not used.
 
-**Why two stations.** When one board drops a train, a long gap appears at that station only. When the service has a real gap, it shows at more than one station. Requiring two separate boards rules out the first case. On 9 to 15 November (W46), the main Tube lines read 25% (Bakerloo) to 73% (Piccadilly) under this rule, against 48% to 85% under the earlier one-station rule. Requiring Good Service over the whole gap changed almost nothing: a whole Good Service hour nearly always covers the gap too. The counts are in D68.
+**Why two stations.** When one board drops a train, a long gap appears at that station only. When the service has a real gap, it shows at more than one station. Requiring two separate boards rules out the first case. On 9 to 15 November (W46), the main Tube lines read 25% (Bakerloo) to 73% (Piccadilly) under this rule, against 48% to 85% under the earlier one-station rule. Requiring Good Service over the whole gap changed almost nothing: a whole Good Service hour nearly always covers the gap too. The counts are in D68; they were taken with termini included, so they will read slightly lower now that termini are left out.
 
 **Fixed in advance.** This rule was fixed on 19 November 2026, before any Honesty Gap figure for 18 to 24 November had been computed, so that week's result could not shape it.
 

@@ -6,8 +6,9 @@
 -- which takes in the end of every branch and of a route that trains turn
 -- back on, or a station seed_measurement_stations marks `terminus` (D66).
 -- It is the stop where some of the line's scheduled trains end their trip.
--- A turnback that no route ends at is not a terminus here, whatever D65
--- does with it.
+-- A seeded terminus counts on its own, even when the latest route sequence
+-- does not list it. A turnback that no route ends at is not a terminus here,
+-- whatever D65 does with it.
 --
 -- Why it matters: at an end of the line TfL lists departing trains with no
 -- direction (Uxbridge, Amersham, Wimbledon), which the inference never
@@ -62,17 +63,21 @@ seed_termini as (
 )
 
 select
-    line_stations.line_id,
-    line_stations.naptan_id,
-    line_stations.is_route_end or seed_termini.naptan_id is not null as is_terminus,
+    coalesce(line_stations.line_id, seed_termini.line_id) as line_id,
+    coalesce(line_stations.naptan_id, seed_termini.naptan_id) as naptan_id,
+    coalesce(line_stations.is_route_end, false) or seed_termini.naptan_id is not null
+        as is_terminus,
     case
         when line_stations.is_route_end and seed_termini.naptan_id is not null then 'route_and_seed'
         when line_stations.is_route_end then 'route'
         when seed_termini.naptan_id is not null then 'seed'
     end as terminus_source,
-    {{ row_key(['line_stations.line_id', 'line_stations.naptan_id']) }} as line_station_key
+    {{ row_key([
+        'coalesce(line_stations.line_id, seed_termini.line_id)',
+        'coalesce(line_stations.naptan_id, seed_termini.naptan_id)'
+    ]) }} as line_station_key
 from line_stations
-left join seed_termini
+full outer join seed_termini
     on
         line_stations.line_id = seed_termini.line_id
         and line_stations.naptan_id = seed_termini.naptan_id
