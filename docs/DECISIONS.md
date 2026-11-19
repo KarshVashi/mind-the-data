@@ -21,7 +21,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
-D1, D67, D68 and D69 are open.
+D1, D67, D68, D69 and D70 are open.
 
 ### D67. A single-weekday timetable schedule applies on that weekday only
 
@@ -110,6 +110,17 @@ D1, D67, D68 and D69 are open.
 - **Risk:** a `RealTime` delay whose reason also mentions planned works elsewhere would be excluded. The reasons analysis lists such text for review before settling.
 - **Publishing:** this changes published values (index, Good Service %, rank, engineering-works hours) for lines with such works. Field meanings do not change.
 
+### D70. Station views withhold their measured figures at an end of the line
+
+- **Entered:** 2026-11-19. **Deadline:** 2026-11-22 18:00 UTC. **Class:** `never-default` (metric semantics and what the station files publish; station publishing is still off, so no published value moves). **Recommended default:** as implemented.
+- **Context:** D66 took termini out of the line-level trains run share and left them in the station views. The same two faults reach every station figure that comes from the arrivals inference, not only the share. At an end of the line TfL lists departing trains with no direction (Uxbridge about 0 trains per timetabled train, Amersham 0.12, Wimbledon 0.01), and D65 never fills a direction at a turnback or for a terminating train. Those trains are neither counted nor given an arrival, so trains per hour, the median gap, long gaps and excess wait read as if service were thin. At other ends (Stratford 1.8, Richmond 2.3) one train is listed on two platforms and counts twice. Publishing a station page for an end of the line would show a reliability figure that is an artefact of the feed.
+- **Option (a), implemented:** at an end of a line, `fct_station_weekly_measured` sets `measured_status` to `withheld` and `measured_withheld_reason` to `terminus`. `trains_observed`, `trains_per_hour`, `median_gap_minutes`, `long_gaps`, `long_gaps_per_100_hours`, `trains_on_boards_share` and `excess_wait_minutes` are null. `scheduled_trains`, `observed_hours`, `gate_judged_hours` and `gate_pass_share` stay, as for the other withheld reasons. The reason comes after `line_not_measured` and `shared_section_misfiled` and before the gate reasons.
+- **Option (b), not taken:** show the figures with a label. The figures are wrong in both directions, so a label would not make them usable, and a map colour built on them would mislead.
+- **What is an end:** `dim_line_station_role`, per line and station. A terminus is the first or last stop of any ordered route in the line's latest route sequences (this includes the end of every branch and of routes that turn trains back), or a `terminus` in `seed_measurement_stations` (D66). It is judged per line: a station that ends one line and is a through station on another is withheld on the first line's rows only.
+- **Turnbacks in the middle of a line:** a station where only some trains end their trip, and no route ends, is not a terminus here. D65 still treats any destination as a turnback for the day and does not fill platform directions there, so such a station can undercount departures; that is unchanged and not measured. It is the main open risk before station publishing is switched on.
+- **Alternatives:** withhold only the share and keep the gap figures (the gaps are distorted by the same missing departures); derive the end from each day's destinations, as D65 does for turnbacks (it needs the whole line feed per week, and a short-turned train would withhold a through station).
+- **Effect:** no published value moves while `STATIONS_PUBLISH_ENABLED` is off. The league, lines and measured view are unchanged. Station files gain the reason `terminus` and the summary can list it in `status_reasons`.
+
 ## Settled on 2026-11-18, with the detail
 
 ### D65. A prediction with no direction takes one where the boards show it
@@ -156,7 +167,7 @@ D1, D67, D68 and D69 are open.
   | Liberty | 195% | none (termini only) |
 
   Excess wait, long gaps and the Honesty Gap do not use this measure. They move only through D65: the Metropolitan's excess wait goes from 3.76 to 3.17 minutes, and every other line's by under 0.1 minutes.
-- **Station views:** `fct_station_weekly_measured.trains_on_boards_share` is per station and still includes termini, where it reads as above (Uxbridge about 0, Stratford about 1.8). Station publishing is switched off (`STATIONS_PUBLISH_ENABLED`). Before it is switched on, termini there should be withheld or labelled. D65 also reaches the station views through `int_station_arrivals_directed`. On 17 Nov (from 12:38 UTC) it filled 133,576 of the line feed's 842,955 predictions with no direction (15.8%; 2.3% of all 5.78 million). The effect per station is not yet measured.
+- **Station views:** `fct_station_weekly_measured.trains_on_boards_share` is per station and still includes termini, where it reads as above (Uxbridge about 0, Stratford about 1.8). Station publishing is switched off (`STATIONS_PUBLISH_ENABLED`). Before it is switched on, termini there should be withheld or labelled (done in D70: withheld). D65 also reaches the station views through `int_station_arrivals_directed`. On 17 Nov (from 12:38 UTC) it filled 133,576 of the line feed's 842,955 predictions with no direction (15.8%; 2.3% of all 5.78 million). The effect per station is not yet measured.
 - **Alternatives:** keep termini and fill their directions (tried under D65, which over-counts at reversing termini); report termini separately.
 - **Note:** past weeks are rewritten on the next run (D39), so W46's published figures will be restated.
 
