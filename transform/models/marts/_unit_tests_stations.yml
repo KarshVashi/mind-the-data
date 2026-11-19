@@ -123,7 +123,7 @@ unit_tests:
       (a fetch that dropped it): it still counts, source seed. District outbound lists Z A Y: A is an end of the
       Metropolitan but not of the District, so it is a terminus on the
       Metropolitan row only. Thameslink is not in the lines seed and adds
-      nothing.
+      nothing, neither from its route nor from its seeded terminus P.
     model: dim_line_station_role
     overrides:
       vars:
@@ -159,6 +159,7 @@ unit_tests:
           - {line_id: metropolitan, naptan_id: D, role: terminus}
           - {line_id: metropolitan, naptan_id: B, role: core}
           - {line_id: metropolitan, naptan_id: S, role: terminus}
+          - {line_id: thameslink, naptan_id: P, role: terminus}
     expect:
       rows:
         - {line_id: metropolitan, naptan_id: A, is_terminus: true, terminus_source: route}

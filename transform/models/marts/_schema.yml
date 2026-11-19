@@ -22,7 +22,8 @@ models:
   - name: dim_line_station_role
     description: >
       Whether a station is an end of a line (D70), one row per line and
-      station on the line's latest route sequences. A terminus is the first
+      station on the line's latest route sequences, plus each `terminus` of
+      seed_measurement_stations that those sequences do not list. A terminus is the first
       or last stop of any ordered route of the line (branch ends and turned
       back routes included) or a `terminus` of seed_measurement_stations
       (D66). Read by fct_station_weekly_measured, which withholds a

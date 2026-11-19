@@ -1,7 +1,8 @@
 {{ config(materialized='table', tags=['station']) }}
 
 -- Whether a station is an end of a line (D70), one row per line and
--- station on the line's latest route sequences, as dim_station reads them.
+-- station on the line's latest route sequences, as dim_station reads them,
+-- plus each seeded terminus those sequences do not list.
 -- A terminus is the first or last stop of any of the line's ordered routes,
 -- which takes in the end of every branch and of a route that trains turn
 -- back on, or a station seed_measurement_stations marks `terminus` (D66).
@@ -55,11 +56,14 @@ line_stations as (
 ),
 
 seed_termini as (
+    -- Lines in scope only, as on the route side.
     select distinct
-        line_id,
-        naptan_id
-    from {{ ref('seed_measurement_stations') }}
-    where role = 'terminus'
+        seed_stations.line_id,
+        seed_stations.naptan_id
+    from {{ ref('seed_measurement_stations') }} as seed_stations
+    inner join {{ ref('lines') }} as scope_lines
+        on seed_stations.line_id = scope_lines.line_id
+    where seed_stations.role = 'terminus'
 )
 
 select
