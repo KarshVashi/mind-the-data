@@ -182,6 +182,8 @@ TfL does not publish when trains actually arrived. Each Arrivals board shows pre
 
 Scheduled headways come from TfL's weekly timetables for each measurement station and direction, with platforms pooled because timetables have none (D29). Every listed departure counts, including two in the same minute (D31). Each day uses the latest timetable fetched by then (D32).
 
+A schedule TfL names for one weekday ("Tuesdays") applies on that weekday only. Where a timetable also has a generic schedule ("Monday - Thursday"), the weekday's own schedule is used on its day and the generic one on the others, so no day counts two schedules' trains (D67, pending).
+
 TfL returns no timetable for the Elizabeth line or the Overground, so those lines use estimated frequencies per station, hour band and day type (`seed_line_frequencies`, flagged `is_fallback`). Where two estimates disagreed, the lower frequency was used, so service is never judged against a busier timetable than the real one (D33).
 
 ### Headways and excess wait
