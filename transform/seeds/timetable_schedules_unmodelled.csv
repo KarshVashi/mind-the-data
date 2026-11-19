@@ -1,4 +1,0 @@
-schedule_name,reason
-Tuesdays,"single weekday: int_scheduled_headways sums schedules per day type, so mapping it to mon_thu would count it once per listed weekday"
-Wednesdays,"single weekday: int_scheduled_headways sums schedules per day type, so mapping it to mon_thu would count it once per listed weekday"
-Thursdays,"single weekday: int_scheduled_headways sums schedules per day type, so mapping it to mon_thu would count it once per listed weekday"

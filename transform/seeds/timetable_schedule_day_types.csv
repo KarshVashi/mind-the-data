@@ -1,11 +1,16 @@
-schedule_name,day_type
-Monday - Thursday,mon_thu
-Monday - Friday,mon_thu
-Monday - Friday,fri
-Monday to Friday,mon_thu
-Monday to Friday,fri
-Friday,fri
-Saturday,sat
-Saturday (also Good Friday),sat
-Saturdays and Public Holidays,sat
-Sunday,sun
+schedule_name,day_type,iso_day_of_week
+Monday - Thursday,mon_thu,
+Monday - Friday,mon_thu,
+Monday - Friday,fri,
+Monday to Friday,mon_thu,
+Monday to Friday,fri,
+Friday,fri,
+Saturday,sat,
+Saturday (also Good Friday),sat,
+Saturdays and Public Holidays,sat,
+Sunday,sun,
+Mondays,mon_thu,1
+Tuesdays,mon_thu,2
+Wednesdays,mon_thu,3
+Thursdays,mon_thu,4
+Fridays,fri,5

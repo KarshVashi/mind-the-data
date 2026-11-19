@@ -129,6 +129,24 @@ def test_schedule_day_types_are_known_and_unique() -> None:
     assert {day_type for _, day_type in pairs} == DAY_TYPES
 
 
+def test_single_weekday_schedules_fall_in_their_day_type() -> None:
+    """A schedule with an ISO weekday applies on that weekday only (D67), so
+    the weekday must belong to the schedule's day type."""
+    weekday_types = {int(row["iso_day_of_week"]): row["day_type"] for row in read_seed("day_types")}
+    single = [row for row in read_seed("timetable_schedule_day_types") if row["iso_day_of_week"]]
+    assert single
+    for row in single:
+        assert weekday_types[int(row["iso_day_of_week"])] == row["day_type"], row
+    # One name never mixes a weekday-only row with an every-day row.
+    names = {row["schedule_name"] for row in single}
+    generic = {
+        row["schedule_name"]
+        for row in read_seed("timetable_schedule_day_types")
+        if not row["iso_day_of_week"]
+    }
+    assert not names & generic
+
+
 def test_fallback_frequencies_are_measurement_stations_inside_service_hours() -> None:
     """Every seed_line_frequencies row is a configured station of its line,
     covers whole hours inside line_operating_hours (a part hour is not

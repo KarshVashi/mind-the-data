@@ -174,10 +174,7 @@ seeds:
       +column_types:
         schedule_name: varchar
         day_type: varchar
-    timetable_schedules_unmodelled:
-      +column_types:
-        schedule_name: varchar
-        reason: varchar
+        iso_day_of_week: integer
     seed_measurement_stations:
       +column_types:
         line_id: varchar

@@ -15,6 +15,15 @@
 -- choosing one. A gap belongs to the hour of the departure that ends it
 -- (DECISIONS.md D30), and gaps are not formed across two schedules.
 --
+-- A schedule named for one weekday ("Tuesdays") carries that weekday in
+-- iso_day_of_week and applies on it only; a schedule for the whole day type
+-- leaves it null (D67). Summing the single-weekday schedules of one day
+-- type would give each of its days several days of trains, so the rows keep
+-- the weekday apart. Where a timetable version has both kinds for a day
+-- type, the single-weekday schedule wins on its own weekday and the generic
+-- one covers the day type's other weekdays, as one row for each: a day then
+-- matches exactly one schedule and no train is counted twice.
+--
 -- Rebuilt in full each run (ADR-012, extended to this model in D24): the
 -- timetables are a few hundred thousand rows a year, and a seed edit then
 -- reaches every version.
@@ -66,6 +75,7 @@ departures as (
         versions.fetched_at,
         timetable.schedule_name,
         day_types.day_type,
+        day_types.iso_day_of_week,
         timetable.departure_minute_of_service_day
     from versions
     inner join {{ ref('stg_timetable') }} as timetable
@@ -92,6 +102,7 @@ gaps as (
         fetched_at,
         schedule_name,
         day_type,
+        iso_day_of_week,
         departure_minute_of_service_day / 60 as service_hour,
         departure_minute_of_service_day - lag(departure_minute_of_service_day) over (
             partition by
@@ -101,12 +112,13 @@ gaps as (
     from departures
 ),
 
-timetabled as (
+pooled as (
     select
         line_id,
         departure_stop_id as naptan_id,
         direction,
         day_type,
+        iso_day_of_week,
         service_hour,
         valid_from,
         valid_to,
@@ -123,7 +135,94 @@ timetabled as (
         max(fetched_at) as timetable_fetched_at
     from gaps
     group by
-        line_id, departure_stop_id, direction, day_type, service_hour, valid_from, valid_to
+        line_id,
+        departure_stop_id,
+        direction,
+        day_type,
+        iso_day_of_week,
+        service_hour,
+        valid_from,
+        valid_to
+),
+
+-- The weekdays a version has a schedule of their own for.
+specific_weekdays as (
+    select distinct
+        line_id,
+        naptan_id,
+        direction,
+        day_type,
+        valid_from,
+        iso_day_of_week
+    from pooled
+    where iso_day_of_week is not null
+),
+
+timetabled as (
+    -- Single-weekday rows, and generic rows of a day type with no
+    -- single-weekday schedule in the version, as they are.
+    select pooled.*
+    from pooled
+    where
+        pooled.iso_day_of_week is not null
+        or not exists (
+            select 1
+            from specific_weekdays
+            where
+                specific_weekdays.line_id = pooled.line_id
+                and specific_weekdays.naptan_id = pooled.naptan_id
+                and specific_weekdays.direction = pooled.direction
+                and specific_weekdays.day_type = pooled.day_type
+                and specific_weekdays.valid_from is not distinct from pooled.valid_from
+        )
+
+    union all
+
+    -- A generic row of a day type that has single-weekday schedules: one
+    -- copy for each weekday of the day type that has none of its own.
+    select
+        pooled.line_id,
+        pooled.naptan_id,
+        pooled.direction,
+        pooled.day_type,
+        weekdays.iso_day_of_week,
+        pooled.service_hour,
+        pooled.valid_from,
+        pooled.valid_to,
+        pooled.scheduled_departures,
+        pooled.headway_count,
+        pooled.sum_headway_seconds,
+        pooled.sum_headway_squared_seconds,
+        pooled.max_headway_seconds,
+        pooled.schedule_source,
+        pooled.source_detail,
+        pooled.timetable_fetched_at
+    from pooled
+    inner join {{ ref('day_types') }} as weekdays
+        on pooled.day_type = weekdays.day_type
+    where
+        pooled.iso_day_of_week is null
+        and exists (
+            select 1
+            from specific_weekdays
+            where
+                specific_weekdays.line_id = pooled.line_id
+                and specific_weekdays.naptan_id = pooled.naptan_id
+                and specific_weekdays.direction = pooled.direction
+                and specific_weekdays.day_type = pooled.day_type
+                and specific_weekdays.valid_from is not distinct from pooled.valid_from
+        )
+        and not exists (
+            select 1
+            from specific_weekdays
+            where
+                specific_weekdays.line_id = pooled.line_id
+                and specific_weekdays.naptan_id = pooled.naptan_id
+                and specific_weekdays.direction = pooled.direction
+                and specific_weekdays.day_type = pooled.day_type
+                and specific_weekdays.valid_from is not distinct from pooled.valid_from
+                and specific_weekdays.iso_day_of_week = weekdays.iso_day_of_week
+        )
 ),
 
 timetabled_directions as (
@@ -142,6 +241,7 @@ fallback as (
         frequencies.naptan_id,
         directions.direction,
         frequencies.day_type,
+        cast(null as integer) as iso_day_of_week,
         hours.service_hour,
         cast(null as date) as valid_from,
         cast(null as date) as valid_to,
@@ -180,6 +280,7 @@ select
     naptan_id,
     direction,
     day_type,
+    iso_day_of_week,
     service_hour,
     service_hour % 24 as london_hour,
     service_hour >= 24 as is_next_calendar_day,
@@ -198,6 +299,14 @@ select
     schedule_source = 'seed_line_frequencies' as is_fallback,
     source_detail,
     timetable_fetched_at,
-    {{ row_key(['line_id', 'naptan_id', 'direction', 'day_type', 'service_hour', 'valid_from']) }}
+    {{ row_key([
+        'line_id',
+        'naptan_id',
+        'direction',
+        'day_type',
+        'iso_day_of_week',
+        'service_hour',
+        'valid_from',
+    ]) }}
         as scheduled_headway_key
 from combined

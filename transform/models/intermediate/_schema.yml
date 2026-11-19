@@ -241,11 +241,12 @@ models:
   - name: int_scheduled_headways
     description: >
       Scheduled service per line x measurement station x direction x day type
-      x service-day hour x timetable version (PLAN 6.2, 7.3), the baseline for
+      x weekday (single-weekday schedules only) x service-day hour x timetable version (PLAN 6.2, 7.3), the baseline for
       excess wait, long gaps and the quality gate. From TfL timetables
       (stg_timetable): every listed departure from the station, pooled over
       the timetable's routes, mapped to day types by
-      timetable_schedule_day_types. Timetables have no platforms, so the grain
+      timetable_schedule_day_types (a schedule for one weekday, such as
+      "Tuesdays", applies only on it: `iso_day_of_week`, D67). Timetables have no platforms, so the grain
       is station and direction (D29). A gap between consecutive departures
       belongs to the hour of the later one (D30); two departures in one
       minute both count (D31). Each day's fetch is a version valid from that
@@ -257,7 +258,7 @@ models:
       Tube) can be added. Rebuilt in full each run (ADR-012, D24).
     columns:
       - name: scheduled_headway_key
-        description: Row key, a hash of (line_id, naptan_id, direction, day_type, service_hour, valid_from).
+        description: Row key, a hash of (line_id, naptan_id, direction, day_type, iso_day_of_week, service_hour, valid_from).
         data_tests: [unique, not_null]
       - name: line_id
         description: TfL line id.
@@ -284,6 +285,18 @@ models:
           - accepted_values:
               arguments:
                 values: [mon_thu, fri, sat, sun]
+      - name: iso_day_of_week
+        description: >
+          ISO weekday (1 to 7) the row applies on, set for a single-weekday
+          schedule and for the copies of a generic schedule in a version
+          whose day type also has single-weekday schedules; null when the row
+          applies on every day of its day type. Consumers match
+          `iso_day_of_week is null or = the day's weekday` (D67).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5, 6, 7]
+                quote: false
       - name: service_hour
         description: Hour of the London service-day clock, 0 to 27; 24 and later are the next calendar morning.
         data_tests: [not_null]
