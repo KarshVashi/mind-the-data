@@ -251,11 +251,27 @@ Every westbound train at Baker Street, King's Cross and Liverpool Street is list
 
 ### The Honesty Gap
 
-An hour counts towards the Honesty Gap when the line's worst declared status was **Good Service for the whole hour** and at least one gated measurement in that hour recorded a **long gap**. It is reported as hours per week and as a share of the line's Good Service hours with at least one gated measurement (D42).
+An hour counts towards the Honesty Gap when all three hold (D68, pending):
 
-Only the hour in which the long gap ends is checked for Good Service. A gap that began during declared delays in the previous hour still counts if the hour it ends in was all Good Service, so the Honesty Gap reads slightly high; requiring Good Service over the gap's whole span is the alternative (D42).
+1. **Good Service for the whole hour.** The line's worst declared status was Good Service in every minute of the London hour, with no missing minute.
+2. **Long gaps at two or more stations, in the same direction.** At least two of the line's measurement stations, in the same direction, each had a gated hour (one that passed the quality gate) with a long gap ending in that hour.
+3. **Good Service over each gap.** For each of those gaps, the declared status was Good Service in every minute it spans, from the minute of the train before to the minute of the train that ends it, with no missing minute.
 
-**A known risk.** The boards list about 85% of timetabled trains, and whether the rest ran is not known (ADR-014). If they ran, the gaps around them exist only on the boards, so the Honesty Gap reads high. Long gaps are frequent on several Tube lines (about 70 to 125 per 100 measured hours on 9 to 13 November, Bakerloo 17), so the Honesty Gap is large there: the Piccadilly line had long gaps in 78 of its 86 measured Good Service hours. These are published as measured, with this caveat beside them, until the boards can be checked against an independent count.
+It is reported as hours per week and as a share of the line's Good Service hours with at least one gated measurement. That denominator is unchanged (D42).
+
+The terms are exact:
+
+- **Long gap:** over twice the longest scheduled gap of the hour it ends in (D34).
+- **Same hour:** both gaps end in the same London calendar hour. A gap belongs to the hour of the train that ends it (D30).
+- **Same direction:** the direction the boards give the trains, inbound or outbound, filled where missing (D65).
+- **Branches:** not told apart. The status covers the whole line, so a station on each branch can corroborate.
+- **Stations:** the line's measurement stations, termini included, as for every other measured figure. Station views (M8) are not used.
+
+**Why two stations.** When one board drops a train, a long gap appears at that station only. When the service has a real gap, it shows at more than one station. Requiring two separate boards rules out the first case. On 9 to 15 November (W46), the main Tube lines read 25% (Bakerloo) to 73% (Piccadilly) under this rule, against 48% to 85% under the earlier one-station rule. Requiring Good Service over the whole gap changed almost nothing: a whole Good Service hour nearly always covers the gap too. The counts are in D68.
+
+**Fixed in advance.** This rule was fixed on 19 November 2026, before any Honesty Gap figure for 18 to 24 November had been computed, so that week's result could not shape it.
+
+**A known risk.** The boards list about 85% of timetabled trains, and whether the rest ran is not known (ADR-014). Two-station corroboration removes gaps caused by one board dropping a train, but not by a train missing from every board. The District is the case to watch. On 17 November, every-station data (M8) showed that 27 of its 45 long gaps contained a train dropped by one board. On other lines, 0 or 1 did. Its vehicle ids are also unstable (D27). The dropout check is repeated for 18 to 24 November. It is reported beside the Honesty Gap, but it is not part of the rule. The figures are published as measured, with this caveat beside them, until the boards can be checked against an independent count.
 
 ### Station views (M8)
 

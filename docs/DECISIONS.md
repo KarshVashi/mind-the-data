@@ -21,7 +21,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
-D1 and D67 are open.
+D1, D67 and D68 are open.
 
 ### D67. A single-weekday timetable schedule applies on that weekday only
 
@@ -33,6 +33,53 @@ D1 and D67 are open.
 - **Rule when a stop has both kinds:** within one timetable version and day type, a single-weekday schedule wins on its own weekday. The generic schedule ("Monday - Thursday") covers the day type's other weekdays, as one copy for each. A day therefore matches exactly one schedule. A day type with no single-weekday schedule is untouched, so normal stops produce the same rows as before (with a null weekday). A weekday that has no schedule at all (a stop that lists only Tuesdays to Thursdays has none for Monday) has no row, and the station views use their no-timetable rule for that day: hours in which a train was seen, never a gap, never Good Service.
 - **Evidence:** hand-computed unit tests cover a stop with only Tuesdays, Wednesdays and Thursdays, a stop with a generic schedule beside "Wednesdays", and a normal stop. The dev check of which schedule combinations real stops list is in the PR.
 - **Scope:** none of these stops is a measurement station, so the league, the measured view and W46 do not change. Only the unpublished station views do, at these 7 stops, which now have scheduled headways again.
+
+### D68. The Honesty Gap counts an hour only when two stations agree
+
+- **Entered:** 2026-11-19. **Deadline:** 2026-11-22 18:00 UTC, as a reminder. **Class:** `never-default`, because it changes the meaning and the values of a published metric. **Default:** none. Please settle it before the 18 to 24 November figures are read, on 25 November.
+- **Context:** under D42, an hour counted when the line was declared Good Service for the whole hour and one gated station-direction-hour had a long gap ending in it. One board dropping one train was therefore enough to count an hour. The next post asks whether TfL said Good Service while trains were missing from its own boards. The rule has to be stricter than one board, and it has to be fixed before the first full every-station week (18 to 24 November) is examined.
+- **Rule** (`int_measured_hours.good_service_long_gaps`, `fct_line_measured_daily.honesty_gap_hours`, var `honesty_gap_min_stations: 2`). A Good Service hour with a gated measurement counts when:
+  1. at least 2 distinct measurement stations of the line, in the same direction, each have a gated station-direction-hour (`counts_for_reliability`) with at least one long gap ending in that hour; and
+  2. that gap's whole span was declared Good Service. Every UTC minute from the minute of the train before to the minute of the train that ends the gap is Good Service (severity 10) and not missing. A minute with no status row also breaks the span.
+- **Definitions:**
+  - **Same hour:** the London calendar date and hour (0 to 23) of the arrival that ends each gap (D30).
+  - **Same direction:** the `direction` on the boards after D65.
+  - **Branches:** not distinguished. The line's status is line-wide, and two boards on two branches are still two independent boards.
+  - **Termini:** included, as in the denominator.
+  - **Long gap:** unchanged (D34).
+  - **Denominator:** unchanged (D42).
+- **Evidence, W46 (9 to 15 November):** measured on the 50 measurement stations (Athena queries on the dev build from 48af00b, 18 November). The variants were:
+  - A: D42.
+  - B: whole span Good Service.
+  - C: B plus two stations in the same direction. C is this rule.
+  - D: B plus a gap of at least 10 minutes, given in hours.
+
+  | Line | GS hours | A % | B % | C % | D hours |
+  | --- | --- | --- | --- | --- | --- |
+  | District | 27 | 85.2 | 85.2 | 51.9 | 19 |
+  | Northern | 26 | 84.6 | 84.6 | 46.2 | 8 |
+  | Piccadilly | 122 | 82.8 | 84.4 | 73.0 | 48 |
+  | Metropolitan | 61 | 80.3 | 78.7 | 57.4 | 45 |
+  | Jubilee | 82 | 75.6 | 75.6 | 62.2 | 38 |
+  | Victoria | 106 | 65.1 | 65.1 | 49.1 | 11 |
+  | Central | 45 | 64.4 | 64.4 | 53.3 | 19 |
+  | Bakerloo | 107 | 47.7 | 47.7 | 25.2 | 17 |
+
+  On the Elizabeth line and the Overground (weak evidence) and the Circle and Hammersmith & City (withheld), C falls to 0 to 28%. B alone changes almost nothing. C is the real filter.
+- **Board dropout test, 17 November, M8:** a train seen at the stations before and after X, but not at X, was dropped by X's boards. Long gaps containing such a train were 0 of 47 on the Victoria, 0 of 78 on the Piccadilly, 0 of 70 on the Northern, 0 of 56 on the Metropolitan, 0 of 19 on the Bakerloo and 1 of 82 on the Central, but 27 of 45 on the District.
+- **Pre-registration:** this rule was fixed on 19 November 2026 from the W46 evidence and the 17 November dropout test only. No Honesty Gap figure for 18 to 24 November was computed to choose it. The dropout test is to be repeated on 18 to 24 November and reported beside the result, not used to change it.
+- **Alternatives considered:**
+  - **Use the every-station data (M8) from 17 November, and fall back to the 50 stations before it.** Not taken, for three reasons:
+    - the rule would change meaning mid-series, so W46 and 18 to 24 November would not be comparable;
+    - station views never feed line scores (ADR-016);
+    - with up to 58 stations a line, "two stations" would mean adjacent stations, a much weaker bar.
+  - **Also exclude gaps that contain a single-board dropout.** Not taken. Two-station corroboration already rules out one board dropping a train as the sole cause of a counted hour. The test also needs M8 data, which does not exist before 17 November, and it cannot tell a fast train that skips X from a dropout.
+  - **Two stations on the same branch only.** Not taken: the project has no branch model, and the status is line-wide.
+  - **Core and branch stations only, as in D51 and D66.** Not taken: it would change the denominator's station set too.
+  - **A 10-minute floor (D).** Not taken: it filters by gap length, not by evidence, and the floor is arbitrary at both 2-minute and 10-minute frequencies.
+- **Published files:** `honesty_gap_hours` and `honesty_gap_share` keep their names and types. Their values fall and their meaning tightens. Every archived week is rewritten with them (D39). `good_service_measured_hours` does not change. Nothing on the card changes, since D54 keeps the Honesty Gap off it. The contract's field description is updated, so this needs a `schema_version` bump. One number is kept, not two side by side: publishing a strict and a loose Honesty Gap together would let either be quoted.
+- **Remaining risk:** a train missing from every board still makes corroborated gaps (ADR-014, open item 2). On the District, two boards can each drop a different train in the same hour. Its figure should carry that caveat until the dropout test on 18 to 24 November is read.
+- **Recommendation:** accept as implemented.
 
 ## Settled on 2026-11-18, with the detail
 
