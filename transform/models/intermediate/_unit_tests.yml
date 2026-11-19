@@ -313,6 +313,8 @@ unit_tests:
           - {schedule_name: Monday - Friday, day_type: mon_thu}
           - {schedule_name: Monday - Friday, day_type: fri}
           - {schedule_name: Sunday, day_type: sun}
+      - input: ref('day_types')
+        rows: *day_types
       - input: ref('seed_line_frequencies')
         rows:
           - {line_id: elizabeth, naptan_id: 910GTOTCTRD, direction: both, day_type: mon_thu, from_hour: 7, to_hour: 9, trains_per_hour: 24, source: estimate_test}
@@ -334,6 +336,123 @@ unit_tests:
         - {line_id: victoria, naptan_id: 940GZZLUOXC, direction: inbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 30, headway_count: 30, sum_headway_seconds: 3600, sum_headway_squared_seconds: 432000, mean_headway_seconds: 120, max_headway_seconds: 120, scheduled_average_wait_seconds: 60, is_fallback: true, source_detail: estimate_test}
         - {line_id: liberty, naptan_id: 910GUPMNSTR, direction: inbound, day_type: mon_thu, service_hour: 7, london_hour: 7, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 2, headway_count: 2, sum_headway_seconds: 3600, sum_headway_squared_seconds: 6480000, mean_headway_seconds: 1800, max_headway_seconds: 1800, scheduled_average_wait_seconds: 900, is_fallback: true, source_detail: estimate_test}
         - {line_id: elizabeth, naptan_id: 910GTOTCTRD, direction: outbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 24, headway_count: 24, sum_headway_seconds: 3600, sum_headway_squared_seconds: 540000, mean_headway_seconds: 150, max_headway_seconds: 150, scheduled_average_wait_seconds: 75, is_fallback: true, source_detail: estimate_test}
+
+  - name: int_scheduled_headways_single_weekday_schedules_tuesday_to_thursday
+    description: >
+      Metropolitan at stop A, outbound (a Barbican-style stop whose timetable
+      lists only Tuesdays, Wednesdays and Thursdays, D67). One fetch, the
+      first version (no valid_from, no valid_to). Each schedule has two
+      departures in hour 8 and so one gap, and each stays on its own weekday
+      (day type mon_thu, iso_day_of_week 2, 3 and 4), never summed into one
+      mon_thu row. Tuesdays 08:00 and 08:10: gap 10 min = 600 s, squares 100
+      min² = 360,000 s², mean 600 s, longest 600 s, average wait 360,000 /
+      (2 x 600) = 300 s. Wednesdays 08:00 and 08:20: 1200 s, 20² x 3600 =
+      1,440,000 s², wait 1,440,000 / 2400 = 600 s. Thursdays 08:00 and 08:05:
+      300 s, 90,000 s², wait 90,000 / 600 = 150 s. Each row has 2 departures
+      (not 6). Monday has no schedule, so no Monday row exists. The stop has a
+      timetable, so the frequency seed (empty here) could not fill Monday
+      either.
+    model: int_scheduled_headways
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_timetable')
+        rows:
+          - {poll_id: t, line_id: metropolitan, departure_stop_id: A, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Tuesdays, departure_minute_of_service_day: 480}
+          - {poll_id: t, line_id: metropolitan, departure_stop_id: A, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Tuesdays, departure_minute_of_service_day: 490}
+          - {poll_id: t, line_id: metropolitan, departure_stop_id: A, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Wednesdays, departure_minute_of_service_day: 480}
+          - {poll_id: t, line_id: metropolitan, departure_stop_id: A, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Wednesdays, departure_minute_of_service_day: 500}
+          - {poll_id: t, line_id: metropolitan, departure_stop_id: A, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Thursdays, departure_minute_of_service_day: 480}
+          - {poll_id: t, line_id: metropolitan, departure_stop_id: A, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Thursdays, departure_minute_of_service_day: 485}
+      - input: ref('timetable_schedule_day_types')
+        rows:
+          - {schedule_name: Tuesdays, day_type: mon_thu, iso_day_of_week: 2}
+          - {schedule_name: Wednesdays, day_type: mon_thu, iso_day_of_week: 3}
+          - {schedule_name: Thursdays, day_type: mon_thu, iso_day_of_week: 4}
+      - input: ref('day_types')
+        rows: *day_types
+      - input: ref('seed_line_frequencies')
+        rows: []
+    expect:
+      rows:
+        - {line_id: metropolitan, naptan_id: A, direction: outbound, day_type: mon_thu, iso_day_of_week: 2, service_hour: 8, valid_from: null, valid_to: null, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 600, sum_headway_squared_seconds: 360000, mean_headway_seconds: 600, max_headway_seconds: 600, scheduled_average_wait_seconds: 300, is_fallback: false, source_detail: Tuesdays}
+        - {line_id: metropolitan, naptan_id: A, direction: outbound, day_type: mon_thu, iso_day_of_week: 3, service_hour: 8, valid_from: null, valid_to: null, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 1200, sum_headway_squared_seconds: 1440000, mean_headway_seconds: 1200, max_headway_seconds: 1200, scheduled_average_wait_seconds: 600, is_fallback: false, source_detail: Wednesdays}
+        - {line_id: metropolitan, naptan_id: A, direction: outbound, day_type: mon_thu, iso_day_of_week: 4, service_hour: 8, valid_from: null, valid_to: null, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 300, sum_headway_squared_seconds: 90000, mean_headway_seconds: 300, max_headway_seconds: 300, scheduled_average_wait_seconds: 150, is_fallback: false, source_detail: Thursdays}
+
+  - name: int_scheduled_headways_single_weekday_schedule_beside_a_generic_one
+    description: >
+      District at stop B, inbound, one fetch. The timetable lists "Monday -
+      Thursday" (departures 10:00 and 10:12), "Wednesdays" (10:00 and 10:06)
+      and "Friday" (10:00 and 10:15). The single-weekday schedule wins on its
+      own weekday, and the generic one covers the other days of its day type
+      as one copy each, so no day gets both. Wednesday (iso 3): only the
+      Wednesdays schedule, 6 min gap = 360 s, 36 x 3600 = 129,600 s², wait
+      129,600 / 720 = 180 s, 2 departures (not 4). Monday, Tuesday and
+      Thursday (iso 1, 2, 4): the generic schedule, 12 min = 720 s, 144 x 3600
+      = 518,400 s², wait 518,400 / 1440 = 360 s, 2 departures. No row with a
+      null weekday and day type mon_thu remains. "Friday" is a generic
+      schedule of the fri day type, which has no single-weekday schedule, so
+      it stays one row with a null weekday: 15 min = 900 s, 810,000 s², wait
+      450 s.
+    model: int_scheduled_headways
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_timetable')
+        rows:
+          - {poll_id: t, line_id: district, departure_stop_id: B, direction: inbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Monday - Thursday, departure_minute_of_service_day: 600}
+          - {poll_id: t, line_id: district, departure_stop_id: B, direction: inbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Monday - Thursday, departure_minute_of_service_day: 612}
+          - {poll_id: t, line_id: district, departure_stop_id: B, direction: inbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Wednesdays, departure_minute_of_service_day: 600}
+          - {poll_id: t, line_id: district, departure_stop_id: B, direction: inbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Wednesdays, departure_minute_of_service_day: 606}
+          - {poll_id: t, line_id: district, departure_stop_id: B, direction: inbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Friday, departure_minute_of_service_day: 600}
+          - {poll_id: t, line_id: district, departure_stop_id: B, direction: inbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Friday, departure_minute_of_service_day: 615}
+      - input: ref('timetable_schedule_day_types')
+        rows:
+          - {schedule_name: Monday - Thursday, day_type: mon_thu, iso_day_of_week: null}
+          - {schedule_name: Wednesdays, day_type: mon_thu, iso_day_of_week: 3}
+          - {schedule_name: Friday, day_type: fri, iso_day_of_week: null}
+      - input: ref('day_types')
+        rows: *day_types
+      - input: ref('seed_line_frequencies')
+        rows: []
+    expect:
+      rows:
+        - {line_id: district, naptan_id: B, direction: inbound, day_type: mon_thu, iso_day_of_week: 1, service_hour: 10, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 720, sum_headway_squared_seconds: 518400, mean_headway_seconds: 720, max_headway_seconds: 720, scheduled_average_wait_seconds: 360, is_fallback: false, source_detail: Monday - Thursday}
+        - {line_id: district, naptan_id: B, direction: inbound, day_type: mon_thu, iso_day_of_week: 2, service_hour: 10, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 720, sum_headway_squared_seconds: 518400, mean_headway_seconds: 720, max_headway_seconds: 720, scheduled_average_wait_seconds: 360, is_fallback: false, source_detail: Monday - Thursday}
+        - {line_id: district, naptan_id: B, direction: inbound, day_type: mon_thu, iso_day_of_week: 3, service_hour: 10, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 360, sum_headway_squared_seconds: 129600, mean_headway_seconds: 360, max_headway_seconds: 360, scheduled_average_wait_seconds: 180, is_fallback: false, source_detail: Wednesdays}
+        - {line_id: district, naptan_id: B, direction: inbound, day_type: mon_thu, iso_day_of_week: 4, service_hour: 10, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 720, sum_headway_squared_seconds: 518400, mean_headway_seconds: 720, max_headway_seconds: 720, scheduled_average_wait_seconds: 360, is_fallback: false, source_detail: Monday - Thursday}
+        - {line_id: district, naptan_id: B, direction: inbound, day_type: fri, iso_day_of_week: null, service_hour: 10, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 900, sum_headway_squared_seconds: 810000, mean_headway_seconds: 900, max_headway_seconds: 900, scheduled_average_wait_seconds: 450, is_fallback: false, source_detail: Friday}
+
+  - name: int_scheduled_headways_normal_stop_has_no_weekday
+    description: >
+      Victoria at stop C, outbound, one fetch: "Monday - Friday" with
+      departures 08:00 and 08:04, and no single-weekday schedule. The
+      schedule maps to mon_thu and fri and each gets one row with a null
+      weekday, exactly as before D67: 4 min = 240 s, 240² = 57,600 s², mean
+      240 s, longest 240 s, average wait 57,600 / 480 = 120 s, 2 departures.
+    model: int_scheduled_headways
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_timetable')
+        rows:
+          - {poll_id: t, line_id: victoria, departure_stop_id: C, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Monday - Friday, departure_minute_of_service_day: 480}
+          - {poll_id: t, line_id: victoria, departure_stop_id: C, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Monday - Friday, departure_minute_of_service_day: 484}
+      - input: ref('timetable_schedule_day_types')
+        rows:
+          - {schedule_name: Monday - Friday, day_type: mon_thu}
+          - {schedule_name: Monday - Friday, day_type: fri}
+      - input: ref('day_types')
+        rows: *day_types
+      - input: ref('seed_line_frequencies')
+        rows: []
+    expect:
+      rows:
+        - {line_id: victoria, naptan_id: C, direction: outbound, day_type: mon_thu, iso_day_of_week: null, service_hour: 8, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 240, sum_headway_squared_seconds: 57600, mean_headway_seconds: 240, max_headway_seconds: 240, scheduled_average_wait_seconds: 120, is_fallback: false, source_detail: Monday - Friday}
+        - {line_id: victoria, naptan_id: C, direction: outbound, day_type: fri, iso_day_of_week: null, service_hour: 8, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 240, sum_headway_squared_seconds: 57600, mean_headway_seconds: 240, max_headway_seconds: 240, scheduled_average_wait_seconds: 120, is_fallback: false, source_detail: Monday - Friday}
 
   - name: int_measured_hours_gate_observation_and_excess_wait
     description: >
