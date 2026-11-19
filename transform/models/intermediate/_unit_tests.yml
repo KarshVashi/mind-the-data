@@ -82,12 +82,23 @@ unit_tests:
           - {line_id: bakerloo, day_type: sun, service_start_minute: 435, service_end_minute: 1440}
       - input: ref('severity_weights')
         rows: &severity_weights
-          - {severity_code: 5, description: Part Closure, weight_unplanned: 0, weight_planned: 0, is_closure: true, is_service_closed: false}
-          - {severity_code: 6, description: Severe Delays, weight_unplanned: 3, weight_planned: 3, is_closure: false, is_service_closed: false}
-          - {severity_code: 8, description: Bus Service, weight_unplanned: 5, weight_planned: 0, is_closure: false, is_service_closed: false}
-          - {severity_code: 9, description: Minor Delays, weight_unplanned: 1, weight_planned: 1, is_closure: false, is_service_closed: false}
-          - {severity_code: 10, description: Good Service, weight_unplanned: 0, weight_planned: 0, is_closure: false, is_service_closed: false}
-          - {severity_code: 20, description: Service Closed, weight_unplanned: 0, weight_planned: 0, is_closure: false, is_service_closed: true}
+          - {severity_code: 2, description: Suspended, weight_unplanned: 8, weight_planned: 8, is_closure: false, is_service_closed: false, is_works_when_planned: true}
+          - {severity_code: 3, description: Part Suspended, weight_unplanned: 5, weight_planned: 5, is_closure: false, is_service_closed: false, is_works_when_planned: true}
+          - {severity_code: 5, description: Part Closure, weight_unplanned: 0, weight_planned: 0, is_closure: true, is_service_closed: false, is_works_when_planned: false}
+          - {severity_code: 6, description: Severe Delays, weight_unplanned: 3, weight_planned: 3, is_closure: false, is_service_closed: false, is_works_when_planned: true}
+          - {severity_code: 7, description: Reduced Service, weight_unplanned: 1.5, weight_planned: 1.5, is_closure: false, is_service_closed: false, is_works_when_planned: false}
+          - {severity_code: 8, description: Bus Service, weight_unplanned: 5, weight_planned: 0, is_closure: false, is_service_closed: false, is_works_when_planned: false}
+          - {severity_code: 9, description: Minor Delays, weight_unplanned: 1, weight_planned: 1, is_closure: false, is_service_closed: false, is_works_when_planned: false}
+          - {severity_code: 10, description: Good Service, weight_unplanned: 0, weight_planned: 0, is_closure: false, is_service_closed: false, is_works_when_planned: false}
+          - {severity_code: 20, description: Service Closed, weight_unplanned: 0, weight_planned: 0, is_closure: false, is_service_closed: true, is_works_when_planned: false}
+      - input: ref('planned_works_reasons')
+        rows: &planned_works_reasons
+          - {pattern: '\bplanned (engineering )?works?\b', signal: planned_works}
+          - {pattern: '\bplanned closures?\b', signal: planned_works}
+          - {pattern: '\bover-?\s?run', signal: overrun}
+          - {pattern: '\boverran\b', signal: overrun}
+          - {pattern: '\blate finish', signal: overrun}
+          - {pattern: '\bfinish(ed|ing)? late\b', signal: overrun}
       - input: ref('stg_polls')
         rows:
           - {poll_id: p1, feed: line_status, is_ok: true, poll_minute: "2026-11-03 08:15:00", dt: "2026-11-03"}
@@ -179,6 +190,8 @@ unit_tests:
         rows: *operating_hours
       - input: ref('severity_weights')
         rows: *severity_weights
+      - input: ref('planned_works_reasons')
+        rows: *planned_works_reasons
       - input: ref('stg_polls')
         rows: []
       - input: ref('stg_line_status')
@@ -201,6 +214,90 @@ unit_tests:
         - {line_id: bakerloo, minute_utc: "2026-11-04 17:30:00", london_ts: "2026-11-04 17:30:00", london_date: "2026-11-04", week_start: "2026-11-02", time_band: pm_peak, time_weight: 2, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
         - {line_id: victoria, minute_utc: "2026-10-21 07:30:00", london_ts: "2026-10-21 08:30:00", london_date: "2026-10-21", week_start: "2026-10-19", time_band: am_peak, time_weight: 2, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
         - {line_id: bakerloo, minute_utc: "2026-10-21 07:30:00", london_ts: "2026-10-21 08:30:00", london_date: "2026-10-21", week_start: "2026-10-19", time_band: am_peak, time_weight: 2, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+
+  - name: int_line_minute_status_planned_works_under_unplanned_codes
+    description: >
+      D69. Monday 2026-11-09 (W46), GMT, 10:00 to 10:02 inter_peak (time
+      weight 1); all three lines in service 05:30 to 00:30.
+      10:00. Northern: Part Suspended (5), filed real-time, but the reason
+      says "due to planned engineering work": planned works by reason text,
+      weight 0, engineering works, not scored, marked planned.
+      Suffragette: Severe Delays (3) filed as planned work, no works
+      wording: planned works by category, same treatment.
+      Victoria: Part Suspended whose reason says "overrunning planned
+      engineering work": the overrun pattern wins, so weight 5, scored,
+      not planned.
+      10:01. Northern: the planned-works Part Suspended (now weight 0) plus a
+      real-time Severe Delays for a signal failure: the delay wins with 3,
+      the minute is scored and the closure is noted (ADR-004).
+      Suffragette: Severe Delays filed as planned work but "over-running":
+      the overrun wins over the category, so weight_planned 3, scored.
+      Victoria: Part Suspended after "unplanned engineering work": the word
+      boundary keeps "unplanned" from matching, weight 5, scored.
+      10:02. Northern: the planned-works Part Suspended (0) ties with Good
+      Service (0); the lower code (3) wins, so engineering works, as a Part
+      Closure would. Suffragette: Suspended with no reason, weight 8.
+      Victoria: Reduced Service "due to planned engineering work" keeps 1.5:
+      code 7 is not a works-when-planned code.
+      Northern's Disruption Index over these three minutes is 100 x 3 / 1 =
+      300 (one scored minute); before D69 it was 100 x (5 + 5 + 5) / 3 = 500.
+    model: int_line_minute_status
+    overrides:
+      vars:
+        raw_start_date: "2026-11-09"
+    given:
+      - input: ref('int_utc_minutes')
+        rows:
+          - {minute_utc: "2026-11-09 10:00:00", dt: "2026-11-09"}
+          - {minute_utc: "2026-11-09 10:01:00", dt: "2026-11-09"}
+          - {minute_utc: "2026-11-09 10:02:00", dt: "2026-11-09"}
+      - input: ref('dim_lines')
+        rows:
+          - {line_id: northern}
+          - {line_id: suffragette}
+          - {line_id: victoria}
+      - input: ref('day_types')
+        rows: *day_types
+      - input: ref('time_bands')
+        rows: *time_bands
+      - input: ref('line_operating_hours')
+        rows:
+          - {line_id: northern, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
+          - {line_id: suffragette, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
+          - {line_id: victoria, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
+      - input: ref('severity_weights')
+        rows: *severity_weights
+      - input: ref('planned_works_reasons')
+        rows: *planned_works_reasons
+      - input: ref('stg_polls')
+        rows:
+          - {poll_id: q1, feed: line_status, is_ok: true, poll_minute: "2026-11-09 10:00:00", dt: "2026-11-09"}
+          - {poll_id: q2, feed: line_status, is_ok: true, poll_minute: "2026-11-09 10:01:00", dt: "2026-11-09"}
+          - {poll_id: q3, feed: line_status, is_ok: true, poll_minute: "2026-11-09 10:02:00", dt: "2026-11-09"}
+      - input: ref('stg_line_status')
+        rows:
+          - {poll_id: q1, request_path: /s, polled_at: "2026-11-09 10:00:01", poll_minute: "2026-11-09 10:00:00", line_id: northern, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Northern Line: No service between Kennington and Morden due to planned engineering work.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q1, request_path: /s, polled_at: "2026-11-09 10:00:01", poll_minute: "2026-11-09 10:00:00", line_id: suffragette, status_ordinal: 1, status_severity: 6, status_severity_description: Severe Delays, reason: "Suffragette Line: Severe delays while works take place.", is_planned: true, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q1, request_path: /s, polled_at: "2026-11-09 10:00:01", poll_minute: "2026-11-09 10:00:00", line_id: victoria, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Victoria Line: No service north of Seven Sisters due to overrunning planned engineering work.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: northern, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Northern Line: No service between Kennington and Morden due to planned engineering work.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: northern, status_ordinal: 2, status_severity: 6, status_severity_description: Severe Delays, reason: "Northern Line: Severe delays due to an earlier signal failure at Camden Town.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: suffragette, status_ordinal: 1, status_severity: 6, status_severity_description: Severe Delays, reason: "Suffragette Line: Severe delays due to engineering works over-running at Gospel Oak.", is_planned: true, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: victoria, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Victoria Line: Part suspended after unplanned engineering work on the track.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: northern, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Northern Line: No service between Kennington and Morden due to planned engineering work.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: northern, status_ordinal: 2, status_severity: 10, status_severity_description: Good Service, reason: null, is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: suffragette, status_ordinal: 1, status_severity: 2, status_severity_description: Suspended, reason: null, is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: victoria, status_ordinal: 1, status_severity: 7, status_severity_description: Reduced Service, reason: "Victoria Line: Reduced service due to planned engineering work.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+    expect:
+      rows:
+        - {line_id: northern, minute_utc: "2026-11-09 10:00:00", status_severity: 3, is_planned: true, planned_works_basis: reason_text, severity_weight: 0, has_closure_entry: true, is_engineering_works: true, is_scored: false}
+        - {line_id: suffragette, minute_utc: "2026-11-09 10:00:00", status_severity: 6, is_planned: true, planned_works_basis: planned_category, severity_weight: 0, has_closure_entry: true, is_engineering_works: true, is_scored: false}
+        - {line_id: victoria, minute_utc: "2026-11-09 10:00:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: northern, minute_utc: "2026-11-09 10:01:00", status_severity: 6, is_planned: false, planned_works_basis: null, severity_weight: 3, has_closure_entry: true, is_engineering_works: false, is_scored: true}
+        - {line_id: suffragette, minute_utc: "2026-11-09 10:01:00", status_severity: 6, is_planned: true, planned_works_basis: null, severity_weight: 3, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: victoria, minute_utc: "2026-11-09 10:01:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: northern, minute_utc: "2026-11-09 10:02:00", status_severity: 3, is_planned: true, planned_works_basis: reason_text, severity_weight: 0, has_closure_entry: true, is_engineering_works: true, is_scored: false}
+        - {line_id: suffragette, minute_utc: "2026-11-09 10:02:00", status_severity: 2, is_planned: false, planned_works_basis: null, severity_weight: 8, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: victoria, minute_utc: "2026-11-09 10:02:00", status_severity: 7, is_planned: false, planned_works_basis: null, severity_weight: 1.5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
 
   - name: int_incidents_merge_bridge_and_midnight
     description: >
