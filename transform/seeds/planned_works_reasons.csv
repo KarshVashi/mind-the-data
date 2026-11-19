@@ -1,7 +1,10 @@
 pattern,signal,note
-\bplanned (engineering )?works?\b,planned_works,"TfL's cause clause, e.g. ""due to planned engineering work""; the word boundary keeps ""unplanned"" out"
-\bplanned closures?\b,planned_works,a planned closure described in the reason of a suspension or delay
-\bover-?\s?run,overrun,"overrun, overrunning, over-running, over running: works that ran late are a reliability failure"
-\boverran\b,overrun,past tense of the above
-\blate finish,overrun,"e.g. ""late finish of engineering works"""
-\bfinish(ed|ing)? late\b,overrun,"e.g. ""engineering works finishing late"""
+(^|[^a-z])planned (engineering )?works?([^a-z]|$),planned_works,TfL cause clause such as due to planned engineering work; the leading non-letter keeps unplanned out
+(^|[^a-z])planned closures?([^a-z]|$),planned_works,a planned closure described in the reason of a suspension or delay
+(^|[^a-z])over[- ]?run,overrun,overrun / overrunning / over-running / over running: works that ran late are a reliability failure
+(^|[^a-z])overran([^a-z]|$),overrun,past tense of the above
+(^|[^a-z])late finish,overrun,late finish of engineering works
+(^|[^a-z])finish(es|ed|ing)? late([^a-z]|$),overrun,engineering works finishing late
+(^|[^a-z])taking longer than (expected|planned),overrun,works taking longer than expected or planned
+(^|[^a-z])later than (expected|planned),overrun,works finishing later than expected or planned
+(^|[^a-z])not (yet )?(been )?(completed|finished)([^a-z]|$),overrun,works not yet completed

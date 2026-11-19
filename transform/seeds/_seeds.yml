@@ -73,7 +73,9 @@ seeds:
       makes the entry engineering works even when TfL files it as real-time.
     columns:
       - name: pattern
-        description: Regular expression, lower case.
+        description: >
+          Regular expression, lower case. No backslashes, which the seed
+          loader drops; use (^|[^a-z]) and ([^a-z]|$) for word edges.
         data_tests: [unique, not_null]
       - name: signal
         description: "`planned_works` or `overrun`."

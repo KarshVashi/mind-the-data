@@ -102,8 +102,9 @@ models:
         description: TfL reason text of the worst status.
       - name: is_planned
         description: >
-          The worst status is filed as planned work, or is planned works by
-          its reason text (D69).
+          TfL filed the worst status as PlannedWork, or the D69 rule classed
+          it as planned works by its reason text. It is not TfL's raw
+          category alone.
       - name: severity_weight
         description: >
           Weight of the worst status (seed severity_weights). Never null on an
@@ -192,7 +193,9 @@ models:
       - name: status_severity_description
         description: TfL text for the code.
       - name: is_planned
-        description: Planned work.
+        description: >
+          TfL filed the status as PlannedWork, or the D69 rule classed it as
+          planned works.
       - name: severity_weight
         description: Weight of the status.
       - name: reason

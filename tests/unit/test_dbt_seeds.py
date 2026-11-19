@@ -80,8 +80,9 @@ def test_works_when_planned_codes_are_the_suspensions_and_severe_delays() -> Non
 
 def _reason_signals(reason: str) -> set[str]:
     # The model lower-cases the reason; Athena's regexp_like finds a match
-    # anywhere, as re.search does, and these patterns use no syntax on which
-    # the two engines differ.
+    # anywhere, as re.search does, and these patterns use only groups,
+    # alternation, optional items and character classes, on which Python re
+    # and Trino agree. Avoid POSIX classes such as [[:space:]].
     return {
         row["signal"]
         for row in read_seed("planned_works_reasons")
@@ -98,7 +99,23 @@ def _reason_signals(reason: str) -> set[str]:
         ("Part suspended during a planned closure of the branch.", {"planned_works"}),
         ("Severe delays due to an earlier signal failure.", set()),
         ("Part suspended after unplanned engineering work on the track.", set()),
-        ("Reduced service; trains later than planned.", set()),
+        ("Reduced service; trains later than planned.", {"overrun"}),
+        (
+            "Part suspended; planned works taking longer than expected.",
+            {"overrun", "planned_works"},
+        ),
+        ("Severe delays; works taking longer than planned.", {"overrun"}),
+        ("Part suspended; works finish later than expected.", {"overrun"}),
+        ("Part suspended; engineering work not yet completed.", {"overrun"}),
+        ("Part suspended; engineering work has not been finished.", {"overrun"}),
+        ("Part suspended; works finishes late.", {"overrun"}),
+        ("Part suspended; works finishing late.", {"overrun"}),
+        ("Severe delays due to engineering works over running.", {"overrun"}),
+        ("Minor delays due to planned engineering work", {"planned_works"}),
+        ("Unplanned engineering work", set()),
+        ("Overrunning engineering works", {"overrun"}),
+        ("Engineering works which are taking longer than expected", {"overrun"}),
+        ("Works finishes late", {"overrun"}),
         ("Severe delays due to overrunning engineering works.", {"overrun"}),
         (
             "Severe delays due to over-running planned engineering work.",
@@ -120,6 +137,14 @@ def test_planned_works_reason_signals_are_known() -> None:
     for row in rows:
         assert row["pattern"] == row["pattern"].lower(), row
         re.compile(row["pattern"])
+
+
+@pytest.mark.parametrize("path", sorted(SEEDS.glob("*.csv")), ids=lambda p: p.name)
+def test_seed_csv_has_no_backslash(path: Path) -> None:
+    # dbt-athena loads seeds through OpenCSVSerde, whose default escape
+    # character is the backslash: it is dropped on load, so a regular
+    # expression using it silently stops matching.
+    assert "\\" not in path.read_text(), f"{path.name} contains a backslash"
 
 
 @pytest.mark.parametrize("day_class", ["weekday", "weekend"])

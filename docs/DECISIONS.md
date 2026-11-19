@@ -88,15 +88,17 @@ D1, D67, D68, D69 and D70 are open.
 - **Signals:** staging already parses `disruption.category` into `stg_line_status.is_planned` (`PlannedWork`). TfL can also file a works status as `RealTime`, with the works named only in the reason ("... due to planned engineering work"). Its other disruption fields (`closureText`, `type`) do not say whether works were planned.
 - **Implemented:**
   - Seed column `severity_weights.is_works_when_planned`, true for Suspended (2), Part Suspended (3) and Severe Delays (6).
-  - Seed `planned_works_reasons`: regular expressions on the lower-cased reason, each with a signal, `planned_works` or `overrun`. "Unplanned" does not match.
+  - Seed `planned_works_reasons`: regular expressions on the lower-cased reason, each with a signal, `planned_works` or `overrun`. The patterns have no backslashes, because dbt-athena loads seeds through OpenCSVSerde, whose escape character is the backslash and which would turn `\b` into `b`. Word edges are `(^|[^a-z])` and `([^a-z]|$)`. "Unplanned" does not match.
+  - Overrun patterns (generous, since a missed overrun hides a failure): `over[- ]?run` (overrun, overrunning, over-running, over running), `overran`, `late finish`, `finish(es|ed|ing)? late`, `taking longer than (expected|planned)`, `later than (expected|planned)`, `not (yet )?(been )?(completed|finished)`. **An overrun match always wins** over both the `PlannedWork` category and a `planned_works` match.
+  - Guards: a pytest check fails on any backslash in a seed CSV, and the singular test `assert_planned_works_patterns_match_as_loaded` runs the loaded seed on Athena against known reasons.
   - In `int_line_minute_status`, an entry with one of those codes is planned works when it is filed `PlannedWork` or its reason matches a `planned_works` pattern, unless it matches an `overrun` pattern. It then weighs 0 and counts as a closure. The new column `planned_works_basis` (`planned_category` or `reason_text`) says why, and `is_planned` is set.
   - The ADR-004 reduction is unchanged: an unplanned delay alongside still wins the minute, and only a minute won by the works entry is engineering works, in `rpt_engineering_works`.
   - Other planned codes keep their weight: Reduced Service 1.5, Minor Delays 1.
 - **Tests:** unit test `int_line_minute_status_planned_works_under_unplanned_codes`, hand-computed. It covers:
   - a Part Suspended filed `RealTime` but worded as planned works, which becomes engineering works;
   - a Severe Delays filed `PlannedWork`, which becomes engineering works;
-  - an overrun, filed either way, which still counts at full weight;
-  - "unplanned engineering work", which still counts;
+  - an overrun, filed either way ("overrunning", "taking longer than expected"), which still counts at full weight;
+  - "unplanned engineering work" (the leading non-letter rule), which still counts;
   - a real delay on top of works, which counts at 3 (ADR-004);
   - a works entry tied at 0 with Good Service, which becomes engineering works;
   - a planned Reduced Service, which keeps 1.5.

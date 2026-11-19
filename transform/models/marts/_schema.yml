@@ -1036,7 +1036,7 @@ models:
         description: The minute's worst status (ADR-004).
         data_tests: [not_null]
       - name: is_planned
-        description: The worst status was filed as planned work.
+        description: TfL filed the worst status as planned work, or the D69 rule classed it as planned works.
         data_tests: [not_null]
       - name: time_band
         description: The minute's time band (time_bands seed).

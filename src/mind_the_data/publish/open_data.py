@@ -124,7 +124,11 @@ DATASETS: tuple[Dataset, ...] = (
             ),
             Column("status_severity_description", "varchar", "TfL's text for that code."),
             Column("reason", "varchar", "TfL's reason text for the worst status, if any."),
-            Column("is_planned", "boolean", "The worst status is filed as planned work."),
+            Column(
+                "is_planned",
+                "boolean",
+                "TfL filed the worst status as planned work, or the D69 rule classed it as planned works.",
+            ),
             Column("severity_weight", "double", "The project's weight for the worst status."),
             Column("is_missing", "boolean", "No status is known for the line in this minute."),
             Column(
