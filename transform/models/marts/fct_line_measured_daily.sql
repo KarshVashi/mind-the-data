@@ -10,6 +10,11 @@
 -- (ADR-014). The line-week gate (D51) is judged on hours at core and branch
 -- stations: termini over-count (D33), and they are already left out of the
 -- M4 acceptance.
+--
+-- The Honesty Gap is null, not 0, on a line with fewer than
+-- `honesty_gap_min_stations` core and branch measurement stations (D68):
+-- no hour of it can be corroborated, and 0 would read as TfL always being
+-- right. Its Good Service hours still count.
 
 with hours as (
     select *
@@ -37,7 +42,7 @@ corroborated_directions as (
     -- outbound), so stations on different branches corroborate each other.
     -- Termini are left out of the count: one train listed on two platforms
     -- there reads as two boards agreeing, the artefact this rule filters
-    -- out (D33, D51, D66). Their gaps still count as long gaps.
+    -- out (D33, D51, D66, D68). Their gaps still count as long gaps.
     select
         line_id,
         london_date,
@@ -46,6 +51,17 @@ corroborated_directions as (
     from hours
     where counts_for_reliability and good_service_long_gaps > 0 and role <> 'terminus'
     group by line_id, london_date, london_hour, direction
+    having count(distinct naptan_id) >= {{ var('honesty_gap_min_stations') }}
+),
+
+corroborable_lines as (
+    -- D68: lines with enough core and branch measurement stations for an
+    -- hour to be corroborated at all, from the seed rather than the day's
+    -- rows, so a station closed for a day does not change the rule.
+    select line_id
+    from {{ ref('seed_measurement_stations') }}
+    where role <> 'terminus'
+    group by line_id
     having count(distinct naptan_id) >= {{ var('honesty_gap_min_stations') }}
 ),
 
@@ -137,10 +153,15 @@ select
     daily.gate_judged_hours,
     daily.gate_in_band_hours,
     coalesce(honesty.good_service_measured_hours, 0) as good_service_measured_hours,
-    coalesce(honesty.honesty_gap_hours, 0) as honesty_gap_hours,
+    if(
+        corroborable_lines.line_id is not null,
+        coalesce(honesty.honesty_gap_hours, 0)
+    ) as honesty_gap_hours,
     {{ row_key(['daily.line_id', 'daily.london_date']) }} as line_measured_daily_key
 from daily
 left join honesty
     on
         daily.line_id = honesty.line_id
         and daily.london_date = honesty.london_date
+left join corroborable_lines
+    on daily.line_id = corroborable_lines.line_id
