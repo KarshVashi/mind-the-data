@@ -1,0 +1,98 @@
+version: 2
+
+# Hand-computed cases for step-free outage episodes (D73). November, so
+# London time is UTC. Every expected value is worked out in the description.
+
+unit_tests:
+  - name: int_step_free_slots_episodes_gaps_and_exclusions
+    description: >
+      Stop disruption polls on 9 November: 10:00, 10:05, 10:10 all succeed;
+      14:00 succeeds, 14:05 fails, no poll at 14:15, and 14:10 and 14:20
+      succeed. Slots are the poll minute rounded down to 5.
+      A lists a faulty-lift notice at 10:00 (under two concerned lines: one
+      slot), 10:05 and 10:10: three consecutive slots, one episode, nothing
+      missing.
+      C is listed at 10:00 and 10:10 but not at 10:05, a poll that
+      succeeded: the outage was polled and not listed, so the first episode
+      ended and a second starts at 10:10 (episode_number 2).
+      B is listed at 14:00, 14:10 and 14:20. The 14:05 poll failed and the
+      14:15 slot has no poll: both unobserved, neither fixed nor broken, so
+      B stays in one episode with 1 missing slot before 14:10 and 1 before
+      14:20. B's 14:10 notice is planned work, so only that slot is planned.
+      D is never listed as a step-free outage: an escalator fault under the
+      "No Step Free Access" headline, an Information notice that says
+      step-free access remains available, and a Part Closure whose text
+      mentions a lift (a closure, not step-free). It has no rows.
+    model: int_step_free_slots
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_polls')
+        rows:
+          - {poll_id: p1, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-09 10:00:02", is_ok: true, dt: "2026-11-09"}
+          - {poll_id: p2, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-09 10:05:03", is_ok: true, dt: "2026-11-09"}
+          - {poll_id: p3, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-09 10:10:01", is_ok: true, dt: "2026-11-09"}
+          - {poll_id: p4, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-09 14:00:02", is_ok: true, dt: "2026-11-09"}
+          - {poll_id: p5, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-09 14:05:02", is_ok: false, dt: "2026-11-09"}
+          - {poll_id: p6, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-09 14:10:03", is_ok: true, dt: "2026-11-09"}
+          - {poll_id: p7, feed: stop_disruption, request_path: /StopPoint/Mode/tube/Disruption, polled_at: "2026-11-09 14:20:01", is_ok: true, dt: "2026-11-09"}
+          - {poll_id: a1, feed: arrivals, request_path: /StopPoint/A/Arrivals, polled_at: "2026-11-09 10:20:00", is_ok: true, dt: "2026-11-09"}
+      - input: ref('stg_stop_disruption')
+        rows:
+          - {poll_id: p1, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-09 10:00:02", atco_code: A, station_atco_code: A, disruption_type: Interchange Message, appearance: RealTime, description: "Acton Town: No Step Free Access - Step free access is not available to the westbound platforms due to a faulty lift.", valid_from: "2026-11-09 09:00:00", valid_to: null, line_id: district, is_planned: false, dt: "2026-11-09"}
+          - {poll_id: p1, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-09 10:00:02", atco_code: A, station_atco_code: A, disruption_type: Interchange Message, appearance: RealTime, description: "Acton Town: No Step Free Access - Step free access is not available to the westbound platforms due to a faulty lift.", valid_from: "2026-11-09 09:00:00", valid_to: null, line_id: piccadilly, is_planned: false, dt: "2026-11-09"}
+          - {poll_id: p2, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-09 10:05:03", atco_code: A, station_atco_code: A, disruption_type: Interchange Message, appearance: RealTime, description: "Acton Town: No Step Free Access - Step free access is not available to the westbound platforms due to a faulty lift.", valid_from: "2026-11-09 09:00:00", valid_to: null, line_id: null, is_planned: false, dt: "2026-11-09"}
+          - {poll_id: p3, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-09 10:10:01", atco_code: A, station_atco_code: A, disruption_type: Interchange Message, appearance: RealTime, description: "Acton Town: No Step Free Access - Step free access is not available to the westbound platforms due to a faulty lift.", valid_from: "2026-11-09 09:00:00", valid_to: null, line_id: null, is_planned: false, dt: "2026-11-09"}
+          - {poll_id: p1, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 2, polled_at: "2026-11-09 10:00:02", atco_code: C, station_atco_code: C, disruption_type: Information, appearance: RealTime, description: "Camden Road: No Step Free Access - Step free access is not available to the eastbound platform due to a faulty lift.", valid_from: null, valid_to: null, line_id: null, is_planned: false, dt: "2026-11-09"}
+          - {poll_id: p3, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 2, polled_at: "2026-11-09 10:10:01", atco_code: C, station_atco_code: C, disruption_type: Information, appearance: RealTime, description: "Camden Road: No Step Free Access - Step free access is not available to the eastbound platform due to a faulty lift.", valid_from: null, valid_to: null, line_id: null, is_planned: false, dt: "2026-11-09"}
+          - {poll_id: p1, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 3, polled_at: "2026-11-09 10:00:02", atco_code: D, station_atco_code: D, disruption_type: Information, appearance: RealTime, description: "Camden Town: No Step Free Access - Camden Town reduced escalator service - there is no down escalator in service from the ticket hall due to a fault.", valid_from: null, valid_to: null, line_id: null, is_planned: false, dt: "2026-11-09"}
+          - {poll_id: p1, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 4, polled_at: "2026-11-09 10:00:02", atco_code: D, station_atco_code: D, disruption_type: Information, appearance: Information, description: "BUCKHURST HILL STATION: the footbridge is closed. Step-free access remains available to both platforms via the ramps.", valid_from: null, valid_to: null, line_id: null, is_planned: false, dt: "2026-11-09"}
+          - {poll_id: p1, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 5, polled_at: "2026-11-09 10:00:02", atco_code: D, station_atco_code: D, disruption_type: Part Closure, appearance: RealTime, description: "Chalk Farm: This station is closed whilst we fix a faulty lift.", valid_from: null, valid_to: null, line_id: null, is_planned: false, dt: "2026-11-09"}
+          - {poll_id: p4, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-09 14:00:02", atco_code: B, station_atco_code: B, disruption_type: Information, appearance: RealTime, description: "Hoxton: No Step Free Access - Step free access is not available to the southbound platform due to a faulty lift.", valid_from: null, valid_to: null, line_id: null, is_planned: false, dt: "2026-11-09"}
+          - {poll_id: p6, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-09 14:10:03", atco_code: B, station_atco_code: B, disruption_type: Interchange Message, appearance: PlannedWork, description: "Hoxton: until Sunday 22 November, there will be no step-free access to the southbound platform.", valid_from: null, valid_to: null, line_id: null, is_planned: true, dt: "2026-11-09"}
+          - {poll_id: p7, request_path: /StopPoint/Mode/tube/Disruption, disruption_ordinal: 1, polled_at: "2026-11-09 14:20:01", atco_code: B, station_atco_code: B, disruption_type: Information, appearance: RealTime, description: "Hoxton: No Step Free Access - Step free access is not available to the southbound platform due to a faulty lift.", valid_from: null, valid_to: null, line_id: null, is_planned: false, dt: "2026-11-09"}
+    expect:
+      rows:
+        - {naptan_id: A, slot_utc: "2026-11-09 10:00:00", is_planned: false, episode_number: 1, missing_slots_before: 0}
+        - {naptan_id: A, slot_utc: "2026-11-09 10:05:00", is_planned: false, episode_number: 1, missing_slots_before: 0}
+        - {naptan_id: A, slot_utc: "2026-11-09 10:10:00", is_planned: false, episode_number: 1, missing_slots_before: 0}
+        - {naptan_id: C, slot_utc: "2026-11-09 10:00:00", is_planned: false, episode_number: 1, missing_slots_before: 0}
+        - {naptan_id: C, slot_utc: "2026-11-09 10:10:00", is_planned: false, episode_number: 2, missing_slots_before: 0}
+        - {naptan_id: B, slot_utc: "2026-11-09 14:00:00", is_planned: false, episode_number: 1, missing_slots_before: 0}
+        - {naptan_id: B, slot_utc: "2026-11-09 14:10:00", is_planned: true, episode_number: 1, missing_slots_before: 1}
+        - {naptan_id: B, slot_utc: "2026-11-09 14:20:00", is_planned: false, episode_number: 1, missing_slots_before: 1}
+
+  - name: int_step_free_outages_hours_seen_and_missing_kept_apart
+    description: >
+      Station B has one episode of three seen slots, the second and third
+      each preceded by one unobserved slot, the middle one planned work:
+      hours seen 3 / 12 = 0.25, missing inside 2 / 12 = 0.16666666666666666,
+      planned 1 / 12 = 0.08333333333333333. Station C has two episodes of
+      one slot each (0.08333333333333333 hours seen, none missing). The
+      feed's observed slots run from 10:00 (first, C's first episode, so it
+      starts at the feed start) to 14:20 (last, B's episode, so it is open
+      at the feed end). Feed bounds come from the successful polls only:
+      the failed poll at 15:00 is ignored.
+    model: int_step_free_outages
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_polls')
+        rows:
+          - {poll_id: p1, feed: stop_disruption, request_path: /x, polled_at: "2026-11-09 10:00:02", is_ok: true, dt: "2026-11-09"}
+          - {poll_id: p2, feed: stop_disruption, request_path: /x, polled_at: "2026-11-09 14:20:01", is_ok: true, dt: "2026-11-09"}
+          - {poll_id: p3, feed: stop_disruption, request_path: /x, polled_at: "2026-11-09 15:00:01", is_ok: false, dt: "2026-11-09"}
+      - input: ref('int_step_free_slots')
+        rows:
+          - {naptan_id: B, slot_utc: "2026-11-09 14:00:00", is_planned: false, episode_key: kb, missing_slots_before: 0}
+          - {naptan_id: B, slot_utc: "2026-11-09 14:10:00", is_planned: true, episode_key: kb, missing_slots_before: 1}
+          - {naptan_id: B, slot_utc: "2026-11-09 14:20:00", is_planned: false, episode_key: kb, missing_slots_before: 1}
+          - {naptan_id: C, slot_utc: "2026-11-09 10:00:00", is_planned: false, episode_key: kc1, missing_slots_before: 0}
+          - {naptan_id: C, slot_utc: "2026-11-09 10:10:00", is_planned: false, episode_key: kc2, missing_slots_before: 0}
+    expect:
+      rows:
+        - {episode_key: kb, naptan_id: B, first_seen_slot_utc: "2026-11-09 14:00:00", last_seen_slot_utc: "2026-11-09 14:20:00", hours_seen: 0.25, hours_missing_inside: 0.16666666666666666, planned_hours_seen: 0.08333333333333333, starts_at_feed_start: false, open_at_feed_end: true}
+        - {episode_key: kc1, naptan_id: C, first_seen_slot_utc: "2026-11-09 10:00:00", last_seen_slot_utc: "2026-11-09 10:00:00", hours_seen: 0.08333333333333333, hours_missing_inside: 0, planned_hours_seen: 0, starts_at_feed_start: true, open_at_feed_end: false}
+        - {episode_key: kc2, naptan_id: C, first_seen_slot_utc: "2026-11-09 10:10:00", last_seen_slot_utc: "2026-11-09 10:10:00", hours_seen: 0.08333333333333333, hours_missing_inside: 0, planned_hours_seen: 0, starts_at_feed_start: false, open_at_feed_end: false}

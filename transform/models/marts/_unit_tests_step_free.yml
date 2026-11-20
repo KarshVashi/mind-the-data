@@ -1,0 +1,69 @@
+version: 2
+
+# Hand-computed cases for the weekly step-free report (D73).
+
+unit_tests:
+  - name: rpt_step_free_weekly_hours_episodes_and_repeat_offender
+    description: >
+      Four London weeks from Monday 26 October to Monday 16 November (UTC
+      equals London in all of them). Weeks of 26 October and 2 November
+      were under half observed (1000 of 2016 slots); the others fully.
+      Station S: an episode e1 of 2 slots on 27 October (week 26 Oct: 2 / 12
+      = 0.1667 hours seen, 1 episode, 1 started); nothing in the week of 2
+      November; episode e2 on 9 November, one planned slot; and e3, which
+      spans the week boundary, a slot at 23:55 on Sunday 15 November and
+      another at 00:05 on Monday 16 November with one unobserved slot
+      between them. Week of 9 Nov: e2 and e3's first slot, 2 slots, 1
+      planned: 0.1667 hours seen, 0.0833 planned, 0.0833 unplanned, 2
+      episodes, both started. Week of 16 Nov: e3's second slot, 1 / 12 =
+      0.0833 hours seen, 1 / 12 = 0.0833 hours missing inside, 1 episode, 0
+      started. S has outages in 3 of the 4 weeks to 16 Nov: repeat offender
+      true. Before that there are fewer than 4 weeks, so null.
+      Station T: one slot in the week of 2 Nov. In the week of 16 Nov, 1
+      week with an outage plus 1 under-observed week without one (26 Oct) =
+      2 < 3: even then it could not reach 3, so false.
+      Station U: one slot in the week of 16 Nov. 1 outage week plus 2
+      under-observed weeks = 3: it might have been a repeat offender, so
+      null, never false.
+      T and U are not in dim_station: no name or lines.
+    model: rpt_step_free_weekly
+    given:
+      - input: ref('fct_station_disruption_weekly')
+        rows:
+          - {week_start: "2026-10-26", iso_week: 2026-W44, naptan_id: S, expected_slots: 2016, observed_slots: 1000, observed_share: 0.49603174603174605}
+          - {week_start: "2026-11-02", iso_week: 2026-W45, naptan_id: S, expected_slots: 2016, observed_slots: 1000, observed_share: 0.49603174603174605}
+          - {week_start: "2026-11-09", iso_week: 2026-W46, naptan_id: S, expected_slots: 2016, observed_slots: 2016, observed_share: 1.0}
+          - {week_start: "2026-11-16", iso_week: 2026-W47, naptan_id: S, expected_slots: 2016, observed_slots: 2016, observed_share: 1.0}
+      - input: ref('int_step_free_slots')
+        rows:
+          - {naptan_id: S, slot_utc: "2026-10-27 10:00:00", is_planned: false, episode_key: e1, missing_slots_before: 0}
+          - {naptan_id: S, slot_utc: "2026-10-27 10:05:00", is_planned: false, episode_key: e1, missing_slots_before: 0}
+          - {naptan_id: S, slot_utc: "2026-11-09 10:00:00", is_planned: true, episode_key: e2, missing_slots_before: 0}
+          - {naptan_id: S, slot_utc: "2026-11-15 23:55:00", is_planned: false, episode_key: e3, missing_slots_before: 0}
+          - {naptan_id: S, slot_utc: "2026-11-16 00:05:00", is_planned: false, episode_key: e3, missing_slots_before: 1}
+          - {naptan_id: T, slot_utc: "2026-11-03 12:00:00", is_planned: false, episode_key: e4, missing_slots_before: 0}
+          - {naptan_id: U, slot_utc: "2026-11-17 08:00:00", is_planned: false, episode_key: e5, missing_slots_before: 0}
+      - input: ref('int_step_free_outages')
+        rows:
+          - {episode_key: e1, first_seen_slot_utc: "2026-10-27 10:00:00"}
+          - {episode_key: e2, first_seen_slot_utc: "2026-11-09 10:00:00"}
+          - {episode_key: e3, first_seen_slot_utc: "2026-11-15 23:55:00"}
+          - {episode_key: e4, first_seen_slot_utc: "2026-11-03 12:00:00"}
+          - {episode_key: e5, first_seen_slot_utc: "2026-11-17 08:00:00"}
+      - input: ref('dim_station')
+        rows:
+          - {naptan_id: S, station_name: Stn S, line_ids: [victoria]}
+    expect:
+      rows:
+        - {week_start: "2026-10-26", naptan_id: S, station_name: Stn S, outage_hours_seen: 0.16666666666666666, planned_hours_seen: 0, unplanned_hours_seen: 0.16666666666666666, missing_hours_inside: 0, episodes: 1, episodes_started: 1, outage_weeks_last4: 1, repeat_offender: null}
+        - {week_start: "2026-11-02", naptan_id: S, station_name: Stn S, outage_hours_seen: 0, planned_hours_seen: 0, unplanned_hours_seen: 0, missing_hours_inside: 0, episodes: 0, episodes_started: 0, outage_weeks_last4: 1, repeat_offender: null}
+        - {week_start: "2026-11-09", naptan_id: S, station_name: Stn S, outage_hours_seen: 0.16666666666666666, planned_hours_seen: 0.08333333333333333, unplanned_hours_seen: 0.08333333333333333, missing_hours_inside: 0, episodes: 2, episodes_started: 2, outage_weeks_last4: 2, repeat_offender: null}
+        - {week_start: "2026-11-16", naptan_id: S, station_name: Stn S, outage_hours_seen: 0.08333333333333333, planned_hours_seen: 0, unplanned_hours_seen: 0.08333333333333333, missing_hours_inside: 0.08333333333333333, episodes: 1, episodes_started: 0, outage_weeks_last4: 3, repeat_offender: true}
+        - {week_start: "2026-10-26", naptan_id: T, station_name: null, outage_hours_seen: 0, planned_hours_seen: 0, unplanned_hours_seen: 0, missing_hours_inside: 0, episodes: 0, episodes_started: 0, outage_weeks_last4: 0, repeat_offender: null}
+        - {week_start: "2026-11-02", naptan_id: T, station_name: null, outage_hours_seen: 0.08333333333333333, planned_hours_seen: 0, unplanned_hours_seen: 0.08333333333333333, missing_hours_inside: 0, episodes: 1, episodes_started: 1, outage_weeks_last4: 1, repeat_offender: null}
+        - {week_start: "2026-11-09", naptan_id: T, station_name: null, outage_hours_seen: 0, planned_hours_seen: 0, unplanned_hours_seen: 0, missing_hours_inside: 0, episodes: 0, episodes_started: 0, outage_weeks_last4: 1, repeat_offender: null}
+        - {week_start: "2026-11-16", naptan_id: T, station_name: null, outage_hours_seen: 0, planned_hours_seen: 0, unplanned_hours_seen: 0, missing_hours_inside: 0, episodes: 0, episodes_started: 0, outage_weeks_last4: 1, repeat_offender: false}
+        - {week_start: "2026-10-26", naptan_id: U, station_name: null, outage_hours_seen: 0, planned_hours_seen: 0, unplanned_hours_seen: 0, missing_hours_inside: 0, episodes: 0, episodes_started: 0, outage_weeks_last4: 0, repeat_offender: null}
+        - {week_start: "2026-11-02", naptan_id: U, station_name: null, outage_hours_seen: 0, planned_hours_seen: 0, unplanned_hours_seen: 0, missing_hours_inside: 0, episodes: 0, episodes_started: 0, outage_weeks_last4: 0, repeat_offender: null}
+        - {week_start: "2026-11-09", naptan_id: U, station_name: null, outage_hours_seen: 0, planned_hours_seen: 0, unplanned_hours_seen: 0, missing_hours_inside: 0, episodes: 0, episodes_started: 0, outage_weeks_last4: 0, repeat_offender: null}
+        - {week_start: "2026-11-16", naptan_id: U, station_name: null, outage_hours_seen: 0.08333333333333333, planned_hours_seen: 0, unplanned_hours_seen: 0.08333333333333333, missing_hours_inside: 0, episodes: 1, episodes_started: 1, outage_weeks_last4: 1, repeat_offender: null}
