@@ -108,6 +108,16 @@ vars:
   # rewrites only partitions this many days back, which covers a week of
   # daily merges plus their lookback_days.
   maintenance_lookback_days: 9
+  # Countdown accuracy (D71, pending): the countdowns scored, in minutes. A
+  # prediction is in a horizon's bucket when its countdown at the poll is
+  # within the half-width of it, lower edge in, upper edge out. Predictions
+  # are matched to an arrival only within the lookback before it, and a
+  # line-week-horizon is shown only with at least the minimum of matched
+  # predictions.
+  prediction_accuracy_horizons: [2, 5, 10]
+  prediction_accuracy_bucket_half_width_seconds: 30
+  prediction_accuracy_lookback_minutes: 30
+  prediction_accuracy_min_matched: 200
   # analyses/league_preview.sql: a week to show instead of the latest
   # complete one ('YYYY-MM-DD', a Monday).
   preview_week_start: null

@@ -915,3 +915,76 @@ models:
         data_tests: [not_null]
       - name: is_long_gap
         description: More than twice the ending hour's longest scheduled gap (D34); null without a timetable (no scheduled gap to judge it by).
+
+  - name: int_prediction_errors
+    description: >
+      Countdown drift (D71, pending). One row per inferred arrival and
+      horizon (`prediction_accuracy_horizons`, 2, 5 and 10 minutes) at the
+      measurement stations, on lines that link by vehicle id (D27), termini
+      left out (D66). Matched to the same vehicle id's prediction on the same
+      board (request, stop, line, platform and direction) whose countdown at
+      the poll was nearest the horizon, within half a minute either side
+      (lower edge in, upper edge out), polled within
+      `prediction_accuracy_lookback_minutes` of the arrival and before the
+      sighting that sets the arrival time. The arrival time is TfL's own last
+      prediction (PLAN 7.2), so the error is how far the countdown drifts
+      before the end, not accuracy against an independent clock. Arrivals
+      with no matching prediction stay, unmatched, so the share matched can
+      be given. Rebuilt in full.
+    columns:
+      - name: prediction_error_key
+        description: Row key, a hash of (arrival_key, horizon_minutes).
+        data_tests: [unique, not_null]
+      - name: arrival_key
+        description: The arrival in int_inferred_arrivals.
+        data_tests: [not_null]
+      - name: line_id
+        description: TfL line id; only lines seed_vehicle_id_lines links by vehicle id.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Measurement station.
+        data_tests: [not_null]
+      - name: role
+        description: The station's role on the line; never `terminus`.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [core, branch]
+      - name: platform_name
+        description: Platform of the arrival.
+      - name: direction
+        description: Direction of the arrival; never null.
+        data_tests: [not_null]
+      - name: vehicle_id
+        description: Vehicle id of the arrival's last sighting, matched on.
+        data_tests: [not_null]
+      - name: arrival_time
+        description: Inferred arrival, UTC (the last prediction before the train left the board).
+        data_tests: [not_null]
+      - name: horizon_minutes
+        description: The countdown scored, in minutes.
+        data_tests: [not_null]
+      - name: is_matched
+        description: Whether a prediction for this train was found at this horizon.
+        data_tests: [not_null]
+      - name: poll_id
+        description: Poll of the matched prediction; null when unmatched.
+      - name: polled_at
+        description: When the matched prediction was polled, UTC.
+      - name: predicted_arrival_time
+        description: The matched prediction's expected arrival, UTC.
+      - name: predicted_seconds
+        description: The countdown at the poll (expected arrival minus poll time, D40), in seconds.
+      - name: actual_seconds
+        description: Seconds from the poll to the inferred arrival.
+      - name: signed_error_seconds
+        description: actual_seconds minus predicted_seconds. Positive means the train came later than the countdown said; negative, earlier.
+      - name: abs_error_seconds
+        description: Absolute value of signed_error_seconds.
+      - name: london_date
+        description: London date of the arrival.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the arrival's London week.
+        data_tests: [not_null]
