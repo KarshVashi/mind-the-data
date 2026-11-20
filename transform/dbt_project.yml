@@ -227,6 +227,55 @@ seeds:
         factor: varchar
         factor_key: varchar
         weight: double
+    # Typical demand from TfL's NUMBAT and annual counts (ADR-020), written
+    # by scripts/fetch_demand_data.py. Exploratory (D78): nothing published
+    # reads them, and they are not loaded in prod until D78 is answered.
+    seed_line_demand:
+      +enabled: "{{ target.name != 'prod' }}"
+      +tags: [exploratory]
+      +column_types:
+        numbat_line: varchar
+        service_day_type: varchar
+        hour_of_day: integer
+        boarders: double
+        link_load_sum: double
+    seed_demand_line_map:
+      +enabled: "{{ target.name != 'prod' }}"
+      +tags: [exploratory]
+      +column_types:
+        numbat_line: varchar
+        line_id: varchar
+        demand_share: double
+        note: varchar
+    seed_link_demand:
+      +enabled: "{{ target.name != 'prod' }}"
+      +tags: [exploratory]
+      +column_types:
+        link_id: varchar
+        numbat_line: varchar
+        direction: varchar
+        link_order: integer
+        from_asc: varchar
+        from_station: varchar
+        to_asc: varchar
+        to_station: varchar
+        mon_thu_load: double
+        fri_load: double
+        sat_load: double
+        sun_load: double
+        am_peak_load: double
+    seed_station_demand:
+      +enabled: "{{ target.name != 'prod' }}"
+      +tags: [exploratory]
+      +column_types:
+        mode: varchar
+        mnlc: varchar
+        masc: varchar
+        station: varchar
+        weekday_entries_exits: double
+        saturday_entries_exits: double
+        sunday_entries_exits: double
+        annual_entries_exits: double
 
 # Staging tests cover the last 7 days. Older days were tested when they were
 # built; rescanning all history on every daily run would only add cost.

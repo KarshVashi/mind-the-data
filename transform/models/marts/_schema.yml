@@ -1015,3 +1015,125 @@ models:
         description: Sum of base severity weight x time weight.
       - name: time_weighted_scored_minutes
         description: Sum of base time weight.
+
+  - name: rpt_line_weekly_passenger_weighted
+    description: >
+      Exploratory (D78, ADR-020; not built in prod, not published). The
+      declared league weighted by typical demand: each scored minute's
+      severity weight times the typical passengers boarding the line in
+      that minute (NUMBAT 2025 via seed_line_demand), instead of the time
+      weight. `passenger_disruption_index` is the demand-weighted mean
+      severity x 100 (0 to 800), how the line's typical passenger saw the
+      week. `passenger_disruption_minutes` is the absolute total, how much
+      disruption the line put on passengers; big lines score more for the
+      same trouble. Missing minutes leave numerator and denominator (D19).
+      The link-load columns repeat both with NUMBAT link loads, which count
+      a passenger once per stop ridden. Lines the declared league leaves
+      unranked stay unranked; lines without demand data (trams) are
+      unranked `no_demand_data`. Powered by TfL Open Data.
+    columns:
+      - name: line_weekly_key
+        description: Row key, a hash of (line_id, week_start).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: week_end
+        description: Sunday of the London week.
+      - name: scheduled_minutes
+        description: Scheduled minutes in the week.
+        data_tests: [not_null]
+      - name: minutes_without_demand
+        description: Scheduled minutes with no demand row for the line, service day type and hour.
+        data_tests: [not_null]
+      - name: scheduled_boarders
+        description: Typical boarders over the scheduled minutes; null without demand data.
+      - name: observed_boarders
+        description: Typical boarders over the observed scheduled minutes.
+      - name: scored_boarders
+        description: Typical boarders over the scored minutes (the index's denominator).
+      - name: disrupted_boarders
+        description: Typical boarders over scored minutes with a severity weight above 0.
+      - name: passenger_disruption_minutes
+        description: Sum of severity weight x typical boarders per minute over scored minutes.
+      - name: scored_link_loads
+        description: Typical link loads per minute summed over scored minutes.
+      - name: link_load_disruption_minutes
+        description: Sum of severity weight x typical link loads per minute over scored minutes.
+      - name: demand_completeness
+        description: >
+          Observed boarders over scheduled boarders: the share of the week's
+          typical passengers whose minutes were observed.
+      - name: completeness
+        description: The declared view's completeness (fct_line_weekly).
+      - name: is_provisional
+        description: The declared view's provisional flag.
+      - name: is_week_complete
+        description: The week's last London minute is in the data.
+      - name: disruption_index
+        description: The declared Disruption Index (D19), for comparison.
+      - name: disruption_rank
+        description: The declared league's rank, for comparison.
+      - name: passenger_disruption_index
+        description: 100 x passenger_disruption_minutes / scored_boarders, 0 to 800.
+      - name: link_load_disruption_index
+        description: 100 x link_load_disruption_minutes / scored_link_loads, 0 to 800.
+      - name: is_ranked
+        description: The line has a passenger-weighted rank this week.
+        data_tests: [not_null]
+      - name: unranked_reason
+        description: >
+          Null when ranked; otherwise the declared league's reason (D22),
+          `not_in_declared_league`, `no_demand_data`, `incomplete_demand` (some
+          scheduled minutes have no demand row) or `no_scored_demand`.
+      - name: passenger_index_rank
+        description: Rank by passenger_disruption_index, lowest first; ties share a rank.
+      - name: passenger_impact_rank
+        description: Rank by passenger_disruption_minutes, fewest first.
+      - name: link_load_impact_rank
+        description: Rank by link_load_disruption_minutes, fewest first.
+      - name: index_rank_shift
+        description: passenger_index_rank minus declared_rank_among_ranked; positive means the line falls.
+      - name: impact_rank_shift
+        description: passenger_impact_rank minus declared_rank_among_ranked; positive means the line falls.
+      - name: declared_rank_among_ranked
+        description: >
+          The declared rank re-taken among the lines this model ranks (lowest
+          Disruption Index, then highest Good Service %), so the shifts
+          compare like with like when the tram or another line is left out.
+      - name: good_service_pct
+        description: The declared Good Service %, the rank's tie-break.
+
+  - name: rpt_line_disrupted_spells
+    description: >
+      Exploratory (D78, ADR-020; not built in prod, not published).
+      Disrupted scored minutes counted per line, London week, status,
+      reason, NUMBAT service day type (a minute before 05:00 London time
+      takes the previous day's) and London hour. Read by
+      scripts/analysis/critical_links.py.
+    columns:
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: status
+        description: TfL's status description for the minute's worst status.
+      - name: reason
+        description: TfL's reason text, null when TfL gives none.
+      - name: severity_weight
+        description: The minute's severity weight, above 0.
+        data_tests: [not_null]
+      - name: service_day_type
+        description: Day type of the NUMBAT traffic day the minute belongs to.
+        data_tests: [not_null]
+      - name: hour_of_day
+        description: London clock hour, 0 to 23.
+        data_tests: [not_null]
+      - name: minutes
+        description: Disrupted minutes in the group.
+        data_tests: [not_null]

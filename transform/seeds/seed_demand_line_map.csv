@@ -1,0 +1,20 @@
+numbat_line,line_id,demand_share,note
+Bakerloo,bakerloo,1,
+Central,central,1,
+DLR,dlr,1,
+District,district,1,
+Elizabeth Line,elizabeth,1,
+H&C and Circle,circle,0.5,NUMBAT reports the two lines as one; split evenly until a better split is chosen (D78)
+H&C and Circle,hammersmith-city,0.5,NUMBAT reports the two lines as one; split evenly until a better split is chosen (D78)
+Jubilee,jubilee,1,
+LO Liberty,liberty,1,
+LO Lioness,lioness,1,
+LO Mildmay,mildmay,1,
+LO Suffragette,suffragette,1,
+LO Weaver,weaver,1,
+LO Windrush,windrush,1,
+Metropolitan,metropolitan,1,
+Northern,northern,1,
+Piccadilly,piccadilly,1,
+Victoria,victoria,1,
+Waterloo & City,waterloo-city,1,

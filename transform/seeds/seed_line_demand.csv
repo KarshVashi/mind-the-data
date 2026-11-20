@@ -1,0 +1,1681 @@
+numbat_line,service_day_type,hour_of_day,boarders,link_load_sum
+Bakerloo,mon_thu,5,848.6,4070.2
+Bakerloo,mon_thu,6,6008.7,29824.1
+Bakerloo,mon_thu,7,17036.1,80723.1
+Bakerloo,mon_thu,8,26048.8,124478.5
+Bakerloo,mon_thu,9,18308.0,87870.3
+Bakerloo,mon_thu,10,12061.6,56324.2
+Bakerloo,mon_thu,11,11167.9,51198.2
+Bakerloo,mon_thu,12,11606.7,52498.4
+Bakerloo,mon_thu,13,11609.5,52843.6
+Bakerloo,mon_thu,14,12679.4,57213.7
+Bakerloo,mon_thu,15,15938.5,71500.9
+Bakerloo,mon_thu,16,22679.6,102453.4
+Bakerloo,mon_thu,17,29170.4,134630.1
+Bakerloo,mon_thu,18,24968.9,119299.1
+Bakerloo,mon_thu,19,15146.5,73242.0
+Bakerloo,mon_thu,20,10559.9,50036.8
+Bakerloo,mon_thu,21,9888.9,45455.0
+Bakerloo,mon_thu,22,9719.6,45123.7
+Bakerloo,mon_thu,23,5000.7,25501.2
+Bakerloo,mon_thu,0,1034.7,6281.0
+Bakerloo,mon_thu,1,18.7,181.9
+Bakerloo,mon_thu,2,0.0,0.0
+Bakerloo,mon_thu,3,0.0,0.0
+Bakerloo,mon_thu,4,0.0,0.0
+Central,mon_thu,5,5837.3,33756.5
+Central,mon_thu,6,24589.7,166834.0
+Central,mon_thu,7,47673.3,320813.6
+Central,mon_thu,8,62877.2,412844.1
+Central,mon_thu,9,44065.7,285724.6
+Central,mon_thu,10,28626.2,175000.7
+Central,mon_thu,11,26153.2,152309.3
+Central,mon_thu,12,27295.1,155542.4
+Central,mon_thu,13,28403.8,160544.5
+Central,mon_thu,14,30967.5,174152.1
+Central,mon_thu,15,39582.6,221848.1
+Central,mon_thu,16,54154.9,315825.4
+Central,mon_thu,17,68686.9,421606.3
+Central,mon_thu,18,57063.0,374248.9
+Central,mon_thu,19,34952.4,230087.7
+Central,mon_thu,20,24314.0,152804.0
+Central,mon_thu,21,20933.9,130800.5
+Central,mon_thu,22,18420.8,118032.9
+Central,mon_thu,23,10579.4,76238.8
+Central,mon_thu,0,2979.5,27485.1
+Central,mon_thu,1,104.5,1764.7
+Central,mon_thu,2,0.0,0.0
+Central,mon_thu,3,0.0,0.0
+Central,mon_thu,4,1.8,1.8
+DLR,mon_thu,5,3108.9,13770.3
+DLR,mon_thu,6,11215.1,53358.6
+DLR,mon_thu,7,21512.5,101738.9
+DLR,mon_thu,8,30629.5,148974.0
+DLR,mon_thu,9,20327.8,101995.0
+DLR,mon_thu,10,13435.5,65490.4
+DLR,mon_thu,11,12396.3,60109.9
+DLR,mon_thu,12,12988.2,62915.3
+DLR,mon_thu,13,13625.3,66608.7
+DLR,mon_thu,14,14944.2,71962.2
+DLR,mon_thu,15,20546.0,96444.6
+DLR,mon_thu,16,26100.9,125451.9
+DLR,mon_thu,17,29601.0,145895.4
+DLR,mon_thu,18,24068.8,122547.7
+DLR,mon_thu,19,15947.2,80315.7
+DLR,mon_thu,20,11241.9,54629.4
+DLR,mon_thu,21,9858.3,45247.4
+DLR,mon_thu,22,8097.0,37511.8
+DLR,mon_thu,23,5038.0,24883.4
+DLR,mon_thu,0,1745.1,9495.1
+DLR,mon_thu,1,88.0,618.1
+DLR,mon_thu,2,0.0,0.0
+DLR,mon_thu,3,0.0,0.0
+DLR,mon_thu,4,0.0,0.0
+District,mon_thu,5,5373.5,33653.7
+District,mon_thu,6,23793.3,174299.3
+District,mon_thu,7,54297.4,379993.9
+District,mon_thu,8,72583.3,499202.1
+District,mon_thu,9,48189.0,337563.5
+District,mon_thu,10,31240.9,208979.6
+District,mon_thu,11,28333.4,183403.1
+District,mon_thu,12,28821.5,183026.1
+District,mon_thu,13,29445.4,187423.2
+District,mon_thu,14,32420.4,204867.7
+District,mon_thu,15,42803.1,262810.7
+District,mon_thu,16,60195.5,378409.5
+District,mon_thu,17,73265.7,494614.2
+District,mon_thu,18,60177.2,440974.5
+District,mon_thu,19,35716.9,261854.5
+District,mon_thu,20,23818.1,165890.0
+District,mon_thu,21,20081.3,138773.8
+District,mon_thu,22,17957.0,127976.6
+District,mon_thu,23,10261.6,81062.5
+District,mon_thu,0,2844.7,28216.6
+District,mon_thu,1,145.7,2452.4
+District,mon_thu,2,0.0,1.1
+District,mon_thu,3,0.0,0.0
+District,mon_thu,4,39.7,64.6
+Elizabeth Line,mon_thu,5,10660.5,51321.0
+Elizabeth Line,mon_thu,6,39467.8,236466.4
+Elizabeth Line,mon_thu,7,68953.6,418605.1
+Elizabeth Line,mon_thu,8,83246.4,487696.8
+Elizabeth Line,mon_thu,9,52705.6,309503.3
+Elizabeth Line,mon_thu,10,32799.6,195901.5
+Elizabeth Line,mon_thu,11,29694.8,173882.1
+Elizabeth Line,mon_thu,12,30552.2,174237.3
+Elizabeth Line,mon_thu,13,31642.4,179913.4
+Elizabeth Line,mon_thu,14,34380.3,194209.3
+Elizabeth Line,mon_thu,15,44214.4,243274.7
+Elizabeth Line,mon_thu,16,65261.4,357219.1
+Elizabeth Line,mon_thu,17,89161.5,498322.4
+Elizabeth Line,mon_thu,18,71420.7,436948.9
+Elizabeth Line,mon_thu,19,41207.2,258484.8
+Elizabeth Line,mon_thu,20,28664.6,173590.8
+Elizabeth Line,mon_thu,21,24314.1,142373.1
+Elizabeth Line,mon_thu,22,20814.5,123529.2
+Elizabeth Line,mon_thu,23,11953.2,78760.4
+Elizabeth Line,mon_thu,0,2723.7,22473.0
+Elizabeth Line,mon_thu,1,122.6,1570.1
+Elizabeth Line,mon_thu,2,0.0,0.7
+Elizabeth Line,mon_thu,3,0.0,0.0
+Elizabeth Line,mon_thu,4,114.9,227.8
+H&C and Circle,mon_thu,5,3270.5,18711.4
+H&C and Circle,mon_thu,6,11093.0,66845.9
+H&C and Circle,mon_thu,7,24176.5,140100.7
+H&C and Circle,mon_thu,8,37700.2,224536.6
+H&C and Circle,mon_thu,9,29629.1,181267.2
+H&C and Circle,mon_thu,10,21184.7,123125.9
+H&C and Circle,mon_thu,11,18894.6,106408.0
+H&C and Circle,mon_thu,12,18985.7,104843.6
+H&C and Circle,mon_thu,13,19186.2,105974.3
+H&C and Circle,mon_thu,14,20603.8,113137.7
+H&C and Circle,mon_thu,15,25167.7,136879.7
+H&C and Circle,mon_thu,16,32870.6,181961.1
+H&C and Circle,mon_thu,17,39738.4,233927.6
+H&C and Circle,mon_thu,18,31814.8,201940.5
+H&C and Circle,mon_thu,19,19111.7,119734.5
+H&C and Circle,mon_thu,20,13900.7,82124.5
+H&C and Circle,mon_thu,21,11741.0,68927.3
+H&C and Circle,mon_thu,22,10068.8,60465.0
+H&C and Circle,mon_thu,23,5883.4,37343.5
+H&C and Circle,mon_thu,0,2013.6,14897.0
+H&C and Circle,mon_thu,1,147.3,1480.0
+H&C and Circle,mon_thu,2,0.0,0.0
+H&C and Circle,mon_thu,3,0.0,0.0
+H&C and Circle,mon_thu,4,53.2,190.3
+Jubilee,mon_thu,5,5872.7,30128.0
+Jubilee,mon_thu,6,24195.7,137770.9
+Jubilee,mon_thu,7,49308.3,264067.9
+Jubilee,mon_thu,8,65716.4,349229.0
+Jubilee,mon_thu,9,44361.0,241615.6
+Jubilee,mon_thu,10,27003.6,141952.3
+Jubilee,mon_thu,11,24207.8,122119.3
+Jubilee,mon_thu,12,25827.7,127482.9
+Jubilee,mon_thu,13,26587.3,131906.8
+Jubilee,mon_thu,14,28339.3,138801.5
+Jubilee,mon_thu,15,35839.9,172631.8
+Jubilee,mon_thu,16,51345.3,250395.2
+Jubilee,mon_thu,17,66710.1,338419.8
+Jubilee,mon_thu,18,57007.7,302612.0
+Jubilee,mon_thu,19,35304.1,189177.8
+Jubilee,mon_thu,20,24562.7,128016.5
+Jubilee,mon_thu,21,21131.0,109408.5
+Jubilee,mon_thu,22,20905.7,110726.0
+Jubilee,mon_thu,23,12195.8,72832.7
+Jubilee,mon_thu,0,3196.3,23094.7
+Jubilee,mon_thu,1,131.1,1458.0
+Jubilee,mon_thu,2,0.0,0.0
+Jubilee,mon_thu,3,0.0,0.0
+Jubilee,mon_thu,4,0.0,0.0
+LO Liberty,mon_thu,5,4.7,6.0
+LO Liberty,mon_thu,6,129.0,164.2
+LO Liberty,mon_thu,7,333.7,463.4
+LO Liberty,mon_thu,8,297.0,443.7
+LO Liberty,mon_thu,9,108.5,151.2
+LO Liberty,mon_thu,10,78.9,113.4
+LO Liberty,mon_thu,11,72.5,104.5
+LO Liberty,mon_thu,12,72.7,104.4
+LO Liberty,mon_thu,13,74.4,109.3
+LO Liberty,mon_thu,14,83.8,128.0
+LO Liberty,mon_thu,15,174.8,281.6
+LO Liberty,mon_thu,16,189.6,292.0
+LO Liberty,mon_thu,17,198.4,280.4
+LO Liberty,mon_thu,18,176.2,238.8
+LO Liberty,mon_thu,19,97.4,128.5
+LO Liberty,mon_thu,20,49.5,70.1
+LO Liberty,mon_thu,21,48.5,76.4
+LO Liberty,mon_thu,22,8.8,16.4
+LO Liberty,mon_thu,23,0.0,0.0
+LO Liberty,mon_thu,0,0.0,0.0
+LO Liberty,mon_thu,1,0.0,0.0
+LO Liberty,mon_thu,2,0.0,0.0
+LO Liberty,mon_thu,3,0.0,0.0
+LO Liberty,mon_thu,4,0.0,0.0
+LO Lioness,mon_thu,5,673.9,3658.1
+LO Lioness,mon_thu,6,2483.7,14640.9
+LO Lioness,mon_thu,7,4438.6,24525.2
+LO Lioness,mon_thu,8,4684.9,27105.8
+LO Lioness,mon_thu,9,2561.7,15937.7
+LO Lioness,mon_thu,10,1783.8,10397.6
+LO Lioness,mon_thu,11,1632.3,9200.3
+LO Lioness,mon_thu,12,1684.1,9427.4
+LO Lioness,mon_thu,13,1770.7,9885.4
+LO Lioness,mon_thu,14,2045.7,11015.5
+LO Lioness,mon_thu,15,3313.1,16306.2
+LO Lioness,mon_thu,16,4077.5,22621.2
+LO Lioness,mon_thu,17,4361.3,25506.3
+LO Lioness,mon_thu,18,3278.3,20663.1
+LO Lioness,mon_thu,19,2214.8,14310.8
+LO Lioness,mon_thu,20,1638.8,10317.3
+LO Lioness,mon_thu,21,1349.4,8467.4
+LO Lioness,mon_thu,22,1104.3,7100.2
+LO Lioness,mon_thu,23,629.8,4611.5
+LO Lioness,mon_thu,0,103.3,1053.7
+LO Lioness,mon_thu,1,0.0,4.9
+LO Lioness,mon_thu,2,0.0,0.0
+LO Lioness,mon_thu,3,0.0,0.0
+LO Lioness,mon_thu,4,0.0,0.0
+LO Mildmay,mon_thu,5,618.9,2131.8
+LO Mildmay,mon_thu,6,6401.7,30384.2
+LO Mildmay,mon_thu,7,17237.8,81701.1
+LO Mildmay,mon_thu,8,21426.4,107720.3
+LO Mildmay,mon_thu,9,13191.8,68498.5
+LO Mildmay,mon_thu,10,7808.8,39340.9
+LO Mildmay,mon_thu,11,6790.1,32643.6
+LO Mildmay,mon_thu,12,7229.6,34242.6
+LO Mildmay,mon_thu,13,7611.5,36155.8
+LO Mildmay,mon_thu,14,8405.6,39032.2
+LO Mildmay,mon_thu,15,11849.9,52862.6
+LO Mildmay,mon_thu,16,17446.4,81018.0
+LO Mildmay,mon_thu,17,20631.1,101651.4
+LO Mildmay,mon_thu,18,16355.9,84982.1
+LO Mildmay,mon_thu,19,9956.0,51381.6
+LO Mildmay,mon_thu,20,6557.3,32939.0
+LO Mildmay,mon_thu,21,5361.5,26363.8
+LO Mildmay,mon_thu,22,4754.2,24496.1
+LO Mildmay,mon_thu,23,2436.1,13651.6
+LO Mildmay,mon_thu,0,332.8,2010.4
+LO Mildmay,mon_thu,1,3.3,35.2
+LO Mildmay,mon_thu,2,0.0,0.0
+LO Mildmay,mon_thu,3,0.0,0.0
+LO Mildmay,mon_thu,4,0.0,0.0
+LO Suffragette,mon_thu,5,355.0,1101.5
+LO Suffragette,mon_thu,6,2213.2,9939.0
+LO Suffragette,mon_thu,7,4495.9,20439.4
+LO Suffragette,mon_thu,8,4688.3,21586.9
+LO Suffragette,mon_thu,9,2497.1,11645.7
+LO Suffragette,mon_thu,10,1625.3,7272.4
+LO Suffragette,mon_thu,11,1457.9,6348.8
+LO Suffragette,mon_thu,12,1510.0,6508.1
+LO Suffragette,mon_thu,13,1635.9,7137.1
+LO Suffragette,mon_thu,14,1926.8,8236.3
+LO Suffragette,mon_thu,15,2775.2,11305.2
+LO Suffragette,mon_thu,16,3857.0,16511.7
+LO Suffragette,mon_thu,17,4528.9,20660.3
+LO Suffragette,mon_thu,18,3637.8,17119.9
+LO Suffragette,mon_thu,19,2368.2,11195.9
+LO Suffragette,mon_thu,20,1598.9,8017.2
+LO Suffragette,mon_thu,21,1144.6,5703.4
+LO Suffragette,mon_thu,22,822.4,4012.1
+LO Suffragette,mon_thu,23,440.8,2317.1
+LO Suffragette,mon_thu,0,59.5,336.9
+LO Suffragette,mon_thu,1,0.0,0.0
+LO Suffragette,mon_thu,2,0.0,0.0
+LO Suffragette,mon_thu,3,0.0,0.0
+LO Suffragette,mon_thu,4,0.0,0.0
+LO Weaver,mon_thu,5,1515.1,7910.8
+LO Weaver,mon_thu,6,5556.2,30471.7
+LO Weaver,mon_thu,7,11958.6,58926.0
+LO Weaver,mon_thu,8,15025.1,74071.1
+LO Weaver,mon_thu,9,8956.5,49033.6
+LO Weaver,mon_thu,10,4876.5,26907.1
+LO Weaver,mon_thu,11,4366.8,22975.9
+LO Weaver,mon_thu,12,4544.0,23927.2
+LO Weaver,mon_thu,13,4750.1,25377.2
+LO Weaver,mon_thu,14,5253.7,27679.7
+LO Weaver,mon_thu,15,7306.3,37474.3
+LO Weaver,mon_thu,16,10665.2,56504.7
+LO Weaver,mon_thu,17,13930.8,78318.2
+LO Weaver,mon_thu,18,11726.7,67062.4
+LO Weaver,mon_thu,19,7119.8,39983.9
+LO Weaver,mon_thu,20,4493.9,25307.0
+LO Weaver,mon_thu,21,3649.9,20362.5
+LO Weaver,mon_thu,22,3228.8,17897.5
+LO Weaver,mon_thu,23,2015.3,11967.5
+LO Weaver,mon_thu,0,594.0,3752.3
+LO Weaver,mon_thu,1,57.7,355.9
+LO Weaver,mon_thu,2,0.0,0.0
+LO Weaver,mon_thu,3,0.0,0.0
+LO Weaver,mon_thu,4,0.0,0.0
+LO Windrush,mon_thu,5,901.6,4208.3
+LO Windrush,mon_thu,6,6279.8,32434.2
+LO Windrush,mon_thu,7,16530.4,92646.0
+LO Windrush,mon_thu,8,20303.9,117373.7
+LO Windrush,mon_thu,9,13204.8,73087.7
+LO Windrush,mon_thu,10,7844.7,41951.6
+LO Windrush,mon_thu,11,6801.0,35352.7
+LO Windrush,mon_thu,12,7077.5,36460.1
+LO Windrush,mon_thu,13,7395.0,38536.0
+LO Windrush,mon_thu,14,7882.3,40511.0
+LO Windrush,mon_thu,15,10249.8,51296.5
+LO Windrush,mon_thu,16,14920.3,77582.5
+LO Windrush,mon_thu,17,19516.8,105637.9
+LO Windrush,mon_thu,18,18359.3,105219.3
+LO Windrush,mon_thu,19,12088.2,70813.7
+LO Windrush,mon_thu,20,8126.9,46423.4
+LO Windrush,mon_thu,21,6718.2,37058.4
+LO Windrush,mon_thu,22,6054.4,33928.0
+LO Windrush,mon_thu,23,3884.7,24313.0
+LO Windrush,mon_thu,0,790.6,5785.2
+LO Windrush,mon_thu,1,3.3,37.8
+LO Windrush,mon_thu,2,0.0,0.0
+LO Windrush,mon_thu,3,0.0,0.0
+LO Windrush,mon_thu,4,0.0,0.0
+Metropolitan,mon_thu,5,2165.0,10472.5
+Metropolitan,mon_thu,6,10221.9,51810.6
+Metropolitan,mon_thu,7,24092.1,121872.4
+Metropolitan,mon_thu,8,31521.5,160309.5
+Metropolitan,mon_thu,9,19949.2,104489.8
+Metropolitan,mon_thu,10,11368.1,60155.9
+Metropolitan,mon_thu,11,9810.4,50709.0
+Metropolitan,mon_thu,12,10086.9,51837.2
+Metropolitan,mon_thu,13,10386.8,53610.0
+Metropolitan,mon_thu,14,11122.4,56055.3
+Metropolitan,mon_thu,15,15723.4,76016.8
+Metropolitan,mon_thu,16,23274.5,114621.1
+Metropolitan,mon_thu,17,29334.5,153125.6
+Metropolitan,mon_thu,18,23628.4,129585.1
+Metropolitan,mon_thu,19,13835.5,76085.7
+Metropolitan,mon_thu,20,8941.0,49090.7
+Metropolitan,mon_thu,21,6832.7,37451.0
+Metropolitan,mon_thu,22,5692.0,31695.3
+Metropolitan,mon_thu,23,3249.9,20540.5
+Metropolitan,mon_thu,0,923.9,7903.1
+Metropolitan,mon_thu,1,51.8,856.2
+Metropolitan,mon_thu,2,0.0,0.0
+Metropolitan,mon_thu,3,0.0,0.0
+Metropolitan,mon_thu,4,0.0,0.0
+Northern,mon_thu,5,4655.6,27334.3
+Northern,mon_thu,6,25733.3,153908.3
+Northern,mon_thu,7,64957.2,382468.1
+Northern,mon_thu,8,95394.2,575068.9
+Northern,mon_thu,9,66283.2,396125.3
+Northern,mon_thu,10,40491.5,221678.9
+Northern,mon_thu,11,36218.1,190113.6
+Northern,mon_thu,12,37698.6,194624.2
+Northern,mon_thu,13,38673.8,200364.9
+Northern,mon_thu,14,40698.9,210111.9
+Northern,mon_thu,15,50870.4,260790.2
+Northern,mon_thu,16,72110.7,377339.7
+Northern,mon_thu,17,97132.7,534893.4
+Northern,mon_thu,18,86054.9,503676.4
+Northern,mon_thu,19,53180.0,314440.1
+Northern,mon_thu,20,36303.6,207832.7
+Northern,mon_thu,21,32737.8,181328.7
+Northern,mon_thu,22,32469.2,180040.6
+Northern,mon_thu,23,18526.7,112003.3
+Northern,mon_thu,0,4663.7,33533.6
+Northern,mon_thu,1,139.2,1916.3
+Northern,mon_thu,2,0.0,0.0
+Northern,mon_thu,3,0.0,0.0
+Northern,mon_thu,4,0.0,0.0
+Piccadilly,mon_thu,5,4265.6,24709.2
+Piccadilly,mon_thu,6,15161.6,110838.5
+Piccadilly,mon_thu,7,31383.0,226559.0
+Piccadilly,mon_thu,8,41206.9,296234.8
+Piccadilly,mon_thu,9,29735.0,216775.6
+Piccadilly,mon_thu,10,21669.5,149618.5
+Piccadilly,mon_thu,11,21050.1,139831.9
+Piccadilly,mon_thu,12,22166.7,142117.8
+Piccadilly,mon_thu,13,22502.0,143165.5
+Piccadilly,mon_thu,14,24273.4,153181.1
+Piccadilly,mon_thu,15,29533.7,182087.9
+Piccadilly,mon_thu,16,38412.4,244127.5
+Piccadilly,mon_thu,17,47177.8,315065.6
+Piccadilly,mon_thu,18,40035.1,282924.6
+Piccadilly,mon_thu,19,25592.4,181264.5
+Piccadilly,mon_thu,20,18379.7,126281.8
+Piccadilly,mon_thu,21,17060.9,113295.7
+Piccadilly,mon_thu,22,16039.8,111057.7
+Piccadilly,mon_thu,23,8888.0,70215.5
+Piccadilly,mon_thu,0,2462.1,23876.3
+Piccadilly,mon_thu,1,111.5,1800.7
+Piccadilly,mon_thu,2,0.0,0.0
+Piccadilly,mon_thu,3,0.0,0.0
+Piccadilly,mon_thu,4,21.4,55.3
+Victoria,mon_thu,5,3793.9,15562.3
+Victoria,mon_thu,6,21398.9,93764.8
+Victoria,mon_thu,7,48872.6,213233.3
+Victoria,mon_thu,8,70070.2,301709.1
+Victoria,mon_thu,9,48689.8,210894.1
+Victoria,mon_thu,10,30116.6,125030.5
+Victoria,mon_thu,11,27236.1,109274.2
+Victoria,mon_thu,12,27642.5,109109.1
+Victoria,mon_thu,13,28057.9,111707.1
+Victoria,mon_thu,14,29931.8,119149.6
+Victoria,mon_thu,15,37312.7,147223.6
+Victoria,mon_thu,16,53237.8,213096.1
+Victoria,mon_thu,17,71126.7,295235.5
+Victoria,mon_thu,18,62198.5,267432.5
+Victoria,mon_thu,19,37825.4,162550.5
+Victoria,mon_thu,20,25546.9,108147.1
+Victoria,mon_thu,21,22327.9,94378.7
+Victoria,mon_thu,22,21572.1,94049.1
+Victoria,mon_thu,23,11721.0,56437.9
+Victoria,mon_thu,0,2700.1,14608.1
+Victoria,mon_thu,1,72.3,497.9
+Victoria,mon_thu,2,0.0,0.0
+Victoria,mon_thu,3,0.0,0.0
+Victoria,mon_thu,4,0.0,0.0
+Waterloo & City,mon_thu,5,81.6,81.4
+Waterloo & City,mon_thu,6,1422.7,1422.5
+Waterloo & City,mon_thu,7,4709.3,4709.3
+Waterloo & City,mon_thu,8,7274.5,7274.5
+Waterloo & City,mon_thu,9,4185.9,4185.9
+Waterloo & City,mon_thu,10,1713.5,1713.5
+Waterloo & City,mon_thu,11,1191.7,1191.7
+Waterloo & City,mon_thu,12,1144.3,1144.3
+Waterloo & City,mon_thu,13,1070.2,1070.2
+Waterloo & City,mon_thu,14,1134.9,1134.9
+Waterloo & City,mon_thu,15,1744.2,1744.2
+Waterloo & City,mon_thu,16,3717.2,3717.2
+Waterloo & City,mon_thu,17,6407.9,6407.9
+Waterloo & City,mon_thu,18,5187.7,5187.7
+Waterloo & City,mon_thu,19,2418.4,2418.4
+Waterloo & City,mon_thu,20,1385.8,1385.8
+Waterloo & City,mon_thu,21,1031.4,1031.4
+Waterloo & City,mon_thu,22,772.7,772.7
+Waterloo & City,mon_thu,23,401.4,401.4
+Waterloo & City,mon_thu,0,71.9,71.9
+Waterloo & City,mon_thu,1,0.0,0.0
+Waterloo & City,mon_thu,2,0.0,0.0
+Waterloo & City,mon_thu,3,0.0,0.0
+Waterloo & City,mon_thu,4,0.0,0.0
+Bakerloo,fri,5,877.7,4426.0
+Bakerloo,fri,6,5324.1,27600.3
+Bakerloo,fri,7,12517.0,61946.6
+Bakerloo,fri,8,17055.3,84048.9
+Bakerloo,fri,9,14288.6,70357.4
+Bakerloo,fri,10,12020.3,57683.9
+Bakerloo,fri,11,11826.7,55066.8
+Bakerloo,fri,12,12656.5,58154.5
+Bakerloo,fri,13,13177.1,60941.4
+Bakerloo,fri,14,14730.9,67398.8
+Bakerloo,fri,15,18145.5,83607.5
+Bakerloo,fri,16,23274.6,107546.6
+Bakerloo,fri,17,26221.0,122775.4
+Bakerloo,fri,18,23615.0,113590.3
+Bakerloo,fri,19,16276.4,79763.7
+Bakerloo,fri,20,11420.8,54067.7
+Bakerloo,fri,21,10788.5,49694.9
+Bakerloo,fri,22,11562.3,53609.7
+Bakerloo,fri,23,8038.1,40292.7
+Bakerloo,fri,0,2545.6,14328.5
+Bakerloo,fri,1,81.4,621.0
+Bakerloo,fri,2,0.0,0.0
+Bakerloo,fri,3,0.0,0.0
+Bakerloo,fri,4,0.0,0.0
+Central,fri,5,5292.7,29927.2
+Central,fri,6,20977.2,139489.6
+Central,fri,7,35609.3,236605.9
+Central,fri,8,42499.6,271103.1
+Central,fri,9,33710.7,211300.3
+Central,fri,10,26626.2,160346.7
+Central,fri,11,25895.3,150351.4
+Central,fri,12,27618.6,157465.7
+Central,fri,13,29746.1,168848.0
+Central,fri,14,33319.4,189830.6
+Central,fri,15,41729.2,237008.3
+Central,fri,16,52052.6,305448.8
+Central,fri,17,58413.3,356166.4
+Central,fri,18,50205.7,319815.9
+Central,fri,19,34354.0,218030.3
+Central,fri,20,24492.3,150553.3
+Central,fri,21,21917.5,133026.2
+Central,fri,22,21746.7,134511.8
+Central,fri,23,16048.1,108656.5
+Central,fri,0,7970.6,62777.6
+Central,fri,1,3576.4,28343.9
+Central,fri,2,2403.0,19330.9
+Central,fri,3,1446.5,12367.5
+Central,fri,4,663.2,6160.5
+DLR,fri,5,2680.8,11628.3
+DLR,fri,6,9715.3,45491.6
+DLR,fri,7,17375.5,81083.9
+DLR,fri,8,23279.4,111537.7
+DLR,fri,9,17730.6,86994.0
+DLR,fri,10,13473.9,64746.5
+DLR,fri,11,12952.8,62167.2
+DLR,fri,12,13911.0,66140.7
+DLR,fri,13,14830.6,71002.0
+DLR,fri,14,16485.8,77584.7
+DLR,fri,15,22074.3,101967.7
+DLR,fri,16,25908.7,123600.9
+DLR,fri,17,26921.4,130734.3
+DLR,fri,18,22838.9,111667.2
+DLR,fri,19,16517.2,80590.9
+DLR,fri,20,11855.3,56869.5
+DLR,fri,21,11113.1,49452.6
+DLR,fri,22,10352.7,45893.8
+DLR,fri,23,7873.7,37334.8
+DLR,fri,0,3535.9,18210.9
+DLR,fri,1,258.6,1627.6
+DLR,fri,2,0.0,0.0
+DLR,fri,3,0.0,0.0
+DLR,fri,4,0.0,0.0
+District,fri,5,5048.8,31759.1
+District,fri,6,20535.6,151429.8
+District,fri,7,40292.5,280968.7
+District,fri,8,50865.4,339796.8
+District,fri,9,39362.5,265782.4
+District,fri,10,31367.8,207060.4
+District,fri,11,30160.9,195077.1
+District,fri,12,31129.5,197510.3
+District,fri,13,32499.9,206535.0
+District,fri,14,36326.5,230733.5
+District,fri,15,46330.4,287307.0
+District,fri,16,58447.2,371164.1
+District,fri,17,62873.6,423412.1
+District,fri,18,53140.4,374196.9
+District,fri,19,35505.0,248217.7
+District,fri,20,24108.1,163180.6
+District,fri,21,20630.6,138435.3
+District,fri,22,21198.4,145099.7
+District,fri,23,15762.6,118553.9
+District,fri,0,5907.2,53248.5
+District,fri,1,491.8,6620.3
+District,fri,2,0.0,7.2
+District,fri,3,0.0,0.0
+District,fri,4,33.6,41.3
+Elizabeth Line,fri,5,10003.9,48051.0
+Elizabeth Line,fri,6,35125.0,213677.7
+Elizabeth Line,fri,7,51937.3,321172.5
+Elizabeth Line,fri,8,56290.3,335036.2
+Elizabeth Line,fri,9,42187.8,251983.2
+Elizabeth Line,fri,10,31526.1,191236.4
+Elizabeth Line,fri,11,30283.0,178698.8
+Elizabeth Line,fri,12,32102.0,182981.9
+Elizabeth Line,fri,13,34578.3,195547.4
+Elizabeth Line,fri,14,38228.8,217429.4
+Elizabeth Line,fri,15,47749.4,267152.6
+Elizabeth Line,fri,16,63810.1,359104.4
+Elizabeth Line,fri,17,76837.5,444183.5
+Elizabeth Line,fri,18,63047.8,383153.5
+Elizabeth Line,fri,19,41523.7,252182.2
+Elizabeth Line,fri,20,30009.1,178454.6
+Elizabeth Line,fri,21,26473.9,152659.0
+Elizabeth Line,fri,22,26079.2,151373.3
+Elizabeth Line,fri,23,18854.4,119231.8
+Elizabeth Line,fri,0,5468.4,43267.2
+Elizabeth Line,fri,1,227.1,3408.8
+Elizabeth Line,fri,2,0.0,2.8
+Elizabeth Line,fri,3,0.0,0.0
+Elizabeth Line,fri,4,190.2,396.1
+H&C and Circle,fri,5,3142.8,18022.1
+H&C and Circle,fri,6,9648.6,58910.3
+H&C and Circle,fri,7,17427.8,101508.5
+H&C and Circle,fri,8,24928.4,144249.3
+H&C and Circle,fri,9,23013.1,136382.1
+H&C and Circle,fri,10,20185.7,116172.9
+H&C and Circle,fri,11,19394.7,108984.4
+H&C and Circle,fri,12,19988.7,110304.5
+H&C and Circle,fri,13,20727.4,113948.7
+H&C and Circle,fri,14,22696.6,124695.7
+H&C and Circle,fri,15,26990.2,148265.0
+H&C and Circle,fri,16,31666.4,178160.4
+H&C and Circle,fri,17,33347.6,197230.6
+H&C and Circle,fri,18,27958.9,172699.4
+H&C and Circle,fri,19,19456.9,119382.8
+H&C and Circle,fri,20,14398.9,85280.6
+H&C and Circle,fri,21,12285.1,71198.0
+H&C and Circle,fri,22,11972.0,69584.3
+H&C and Circle,fri,23,9493.9,57194.3
+H&C and Circle,fri,0,4740.8,32420.3
+H&C and Circle,fri,1,529.8,4547.8
+H&C and Circle,fri,2,0.0,0.0
+H&C and Circle,fri,3,0.0,0.0
+H&C and Circle,fri,4,59.8,189.4
+Jubilee,fri,5,5685.5,29024.7
+Jubilee,fri,6,21985.3,123893.2
+Jubilee,fri,7,37947.4,205001.6
+Jubilee,fri,8,45269.1,239309.5
+Jubilee,fri,9,35226.6,188726.8
+Jubilee,fri,10,26602.9,137662.0
+Jubilee,fri,11,25980.9,129485.5
+Jubilee,fri,12,28685.0,139687.5
+Jubilee,fri,13,30627.5,149635.7
+Jubilee,fri,14,33295.0,161226.2
+Jubilee,fri,15,40240.9,192650.4
+Jubilee,fri,16,51739.0,251824.6
+Jubilee,fri,17,60628.5,305283.0
+Jubilee,fri,18,52920.6,274996.9
+Jubilee,fri,19,35657.5,188110.5
+Jubilee,fri,20,24858.3,130183.3
+Jubilee,fri,21,21455.9,112547.1
+Jubilee,fri,22,25138.9,132882.3
+Jubilee,fri,23,19870.1,114578.2
+Jubilee,fri,0,8642.9,55714.6
+Jubilee,fri,1,3601.3,25378.2
+Jubilee,fri,2,2346.8,17060.5
+Jubilee,fri,3,1495.8,11225.8
+Jubilee,fri,4,735.2,5821.4
+LO Liberty,fri,5,2.9,3.7
+LO Liberty,fri,6,95.8,128.7
+LO Liberty,fri,7,270.4,392.8
+LO Liberty,fri,8,260.7,404.9
+LO Liberty,fri,9,118.7,171.0
+LO Liberty,fri,10,102.3,147.0
+LO Liberty,fri,11,100.7,148.5
+LO Liberty,fri,12,98.8,147.9
+LO Liberty,fri,13,96.5,144.0
+LO Liberty,fri,14,124.9,196.5
+LO Liberty,fri,15,254.1,415.7
+LO Liberty,fri,16,267.7,412.9
+LO Liberty,fri,17,277.0,399.7
+LO Liberty,fri,18,201.4,293.6
+LO Liberty,fri,19,104.7,147.9
+LO Liberty,fri,20,53.4,77.0
+LO Liberty,fri,21,40.7,55.6
+LO Liberty,fri,22,7.7,10.0
+LO Liberty,fri,23,0.0,0.0
+LO Liberty,fri,0,0.0,0.0
+LO Liberty,fri,1,0.0,0.0
+LO Liberty,fri,2,0.0,0.0
+LO Liberty,fri,3,0.0,0.0
+LO Liberty,fri,4,0.0,0.0
+LO Lioness,fri,5,680.6,3800.3
+LO Lioness,fri,6,2299.3,14244.6
+LO Lioness,fri,7,3776.3,21887.8
+LO Lioness,fri,8,3814.1,23010.2
+LO Lioness,fri,9,2444.4,15626.8
+LO Lioness,fri,10,1954.6,12390.8
+LO Lioness,fri,11,1787.5,11299.0
+LO Lioness,fri,12,1925.1,12098.5
+LO Lioness,fri,13,2045.2,12718.0
+LO Lioness,fri,14,2506.4,14828.6
+LO Lioness,fri,15,3727.0,21006.4
+LO Lioness,fri,16,4330.6,26611.1
+LO Lioness,fri,17,4192.3,26793.7
+LO Lioness,fri,18,3242.7,21659.0
+LO Lioness,fri,19,2580.8,18146.4
+LO Lioness,fri,20,1846.8,13177.3
+LO Lioness,fri,21,1640.5,11391.2
+LO Lioness,fri,22,1486.7,10751.1
+LO Lioness,fri,23,1072.2,8339.7
+LO Lioness,fri,0,201.3,2165.0
+LO Lioness,fri,1,0.3,13.9
+LO Lioness,fri,2,0.0,0.0
+LO Lioness,fri,3,0.0,0.0
+LO Lioness,fri,4,0.0,0.0
+LO Mildmay,fri,5,800.1,2754.4
+LO Mildmay,fri,6,7189.7,36094.4
+LO Mildmay,fri,7,14669.6,72657.5
+LO Mildmay,fri,8,16843.4,83809.0
+LO Mildmay,fri,9,11870.7,60121.0
+LO Mildmay,fri,10,8340.6,42417.3
+LO Mildmay,fri,11,7522.8,36588.9
+LO Mildmay,fri,12,8034.1,38158.3
+LO Mildmay,fri,13,8807.5,41565.7
+LO Mildmay,fri,14,9932.5,45992.9
+LO Mildmay,fri,15,13519.6,60977.8
+LO Mildmay,fri,16,17909.5,83880.5
+LO Mildmay,fri,17,19501.2,95392.2
+LO Mildmay,fri,18,16658.1,84717.6
+LO Mildmay,fri,19,11660.0,59563.8
+LO Mildmay,fri,20,7768.0,39181.0
+LO Mildmay,fri,21,6330.1,31008.7
+LO Mildmay,fri,22,6437.7,32230.1
+LO Mildmay,fri,23,4652.6,24369.9
+LO Mildmay,fri,0,1031.9,5802.2
+LO Mildmay,fri,1,17.0,195.7
+LO Mildmay,fri,2,0.0,0.0
+LO Mildmay,fri,3,0.0,0.0
+LO Mildmay,fri,4,0.0,0.0
+LO Suffragette,fri,5,394.3,1251.0
+LO Suffragette,fri,6,2377.4,11171.5
+LO Suffragette,fri,7,4159.1,19633.0
+LO Suffragette,fri,8,4207.9,19612.1
+LO Suffragette,fri,9,2578.4,12181.9
+LO Suffragette,fri,10,1819.4,8165.8
+LO Suffragette,fri,11,1708.6,7431.5
+LO Suffragette,fri,12,1800.1,7865.4
+LO Suffragette,fri,13,1986.6,8650.3
+LO Suffragette,fri,14,2385.6,10277.3
+LO Suffragette,fri,15,3227.5,13524.1
+LO Suffragette,fri,16,4017.3,17807.2
+LO Suffragette,fri,17,4395.1,20118.5
+LO Suffragette,fri,18,3689.2,17404.5
+LO Suffragette,fri,19,2657.1,12615.0
+LO Suffragette,fri,20,1836.4,9174.2
+LO Suffragette,fri,21,1324.8,6585.8
+LO Suffragette,fri,22,1099.6,5416.4
+LO Suffragette,fri,23,748.2,3970.1
+LO Suffragette,fri,0,124.4,664.2
+LO Suffragette,fri,1,0.0,0.0
+LO Suffragette,fri,2,0.0,0.0
+LO Suffragette,fri,3,0.0,0.0
+LO Suffragette,fri,4,0.0,0.0
+LO Weaver,fri,5,1296.1,6383.5
+LO Weaver,fri,6,5106.4,27113.6
+LO Weaver,fri,7,9337.2,46012.8
+LO Weaver,fri,8,11013.1,52845.1
+LO Weaver,fri,9,7749.3,40215.6
+LO Weaver,fri,10,5025.0,26057.8
+LO Weaver,fri,11,4782.8,23913.2
+LO Weaver,fri,12,5114.3,25207.1
+LO Weaver,fri,13,5468.3,27238.4
+LO Weaver,fri,14,6165.1,30600.7
+LO Weaver,fri,15,8188.4,39960.0
+LO Weaver,fri,16,10910.7,55374.4
+LO Weaver,fri,17,12354.8,65342.8
+LO Weaver,fri,18,10700.7,56865.7
+LO Weaver,fri,19,7302.7,38702.2
+LO Weaver,fri,20,4704.7,24981.8
+LO Weaver,fri,21,3822.6,20089.2
+LO Weaver,fri,22,3695.3,19476.1
+LO Weaver,fri,23,2997.4,16802.0
+LO Weaver,fri,0,1235.6,7145.1
+LO Weaver,fri,1,206.8,995.5
+LO Weaver,fri,2,0.0,0.0
+LO Weaver,fri,3,0.0,0.0
+LO Weaver,fri,4,0.0,0.0
+LO Windrush,fri,5,1059.9,5176.1
+LO Windrush,fri,6,6070.0,34340.3
+LO Windrush,fri,7,12321.0,69059.7
+LO Windrush,fri,8,14712.1,83881.7
+LO Windrush,fri,9,11269.4,63605.5
+LO Windrush,fri,10,8060.0,44428.3
+LO Windrush,fri,11,7620.7,40701.2
+LO Windrush,fri,12,8219.8,43288.5
+LO Windrush,fri,13,8839.3,47156.7
+LO Windrush,fri,14,9517.3,50591.5
+LO Windrush,fri,15,11999.9,61854.1
+LO Windrush,fri,16,15750.2,82833.7
+LO Windrush,fri,17,18676.6,101648.7
+LO Windrush,fri,18,17768.8,100281.6
+LO Windrush,fri,19,13263.1,76250.8
+LO Windrush,fri,20,9249.4,52972.6
+LO Windrush,fri,21,7527.3,41772.4
+LO Windrush,fri,22,7802.9,42811.0
+LO Windrush,fri,23,7151.2,44071.2
+LO Windrush,fri,0,2927.8,19390.6
+LO Windrush,fri,1,1063.4,6260.8
+LO Windrush,fri,2,722.7,4414.1
+LO Windrush,fri,3,448.6,2900.9
+LO Windrush,fri,4,171.4,1213.8
+Metropolitan,fri,5,1872.4,8747.7
+Metropolitan,fri,6,7992.7,39723.9
+Metropolitan,fri,7,16446.3,81238.1
+Metropolitan,fri,8,20307.4,101011.7
+Metropolitan,fri,9,14616.7,75614.6
+Metropolitan,fri,10,10294.2,54583.1
+Metropolitan,fri,11,9703.4,50099.3
+Metropolitan,fri,12,10396.4,52942.1
+Metropolitan,fri,13,11185.7,57136.9
+Metropolitan,fri,14,12320.0,62455.8
+Metropolitan,fri,15,16495.7,80541.3
+Metropolitan,fri,16,21647.0,107735.2
+Metropolitan,fri,17,23716.2,124095.2
+Metropolitan,fri,18,19557.7,104641.4
+Metropolitan,fri,19,12561.0,65651.7
+Metropolitan,fri,20,8378.2,43866.1
+Metropolitan,fri,21,6917.1,35560.0
+Metropolitan,fri,22,7522.2,38280.1
+Metropolitan,fri,23,5382.9,31481.4
+Metropolitan,fri,0,1949.8,15131.9
+Metropolitan,fri,1,125.6,1944.3
+Metropolitan,fri,2,0.0,0.0
+Metropolitan,fri,3,0.0,0.0
+Metropolitan,fri,4,0.0,0.0
+Northern,fri,5,4289.3,25274.8
+Northern,fri,6,21153.3,127766.8
+Northern,fri,7,45540.4,269179.3
+Northern,fri,8,61601.4,363673.0
+Northern,fri,9,49645.9,288643.7
+Northern,fri,10,37879.8,206862.4
+Northern,fri,11,36522.2,192075.1
+Northern,fri,12,39654.6,205860.1
+Northern,fri,13,41985.2,219701.8
+Northern,fri,14,45150.6,235471.5
+Northern,fri,15,55427.9,285705.9
+Northern,fri,16,70568.6,368791.7
+Northern,fri,17,83762.0,456271.7
+Northern,fri,18,76669.4,433151.4
+Northern,fri,19,54335.7,307274.0
+Northern,fri,20,37939.5,210155.8
+Northern,fri,21,33970.6,181179.0
+Northern,fri,22,38229.9,202423.9
+Northern,fri,23,30930.7,175429.6
+Northern,fri,0,13868.8,89991.0
+Northern,fri,1,4445.9,33800.2
+Northern,fri,2,2807.9,21302.8
+Northern,fri,3,1685.6,13649.1
+Northern,fri,4,663.2,5812.2
+Piccadilly,fri,5,4024.8,22783.5
+Piccadilly,fri,6,13737.2,100651.7
+Piccadilly,fri,7,24661.5,180308.2
+Piccadilly,fri,8,30655.6,216746.6
+Piccadilly,fri,9,26171.8,187963.9
+Piccadilly,fri,10,22323.5,156474.1
+Piccadilly,fri,11,22488.7,150406.7
+Piccadilly,fri,12,23868.7,153252.4
+Piccadilly,fri,13,24580.7,155412.4
+Piccadilly,fri,14,27048.9,169700.4
+Piccadilly,fri,15,32345.2,200124.4
+Piccadilly,fri,16,38939.5,248613.1
+Piccadilly,fri,17,43079.5,285698.5
+Piccadilly,fri,18,37722.9,256980.2
+Piccadilly,fri,19,26857.7,184901.8
+Piccadilly,fri,20,19897.0,135009.7
+Piccadilly,fri,21,18319.1,121374.6
+Piccadilly,fri,22,18928.4,127771.8
+Piccadilly,fri,23,13574.4,101701.7
+Piccadilly,fri,0,6513.9,54362.9
+Piccadilly,fri,1,2639.7,22972.8
+Piccadilly,fri,2,1449.8,12004.9
+Piccadilly,fri,3,885.9,7336.1
+Piccadilly,fri,4,481.1,4136.6
+Victoria,fri,5,3761.0,15723.5
+Victoria,fri,6,18983.7,84294.3
+Victoria,fri,7,36230.5,161873.4
+Victoria,fri,8,46597.1,202141.9
+Victoria,fri,9,37997.7,163745.7
+Victoria,fri,10,29722.6,123477.9
+Victoria,fri,11,28441.9,115055.7
+Victoria,fri,12,29886.8,120068.6
+Victoria,fri,13,31270.7,126116.1
+Victoria,fri,14,33914.8,137118.9
+Victoria,fri,15,41583.1,166508.5
+Victoria,fri,16,54129.3,220034.2
+Victoria,fri,17,63010.0,263897.9
+Victoria,fri,18,57227.3,246906.1
+Victoria,fri,19,39778.0,174607.2
+Victoria,fri,20,27383.7,119753.6
+Victoria,fri,21,23241.4,100310.1
+Victoria,fri,22,24948.9,108364.6
+Victoria,fri,23,18561.3,86961.5
+Victoria,fri,0,7943.6,39684.4
+Victoria,fri,1,3324.7,17338.1
+Victoria,fri,2,2189.0,12010.6
+Victoria,fri,3,1424.5,8206.1
+Victoria,fri,4,640.8,3988.5
+Waterloo & City,fri,5,48.0,48.0
+Waterloo & City,fri,6,730.5,730.5
+Waterloo & City,fri,7,2011.0,2011.0
+Waterloo & City,fri,8,2944.4,2944.4
+Waterloo & City,fri,9,1844.8,1844.8
+Waterloo & City,fri,10,1015.9,1015.9
+Waterloo & City,fri,11,867.6,867.6
+Waterloo & City,fri,12,890.6,890.6
+Waterloo & City,fri,13,847.2,847.2
+Waterloo & City,fri,14,950.9,950.9
+Waterloo & City,fri,15,1306.0,1306.0
+Waterloo & City,fri,16,2053.7,2053.7
+Waterloo & City,fri,17,2769.8,2769.8
+Waterloo & City,fri,18,2213.7,2213.7
+Waterloo & City,fri,19,1249.9,1249.9
+Waterloo & City,fri,20,725.1,725.1
+Waterloo & City,fri,21,555.1,555.1
+Waterloo & City,fri,22,550.0,550.0
+Waterloo & City,fri,23,474.4,474.4
+Waterloo & City,fri,0,209.2,209.2
+Waterloo & City,fri,1,0.0,0.0
+Waterloo & City,fri,2,0.0,0.0
+Waterloo & City,fri,3,0.0,0.0
+Waterloo & City,fri,4,0.0,0.0
+Bakerloo,sat,5,523.5,2678.8
+Bakerloo,sat,6,2446.4,13418.7
+Bakerloo,sat,7,4401.7,22168.6
+Bakerloo,sat,8,7035.0,34110.4
+Bakerloo,sat,9,11136.4,52586.5
+Bakerloo,sat,10,14385.6,67845.9
+Bakerloo,sat,11,16909.4,78780.9
+Bakerloo,sat,12,18307.3,84162.5
+Bakerloo,sat,13,18947.2,86972.4
+Bakerloo,sat,14,18543.3,85171.4
+Bakerloo,sat,15,18935.2,86641.2
+Bakerloo,sat,16,21806.2,98613.4
+Bakerloo,sat,17,23451.7,105534.4
+Bakerloo,sat,18,21364.7,98035.5
+Bakerloo,sat,19,17089.6,80682.0
+Bakerloo,sat,20,13380.1,63975.7
+Bakerloo,sat,21,12073.9,56728.6
+Bakerloo,sat,22,12541.7,57283.3
+Bakerloo,sat,23,9153.2,44084.5
+Bakerloo,sat,0,3072.5,17088.1
+Bakerloo,sat,1,77.8,690.4
+Bakerloo,sat,2,0.0,0.0
+Bakerloo,sat,3,0.0,0.0
+Bakerloo,sat,4,0.0,0.0
+Central,sat,5,2813.9,16307.2
+Central,sat,6,9383.1,65972.1
+Central,sat,7,12847.7,92306.0
+Central,sat,8,16332.3,107235.8
+Central,sat,9,22588.0,142177.1
+Central,sat,10,28589.2,177425.1
+Central,sat,11,33580.3,208081.7
+Central,sat,12,37863.9,231977.5
+Central,sat,13,41666.7,255549.6
+Central,sat,14,41850.4,254828.9
+Central,sat,15,43590.9,261629.1
+Central,sat,16,46571.2,280605.2
+Central,sat,17,48002.2,295805.9
+Central,sat,18,43204.7,276194.7
+Central,sat,19,34141.0,219867.1
+Central,sat,20,26013.6,166140.8
+Central,sat,21,23281.8,148372.8
+Central,sat,22,23712.1,152411.7
+Central,sat,23,18371.4,128731.3
+Central,sat,0,9704.6,77214.6
+Central,sat,1,4890.6,39421.9
+Central,sat,2,3274.2,27384.0
+Central,sat,3,1978.8,17107.9
+Central,sat,4,1182.5,10024.4
+DLR,sat,5,1274.5,5273.2
+DLR,sat,6,3834.7,17523.6
+DLR,sat,7,5082.6,23613.1
+DLR,sat,8,7027.1,32082.6
+DLR,sat,9,10448.2,47518.4
+DLR,sat,10,12518.7,57291.3
+DLR,sat,11,14586.2,67079.5
+DLR,sat,12,16416.7,75438.4
+DLR,sat,13,17284.5,80104.8
+DLR,sat,14,17449.0,81137.9
+DLR,sat,15,16977.1,80424.9
+DLR,sat,16,18079.5,83503.2
+DLR,sat,17,18772.2,86273.3
+DLR,sat,18,16729.1,77806.0
+DLR,sat,19,14046.7,65589.0
+DLR,sat,20,10797.4,50071.8
+DLR,sat,21,10144.5,44175.6
+DLR,sat,22,9621.9,41556.2
+DLR,sat,23,7730.8,35492.5
+DLR,sat,0,3745.2,18993.2
+DLR,sat,1,302.6,1721.6
+DLR,sat,2,0.0,0.0
+DLR,sat,3,0.0,0.0
+DLR,sat,4,0.0,0.0
+District,sat,5,2457.5,15905.7
+District,sat,6,8443.7,63490.5
+District,sat,7,13231.3,99323.0
+District,sat,8,19144.8,130104.2
+District,sat,9,27353.2,176092.8
+District,sat,10,33456.2,217666.3
+District,sat,11,38246.2,252272.9
+District,sat,12,41630.5,272562.5
+District,sat,13,43625.6,287208.8
+District,sat,14,42599.7,280804.4
+District,sat,15,43539.2,284012.9
+District,sat,16,47487.8,306133.3
+District,sat,17,48861.7,320725.2
+District,sat,18,43752.5,300488.3
+District,sat,19,33078.2,229376.5
+District,sat,20,24132.7,165094.7
+District,sat,21,20949.7,143826.4
+District,sat,22,21688.1,151109.8
+District,sat,23,16713.5,126612.0
+District,sat,0,6790.3,60724.8
+District,sat,1,553.9,7559.4
+District,sat,2,0.0,7.8
+District,sat,3,0.0,0.0
+District,sat,4,10.4,22.0
+Elizabeth Line,sat,5,5398.8,25128.3
+Elizabeth Line,sat,6,16136.1,97278.1
+Elizabeth Line,sat,7,20228.6,128173.5
+Elizabeth Line,sat,8,24403.6,148582.0
+Elizabeth Line,sat,9,30008.1,180279.0
+Elizabeth Line,sat,10,34146.7,204280.6
+Elizabeth Line,sat,11,38347.9,226620.8
+Elizabeth Line,sat,12,42112.9,242706.9
+Elizabeth Line,sat,13,44867.8,258995.3
+Elizabeth Line,sat,14,43673.6,251220.4
+Elizabeth Line,sat,15,44945.4,254227.8
+Elizabeth Line,sat,16,48654.6,277967.7
+Elizabeth Line,sat,17,51321.4,295196.7
+Elizabeth Line,sat,18,47412.4,276899.1
+Elizabeth Line,sat,19,38412.2,226071.1
+Elizabeth Line,sat,20,31614.7,188090.0
+Elizabeth Line,sat,21,28475.1,168683.7
+Elizabeth Line,sat,22,26233.0,154951.1
+Elizabeth Line,sat,23,20034.0,127102.4
+Elizabeth Line,sat,0,6038.3,48975.2
+Elizabeth Line,sat,1,301.0,4117.4
+Elizabeth Line,sat,2,0.1,2.6
+Elizabeth Line,sat,3,0.0,0.0
+Elizabeth Line,sat,4,53.3,110.4
+H&C and Circle,sat,5,1931.1,11000.0
+H&C and Circle,sat,6,4594.9,28575.0
+H&C and Circle,sat,7,6396.0,38441.7
+H&C and Circle,sat,8,9916.8,57429.4
+H&C and Circle,sat,9,16635.8,96579.3
+H&C and Circle,sat,10,21653.6,126192.0
+H&C and Circle,sat,11,24537.2,142462.7
+H&C and Circle,sat,12,26028.7,150505.0
+H&C and Circle,sat,13,26737.5,155030.3
+H&C and Circle,sat,14,25991.1,150075.4
+H&C and Circle,sat,15,26035.1,149171.6
+H&C and Circle,sat,16,26872.5,155289.5
+H&C and Circle,sat,17,26575.2,157493.3
+H&C and Circle,sat,18,23935.3,145616.4
+H&C and Circle,sat,19,18490.6,113481.5
+H&C and Circle,sat,20,14310.7,85964.1
+H&C and Circle,sat,21,12252.8,72315.8
+H&C and Circle,sat,22,12670.2,75248.4
+H&C and Circle,sat,23,10683.1,65617.8
+H&C and Circle,sat,0,5698.7,38421.3
+H&C and Circle,sat,1,642.8,5634.0
+H&C and Circle,sat,2,0.0,0.0
+H&C and Circle,sat,3,0.0,0.0
+H&C and Circle,sat,4,1.1,1.8
+Jubilee,sat,5,3696.9,19594.0
+Jubilee,sat,6,10035.4,60265.0
+Jubilee,sat,7,13311.2,78339.9
+Jubilee,sat,8,17330.8,96692.2
+Jubilee,sat,9,23503.3,127701.4
+Jubilee,sat,10,28516.4,148868.7
+Jubilee,sat,11,34188.9,174716.7
+Jubilee,sat,12,38995.4,196439.6
+Jubilee,sat,13,41637.7,211058.0
+Jubilee,sat,14,41157.2,206496.7
+Jubilee,sat,15,41573.4,205579.1
+Jubilee,sat,16,45487.1,225568.1
+Jubilee,sat,17,48520.0,247779.9
+Jubilee,sat,18,45357.7,236034.9
+Jubilee,sat,19,36593.2,192917.6
+Jubilee,sat,20,27780.0,148465.4
+Jubilee,sat,21,24053.3,130546.7
+Jubilee,sat,22,27436.1,148223.4
+Jubilee,sat,23,23576.0,134872.8
+Jubilee,sat,0,10976.2,70969.4
+Jubilee,sat,1,4833.6,34464.2
+Jubilee,sat,2,2995.6,22883.9
+Jubilee,sat,3,1766.9,14086.8
+Jubilee,sat,4,1175.9,8763.6
+LO Liberty,sat,5,1.8,2.5
+LO Liberty,sat,6,16.2,23.6
+LO Liberty,sat,7,41.1,57.7
+LO Liberty,sat,8,68.8,96.8
+LO Liberty,sat,9,94.8,130.0
+LO Liberty,sat,10,113.2,162.4
+LO Liberty,sat,11,118.4,176.7
+LO Liberty,sat,12,148.1,223.0
+LO Liberty,sat,13,143.1,219.2
+LO Liberty,sat,14,132.5,201.6
+LO Liberty,sat,15,132.5,197.6
+LO Liberty,sat,16,129.4,191.4
+LO Liberty,sat,17,143.4,208.5
+LO Liberty,sat,18,114.7,175.6
+LO Liberty,sat,19,78.2,118.2
+LO Liberty,sat,20,53.5,75.6
+LO Liberty,sat,21,39.4,57.1
+LO Liberty,sat,22,5.7,7.6
+LO Liberty,sat,23,0.0,0.0
+LO Liberty,sat,0,0.0,0.0
+LO Liberty,sat,1,0.0,0.0
+LO Liberty,sat,2,0.0,0.0
+LO Liberty,sat,3,0.0,0.0
+LO Liberty,sat,4,0.0,0.0
+LO Lioness,sat,5,255.9,1417.9
+LO Lioness,sat,6,898.6,5321.0
+LO Lioness,sat,7,1276.2,8017.2
+LO Lioness,sat,8,1526.0,9312.1
+LO Lioness,sat,9,1731.6,10536.7
+LO Lioness,sat,10,1984.6,12158.7
+LO Lioness,sat,11,2159.0,13694.6
+LO Lioness,sat,12,2323.0,14624.8
+LO Lioness,sat,13,2611.9,16222.8
+LO Lioness,sat,14,2634.4,16846.9
+LO Lioness,sat,15,2609.5,17027.5
+LO Lioness,sat,16,2833.8,18206.6
+LO Lioness,sat,17,2897.7,18741.6
+LO Lioness,sat,18,2746.4,17732.7
+LO Lioness,sat,19,2598.9,17297.2
+LO Lioness,sat,20,2132.0,16508.4
+LO Lioness,sat,21,1617.1,12892.7
+LO Lioness,sat,22,1487.7,11267.8
+LO Lioness,sat,23,1259.9,9313.7
+LO Lioness,sat,0,307.4,3353.6
+LO Lioness,sat,1,0.3,29.6
+LO Lioness,sat,2,0.0,0.0
+LO Lioness,sat,3,0.0,0.0
+LO Lioness,sat,4,0.0,0.0
+LO Mildmay,sat,5,351.6,1315.8
+LO Mildmay,sat,6,2537.7,13495.4
+LO Mildmay,sat,7,4543.7,24197.9
+LO Mildmay,sat,8,6016.6,30684.5
+LO Mildmay,sat,9,8058.2,40376.0
+LO Mildmay,sat,10,9757.3,47975.1
+LO Mildmay,sat,11,11450.4,56182.0
+LO Mildmay,sat,12,12999.1,64027.5
+LO Mildmay,sat,13,14032.1,69737.4
+LO Mildmay,sat,14,13788.0,67314.1
+LO Mildmay,sat,15,14165.4,68359.1
+LO Mildmay,sat,16,14807.8,72089.1
+LO Mildmay,sat,17,14939.8,74607.1
+LO Mildmay,sat,18,13894.4,70359.6
+LO Mildmay,sat,19,11501.8,59629.3
+LO Mildmay,sat,20,8732.0,45011.0
+LO Mildmay,sat,21,7201.4,36199.1
+LO Mildmay,sat,22,7281.2,37044.8
+LO Mildmay,sat,23,5793.1,30938.6
+LO Mildmay,sat,0,1416.9,8684.0
+LO Mildmay,sat,1,16.2,296.2
+LO Mildmay,sat,2,0.0,0.0
+LO Mildmay,sat,3,0.0,0.0
+LO Mildmay,sat,4,0.0,0.0
+LO Suffragette,sat,5,85.2,237.0
+LO Suffragette,sat,6,976.9,4440.5
+LO Suffragette,sat,7,1481.3,7717.3
+LO Suffragette,sat,8,1728.3,8476.8
+LO Suffragette,sat,9,1902.1,8759.4
+LO Suffragette,sat,10,2007.0,8706.1
+LO Suffragette,sat,11,2168.2,9272.9
+LO Suffragette,sat,12,2387.7,10010.6
+LO Suffragette,sat,13,2659.9,11339.7
+LO Suffragette,sat,14,2671.3,11552.3
+LO Suffragette,sat,15,2591.0,11257.1
+LO Suffragette,sat,16,2644.8,11389.3
+LO Suffragette,sat,17,2795.0,12158.6
+LO Suffragette,sat,18,2641.3,11858.8
+LO Suffragette,sat,19,2348.1,10973.9
+LO Suffragette,sat,20,1744.3,8626.9
+LO Suffragette,sat,21,1270.0,6366.6
+LO Suffragette,sat,22,1101.2,5361.3
+LO Suffragette,sat,23,839.8,4181.3
+LO Suffragette,sat,0,141.1,741.2
+LO Suffragette,sat,1,0.0,0.0
+LO Suffragette,sat,2,0.0,0.0
+LO Suffragette,sat,3,0.0,0.0
+LO Suffragette,sat,4,0.0,0.0
+LO Weaver,sat,5,517.3,2344.4
+LO Weaver,sat,6,1863.5,9785.3
+LO Weaver,sat,7,2690.4,14359.0
+LO Weaver,sat,8,3781.6,18748.8
+LO Weaver,sat,9,4855.1,23728.9
+LO Weaver,sat,10,5483.3,26011.4
+LO Weaver,sat,11,6310.1,29963.7
+LO Weaver,sat,12,6924.8,32792.6
+LO Weaver,sat,13,7616.5,36290.1
+LO Weaver,sat,14,7699.6,37101.9
+LO Weaver,sat,15,7529.9,36692.6
+LO Weaver,sat,16,7904.9,38449.5
+LO Weaver,sat,17,8281.2,41133.5
+LO Weaver,sat,18,7823.1,39558.4
+LO Weaver,sat,19,6315.8,32402.1
+LO Weaver,sat,20,4726.4,24018.6
+LO Weaver,sat,21,3769.6,18929.0
+LO Weaver,sat,22,3973.2,19515.7
+LO Weaver,sat,23,3783.3,19809.0
+LO Weaver,sat,0,1618.9,8906.8
+LO Weaver,sat,1,201.8,922.6
+LO Weaver,sat,2,0.0,0.0
+LO Weaver,sat,3,0.0,0.0
+LO Weaver,sat,4,0.0,0.0
+LO Windrush,sat,5,759.2,3688.1
+LO Windrush,sat,6,2640.4,15449.4
+LO Windrush,sat,7,4002.4,22911.6
+LO Windrush,sat,8,6025.1,32485.9
+LO Windrush,sat,9,8163.1,43540.1
+LO Windrush,sat,10,9359.4,48403.2
+LO Windrush,sat,11,10839.7,55111.4
+LO Windrush,sat,12,12089.1,62188.2
+LO Windrush,sat,13,12846.4,66865.1
+LO Windrush,sat,14,12843.5,67281.1
+LO Windrush,sat,15,12889.0,66959.3
+LO Windrush,sat,16,13668.2,70976.4
+LO Windrush,sat,17,14522.8,76282.1
+LO Windrush,sat,18,14409.1,77454.5
+LO Windrush,sat,19,12228.6,66353.0
+LO Windrush,sat,20,9240.6,49598.9
+LO Windrush,sat,21,7579.8,39815.9
+LO Windrush,sat,22,7792.4,40475.5
+LO Windrush,sat,23,7165.7,41568.0
+LO Windrush,sat,0,3099.8,20148.5
+LO Windrush,sat,1,1197.1,6911.0
+LO Windrush,sat,2,831.7,4978.8
+LO Windrush,sat,3,509.5,3162.7
+LO Windrush,sat,4,237.1,1523.0
+Metropolitan,sat,5,895.4,3943.1
+Metropolitan,sat,6,3227.2,15360.6
+Metropolitan,sat,7,4857.3,23601.4
+Metropolitan,sat,8,6693.5,31401.6
+Metropolitan,sat,9,8752.6,42402.0
+Metropolitan,sat,10,9947.1,51573.9
+Metropolitan,sat,11,11436.7,61338.6
+Metropolitan,sat,12,12606.1,68634.7
+Metropolitan,sat,13,12995.0,71280.6
+Metropolitan,sat,14,12441.1,66683.0
+Metropolitan,sat,15,12675.0,67527.6
+Metropolitan,sat,16,14176.3,73019.7
+Metropolitan,sat,17,15022.4,77583.6
+Metropolitan,sat,18,14131.1,72810.1
+Metropolitan,sat,19,10815.1,55350.9
+Metropolitan,sat,20,8005.3,42625.7
+Metropolitan,sat,21,7337.2,39270.6
+Metropolitan,sat,22,7734.1,42189.6
+Metropolitan,sat,23,6104.7,36451.5
+Metropolitan,sat,0,2321.9,18410.1
+Metropolitan,sat,1,155.4,2628.1
+Metropolitan,sat,2,0.0,0.0
+Metropolitan,sat,3,0.0,0.0
+Metropolitan,sat,4,0.0,0.0
+Northern,sat,5,2753.2,15646.5
+Northern,sat,6,9756.2,60407.1
+Northern,sat,7,15491.0,94358.2
+Northern,sat,8,22726.2,130617.4
+Northern,sat,9,34277.5,187475.8
+Northern,sat,10,43716.5,232445.5
+Northern,sat,11,52481.9,277106.2
+Northern,sat,12,59029.2,310812.7
+Northern,sat,13,62247.8,329500.9
+Northern,sat,14,61215.2,322904.9
+Northern,sat,15,61586.4,320844.9
+Northern,sat,16,65677.5,338593.9
+Northern,sat,17,69628.6,367964.8
+Northern,sat,18,66164.0,359416.7
+Northern,sat,19,54190.6,298260.6
+Northern,sat,20,41212.5,225330.0
+Northern,sat,21,36762.4,196640.8
+Northern,sat,22,40854.0,216257.1
+Northern,sat,23,35544.7,199518.8
+Northern,sat,0,17700.8,114912.7
+Northern,sat,1,6475.2,49471.8
+Northern,sat,2,4340.2,33420.4
+Northern,sat,3,2628.0,21389.3
+Northern,sat,4,1389.8,11181.6
+Piccadilly,sat,5,2704.6,14451.9
+Piccadilly,sat,6,6990.0,52385.3
+Piccadilly,sat,7,9648.9,75451.2
+Piccadilly,sat,8,12947.8,94145.4
+Piccadilly,sat,9,18395.7,124500.7
+Piccadilly,sat,10,23005.4,149824.8
+Piccadilly,sat,11,27225.5,173260.2
+Piccadilly,sat,12,30542.8,189980.5
+Piccadilly,sat,13,31936.0,195698.7
+Piccadilly,sat,14,31730.3,192448.4
+Piccadilly,sat,15,32547.1,195780.3
+Piccadilly,sat,16,35031.1,211127.2
+Piccadilly,sat,17,36088.6,222199.9
+Piccadilly,sat,18,32381.2,204594.7
+Piccadilly,sat,19,25954.9,166336.7
+Piccadilly,sat,20,19495.1,125234.9
+Piccadilly,sat,21,17660.8,111821.8
+Piccadilly,sat,22,18387.9,119054.6
+Piccadilly,sat,23,14414.5,103664.7
+Piccadilly,sat,0,7205.6,58128.5
+Piccadilly,sat,1,3420.8,28428.6
+Piccadilly,sat,2,2135.8,17745.7
+Piccadilly,sat,3,1364.9,11503.8
+Piccadilly,sat,4,1034.6,8294.9
+Victoria,sat,5,2787.7,12000.3
+Victoria,sat,6,9449.3,44375.0
+Victoria,sat,7,14255.6,67189.7
+Victoria,sat,8,20107.1,89313.1
+Victoria,sat,9,28812.4,123672.8
+Victoria,sat,10,35374.5,149375.9
+Victoria,sat,11,40896.6,171301.5
+Victoria,sat,12,44319.8,185148.2
+Victoria,sat,13,46254.2,194657.5
+Victoria,sat,14,44845.8,189756.6
+Victoria,sat,15,45639.5,191191.5
+Victoria,sat,16,49764.6,205621.9
+Victoria,sat,17,52745.5,219455.8
+Victoria,sat,18,49231.8,209563.9
+Victoria,sat,19,39553.1,172417.6
+Victoria,sat,20,28952.2,127270.4
+Victoria,sat,21,25035.2,108814.0
+Victoria,sat,22,28043.5,123702.0
+Victoria,sat,23,23345.7,112942.5
+Victoria,sat,0,10676.9,55731.3
+Victoria,sat,1,4635.9,24916.6
+Victoria,sat,2,2927.2,16119.7
+Victoria,sat,3,1872.9,10370.5
+Victoria,sat,4,1129.8,5841.0
+Bakerloo,sun,5,0.0,0.0
+Bakerloo,sun,6,137.1,524.7
+Bakerloo,sun,7,2099.1,11077.9
+Bakerloo,sun,8,4662.9,24084.2
+Bakerloo,sun,9,7628.1,38155.0
+Bakerloo,sun,10,10515.5,50977.0
+Bakerloo,sun,11,12719.3,61200.9
+Bakerloo,sun,12,13910.3,65522.7
+Bakerloo,sun,13,14342.9,67860.8
+Bakerloo,sun,14,14390.3,67737.0
+Bakerloo,sun,15,14901.4,69477.9
+Bakerloo,sun,16,15765.4,73339.6
+Bakerloo,sun,17,16191.4,75758.4
+Bakerloo,sun,18,14705.3,70655.0
+Bakerloo,sun,19,11147.4,54528.1
+Bakerloo,sun,20,8391.1,41031.1
+Bakerloo,sun,21,6624.3,32690.0
+Bakerloo,sun,22,5431.1,27031.2
+Bakerloo,sun,23,2570.1,14344.4
+Bakerloo,sun,0,183.9,1230.3
+Bakerloo,sun,1,0.0,0.3
+Bakerloo,sun,2,0.0,0.0
+Bakerloo,sun,3,0.0,0.0
+Bakerloo,sun,4,0.0,0.0
+Central,sun,5,2228.0,15119.7
+Central,sun,6,6272.2,46582.3
+Central,sun,7,9522.9,72342.8
+Central,sun,8,11694.6,81234.0
+Central,sun,9,16793.1,108798.7
+Central,sun,10,21704.9,134581.6
+Central,sun,11,25869.6,157361.1
+Central,sun,12,28222.4,169171.1
+Central,sun,13,30035.2,177278.5
+Central,sun,14,30524.1,178269.5
+Central,sun,15,31299.1,182172.6
+Central,sun,16,31386.8,186553.4
+Central,sun,17,30222.0,186679.5
+Central,sun,18,27230.2,176304.9
+Central,sun,19,20033.2,133448.3
+Central,sun,20,14754.5,97851.8
+Central,sun,21,11736.7,77837.1
+Central,sun,22,10625.5,71554.4
+Central,sun,23,6555.7,50867.1
+Central,sun,0,636.1,7219.1
+Central,sun,1,0.0,0.0
+Central,sun,2,0.0,0.1
+Central,sun,3,2.3,5.9
+Central,sun,4,65.8,179.2
+DLR,sun,5,0.0,0.0
+DLR,sun,6,675.8,2627.6
+DLR,sun,7,3331.6,15977.8
+DLR,sun,8,5060.6,24137.5
+DLR,sun,9,7944.8,36695.0
+DLR,sun,10,10978.9,50682.1
+DLR,sun,11,13234.3,61157.8
+DLR,sun,12,14419.0,67200.5
+DLR,sun,13,14814.1,70557.5
+DLR,sun,14,15494.9,72752.0
+DLR,sun,15,16035.7,74844.0
+DLR,sun,16,16081.2,76978.5
+DLR,sun,17,16046.2,76566.9
+DLR,sun,18,13852.1,67517.8
+DLR,sun,19,11004.3,51412.2
+DLR,sun,20,8803.7,39526.2
+DLR,sun,21,6562.5,30999.6
+DLR,sun,22,5715.2,27152.5
+DLR,sun,23,3439.0,17125.2
+DLR,sun,0,263.1,1561.3
+DLR,sun,1,0.0,0.0
+DLR,sun,2,0.0,0.0
+DLR,sun,3,0.0,0.0
+DLR,sun,4,0.0,0.0
+District,sun,5,525.9,2530.3
+District,sun,6,3399.3,22933.1
+District,sun,7,8942.2,69042.3
+District,sun,8,14248.3,104418.1
+District,sun,9,21385.8,146273.2
+District,sun,10,27860.5,188105.6
+District,sun,11,31861.1,215613.5
+District,sun,12,33407.1,225664.7
+District,sun,13,34506.9,228811.5
+District,sun,14,34296.2,226087.1
+District,sun,15,34537.5,228642.3
+District,sun,16,35599.6,239904.2
+District,sun,17,34235.9,239626.3
+District,sun,18,29844.8,216028.3
+District,sun,19,22033.0,161659.7
+District,sun,20,16529.5,119126.5
+District,sun,21,13101.5,95596.2
+District,sun,22,10988.2,82405.5
+District,sun,23,6854.6,58334.4
+District,sun,0,1041.3,12480.1
+District,sun,1,2.9,126.8
+District,sun,2,0.0,0.0
+District,sun,3,0.0,0.0
+District,sun,4,0.0,0.0
+Elizabeth Line,sun,5,644.8,2264.2
+Elizabeth Line,sun,6,4046.3,17549.3
+Elizabeth Line,sun,7,9753.6,50915.8
+Elizabeth Line,sun,8,15647.4,99855.1
+Elizabeth Line,sun,9,20374.6,126626.9
+Elizabeth Line,sun,10,25991.1,155303.2
+Elizabeth Line,sun,11,30614.9,179874.3
+Elizabeth Line,sun,12,33088.5,189174.5
+Elizabeth Line,sun,13,34547.8,195417.8
+Elizabeth Line,sun,14,34703.9,194864.3
+Elizabeth Line,sun,15,35715.2,200665.6
+Elizabeth Line,sun,16,37285.6,214216.7
+Elizabeth Line,sun,17,37714.6,221752.0
+Elizabeth Line,sun,18,34755.0,209037.0
+Elizabeth Line,sun,19,27665.1,171573.1
+Elizabeth Line,sun,20,22410.8,140449.7
+Elizabeth Line,sun,21,18049.6,116050.3
+Elizabeth Line,sun,22,12323.3,80961.0
+Elizabeth Line,sun,23,3966.4,27517.4
+Elizabeth Line,sun,0,923.9,5857.8
+Elizabeth Line,sun,1,245.8,2028.1
+Elizabeth Line,sun,2,0.0,0.2
+Elizabeth Line,sun,3,0.0,0.0
+Elizabeth Line,sun,4,0.0,0.0
+H&C and Circle,sun,5,33.7,45.9
+H&C and Circle,sun,6,2229.8,13107.4
+H&C and Circle,sun,7,6006.9,37586.2
+H&C and Circle,sun,8,7841.0,45642.2
+H&C and Circle,sun,9,12472.0,72356.7
+H&C and Circle,sun,10,16477.3,96371.2
+H&C and Circle,sun,11,18914.6,110580.2
+H&C and Circle,sun,12,19611.1,114062.2
+H&C and Circle,sun,13,20179.6,116695.0
+H&C and Circle,sun,14,20361.7,117296.7
+H&C and Circle,sun,15,20605.6,118917.3
+H&C and Circle,sun,16,20852.8,121922.9
+H&C and Circle,sun,17,19635.2,117606.1
+H&C and Circle,sun,18,17166.6,104598.8
+H&C and Circle,sun,19,12983.0,79643.6
+H&C and Circle,sun,20,9712.0,58939.9
+H&C and Circle,sun,21,7847.4,47837.3
+H&C and Circle,sun,22,7261.5,44005.8
+H&C and Circle,sun,23,5768.5,37344.4
+H&C and Circle,sun,0,1617.0,14409.8
+H&C and Circle,sun,1,23.6,538.3
+H&C and Circle,sun,2,0.0,0.0
+H&C and Circle,sun,3,0.0,0.0
+H&C and Circle,sun,4,0.0,0.0
+Jubilee,sun,5,2447.8,14540.2
+Jubilee,sun,6,6191.0,42373.0
+Jubilee,sun,7,9145.6,58780.1
+Jubilee,sun,8,12965.6,75624.7
+Jubilee,sun,9,18492.0,103628.6
+Jubilee,sun,10,23661.7,127738.9
+Jubilee,sun,11,28336.8,150086.8
+Jubilee,sun,12,30946.5,159714.0
+Jubilee,sun,13,32564.5,165474.0
+Jubilee,sun,14,32384.3,163749.9
+Jubilee,sun,15,33407.4,169237.8
+Jubilee,sun,16,34312.2,176688.7
+Jubilee,sun,17,34086.3,179934.1
+Jubilee,sun,18,31210.0,170314.7
+Jubilee,sun,19,23468.4,131141.9
+Jubilee,sun,20,17137.9,98000.4
+Jubilee,sun,21,13642.1,77584.5
+Jubilee,sun,22,15941.3,88317.6
+Jubilee,sun,23,10826.5,70292.7
+Jubilee,sun,0,1353.2,11427.4
+Jubilee,sun,1,0.1,2.2
+Jubilee,sun,2,0.3,1.3
+Jubilee,sun,3,2.5,16.1
+Jubilee,sun,4,169.3,631.4
+LO Liberty,sun,5,0.0,0.0
+LO Liberty,sun,6,0.0,0.0
+LO Liberty,sun,7,0.0,0.0
+LO Liberty,sun,8,23.0,31.6
+LO Liberty,sun,9,55.4,82.3
+LO Liberty,sun,10,57.5,87.4
+LO Liberty,sun,11,63.6,91.7
+LO Liberty,sun,12,54.8,79.8
+LO Liberty,sun,13,65.1,90.1
+LO Liberty,sun,14,60.7,88.8
+LO Liberty,sun,15,53.3,79.8
+LO Liberty,sun,16,55.9,84.0
+LO Liberty,sun,17,58.2,90.6
+LO Liberty,sun,18,43.9,68.2
+LO Liberty,sun,19,34.3,49.2
+LO Liberty,sun,20,5.6,8.4
+LO Liberty,sun,21,0.0,0.0
+LO Liberty,sun,22,0.0,0.0
+LO Liberty,sun,23,0.0,0.0
+LO Liberty,sun,0,0.0,0.0
+LO Liberty,sun,1,0.0,0.0
+LO Liberty,sun,2,0.0,0.0
+LO Liberty,sun,3,0.0,0.0
+LO Liberty,sun,4,0.0,0.0
+LO Lioness,sun,5,0.0,0.0
+LO Lioness,sun,6,177.8,1020.8
+LO Lioness,sun,7,600.0,4463.0
+LO Lioness,sun,8,768.0,5355.3
+LO Lioness,sun,9,1254.4,8490.0
+LO Lioness,sun,10,1647.3,11643.7
+LO Lioness,sun,11,1717.4,12076.4
+LO Lioness,sun,12,1808.4,11670.8
+LO Lioness,sun,13,2087.4,13995.2
+LO Lioness,sun,14,2006.3,13826.2
+LO Lioness,sun,15,1971.4,13221.2
+LO Lioness,sun,16,1997.3,13376.3
+LO Lioness,sun,17,2021.9,13654.8
+LO Lioness,sun,18,1856.1,12823.1
+LO Lioness,sun,19,1685.9,12440.9
+LO Lioness,sun,20,1451.1,11320.7
+LO Lioness,sun,21,1171.6,9426.4
+LO Lioness,sun,22,989.5,7870.2
+LO Lioness,sun,23,532.4,4550.9
+LO Lioness,sun,0,78.0,1008.4
+LO Lioness,sun,1,0.1,3.6
+LO Lioness,sun,2,0.0,0.0
+LO Lioness,sun,3,0.0,0.0
+LO Lioness,sun,4,0.0,0.0
+LO Mildmay,sun,5,0.0,0.0
+LO Mildmay,sun,6,0.0,0.0
+LO Mildmay,sun,7,5.0,5.0
+LO Mildmay,sun,8,890.4,2731.8
+LO Mildmay,sun,9,4767.7,23683.8
+LO Mildmay,sun,10,7110.7,39034.3
+LO Mildmay,sun,11,8851.8,47100.2
+LO Mildmay,sun,12,10051.9,53352.5
+LO Mildmay,sun,13,10663.0,55413.7
+LO Mildmay,sun,14,10645.0,54238.9
+LO Mildmay,sun,15,10740.0,55071.9
+LO Mildmay,sun,16,10757.1,56730.4
+LO Mildmay,sun,17,10487.6,56715.1
+LO Mildmay,sun,18,9193.9,51170.6
+LO Mildmay,sun,19,7306.1,42465.6
+LO Mildmay,sun,20,5263.9,31589.2
+LO Mildmay,sun,21,3819.9,21331.8
+LO Mildmay,sun,22,3041.1,16483.1
+LO Mildmay,sun,23,1299.3,7680.2
+LO Mildmay,sun,0,96.4,684.5
+LO Mildmay,sun,1,2.1,43.3
+LO Mildmay,sun,2,0.0,0.0
+LO Mildmay,sun,3,0.0,0.0
+LO Mildmay,sun,4,0.0,0.0
+LO Suffragette,sun,5,0.0,0.0
+LO Suffragette,sun,6,0.0,0.0
+LO Suffragette,sun,7,0.0,0.0
+LO Suffragette,sun,8,261.0,903.0
+LO Suffragette,sun,9,1314.3,5906.2
+LO Suffragette,sun,10,1664.9,7599.3
+LO Suffragette,sun,11,1806.1,7778.9
+LO Suffragette,sun,12,2023.5,8537.3
+LO Suffragette,sun,13,2122.9,8980.4
+LO Suffragette,sun,14,2018.7,8599.2
+LO Suffragette,sun,15,2010.0,8562.3
+LO Suffragette,sun,16,2068.3,8986.8
+LO Suffragette,sun,17,2064.6,9276.4
+LO Suffragette,sun,18,1910.4,8911.0
+LO Suffragette,sun,19,1717.7,8411.6
+LO Suffragette,sun,20,1330.3,6979.0
+LO Suffragette,sun,21,915.5,4976.2
+LO Suffragette,sun,22,661.4,3657.3
+LO Suffragette,sun,23,291.0,1859.9
+LO Suffragette,sun,0,13.3,121.8
+LO Suffragette,sun,1,0.0,0.0
+LO Suffragette,sun,2,0.0,0.0
+LO Suffragette,sun,3,0.0,0.0
+LO Suffragette,sun,4,0.0,0.0
+LO Weaver,sun,5,0.0,0.0
+LO Weaver,sun,6,154.0,554.6
+LO Weaver,sun,7,1120.3,5518.9
+LO Weaver,sun,8,2669.8,14764.0
+LO Weaver,sun,9,3953.5,21122.2
+LO Weaver,sun,10,5185.6,27196.5
+LO Weaver,sun,11,6188.8,32972.4
+LO Weaver,sun,12,6630.7,35508.7
+LO Weaver,sun,13,6789.0,35308.0
+LO Weaver,sun,14,6481.1,33434.2
+LO Weaver,sun,15,6285.5,32658.5
+LO Weaver,sun,16,6324.4,33005.3
+LO Weaver,sun,17,6101.6,32084.2
+LO Weaver,sun,18,5480.0,29194.8
+LO Weaver,sun,19,4468.4,24553.9
+LO Weaver,sun,20,3266.8,18365.3
+LO Weaver,sun,21,2478.1,13842.1
+LO Weaver,sun,22,1992.5,11103.9
+LO Weaver,sun,23,1198.5,7172.7
+LO Weaver,sun,0,240.3,1440.8
+LO Weaver,sun,1,17.7,90.8
+LO Weaver,sun,2,0.0,0.0
+LO Weaver,sun,3,0.0,0.0
+LO Weaver,sun,4,0.0,0.0
+LO Windrush,sun,5,276.8,1434.9
+LO Windrush,sun,6,844.3,4151.7
+LO Windrush,sun,7,2077.7,11536.4
+LO Windrush,sun,8,3865.0,22110.7
+LO Windrush,sun,9,5724.1,31049.3
+LO Windrush,sun,10,7625.9,39485.9
+LO Windrush,sun,11,9312.6,48283.1
+LO Windrush,sun,12,10422.8,54652.5
+LO Windrush,sun,13,11021.3,59055.7
+LO Windrush,sun,14,10740.0,57231.0
+LO Windrush,sun,15,10669.4,56635.0
+LO Windrush,sun,16,10978.2,58762.1
+LO Windrush,sun,17,10658.6,58896.2
+LO Windrush,sun,18,9732.3,54549.9
+LO Windrush,sun,19,7929.8,46088.6
+LO Windrush,sun,20,6115.4,36844.4
+LO Windrush,sun,21,4915.5,29746.4
+LO Windrush,sun,22,4112.8,24923.9
+LO Windrush,sun,23,2001.0,13438.2
+LO Windrush,sun,0,162.7,1483.9
+LO Windrush,sun,1,4.8,39.5
+LO Windrush,sun,2,1.0,6.4
+LO Windrush,sun,3,0.8,3.9
+LO Windrush,sun,4,4.1,18.4
+Metropolitan,sun,5,0.0,0.0
+Metropolitan,sun,6,655.8,2940.1
+Metropolitan,sun,7,2661.7,14631.3
+Metropolitan,sun,8,4471.7,24231.7
+Metropolitan,sun,9,6382.3,33315.7
+Metropolitan,sun,10,7884.7,41814.5
+Metropolitan,sun,11,9168.6,49322.1
+Metropolitan,sun,12,9746.6,52716.1
+Metropolitan,sun,13,9846.1,52859.6
+Metropolitan,sun,14,9631.7,51286.0
+Metropolitan,sun,15,9843.2,52180.8
+Metropolitan,sun,16,10090.5,53867.7
+Metropolitan,sun,17,9739.2,53498.7
+Metropolitan,sun,18,8760.8,49576.5
+Metropolitan,sun,19,7246.5,40629.2
+Metropolitan,sun,20,5939.4,33636.5
+Metropolitan,sun,21,4586.1,26156.9
+Metropolitan,sun,22,3565.5,19784.4
+Metropolitan,sun,23,2120.0,12686.9
+Metropolitan,sun,0,411.4,3632.4
+Metropolitan,sun,1,3.7,123.8
+Metropolitan,sun,2,0.0,0.0
+Metropolitan,sun,3,0.0,0.0
+Metropolitan,sun,4,0.0,0.0
+Northern,sun,5,1606.1,11014.3
+Northern,sun,6,3808.6,28279.3
+Northern,sun,7,9006.5,57290.9
+Northern,sun,8,16148.1,93278.8
+Northern,sun,9,25297.4,140298.6
+Northern,sun,10,34299.6,187902.6
+Northern,sun,11,42650.0,231467.3
+Northern,sun,12,47911.0,258870.2
+Northern,sun,13,50367.5,272542.2
+Northern,sun,14,49593.0,266028.1
+Northern,sun,15,49527.9,264533.2
+Northern,sun,16,50360.1,272316.7
+Northern,sun,17,49516.1,273951.0
+Northern,sun,18,44425.2,249600.0
+Northern,sun,19,33905.1,193807.6
+Northern,sun,20,25263.0,143777.9
+Northern,sun,21,20737.6,117039.1
+Northern,sun,22,18981.1,105653.4
+Northern,sun,23,11179.4,69693.1
+Northern,sun,0,900.1,8379.8
+Northern,sun,1,0.0,0.0
+Northern,sun,2,0.6,1.5
+Northern,sun,3,22.9,106.9
+Northern,sun,4,39.7,162.6
+Piccadilly,sun,5,2257.0,14641.0
+Piccadilly,sun,6,4780.7,39923.1
+Piccadilly,sun,7,7332.4,59466.1
+Piccadilly,sun,8,9999.4,76988.6
+Piccadilly,sun,9,14492.7,103019.6
+Piccadilly,sun,10,18001.9,123373.6
+Piccadilly,sun,11,20710.6,135690.1
+Piccadilly,sun,12,22956.6,146964.0
+Piccadilly,sun,13,24551.1,154495.4
+Piccadilly,sun,14,24928.2,158220.8
+Piccadilly,sun,15,25362.2,161379.7
+Piccadilly,sun,16,25574.0,166868.2
+Piccadilly,sun,17,25194.2,168842.7
+Piccadilly,sun,18,22811.8,156819.1
+Piccadilly,sun,19,16579.1,119754.5
+Piccadilly,sun,20,12622.2,90902.5
+Piccadilly,sun,21,10741.2,77696.2
+Piccadilly,sun,22,9506.4,71139.1
+Piccadilly,sun,23,5089.4,45176.3
+Piccadilly,sun,0,658.8,7984.7
+Piccadilly,sun,1,3.3,70.4
+Piccadilly,sun,2,0.0,0.1
+Piccadilly,sun,3,1.0,7.4
+Piccadilly,sun,4,167.6,545.0
+Victoria,sun,5,1954.1,9032.3
+Victoria,sun,6,4579.4,21692.1
+Victoria,sun,7,8930.0,41017.3
+Victoria,sun,8,14809.5,67343.3
+Victoria,sun,9,21854.3,97370.9
+Victoria,sun,10,28175.2,121111.1
+Victoria,sun,11,33688.3,143652.0
+Victoria,sun,12,36981.3,157046.8
+Victoria,sun,13,38302.0,162120.4
+Victoria,sun,14,37220.2,157015.2
+Victoria,sun,15,37688.9,158288.4
+Victoria,sun,16,38787.2,163448.1
+Victoria,sun,17,38705.7,166695.9
+Victoria,sun,18,35017.3,154798.6
+Victoria,sun,19,26639.0,120026.5
+Victoria,sun,20,19039.9,86457.2
+Victoria,sun,21,14967.8,68029.1
+Victoria,sun,22,13007.4,60652.5
+Victoria,sun,23,7128.7,36659.5
+Victoria,sun,0,823.1,4932.1
+Victoria,sun,1,0.0,0.0
+Victoria,sun,2,0.5,1.7
+Victoria,sun,3,2.7,12.7
+Victoria,sun,4,31.6,88.0
