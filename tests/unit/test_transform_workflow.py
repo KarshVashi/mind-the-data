@@ -157,11 +157,13 @@ def test_stale_tmp_tables_are_dropped_before_the_build() -> None:
 
 def test_station_models_build_in_their_own_step() -> None:
     build = step("build", "name", "dbt build")
-    assert "--exclude tag:station" in build["run"]
+    assert "--exclude tag:station tag:exploratory" in build["run"]
+    # A manual selection never reaches them either.
+    assert 'args+=(--select "${words[@]}" --exclude tag:exploratory)' in build["run"]
     names = [s.get("name") or s.get("id") for s in load()["jobs"]["build"]["steps"]]
     assert names.index("dbt build") < names.index("dbt build station models")
     station = step("build", "name", "dbt build station models")
     # A station failure must never fail the line-level job.
     assert station["continue-on-error"] is True
-    assert "--select tag:station" in station["run"]
+    assert "--select tag:station --exclude tag:exploratory" in station["run"]
     assert "needs.gate.outputs.select == ''" in station["if"]

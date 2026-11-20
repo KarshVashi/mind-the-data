@@ -167,6 +167,16 @@ The weights are a judgment, so each published week is re-ranked under three alte
 
 On the first published week (4 to 8 November, collected from a Wednesday, so about 70% observed) the correlations were 0.98 to 0.99. No line moved more than two places, and the top three did not change.
 
+### What TfL says goes wrong (D74, not published)
+
+For every disrupted minute, the cause named in TfL's own status text. It is **the cause as named by TfL, not the root cause**: the text is written for passengers, it names one cause at a time, and a station or line name in it is not a cause.
+
+- **Which minutes.** Scored minutes whose worst status is not Good Service, as in the index. Missing minutes, engineering-works minutes and Service Closed minutes are left out, so a minute with no data is never counted as anything.
+- **The rule: the cause named first.** The reason is lower-cased with its whitespace folded. Each cause has a pattern in the seed `disruption_cause_patterns`. Of the causes whose pattern matches, the one whose match starts earliest in the text wins; a tie goes to the lower priority number. So "a signal failure at Stamford Brook and train cancellations" is a signal failure, and "faulty train at Richmond and train cancellations" a faulty train, whatever the order of the list. A text that matches nothing is **No cause given**, as is a missing one.
+- **Causes.** 19: train cancellations, signal failures, points failures, faulty trains, track faults, customer incidents and illness, people, animals or objects on the track, staff unavailable, fire alerts and fires, power and electrical faults, road and bridge incidents, engineering works and overruns, flooding and weather, emergency services and security alerts, planned service changes (a reduced service "will operate", a train "will not run"), platform screen door faults, track inspections, late running, and congestion from other lines. A word stem such as "fire" matches after a word boundary, so "firefighters" counts as fire.
+- **The table.** `rpt_disruption_causes_weekly` has, per ISO week, a row per line and cause, and one per cause for the network (`line_id` = `network`): minutes, the share of the scope's disrupted minutes, the share of its suspended minutes (Suspended and Part Suspended; null when there were none) and severity-weighted minutes. Time weights are not applied.
+- **Reading it.** Shares of minutes are not shares of incidents: a long suspension outweighs many short delays. Several causes in one text count once, for the first. TfL can name a cause late or not at all, so a share is a share of what TfL says.
+
 ---
 
 ## 3. Measured view: Experienced Reliability
@@ -304,6 +314,59 @@ From M8 the same method is applied at every station, not only the 50 measurement
 
 Station figures start provisional: one full week for a first snapshot, four for trends.
 
+#### Step-free access (D73, unpublished)
+
+How often a station was seen with step-free access out (a lift, ramp or step-free route), from the same feed.
+
+- **Classifier.** TfL puts "No Step Free Access -" on notices that are not about step-free access (an escalator fault, a signal failure, minor delays, a station closed for staff). The headline is removed, and the body has to say that step-free access, a lift or a ramp is not available or out of service. Closures keep their own category, and standing notices are left out.
+- **Checked by hand on 20 November 2026.** There are 377 distinct (type, text) strings in the feed since 4 November that are not standing notices or closures. The old keyword match took 330 of them; 11 were not step-free outages (2 escalator faults, 1 platform equipment fault, 2 staff-shortage closures and 1 signal failure and 1 delays notice under the headline; a lift fault that makes a station exit-only; 2 crowd-control exit-only notices and 1 footbridge notice that say step-free access is still available). Precision was 319 / 330 = 96.7%. The new rule keeps the 319 and drops the 11. Every distinct text the old match took in 9 to 15 November was read in full, and no false positive was found among the ones the new rule keeps. Recall: the 47 strings the keyword match missed were screened for ramp, level access, wheelchair, accessible, lift and escalator words, and none reports a step-free outage (23 are escalator faults). A wording that names neither step-free access, lifts nor ramps would still be missed. In the week of 9 November the old match gave 3,529 station-hours and 88 stations, the new one 3,299 and 85. The published station disruption table still uses the old match until D73 is answered.
+- **Episodes.** The feed has no clear time. An outage is seen in a 5-minute slot when a successful poll lists it. Between two sightings of a station, an observed slot with nothing listed ends the episode; slots with no successful poll are unknown, so the episode continues and that time is counted as missing hours, apart from the hours seen. A gap is never read as fixed or as still broken.
+- **A lower bound.** Hours seen start at the first poll that listed the outage and stop at the last, so they under-count by the unknown time before and after, and by every missed slot. An episode starting at the feed's first slot was already broken when collection began.
+- **Repeat offender.** True when 3 or more of the last 4 weeks had an outage seen. False only if 3 cannot be reached even if every week with fewer than half its slots observed had one; null otherwise, and until 4 weeks of feed exist.
+- **No denominator.** No collected data says which stations have step-free access (route sequences carry no accessibility fields), so this is how often an outage was seen, not availability. Both ids of an interchange (for example Willesden Junction 910G and 940G) carry the same notice, so totals by id count such a station twice.
+
+### Countdown drift (not published, D71 pending)
+
+Does "2 min" on the board mean two minutes? `int_prediction_errors` and `rpt_prediction_accuracy` score TfL's countdown at 2, 5 and 10 minutes out, per line and London week.
+
+**What it measures.** The "actual" arrival is not an independent observation: it is the inferred arrival (section 3, Inferring arrivals), which is TfL's own last prediction before the train left the board, at about one-minute poll resolution. So this measures **how far TfL's countdown drifts before the end**, not whether trains arrived when the board said by any outside clock. A countdown under 2 minutes is too close to the prediction that sets the arrival time to say anything, and is not scored.
+
+- **Source.** The 50 measurement stations (`int_inferred_arrivals`), which run from 4 November, so the series is consistent from its first week, and whose stations carry a role, so termini can be left out (D66). The every-station feed starts on 17 November and has no station roles on `main` yet.
+- **Lines.** Only lines linked by vehicle id (D27): Bakerloo, Central, Circle, Hammersmith & City, Jubilee, Metropolitan, Northern, Piccadilly and Victoria. The District (unstable ids), the DLR (no ids), the Elizabeth line, the Overground, the Tram and the Waterloo & City are left out.
+- **Matching.** For each inferred arrival with a vehicle id and a direction, at a core or branch station, and each horizon, the prediction for the same vehicle id on the same board (station request, stop, line, platform and direction) whose countdown at the poll (expected arrival minus poll time, D40) was nearest the horizon, within 30 seconds either side (lower edge in, upper edge out). It must be polled no earlier than the horizon plus 30 minutes before the arrival (so a train up to 30 minutes later than the board said still counts), after the same train's previous arrival on that board, and before the sighting that sets the arrival time, which is never scored against itself. Ties go to the earlier poll. A board with no platform name is matched as one board.
+- **Error.** Signed error is the actual time to arrival minus the countdown: positive means the train came later than the board said. Absolute error is its size.
+- **Weekly figures.** Arrivals eligible, the share with a matched prediction, the median and 90th percentile of absolute error, the median signed error, the share within 60 seconds, and how many real seconds a countdown minute lasted (60 × total actual ÷ total predicted). Percentiles are nearest-rank, so they are exact and can be checked by hand.
+- **Minimum.** A line-week-horizon is shown only with at least 200 matched predictions.
+- **Known biases.** Only trains with an inferred arrival are scored. A train that was withdrawn, reformed or vanished from the board more than 2 minutes out has no arrival, so it is in neither the matched share nor the errors: the figures say nothing about trains that never came. A train more than 30 minutes later than its countdown counts as unmatched. The Circle and Hammersmith & City boards file some trains under the other line (D52); a prediction filed under one line never matches an arrival filed under the other, so that arrival counts as unmatched. Read the two lines together.
+
+### Segment run times (exploratory, D72)
+
+Not published. From the every-station feed, the time a train takes between two adjacent stations, so the slowest and least predictable stretches of each line can be found.
+
+- **Lines.** Those that link by vehicle id (D27): Bakerloo, Central, Circle, Hammersmith & City, Jubilee, Metropolitan, Northern, Piccadilly and Victoria. The District (unstable ids), DLR (no ids), and the Elizabeth line, Overground and Tram (trip ids, not train ids) are left out for now. The Metropolitan's ids are only partly reliable, so its rows carry a flag.
+- **A run** is two consecutive passes of one vehicle at stations that are neighbours in the line's route sequence, in the same direction. A pair is dropped when it skips a station (a pass was missed), when the direction changes (a turnback), or when the passes are more than 15 minutes apart (a layover or a lost id).
+- **Per week, line, direction and segment:** the number of runs, the 10th, 50th and 90th percentile in seconds, and variability as p90 minus p50. A segment needs 30 runs in the week. `paired_share` says how many of the vehicle-id passes at the first station found a next-station pass.
+- **Times include one dwell.** A pass is the board's expected arrival at the last sighting, so a run holds a stop at one end, which end depending on how long the board keeps a train listed at the platform.
+- **Resolution is about a minute at each end.** The median of a few dozen runs is good to a few seconds, but p10, p90 and variability include the boards' timing noise, most on short segments, so read variability on long segments first.
+- **Slowest is mostly distance.** Long outer segments top any list by median; variability on longer segments is the better sign of trouble.
+
+### Board dropouts (exploratory, not published)
+
+Can you trust TfL's boards? A train that shows on the boards at the station before X and at the station after X, in route order, has passed X. If X's boards never showed it, X's boards **dropped** it (D75, pending). This is the companion test D68 reports beside the Honesty Gap; it does not change the Honesty Gap.
+
+- **Source.** Vehicle-id passes at every station (`int_station_vehicle_passes`, M8): a train is "shown" at X when its id came within 2 minutes of X on X's boards. A train's consecutive passes A, X, C along one of the line's routes are shown at X. Consecutive passes A then C, with X the only station between them on the line's routes, are checked against X's own listings for that trip, from 10 minutes before A to 2 minutes after C, in the trip's direction or with none. If X listed the train within 2 minutes of arrival, it was shown; its pass was out of order or had no direction. Otherwise X **dropped** it, either never listing it or losing it before it arrived.
+- **Not judged:**
+  - lines left out by `seed_board_dropout_lines`: the DLR (no vehicle ids), the Elizabeth line (some trains run through stations and TfL serves no timetable to say which), the Waterloo & City (no station between two others);
+  - trains whose run from A to C overlaps a collection gap in the line feed (D28): missing data is never read as a dropout;
+  - termini: the first or last stop of any route of the line, or a seeded terminus (D66, D70);
+  - stations where a dropout could not be seen, because A and C are next to each other on another branch (Mornington Crescent, between Euston and Camden Town);
+  - stations a TfL timetable stopping pattern runs through, read from the timetables' station intervals (the Piccadilly at Turnham Green, the Metropolitan between Wembley Park and Finchley Road). Shown and dropped trains are both left out there, so the share is not biased either way;
+  - passes at A and C more than 20 minutes apart: the train may have been held, stabled or reversed.
+- **Per station and line, each ISO week:** trains judged, trains dropped and the dropout share. A share needs at least 100 judged trains.
+- **Long gaps.** Per line, the share of the measured view's long gaps (scheduled, gated hours, D34) at these stations that contain a train dropped at the same station in the same direction, its pass time taken as halfway between A and C. A share needs at least 20 long gaps. A long gap with a dropout inside it is at least partly the boards' doing, not the service's.
+- **Caveats carried per line.** The District's vehicle ids are not stable (D27), so a reused id can join two trains. On the Circle and Hammersmith & City, boards on the shared section file some trains under the other line (D52), which reads as a dropout. The Overground has no timetable, so every train is taken to call at every station.
+- **A floor, not a count.** A train missing from two boards in a row is not judged, nor is one missing from every board: that still needs TfL's own train counts (ADR-014, open item 2).
+
 ---
 
 ## 4. What is published
@@ -392,6 +455,11 @@ On 15 November 2026 the owner accepted every recommended reading below, so each 
 | D68 | The Honesty Gap counts an hour only when two stations agree | measured (pending) |
 | D69 | Planned works under a suspension or delay code are engineering works; overruns count | declared (pending) |
 | D70 | Station views withhold their measured figures at an end of the line | stations (pending) |
+| D71 | Countdown drift: matching, horizons, minimum count | measured, not published (pending) |
+| D72 | Segment run times: which lines, which pairs, and what a time means | measured, not published (pending) |
+| D73 | Step-free outage hours are a lower bound, counted from sightings | station views (pending, unpublished) |
+| D74 | Disruption causes as TfL names them, not root causes (not published) | declared (pending) |
+| D75 | Board dropouts: a train seen either side of a station but not at it | station views, not published (pending) |
 | [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing (decided) |
 | D57 | Division size, monthly measure, promotion and relegation | declared, publishing (decided) |
 | D58 | Season table, April to March | declared, publishing (decided) |

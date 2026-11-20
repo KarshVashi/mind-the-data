@@ -1,0 +1,42 @@
+version: 2
+
+# Hand-computed cases for the countdown drift report (D71, pending). The
+# arithmetic is in the description.
+
+unit_tests:
+  - name: rpt_prediction_accuracy_by_hand
+    description: >
+      Week of 2 November, 5-minute horizon, minimum 4 matched to be shown.
+      Victoria: five arrivals, one unmatched; four predictions of 300 s with
+      signed errors -30, -10, +20 and +70 (actual 270, 290, 320, 370 s).
+      Matched share 4 / 5 = 0.8. Absolute errors sorted 10, 20, 30, 70:
+      nearest-rank median is rank ceil(0.5 x 4) = 2, so 20 (the lower
+      middle value); p90 is rank ceil(0.9 x 4) = 4, so 70. Signed sorted
+      -30, -10, 20, 70: median -10. Within 60 s: 3 of 4 = 0.75. A countdown
+      minute lasts 60 x 1250 / 1200 = 62.5 s. Shown (4 >= 4), on two days.
+      Jubilee: three predictions of 600 s, signed +5, +15, +25. Share 1.
+      Median rank ceil(1.5) = 2, so abs 15 and signed 15; p90 rank
+      ceil(2.7) = 3, so 25. Within 60 s 1.0. Minute 60 x 1845 / 1800 =
+      61.5 s. Not shown (3 < 4).
+      Northern: one arrival, no match: share 0, no percentiles, not shown.
+    model: rpt_prediction_accuracy
+    overrides:
+      vars:
+        prediction_accuracy_min_matched: 4
+    given:
+      - input: ref('int_prediction_errors')
+        rows:
+          - {week_start: "2026-11-02", london_date: "2026-11-03", line_id: victoria, horizon_minutes: 5, is_matched: true, predicted_seconds: 300, actual_seconds: 270, signed_error_seconds: -30, abs_error_seconds: 30}
+          - {week_start: "2026-11-02", london_date: "2026-11-03", line_id: victoria, horizon_minutes: 5, is_matched: true, predicted_seconds: 300, actual_seconds: 290, signed_error_seconds: -10, abs_error_seconds: 10}
+          - {week_start: "2026-11-02", london_date: "2026-11-04", line_id: victoria, horizon_minutes: 5, is_matched: true, predicted_seconds: 300, actual_seconds: 320, signed_error_seconds: 20, abs_error_seconds: 20}
+          - {week_start: "2026-11-02", london_date: "2026-11-04", line_id: victoria, horizon_minutes: 5, is_matched: true, predicted_seconds: 300, actual_seconds: 370, signed_error_seconds: 70, abs_error_seconds: 70}
+          - {week_start: "2026-11-02", london_date: "2026-11-04", line_id: victoria, horizon_minutes: 5, is_matched: false, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null}
+          - {week_start: "2026-11-02", london_date: "2026-11-03", line_id: jubilee, horizon_minutes: 5, is_matched: true, predicted_seconds: 600, actual_seconds: 605, signed_error_seconds: 5, abs_error_seconds: 5}
+          - {week_start: "2026-11-02", london_date: "2026-11-03", line_id: jubilee, horizon_minutes: 5, is_matched: true, predicted_seconds: 600, actual_seconds: 615, signed_error_seconds: 15, abs_error_seconds: 15}
+          - {week_start: "2026-11-02", london_date: "2026-11-03", line_id: jubilee, horizon_minutes: 5, is_matched: true, predicted_seconds: 600, actual_seconds: 625, signed_error_seconds: 25, abs_error_seconds: 25}
+          - {week_start: "2026-11-02", london_date: "2026-11-03", line_id: northern, horizon_minutes: 5, is_matched: false, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null}
+    expect:
+      rows:
+        - {line_id: victoria, horizon_minutes: 5, days_with_arrivals: 2, eligible_arrivals: 5, matched_predictions: 4, matched_share: 0.8, median_abs_error_seconds: 20, p90_abs_error_seconds: 70, median_signed_error_seconds: -10, within_60s_share: 0.75, countdown_minute_seconds: 62.5, is_shown: true}
+        - {line_id: jubilee, horizon_minutes: 5, days_with_arrivals: 1, eligible_arrivals: 3, matched_predictions: 3, matched_share: 1.0, median_abs_error_seconds: 15, p90_abs_error_seconds: 25, median_signed_error_seconds: 15, within_60s_share: 1.0, countdown_minute_seconds: 61.5, is_shown: false}
+        - {line_id: northern, horizon_minutes: 5, days_with_arrivals: 1, eligible_arrivals: 1, matched_predictions: 0, matched_share: 0.0, median_abs_error_seconds: null, p90_abs_error_seconds: null, median_signed_error_seconds: null, within_60s_share: null, countdown_minute_seconds: null, is_shown: false}

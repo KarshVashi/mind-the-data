@@ -815,9 +815,11 @@ A change to a staging model's merge key (D45 for `stg_arrivals`) needs the same 
 
 ## Station models
 
-The every-station models (M8, ADR-016) carry the dbt tag `station`: `stg_line_arrivals`, `stg_line_arrival_polls`, `stg_route_station`, `dim_station`, `fct_station_disruption_weekly`, the `int_station_*` models and `fct_station_weekly_measured`. Nothing outside the tag depends on them, so the daily transform builds them in their own step (`--select tag:station`) that may fail without stopping the league build. A failure there leaves the station tables at their last good build; the line-level tables are unaffected.
+The every-station models (M8, ADR-016) carry the dbt tag `station`: `stg_line_arrivals`, `stg_line_arrival_polls`, `stg_route_station`, `dim_station`, `fct_station_disruption_weekly`, the `int_station_*` models, `fct_station_weekly_measured`, the unpublished board-dropout check (`int_board_dropouts`, `rpt_board_reliability_weekly`, D75) and the unpublished step-free outages (`int_step_free_slots`, `int_step_free_outages`, `rpt_step_free_weekly`, D73). Nothing outside the tag depends on them, so the daily transform builds them in their own step (`--select tag:station`) that may fail without stopping the league build. A failure there leaves the station tables at their last good build; the line-level tables are unaffected.
 
-**Windowed models.** The line feed is about 10 GB of raw a month, and the workgroup stops any query over 10 GiB, so `int_station_inferred_arrivals` and `int_station_vehicle_passes` are never rebuilt in full. Each run deletes the days of its window (the last `lookback_days` UTC days, or `start_date` to `end_date`) and recomputes them, reading one day before the window. A first build or a `--full-refresh` without `start_date` covers only the last `station_initial_days` days (default 7), and so do `stg_line_arrivals` and `stg_line_arrival_polls`.
+**Exploratory models.** Models behind a pending decision and not published carry the tag `exploratory`: countdown drift (`int_prediction_errors`, `rpt_prediction_accuracy`, D71), segment run times (`int_segment_run_times`, `rpt_segment_run_times_weekly`, D72) and disruption causes (`int_status_causes`, `rpt_disruption_causes_weekly`, D74). The daily prod build leaves them out, in every step and for a manual selection too. Build them in dev on demand, for example `make dbt-build-dev DBT_FLAGS="--select tag:exploratory"`. Once a decision is accepted, removing the tag puts the model in the daily build.
+
+**Windowed models.** The line feed is about 10 GB of raw a month, and the workgroup stops any query over 10 GiB, so `int_station_inferred_arrivals`, `int_station_vehicle_passes` and `int_board_dropouts` (which reads the line feed's listings) are never rebuilt in full. Each run deletes the days of its window (the last `lookback_days` UTC days, or `start_date` to `end_date`) and recomputes them, reading one day before the window. A first build or a `--full-refresh` without `start_date` covers only the last `station_initial_days` days (default 7), and so do `stg_line_arrivals` and `stg_line_arrival_polls`.
 
 **Backfilling.** Load older days in chunks of a few days, oldest first, after the first build has created the tables:
 
@@ -827,9 +829,9 @@ uv run --locked dbt build --target prod --profiles-dir . --select tag:station \
   --vars '{start_date: "2026-11-18", end_date: "2026-11-21"}'
 ```
 
-The staging models merge those days, the two windowed models replace them, and the tables downstream rebuild in full from what is there. Keep each chunk's line feed under the 10 GiB scan limit (a few days at the current volume).
+The staging models merge those days, the windowed models replace them, and the tables downstream rebuild in full from what is there. Keep each chunk's line feed under the 10 GiB scan limit (a few days at the current volume).
 
-**After a failed run.** The windowed models delete their window's days in a pre-hook before recomputing them. If the run fails after the delete, those days are missing from `int_station_inferred_arrivals` or `int_station_vehicle_passes` (and so from the station views) until the next green run recomputes them. Nothing is lost: raw and `stg_line_arrivals` still hold every poll. If the failure lasted longer than `lookback_days`, rebuild the missed days with `start_date`/`end_date` as above.
+**After a failed run.** The windowed models delete their window's days in a pre-hook before recomputing them. If the run fails after the delete, those days are missing from `int_station_inferred_arrivals`, `int_station_vehicle_passes` or `int_board_dropouts` (and so from the station views) until the next green run recomputes them. Nothing is lost: raw and `stg_line_arrivals` still hold every poll. If the failure lasted longer than `lookback_days`, rebuild the missed days with `start_date`/`end_date` as above.
 
 ---
 
@@ -840,9 +842,10 @@ Scheduled checks that answer "is the collector healthy?" without anyone asking. 
 | Workflow | When | What it checks | Issue label |
 | --- | --- | --- | --- |
 | `ops-daily` | Every day at 02:10 UTC | The previous UTC day: completeness (`scripts/completeness.py`), alarm state and any alarm that fired, poller and reference Lambda errors and throttles, the newest raw object per feed, and announced strikes left in the industrial action seed past their date | `ops-health` |
+| `ops-daily` (job `published`) | Every day at 02:10 UTC | The published output on R2 over HTTPS, no AWS (it does not see the Pages deploy hook): `meta/index.json` and `league/latest.json` `generated_at` no more than 8 days old, `league/latest.json` on the last complete ISO week (the run is at 02:10 UTC, so a missed Monday publish shows on Tuesday), and the `schema_version` major equal to the code's | `ops-publish` |
 | `ops-daytime` | Weekdays at 12:00 UTC | The strict arrivals check: every configured line shows predictions at its station in the last 15 minutes of raw arrivals | `ops-daytime` |
 
-Each run writes its report to the run summary. When something misses its target, it opens one issue with that label, or comments on the open one. The first run that meets every target closes it. So an open `ops-health` or `ops-daytime` issue means something is wrong now.
+Each run writes its report to the run summary. When something misses its target, it opens one issue with that label, or comments on the open one. The first run that meets every target closes it. So an open `ops-health`, `ops-publish` or `ops-daytime` issue means something is wrong now.
 
 The daytime check reads what the collector stored rather than calling TfL. CI never needs the TfL key, and the check tests the data the league table is built from.
 

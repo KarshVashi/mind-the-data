@@ -638,3 +638,52 @@ models:
       - name: dt
         description: UTC date of the raw partition. Partition column.
         data_tests: [not_null]
+
+  - name: stg_timetable_stop_intervals
+    description: >
+      Stopping patterns from timetables (`timetable.routes[].stationIntervals`)
+      at a grain of fetch x line x departure station x direction x timetable
+      route x pattern x call: one row per station a pattern calls at after
+      the departure station, in order. int_board_dropouts reads consecutive
+      calls to tell a train timetabled to run through a station from one the
+      station's boards dropped (D75). Disambiguation responses give no rows.
+    columns:
+      - name: timetable_stop_interval_key
+        description: Row key, a hash of (poll_id, request_path, route_ordinal, interval_ordinal, stop_ordinal). Merge key.
+        data_tests: [unique, not_null]
+      - name: poll_id
+        description: Collector run that fetched the timetable.
+        data_tests: [not_null]
+      - name: request_path
+        description: TfL path requested, which names the station and direction.
+        data_tests: [not_null]
+      - name: polled_at
+        description: Fetch time, UTC.
+        data_tests: [not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: direction
+        description: "`inbound` or `outbound`."
+      - name: departure_stop_id
+        description: NaPTAN id of the station the timetable is for; every pattern starts there.
+        data_tests: [not_null]
+      - name: route_ordinal
+        description: 1-based position of the timetable route in the response.
+        data_tests: [not_null]
+      - name: interval_ordinal
+        description: 1-based position of the pattern within the route.
+        data_tests: [not_null]
+      - name: interval_id
+        description: TfL's pattern id, which known journeys reference (stg_timetable.interval_id).
+      - name: stop_ordinal
+        description: 1-based position of the call along the pattern, after the departure station.
+        data_tests: [not_null]
+      - name: stop_id
+        description: NaPTAN id of the station called at.
+        data_tests: [not_null]
+      - name: minutes_to_arrival
+        description: TfL's running time from the departure station, in minutes.
+      - name: dt
+        description: UTC date of the raw partition. Partition column.
+        data_tests: [not_null]

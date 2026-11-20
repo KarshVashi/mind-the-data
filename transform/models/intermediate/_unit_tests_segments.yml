@@ -1,0 +1,60 @@
+version: 2
+
+# Hand-computed cases for segment run times (D72, exploratory).
+
+unit_tests:
+  - name: int_segment_run_times_keeps_adjacent_same_direction_runs_only
+    description: >
+      Victoria outbound runs A, B, C; inbound runs C, B, A (GMT, so London
+      time is UTC). Vehicle 1 passes A 10:00:00, B 10:02:00, C 10:04:30:
+      two adjacent pairs, kept at 120 s and 150 s. Vehicle 2 passes A
+      10:10:00 then C 10:14:00 with B missed: A to C is not adjacent, so
+      dropped. Vehicle 3 passes A 11:00:00 and B 11:20:00, 1200 s apart,
+      over the 900 s limit: dropped. Vehicle 4 passes C outbound 12:00:00,
+      then B inbound 12:03:00 (C to B is adjacent in the inbound route, but
+      the direction changed, a turnback: dropped), then A inbound 12:05:00:
+      B to A inbound, kept at 120 s. Vehicle 5 is on the District, which
+      does not link by vehicle id: nothing. Vehicle 6 is seen at B 14:00:00
+      and again at B 14:00:00 as a split visit, then at C 14:02:00: the
+      repeat is not a pair, and B to C is kept at 120 s.
+    model: int_segment_run_times
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+        segment_max_run_seconds: 900
+    given:
+      - input: ref('seed_vehicle_id_lines')
+        rows:
+          - {line_id: victoria, link_by_vehicle_id: true}
+          - {line_id: district, link_by_vehicle_id: false}
+      - input: ref('stg_route_sequence')
+        rows:
+          - {poll_id: o1, request_path: /Line/victoria/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: victoria, direction: outbound, route_ordinal: 1, stop_sequence: 1, naptan_id: A, dt: "2026-11-09"}
+          - {poll_id: o1, request_path: /Line/victoria/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: victoria, direction: outbound, route_ordinal: 1, stop_sequence: 2, naptan_id: B, dt: "2026-11-09"}
+          - {poll_id: o1, request_path: /Line/victoria/Route/Sequence/outbound, polled_at: "2026-11-09 02:00:00", line_id: victoria, direction: outbound, route_ordinal: 1, stop_sequence: 3, naptan_id: C, dt: "2026-11-09"}
+          - {poll_id: i1, request_path: /Line/victoria/Route/Sequence/inbound, polled_at: "2026-11-09 02:00:00", line_id: victoria, direction: inbound, route_ordinal: 1, stop_sequence: 1, naptan_id: C, dt: "2026-11-09"}
+          - {poll_id: i1, request_path: /Line/victoria/Route/Sequence/inbound, polled_at: "2026-11-09 02:00:00", line_id: victoria, direction: inbound, route_ordinal: 1, stop_sequence: 2, naptan_id: B, dt: "2026-11-09"}
+          - {poll_id: i1, request_path: /Line/victoria/Route/Sequence/inbound, polled_at: "2026-11-09 02:00:00", line_id: victoria, direction: inbound, route_ordinal: 1, stop_sequence: 3, naptan_id: A, dt: "2026-11-09"}
+      - input: ref('int_station_vehicle_passes')
+        rows:
+          - {line_id: victoria, direction: outbound, vehicle_id: "1", naptan_id: A, pass_time: "2026-11-17 10:00:00"}
+          - {line_id: victoria, direction: outbound, vehicle_id: "1", naptan_id: B, pass_time: "2026-11-17 10:02:00"}
+          - {line_id: victoria, direction: outbound, vehicle_id: "1", naptan_id: C, pass_time: "2026-11-17 10:04:30"}
+          - {line_id: victoria, direction: outbound, vehicle_id: "2", naptan_id: A, pass_time: "2026-11-17 10:10:00"}
+          - {line_id: victoria, direction: outbound, vehicle_id: "2", naptan_id: C, pass_time: "2026-11-17 10:14:00"}
+          - {line_id: victoria, direction: outbound, vehicle_id: "3", naptan_id: A, pass_time: "2026-11-17 11:00:00"}
+          - {line_id: victoria, direction: outbound, vehicle_id: "3", naptan_id: B, pass_time: "2026-11-17 11:20:00"}
+          - {line_id: victoria, direction: outbound, vehicle_id: "4", naptan_id: C, pass_time: "2026-11-17 12:00:00"}
+          - {line_id: victoria, direction: inbound, vehicle_id: "4", naptan_id: B, pass_time: "2026-11-17 12:03:00"}
+          - {line_id: victoria, direction: inbound, vehicle_id: "4", naptan_id: A, pass_time: "2026-11-17 12:05:00"}
+          - {line_id: district, direction: outbound, vehicle_id: "5", naptan_id: A, pass_time: "2026-11-17 13:00:00"}
+          - {line_id: district, direction: outbound, vehicle_id: "5", naptan_id: B, pass_time: "2026-11-17 13:02:00"}
+          - {line_id: victoria, direction: outbound, vehicle_id: "6", naptan_id: B, pass_time: "2026-11-17 14:00:00"}
+          - {line_id: victoria, direction: outbound, vehicle_id: "6", naptan_id: B, pass_time: "2026-11-17 14:00:00"}
+          - {line_id: victoria, direction: outbound, vehicle_id: "6", naptan_id: C, pass_time: "2026-11-17 14:02:00"}
+    expect:
+      rows:
+        - {line_id: victoria, direction: outbound, vehicle_id: "1", from_naptan_id: A, to_naptan_id: B, run_seconds: 120, london_date: "2026-11-17"}
+        - {line_id: victoria, direction: outbound, vehicle_id: "1", from_naptan_id: B, to_naptan_id: C, run_seconds: 150, london_date: "2026-11-17"}
+        - {line_id: victoria, direction: inbound, vehicle_id: "4", from_naptan_id: B, to_naptan_id: A, run_seconds: 120, london_date: "2026-11-17"}
+        - {line_id: victoria, direction: outbound, vehicle_id: "6", from_naptan_id: B, to_naptan_id: C, run_seconds: 120, london_date: "2026-11-17"}

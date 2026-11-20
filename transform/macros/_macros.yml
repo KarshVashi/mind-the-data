@@ -252,3 +252,16 @@ macros:
       - name: measurement_stations
         type: bool
         description: True for stations in seed_measurement_stations, false for every other station.
+  - name: is_step_free_outage_text
+    description: >
+      True when disruption text reports a step-free access outage (a lift,
+      ramp or step-free route that is not available). Removes TfL's "No Step
+      Free Access -" headline first, because it is also put on escalator
+      faults, delays and staff-shortage closures, then matches the body.
+    arguments:
+      - name: description
+        type: string
+        description: Column holding the disruption description.
+      - name: additional_information
+        type: string
+        description: Column holding the additional information; null counts as empty.
