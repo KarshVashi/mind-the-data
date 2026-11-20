@@ -21,7 +21,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
-D1 and D67 are open.
+D1, D67 and D72 are open.
 
 ### D67. Single-weekday timetables are left out until a weekday can be modelled
 
@@ -32,6 +32,21 @@ D1 and D67 are open.
 - **What it does at those stops:** the 18 Nov versions hold only these schedules (Metropolitan: Tuesdays, Wednesdays, Thursdays; District: Wednesdays, Thursdays, Friday). A newer version still ends the previous one, so from 18 Nov those stop-directions have no timetable for Monday to Thursday, Saturday or Sunday, and the Metropolitan ones none for Friday either. The `seed_line_frequencies` fallback does not apply, because a timetable exists. `int_station_measured_hours` then uses its no-timetable rule: it counts hours in which a train was seen, an hour with no train never counts as a gap, and a suspension is not detected. Never Good Service.
 - **Scope:** none of these stops is a measurement station, so the league, the measured view and W46 do not change. Only the unpublished station views do, at these 7 stops.
 - **Follow-up:** model a schedule that runs on one weekday, for example a nullable `iso_day_of_week` in `timetable_schedule_day_types`, carried through `int_scheduled_headways` and matched by the measured-hours models. Before station publishing is switched on.
+
+### D72. Segment run times: which lines, which pairs, and what a time means
+
+- **Entered:** 2026-11-20. **Deadline:** 2026-11-23 18:00 UTC (a reminder only). **Class:** `never-default` (metric semantics; a published figure would follow). **Default:** none; the models are built but nothing is published.
+- **Context:** the every-station feed (M8) lets a vehicle id be followed from station to station, so the time between adjacent stations can be measured and the slowest and least predictable segments found per line (exploratory work toward v2).
+- **Implemented** (`int_segment_run_times`, `rpt_segment_run_times_weekly`, both tagged `station`, not published):
+  - a run is two consecutive passes of one vehicle at stations next to each other in the line's latest route sequence, in the same direction;
+  - dropped: a pair that is not adjacent, a direction change (a turnback), and a gap over 15 minutes (`segment_max_run_seconds`);
+  - weekly per line, direction and segment: runs, p10, p50, p90 (nearest rank on exact values) and variability = p90 - p50; at least 30 runs (`segment_min_runs`);
+  - **dwell is included.** Both ends are arrivals, so a run is the stop at the first station plus the travel;
+  - **resolution is about 60 seconds.** A pass is the expected arrival at the last sighting on the boards;
+  - lines: those with `link_by_vehicle_id` in `seed_vehicle_id_lines`, which is Bakerloo, Central, Circle, Hammersmith & City, Jubilee, Metropolitan, Northern, Piccadilly and Victoria. The Metropolitan is included with `is_partial_id_line` and a `paired_share` coverage figure (`segment_partial_id_lines`).
+- **Left out, to be revisited:** District (ids not stable, D27), DLR (no ids), and the Elizabeth line, Overground and Tram, whose ids are trip ids, not train ids. A trip id might still give a run time within a trip; it has not been checked.
+- **Open points:** whether a published run time should be arrival to departure (no dwell), which the boards cannot give; whether Circle and Hammersmith & City, whose boards misfile trains between Baker Street and Liverpool Street (D52), should be withheld here too; and whether "slowest" is worth publishing at all when it mostly ranks distance.
+- **Alternatives:** departure to arrival using the last sighting at each end; include the District with a flag; a minimum of 100 runs.
 
 ## Settled on 2026-11-18, with the detail
 

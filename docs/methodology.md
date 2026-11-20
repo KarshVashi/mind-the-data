@@ -273,6 +273,17 @@ From M8 the same method is applied at every station, not only the 50 measurement
 
 Station figures start provisional: one full week for a first snapshot, four for trends.
 
+### Segment run times (exploratory, D72)
+
+Not published. From the every-station feed, the time a train takes between two adjacent stations, so the slowest and least predictable stretches of each line can be found.
+
+- **Lines.** Those that link by vehicle id (D27): Bakerloo, Central, Circle, Hammersmith & City, Jubilee, Metropolitan, Northern, Piccadilly and Victoria. The District (unstable ids), DLR (no ids), and the Elizabeth line, Overground and Tram (trip ids, not train ids) are left out for now. The Metropolitan's ids are only partly reliable, so its rows carry a flag.
+- **A run** is two consecutive passes of one vehicle at stations that are neighbours in the line's route sequence, in the same direction. A pair is dropped when it skips a station (a pass was missed), when the direction changes (a turnback), or when the passes are more than 15 minutes apart (a layover or a lost id).
+- **Per week, line, direction and segment:** the number of runs, the 10th, 50th and 90th percentile in seconds, and variability as p90 minus p50. A segment needs 30 runs in the week. `paired_share` says how many of the vehicle-id passes at the first station found a next-station pass.
+- **Times include dwell.** Both ends are arrivals, so a run holds the stop at the first station as well as the travel to the next.
+- **Resolution is about a minute.** A pass is the board's expected arrival at the last sighting, so single runs are good to roughly 60 seconds and percentiles of a few dozen runs to a few seconds.
+- **Slowest is mostly distance.** Long outer segments top any list by median; variability is the better sign of trouble.
+
 ---
 
 ## 4. What is published
