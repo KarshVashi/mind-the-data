@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Journey index",
+  "description": "journeys/index.json (Should I Run, ADR-018, D76; written only with JOURNEYS_ENABLED=true): every origin file, with station names for the journey form.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "git_sha",
+    "data_window",
+    "attribution",
+    "disclaimer",
+    "stations",
+    "origins"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "league.schema.json#/$defs/schema_version"
+    },
+    "generated_at": {
+      "$ref": "league.schema.json#/$defs/utc_timestamp"
+    },
+    "git_sha": {
+      "$ref": "league.schema.json#/$defs/git_sha"
+    },
+    "data_window": {
+      "$ref": "journey_origin.schema.json#/$defs/data_window"
+    },
+    "attribution": {
+      "const": "Powered by TfL Open Data"
+    },
+    "disclaimer": {
+      "const": "Estimates, not guarantees."
+    },
+    "stations": {
+      "description": "Station names by NaPTAN id.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "origins": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "line_id",
+          "direction",
+          "origin_naptan_id",
+          "path",
+          "destination_naptan_ids",
+          "slots_published"
+        ],
+        "properties": {
+          "line_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "direction": {
+            "enum": [
+              "inbound",
+              "outbound"
+            ]
+          },
+          "origin_naptan_id": {
+            "$ref": "station.schema.json#/$defs/naptan_id"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^journeys/[a-z0-9-]+/(inbound|outbound)/[A-Za-z0-9]+\\.json$"
+          },
+          "destination_naptan_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "station.schema.json#/$defs/naptan_id"
+            }
+          },
+          "slots_published": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Slots with status ok in the origin file."
+          }
+        }
+      }
+    }
+  }
+}
