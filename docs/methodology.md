@@ -156,6 +156,27 @@ The weights are a judgment, so each published week is re-ranked under three alte
 
 On the first published week (4 to 8 November, collected from a Wednesday, so about 70% observed) the correlations were 0.98 to 0.99. No line moved more than two places, and the top three did not change.
 
+### Passenger weighting (exploratory, not published)
+
+The Disruption Index weighs a minute by the clock. The exploratory `rpt_line_weekly_passenger_weighted` weighs it by the people who typically use the line in that minute instead (D78, ADR-020). Demand comes from TfL's NUMBAT 2025: a typical autumn 2025 day, per line and quarter hour, for Monday, Tuesday to Thursday, Friday, Saturday and Sunday.
+
+- Each scored minute counts as severity weight x typical boarders per minute, for the line, the service day type and the London hour. NUMBAT's day runs 05:00 to 04:59, so a minute before 05:00 takes the previous day's demand.
+- The **passenger disruption index** divides the sum by the typical boarders over the scored minutes, x 100, from 0 to 800: how the week looked to the line's typical passenger.
+- The **passenger disruption minutes** are the sum itself: how much disruption the line put on passengers. Large lines score more for the same trouble, on purpose.
+- Missing minutes leave both halves of the index (as D19); a line without demand data (trams) is not ranked, never scored as zero. Circle and Hammersmith & City share NUMBAT's combined figure half and half.
+
+Limits: demand is a typical day, not the week scored, so it does not follow strikes, events or closures. The weights stand for people starting a journey on the line, not journey length.
+
+### Critical links (exploratory, not published)
+
+`scripts/analysis/critical_links.py` ranks the links (adjacent stations on one line) by typical weekday load, both directions added, from NUMBAT. It then reads the week's disrupted minutes in dev to show which of those links were disrupted. The method is deliberately simple:
+
+- Closing a link affects about its typical load. Nobody is rerouted, and no origin-destination model is used.
+- The one rerouting figure is a count of stops: the fewest stops between the link's two stations on the rest of the network. "Parallel line" means another line runs alongside. Changing lines costs nothing, walking links between nearby stations are left out, and stops are not minutes.
+- A disrupted minute covers a link when TfL's reason puts the link inside a "between X and Y" section, following the line's shortest path, branches included. A section's own phrase sets its weight ("severe delays between ..." counts 3). "Minor/severe delays on the rest of the line" weights the other links 1 or 3. With no section, the status covers the whole line, except Part Suspended and Part Closure, which cannot be placed. Minutes the text cannot place are counted apart, never as covering a link.
+
+In the week of 9 November 2026, 105 of 38,213 disrupted line-minutes could not be placed.
+
 ---
 
 ## 3. Measured view: Experienced Reliability
@@ -363,6 +384,7 @@ On 15 November 2026 the owner accepted every recommended reading below, so each 
 | D59 | Recovery Time table (provisional on D18) | declared, publishing (decided) |
 | D60 | Industrial action seed and strikes-excluded table | declared, publishing (decided) |
 | D61 | Sensitivity weight sets | declared, publishing (decided) |
+| [ADR-020](adr/020-passenger-demand-data.md), D78 | Passenger weighting and critical links | exploratory, not published (pending) |
 
 The weights for the status codes the plan names, and the time-band weights, are the build plan's values. D16 adds Service Closed to the weights, and D21 decides how the bands map onto calendar days. Sensitivity under three alternative weight sets is reported each week in `meta/methodology.json` (see Sensitivity above, D61).
 
