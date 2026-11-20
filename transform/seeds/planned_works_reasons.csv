@@ -11,7 +11,14 @@ pattern,signal,note
 (^|[^a-z])not (yet )?complete([^a-z]|$),overrun,works not complete or not yet complete
 (^|[^a-z])(will|would) not be (completed|finished)([^a-z]|$),overrun,works that will not be completed on time
 (^|[^a-z])taking longer to (complete|finish)([^a-z]|$),overrun,works taking longer to complete
-(^|[^a-z])no ([a-z]+ )?service([^a-z]|$),disruption,no service / no northbound service: a sentence that reports part of the line not running
+"(^|[^a-z])no ([a-z&/-]+ ){0,4}service([^a-z]|$)",disruption,no service / no northbound service / no hammersmith & city line service / no northbound or southbound service: up to four words between
+(^|[^a-z])no trains([^a-z]|$),disruption,no trains between two stations
+(^|[^a-z])not (stop|stopping|running|run|call|calling)([^a-z]|$),disruption,trains not stopping / not running / not calling at a station
+(^|[^a-z])will not (stop|run|call)([^a-z]|$),disruption,trains will not stop / run / call
+(^|[^a-z])fewer trains([^a-z]|$),disruption,fewer trains than timetabled
+(^|[^a-z])(part|severe|minor) ?(suspended|delays|closure)([^a-z]|$),disruption,the status words themselves including run together as in severedelays
+(^|[^a-z])buses replace,disruption,buses replace trains
+(^|[^a-z])rail replacement,disruption,rail replacement buses
 (^|[^a-z])(part )?suspen(ded|sion)([^a-z]|$),disruption,suspended / part suspended / suspension
 (^|[^a-z])delay(s|ed)?([^a-z]|$),disruption,delays of any severity
 (^|[^a-z])closed([^a-z]|$),disruption,a line section or station closed

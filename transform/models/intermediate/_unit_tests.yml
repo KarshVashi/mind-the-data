@@ -102,7 +102,17 @@ unit_tests:
           - {pattern: '(^|[^a-z])taking longer than (expected|planned)', signal: overrun}
           - {pattern: '(^|[^a-z])later than (expected|planned)', signal: overrun}
           - {pattern: '(^|[^a-z])not (yet )?(been )?(completed|finished)([^a-z]|$)', signal: overrun}
-          - {pattern: '(^|[^a-z])no ([a-z]+ )?service([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])not (yet )?complete([^a-z]|$)', signal: overrun}
+          - {pattern: '(^|[^a-z])(will|would) not be (completed|finished)([^a-z]|$)', signal: overrun}
+          - {pattern: '(^|[^a-z])taking longer to (complete|finish)([^a-z]|$)', signal: overrun}
+          - {pattern: '(^|[^a-z])no ([a-z&/-]+ ){0,4}service([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])no trains([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])not (stop|stopping|running|run|call|calling)([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])will not (stop|run|call)([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])fewer trains([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])(part|severe|minor) ?(suspended|delays|closure)([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])buses replace', signal: disruption}
+          - {pattern: '(^|[^a-z])rail replacement', signal: disruption}
           - {pattern: '(^|[^a-z])(part )?suspen(ded|sion)([^a-z]|$)', signal: disruption}
           - {pattern: '(^|[^a-z])delay(s|ed)?([^a-z]|$)', signal: disruption}
           - {pattern: '(^|[^a-z])closed([^a-z]|$)', signal: disruption}
@@ -324,6 +334,13 @@ unit_tests:
       Windrush 10:00 and 10:02: a person taken ill, then planned works to
       Crystal Palace and West Croydon; 10:01: a points failure at Denmark
       Hill, then planned works. All three keep weight 5 and are scored.
+      Piccadilly 10:00: planned works in one sentence and "Engineering works
+      are overrunning" in the next: the overrun wins, no basis, weight 5.
+      10:01: Part Suspended with a null reason, filed real-time: nothing says
+      planned works, so no basis, weight 5. 10:02: "No Piccadilly line
+      service ..." names the line between "no" and "service" and reports a
+      signal failure without works wording; the next sentence is planned
+      works. Mixed, so no basis, weight 5.
     model: int_line_minute_status
     overrides:
       vars:
@@ -338,6 +355,7 @@ unit_tests:
         rows:
           - {line_id: northern}
           - {line_id: windrush}
+          - {line_id: piccadilly}
       - input: ref('day_types')
         rows: *day_types
       - input: ref('time_bands')
@@ -346,6 +364,7 @@ unit_tests:
         rows:
           - {line_id: northern, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
           - {line_id: windrush, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
+          - {line_id: piccadilly, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
       - input: ref('severity_weights')
         rows: *severity_weights
       - input: ref('planned_works_reasons')
@@ -363,6 +382,9 @@ unit_tests:
           - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: windrush, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Windrush Line: No service between Surrey Quays and Clapham Junction due to a points failure at Denmark Hill. No service between New Cross Gate and Crystal Palace / West Croydon due to planned engineering work. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
           - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: northern, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Northern Line: No service between Morden and Charing cross due to planned engineering works. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
           - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: windrush, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Windrush Line: No service between Surrey Quays and New Cross Gate while we help a person taken ill on a train. NO SERVICE between New Cross Gate and Crystal Palace / West Croydon due to planned engineering works. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q1, request_path: /s, polled_at: "2026-11-09 10:00:01", poll_minute: "2026-11-09 10:00:00", line_id: piccadilly, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "No service between A and B due to planned engineering works. Engineering works are overrunning at C.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: piccadilly, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: null, is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: piccadilly, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "No Piccadilly line service between A and B while we fix a signal failure. No service between C and D due to planned engineering works.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
     expect:
       rows:
         - {line_id: northern, minute_utc: "2026-11-09 10:00:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
@@ -371,6 +393,9 @@ unit_tests:
         - {line_id: windrush, minute_utc: "2026-11-09 10:01:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
         - {line_id: northern, minute_utc: "2026-11-09 10:02:00", status_severity: 3, is_planned: true, planned_works_basis: reason_text, severity_weight: 0, has_closure_entry: true, is_engineering_works: true, is_scored: false}
         - {line_id: windrush, minute_utc: "2026-11-09 10:02:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: piccadilly, minute_utc: "2026-11-09 10:00:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: piccadilly, minute_utc: "2026-11-09 10:01:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: piccadilly, minute_utc: "2026-11-09 10:02:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
 
   - name: int_incidents_merge_bridge_and_midnight
     description: >

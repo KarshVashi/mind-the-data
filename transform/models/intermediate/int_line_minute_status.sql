@@ -228,8 +228,10 @@ reason_sentences as (
         sentences.sentence_number,
         sentences.sentence_text
     from works_reasons
+    -- A sentence ends at any full stop not followed by a digit: TfL also
+    -- writes ".\r\n", ".  " and ".Tickets", and times as "08.15".
     cross join
-        unnest(split(lower(works_reasons.reason), '. '))
+        unnest(regexp_split(lower(works_reasons.reason), '[.](?![0-9])'))
         with ordinality as sentences (sentence_text, sentence_number)
 ),
 

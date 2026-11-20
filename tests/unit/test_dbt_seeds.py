@@ -95,11 +95,13 @@ def _signals(text: str, wanted: set[str]) -> set[str]:
 
 
 def _reason_text_basis(reason: str) -> bool:
-    # Mirrors int_line_minute_status (D69): split the lower-cased reason on
-    # ". ", as Athena's split does. Planned works when some sentence says
-    # so and every disruption sentence says so; an overrun anywhere wins.
+    # Mirrors int_line_minute_status (D69): split the lower-cased reason at
+    # every full stop not followed by a digit, as Athena's regexp_split does.
+    # Planned works when some sentence says so and every disruption sentence
+    # says so; an overrun anywhere wins.
     sentences = [
-        _signals(s, {"planned_works", "overrun", "disruption"}) for s in reason.lower().split(". ")
+        _signals(s, {"planned_works", "overrun", "disruption"})
+        for s in re.split("[.](?![0-9])", reason.lower())
     ]
     if any("overrun" in sig for sig in sentences):
         return False
@@ -181,11 +183,30 @@ def test_planned_works_reason_signals_are_known() -> None:
         ("bank station is closed", True),
         ("reduced service on the branch", True),
         ("part closure between a and b", True),
+        ("no piccadilly line service between a and b", True),
+        ("no hammersmith & city line service between a and b", True),
+        ("no northbound or southbound service between a and b", True),
+        ("no step-free / lift service at c", True),
+        ("no trains between a and b", True),
+        ("trains are not stopping at c", True),
+        ("trains will not stop at c", True),
+        ("trains will not run between a and b", True),
+        ("trains are not calling at c", True),
+        ("fewer trains than usual", True),
+        ("severedelays between a and b", True),
+        ("partsuspended", True),
+        ("partclosure", True),
+        ("buses replace trains between a and b", True),
+        ("rail replacement buses run between a and b", True),
         ("good service on the rest of the line", False),
         ("tickets will be accepted on london buses via any reasonable route", False),
         # Word edges: neither "closedown" nor "delayering" is a disruption.
         ("closedown notice", False),
         ("delayering works", False),
+        # Five words between "no" and "service" is past the limit.
+        ("no one two three four five service", False),
+        ("no customer services", False),
+        ("trains are running normally", False),
     ],
 )
 def test_disruption_sentence_patterns(sentence: str, is_disruption: bool) -> None:
@@ -252,6 +273,58 @@ def test_disruption_sentence_patterns(sentence: str, is_disruption: bool) -> Non
         ),
         # No works wording.
         ("Severe delays due to an earlier signal failure.", False),
+        # A line named between "no" and "service": the incident is still a
+        # disruption sentence without works wording.
+        (
+            (
+                "No Piccadilly line service between A and B while we fix a signal failure. "
+                "No service between C and D due to planned engineering works."
+            ),
+            False,
+        ),
+        (
+            (
+                "No Hammersmith & City line service between A and B while we fix a signal "
+                "failure. No service between C and D due to planned engineering works."
+            ),
+            False,
+        ),
+        (
+            (
+                "No northbound or southbound service at A after a customer incident. "
+                "No service between C and D due to planned engineering works."
+            ),
+            False,
+        ),
+        # Sentences TfL runs together: CRLF, no space, two spaces.
+        (
+            (
+                "Severe delays due to a signal failure.\r\nNo service between C and D due to "
+                "planned engineering works."
+            ),
+            False,
+        ),
+        (
+            (
+                "Severe delays due to a signal failure.No service between C and D due to "
+                "planned engineering works."
+            ),
+            False,
+        ),
+        (
+            (
+                "Severe delays due to a signal failure.  No service between C and D due to "
+                "planned engineering works."
+            ),
+            False,
+        ),
+        # A time written with a full stop does not end the sentence.
+        ("No service between A and B until 08.15 due to planned engineering work.", True),
+        # Rail replacement wording inside the works sentence is still works.
+        (
+            "No service between A and B due to planned engineering works; rail replacement buses run.",
+            True,
+        ),
     ],
 )
 def test_reason_text_basis_sentence_rule(reason: str, basis: bool) -> None:
