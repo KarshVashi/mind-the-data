@@ -1015,3 +1015,51 @@ models:
         description: Sum of base severity weight x time weight.
       - name: time_weighted_scored_minutes
         description: Sum of base time weight.
+
+  - name: rpt_prediction_accuracy
+    description: >
+      Countdown accuracy per line, London week and horizon (D71, pending),
+      from int_prediction_errors. Measures how far TfL's countdown drifts
+      before the train leaves the board, not accuracy against an
+      independent clock: the arrival time is inferred from TfL's own last
+      prediction, at about one-minute poll resolution. Percentiles are
+      nearest-rank. A row may be shown only with at least
+      `prediction_accuracy_min_matched` matched predictions. Not published.
+    columns:
+      - name: prediction_accuracy_key
+        description: Row key, a hash of (week_start, line_id, horizon_minutes).
+        data_tests: [unique, not_null]
+      - name: week_start
+        description: The Monday.
+        data_tests: [not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: horizon_minutes
+        description: The countdown scored, in minutes.
+        data_tests: [not_null]
+      - name: days_with_arrivals
+        description: London days of the week with at least one eligible arrival; under 7 for a partial week.
+        data_tests: [not_null]
+      - name: eligible_arrivals
+        description: Inferred arrivals with a vehicle id and a direction at core and branch measurement stations.
+        data_tests: [not_null]
+      - name: matched_predictions
+        description: Of those, arrivals with a prediction at this horizon.
+        data_tests: [not_null]
+      - name: matched_share
+        description: matched_predictions / eligible_arrivals.
+        data_tests: [not_null]
+      - name: median_abs_error_seconds
+        description: Nearest-rank median of the absolute error; null with no match.
+      - name: p90_abs_error_seconds
+        description: Nearest-rank 90th percentile of the absolute error.
+      - name: median_signed_error_seconds
+        description: Nearest-rank median of the signed error; negative means trains tend to come earlier than the countdown said.
+      - name: within_60s_share
+        description: Share of matched predictions within 60 seconds of the arrival.
+      - name: countdown_minute_seconds
+        description: Real seconds per countdown minute, 60 x the sum of actual over the sum of predicted seconds; over 60 means the countdown runs slow.
+      - name: is_shown
+        description: At least `prediction_accuracy_min_matched` matched predictions, so the row may be shown.
+        data_tests: [not_null]

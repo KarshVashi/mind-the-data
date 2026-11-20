@@ -218,8 +218,9 @@ jobs:
             args+=(--select "${words[@]}")
           else
             # Station models (M8) build in their own step below, so a failure
-            # there never turns the line-level build red.
-            args+=(--exclude tag:station)
+            # there never turns the line-level build red. Exploratory models
+            # (pending decisions, nothing published) are built on demand only.
+            args+=(--exclude tag:station tag:exploratory)
           fi
           if [ "$FULL_REFRESH" = "true" ]; then
             args+=(--full-refresh)
