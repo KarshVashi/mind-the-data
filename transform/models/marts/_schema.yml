@@ -1015,3 +1015,133 @@ models:
         description: Sum of base severity weight x time weight.
       - name: time_weighted_scored_minutes
         description: Sum of base time weight.
+
+  - name: rpt_station_reach
+    description: >
+      Should I Run (ADR-018, D76; exploratory, not in the prod build). Which
+      trains at station A call at station B: one row per line, direction,
+      origin A, destination B and train destination D (the board's
+      destinationNaptanId), where a route of the line's latest route
+      sequence calls at A, then B, then D, with D at or after B. Lines that
+      link by vehicle id only. `is_ambiguous` marks a D that some other
+      route from A reaches without calling at B (a branch): the board
+      cannot say which way that train goes.
+    columns:
+      - name: station_reach_key
+        description: Row key, a hash of the grain.
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: direction
+        description: inbound or outbound, as in the route sequence and on the boards.
+        data_tests: [not_null]
+      - name: origin_naptan_id
+        description: Station A.
+        data_tests: [not_null]
+      - name: origin_name
+        description: A's name from dim_station.
+      - name: destination_naptan_id
+        description: Station B.
+        data_tests: [not_null]
+      - name: destination_name
+        description: B's name from dim_station.
+      - name: train_destination_naptan_id
+        description: A train destination D at or after B on a route through A and B.
+        data_tests: [not_null]
+      - name: train_destination_name
+        description: D's name from dim_station.
+      - name: routes
+        description: Routes that call at A, B and D in that order.
+        data_tests: [not_null]
+      - name: stops_to_destination
+        description: Fewest stops from A to B on those routes.
+        data_tests: [not_null]
+      - name: is_ambiguous
+        description: Some route from A reaches D without calling at B after A.
+        data_tests: [not_null]
+
+  - name: rpt_journey_slots
+    description: >
+      Should I Run (ADR-018, D76; exploratory, not in the prod build). Per
+      line, direction, origin A, destination B and weekday 15-minute slot:
+      matched runs and their p10, p50 and p90 run time, trains seen at A per
+      day against the timetable, and the typical and p90-worst wait at A for
+      a train that reaches B. Only days on which the origin's hour was
+      observed and passed the quality gate count; missing data is never a
+      good day. `status` is `ok` only with the gate passed and at least
+      `journey_min_runs` runs over `journey_min_weeks` ISO weeks, otherwise
+      `not_enough_data`. Method in docs/methodology.md, Should I Run.
+    columns:
+      - name: journey_slot_key
+        description: Row key, a hash of the grain.
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: direction
+        description: inbound or outbound.
+        data_tests: [not_null]
+      - name: origin_naptan_id
+        description: Station A.
+        data_tests: [not_null]
+      - name: destination_naptan_id
+        description: Station B.
+        data_tests: [not_null]
+      - name: day_class
+        description: Always `weekday` for now (day_types seed).
+        data_tests: [not_null]
+      - name: slot_start_minute
+        description: London minute of the day the slot starts (360 is 06:00).
+        data_tests: [not_null]
+      - name: slot_end_minute
+        description: slot_start_minute plus journey_slot_minutes (exclusive).
+        data_tests: [not_null]
+      - name: days_observed
+        description: Weekdays on which the origin's hour holding the slot was observed.
+        data_tests: [not_null]
+      - name: days_counted
+        description: Of those, days on which that hour also passed the gate; every other figure is over these days.
+        data_tests: [not_null]
+      - name: first_london_date
+        description: First weekday with a measured-hours row for the slot.
+      - name: last_london_date
+        description: Last weekday with a measured-hours row for the slot.
+      - name: passes_gate
+        description: At least one day observed, and at most gate_max_out_of_band_share of observed days out of band.
+        data_tests: [not_null]
+      - name: runs
+        description: Matched runs A to B on counted days whose pass at B fell in an observed hour.
+        data_tests: [not_null]
+      - name: weeks_with_runs
+        description: ISO weeks those runs fall in.
+        data_tests: [not_null]
+      - name: run_p10_seconds
+        description: Nearest-rank 10th percentile of run_seconds; null without runs.
+      - name: run_p50_seconds
+        description: Nearest-rank median of run_seconds.
+      - name: run_p90_seconds
+        description: Nearest-rank 90th percentile of run_seconds, the figure the page plans with.
+      - name: runs_per_day
+        description: runs / days_counted.
+      - name: trains_seen_per_day
+        description: Vehicle-id passes at A in the direction and slot per counted day, matched at B or not.
+      - name: scheduled_per_day
+        description: Timetabled departures from A in the slot per counted day (latest timetable, by day type); null where TfL serves no timetable.
+      - name: gaps
+        description: Gaps (over 0 s) between consecutive matched trains at A that end in the slot, on counted days.
+        data_tests: [not_null]
+      - name: typical_wait_seconds
+        description: Median over counted days of the day's sum(gap^2) / (2 sum(gap)), the expected wait for someone arriving at random (PLAN 7.3). Reads long when a train went unmatched.
+      - name: worst_wait_p90_seconds
+        description: Nearest-rank 90th percentile, over counted days, of the longest gap ending in the slot.
+      - name: enough_data
+        description: status = 'ok'.
+        data_tests: [not_null]
+      - name: status
+        description: "`ok` or `not_enough_data`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [ok, not_enough_data]

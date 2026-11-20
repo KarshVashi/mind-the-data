@@ -165,3 +165,10 @@ def test_station_models_build_in_their_own_step() -> None:
     assert station["continue-on-error"] is True
     assert "--select tag:station" in station["run"]
     assert "needs.gate.outputs.select == ''" in station["if"]
+
+
+def test_exploratory_models_stay_out_of_the_daily_build() -> None:
+    build = step("build", "name", "dbt build")
+    assert "--exclude tag:station tag:exploratory" in build["run"]
+    station = step("build", "name", "dbt build station models")
+    assert "exploratory" not in station["run"]

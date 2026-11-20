@@ -242,3 +242,33 @@ macros:
       - name: column
         type: string
         description: Date column of the target.
+  - name: journey_passes
+    description: The vehicle-id passes the Should I Run models read, by `journey_source` (ADR-018).
+  - name: journey_measured_hours
+    description: The measured hours (the quality gate) matching journey_passes.
+  - name: latest_route_stops
+    description: Stops of every route in the latest route-sequence fetch per line and direction, for lines that link by vehicle id.
+  - name: in_journey_windows
+    description: True when a London minute of the day is inside a `journey_slot_windows` window, optionally widened at the start.
+    arguments:
+      - name: minute_expr
+        type: string
+        description: SQL for the London minute of the day.
+      - name: lookback
+        type: integer
+        description: Minutes to widen each window at its start.
+  - name: nearest_rank
+    description: Nearest-rank percentile as an aggregate, given a row number and a row count per group.
+    arguments:
+      - name: value
+        type: string
+        description: SQL for the value.
+      - name: rank
+        type: string
+        description: SQL for the row's rank in ascending order of value.
+      - name: n
+        type: string
+        description: SQL for the group's row count.
+      - name: p
+        type: float
+        description: The percentile, 0 to 1.

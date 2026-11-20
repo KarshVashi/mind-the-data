@@ -1,0 +1,93 @@
+version: 2
+
+# Hand-computed cases for Should I Run (ADR-018, D76).
+
+unit_tests:
+  - name: int_station_vehicle_runs_pairs_passes_along_the_route
+    description: >
+      Northern inbound, latest route sequence r1 (an older fetch r0 lists
+      the stops the other way round and is ignored): route 1 is A, B, C;
+      route 2 is A, D, a branch that skips B. Wednesday 18 November 2026,
+      GMT, so London time is UTC; windows 06:00-10:00 and 16:00-19:00,
+      looking back 30 minutes.
+      Vehicle 101 passes A 08:00:00, B 08:03:30, C 08:06:00: runs A-B 210 s,
+      A-C 360 s and B-C 150 s.
+      102 is on the branch, A 08:02:00 and D 08:05:00: A-D 180 s, no A-B.
+      201 reuses an id: A 08:10:00 with no B, then A 08:40:00 and B 08:44:00.
+      Only the later pass runs (240 s); B 08:44 is after 201's next pass
+      at A, so it is not stretched back to 08:10.
+      301 passes B 08:20 then A 08:30 (B is upstream of A, so no run) and
+      B 08:35 outbound (no outbound route): nothing.
+      401 reaches B 100 minutes after A, over the 90-minute cap: nothing.
+      501 is on Saturday 21 November: nothing. 601 passes A at 11:00, outside
+      the windows: nothing. 701 passes A at 05:40, inside the lookback before
+      06:00: a run (180 s), minute 340.
+    model: int_station_vehicle_runs
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+        journey_source: station
+        journey_max_run_minutes: 90
+        journey_slot_windows: [[360, 600], [960, 1140]]
+        journey_wait_lookback_minutes: 30
+    given:
+      - input: ref('stg_route_sequence')
+        format: sql
+        rows: |
+          select
+              poll_id, '/Line/northern/Route/Sequence/inbound' as request_path, polled_at,
+              'northern' as line_id, 'inbound' as direction, route_ordinal,
+              'route' as route_name, stop_sequence, naptan_id, cast(polled_at as date) as dt
+          from (
+              values
+                  ('r1', timestamp '2026-11-17 04:00:00', 1, 1, 'A'),
+                  ('r1', timestamp '2026-11-17 04:00:00', 1, 2, 'B'),
+                  ('r1', timestamp '2026-11-17 04:00:00', 1, 3, 'C'),
+                  ('r1', timestamp '2026-11-17 04:00:00', 2, 1, 'A'),
+                  ('r1', timestamp '2026-11-17 04:00:00', 2, 2, 'D'),
+                  ('r0', timestamp '2026-11-10 04:00:00', 1, 1, 'B'),
+                  ('r0', timestamp '2026-11-10 04:00:00', 1, 2, 'A')
+          ) as t (poll_id, polled_at, route_ordinal, stop_sequence, naptan_id)
+      - input: ref('seed_vehicle_id_lines')
+        rows:
+          - {line_id: northern, link_by_vehicle_id: true}
+      - input: ref('day_types')
+        rows:
+          - {iso_day_of_week: 3, day_name: Wednesday, day_type: mon_thu, day_class: weekday}
+          - {iso_day_of_week: 6, day_name: Saturday, day_type: sat, day_class: weekend}
+      - input: ref('int_station_vehicle_passes')
+        format: sql
+        rows: |
+          select
+              'northern' as line_id, naptan_id, direction, vehicle_id, pass_time,
+              cast(pass_time as date) as london_date
+          from (
+              values
+                  ('A', 'inbound', '101', timestamp '2026-11-18 08:00:00'),
+                  ('B', 'inbound', '101', timestamp '2026-11-18 08:03:30'),
+                  ('C', 'inbound', '101', timestamp '2026-11-18 08:06:00'),
+                  ('A', 'inbound', '102', timestamp '2026-11-18 08:02:00'),
+                  ('D', 'inbound', '102', timestamp '2026-11-18 08:05:00'),
+                  ('A', 'inbound', '201', timestamp '2026-11-18 08:10:00'),
+                  ('A', 'inbound', '201', timestamp '2026-11-18 08:40:00'),
+                  ('B', 'inbound', '201', timestamp '2026-11-18 08:44:00'),
+                  ('B', 'inbound', '301', timestamp '2026-11-18 08:20:00'),
+                  ('A', 'inbound', '301', timestamp '2026-11-18 08:30:00'),
+                  ('B', 'outbound', '301', timestamp '2026-11-18 08:35:00'),
+                  ('A', 'inbound', '401', timestamp '2026-11-18 08:50:00'),
+                  ('B', 'inbound', '401', timestamp '2026-11-18 10:30:00'),
+                  ('A', 'inbound', '501', timestamp '2026-11-21 08:00:00'),
+                  ('B', 'inbound', '501', timestamp '2026-11-21 08:03:00'),
+                  ('A', 'inbound', '601', timestamp '2026-11-18 11:00:00'),
+                  ('B', 'inbound', '601', timestamp '2026-11-18 11:03:00'),
+                  ('A', 'inbound', '701', timestamp '2026-11-18 05:40:00'),
+                  ('B', 'inbound', '701', timestamp '2026-11-18 05:43:00')
+          ) as t (naptan_id, direction, vehicle_id, pass_time)
+    expect:
+      rows:
+        - {vehicle_id: "101", origin_naptan_id: A, destination_naptan_id: B, run_seconds: 210, origin_london_minute: 480, origin_london_hour: 8, destination_london_hour: 8}
+        - {vehicle_id: "101", origin_naptan_id: A, destination_naptan_id: C, run_seconds: 360, origin_london_minute: 480, origin_london_hour: 8, destination_london_hour: 8}
+        - {vehicle_id: "101", origin_naptan_id: B, destination_naptan_id: C, run_seconds: 150, origin_london_minute: 483, origin_london_hour: 8, destination_london_hour: 8}
+        - {vehicle_id: "102", origin_naptan_id: A, destination_naptan_id: D, run_seconds: 180, origin_london_minute: 482, origin_london_hour: 8, destination_london_hour: 8}
+        - {vehicle_id: "201", origin_naptan_id: A, destination_naptan_id: B, run_seconds: 240, origin_london_minute: 520, origin_london_hour: 8, destination_london_hour: 8}
+        - {vehicle_id: "701", origin_naptan_id: A, destination_naptan_id: B, run_seconds: 180, origin_london_minute: 340, origin_london_hour: 5, destination_london_hour: 5}

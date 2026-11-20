@@ -104,6 +104,24 @@ vars:
   # Last month rpt_divisions_monthly builds ('YYYY-MM-DD'); null means the
   # current month. Unit tests pin it.
   division_months_through: null
+  # Should I Run (ADR-018, D76), models tagged `exploratory`.
+  # Passes and gate read: `station` (every station, M8) or `measurement`
+  # (the 50 measurement stations, longer history; macros/journeys.sql).
+  journey_source: station
+  # A vehicle's first pass at B more than this after its pass at A is not a
+  # run (a layover, or an id reused by another train).
+  journey_max_run_minutes: 90
+  # Slots are this long, inside these London windows of a weekday,
+  # [start, end) in minutes after midnight: 06:00-10:00 and 16:00-19:00.
+  journey_slot_minutes: 15
+  journey_slot_windows: [[360, 600], [960, 1140]]
+  # Runs from this many minutes before a window are kept, so the wait for
+  # the first train of the window has the train before it.
+  journey_wait_lookback_minutes: 30
+  # A slot's figures are published only with at least this many matched
+  # runs over at least this many ISO weeks, on days that passed the gate.
+  journey_min_runs: 20
+  journey_min_weeks: 4
   # Weekly Iceberg maintenance (macros/iceberg_maintenance.sql, D64): OPTIMIZE
   # rewrites only partitions this many days back, which covers a week of
   # daily merges plus their lookback_days.
