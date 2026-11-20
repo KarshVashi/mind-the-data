@@ -324,6 +324,9 @@ How often a station was seen with step-free access out (a lift, ramp or step-fre
 - **A lower bound.** Hours seen start at the first poll that listed the outage and stop at the last, so they under-count by the unknown time before and after, and by every missed slot. An episode starting at the feed's first slot was already broken when collection began.
 - **Repeat offender.** True when 3 or more of the last 4 weeks had an outage seen. False only if 3 cannot be reached even if every week with fewer than half its slots observed had one; null otherwise, and until 4 weeks of feed exist.
 - **No denominator.** No collected data says which stations have step-free access (route sequences carry no accessibility fields), so this is how often an outage was seen, not availability. Both ids of an interchange (for example Willesden Junction 910G and 940G) carry the same notice, so totals by id count such a station twice.
+
+---
+
 ### Countdown drift (not published, D71 pending)
 
 Does "2 min" on the board mean two minutes? `int_prediction_errors` and `rpt_prediction_accuracy` score TfL's countdown at 2, 5 and 10 minutes out, per line and London week.
@@ -337,6 +340,7 @@ Does "2 min" on the board mean two minutes? `int_prediction_errors` and `rpt_pre
 - **Weekly figures.** Arrivals eligible, the share with a matched prediction, the median and 90th percentile of absolute error, the median signed error, the share within 60 seconds, and how many real seconds a countdown minute lasted (60 × total actual ÷ total predicted). Percentiles are nearest-rank, so they are exact and can be checked by hand.
 - **Minimum.** A line-week-horizon is shown only with at least 200 matched predictions.
 - **Known biases.** Only trains with an inferred arrival are scored. A train that was withdrawn, reformed or vanished from the board more than 2 minutes out has no arrival, so it is in neither the matched share nor the errors: the figures say nothing about trains that never came. A train more than 30 minutes later than its countdown counts as unmatched. The Circle and Hammersmith & City boards file some trains under the other line (D52); a prediction filed under one line never matches an arrival filed under the other, so that arrival counts as unmatched. Read the two lines together.
+
 ### Segment run times (exploratory, D72)
 
 Not published. From the every-station feed, the time a train takes between two adjacent stations, so the slowest and least predictable stretches of each line can be found.
@@ -347,6 +351,7 @@ Not published. From the every-station feed, the time a train takes between two a
 - **Times include one dwell.** A pass is the board's expected arrival at the last sighting, so a run holds a stop at one end, which end depending on how long the board keeps a train listed at the platform.
 - **Resolution is about a minute at each end.** The median of a few dozen runs is good to a few seconds, but p10, p90 and variability include the boards' timing noise, most on short segments, so read variability on long segments first.
 - **Slowest is mostly distance.** Long outer segments top any list by median; variability on longer segments is the better sign of trouble.
+
 ### Board dropouts (exploratory, not published)
 
 Can you trust TfL's boards? A train that shows on the boards at the station before X and at the station after X, in route order, has passed X. If X's boards never showed it, X's boards **dropped** it (D75, pending). This is the companion test D68 reports beside the Honesty Gap; it does not change the Honesty Gap.
@@ -363,8 +368,6 @@ Can you trust TfL's boards? A train that shows on the boards at the station befo
 - **Long gaps.** Per line, the share of the measured view's long gaps (scheduled, gated hours, D34) at these stations that contain a train dropped at the same station in the same direction, its pass time taken as halfway between A and C. A share needs at least 20 long gaps. A long gap with a dropout inside it is at least partly the boards' doing, not the service's.
 - **Caveats carried per line.** The District's vehicle ids are not stable (D27), so a reused id can join two trains. On the Circle and Hammersmith & City, boards on the shared section file some trains under the other line (D52), which reads as a dropout. The Overground has no timetable, so every train is taken to call at every station.
 - **A floor, not a count.** A train missing from two boards in a row is not judged, nor is one missing from every board: that still needs TfL's own train counts (ADR-014, open item 2).
-
----
 
 ## 4. What is published
 
@@ -452,8 +455,8 @@ On 15 November 2026 the owner accepted every recommended reading below, so each 
 | D68 | The Honesty Gap counts an hour only when two stations agree | measured (pending) |
 | D69 | Planned works under a suspension or delay code are engineering works; overruns count | declared (pending) |
 | D70 | Station views withhold their measured figures at an end of the line | stations (pending) |
-| D73 | Step-free outage hours are a lower bound, counted from sightings | station views (pending, unpublished) |
 | D71 | Countdown drift: matching, horizons, minimum count | measured, not published (pending) |
+| D73 | Step-free outage hours are a lower bound, counted from sightings | station views (pending, unpublished) |
 | [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing (decided) |
 | D57 | Division size, monthly measure, promotion and relegation | declared, publishing (decided) |
 | D58 | Season table, April to March | declared, publishing (decided) |
