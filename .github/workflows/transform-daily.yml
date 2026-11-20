@@ -215,11 +215,13 @@ jobs:
           args=(build --target prod --profiles-dir .)
           if [ -n "${SELECT// /}" ]; then
             read -ra words <<< "$SELECT"
-            args+=(--select "${words[@]}")
+            # Exploratory models (pending decisions, nothing published) are
+            # built in dev only, even when a selection such as path:models or
+            # stg_route_sequence+ reaches them.
+            args+=(--select "${words[@]}" --exclude tag:exploratory)
           else
             # Station models (M8) build in their own step below, so a failure
-            # there never turns the line-level build red. Exploratory models
-            # (pending decisions, nothing published) are built on demand only.
+            # there never turns the line-level build red.
             args+=(--exclude tag:station tag:exploratory)
           fi
           if [ "$FULL_REFRESH" = "true" ]; then
