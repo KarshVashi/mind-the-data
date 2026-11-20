@@ -21,7 +21,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
-D1 and D67 are open.
+D1, D67 and D71 are open.
 
 ### D67. Single-weekday timetables are left out until a weekday can be modelled
 
@@ -32,6 +32,25 @@ D1 and D67 are open.
 - **What it does at those stops:** the 18 Nov versions hold only these schedules (Metropolitan: Tuesdays, Wednesdays, Thursdays; District: Wednesdays, Thursdays, Friday). A newer version still ends the previous one, so from 18 Nov those stop-directions have no timetable for Monday to Thursday, Saturday or Sunday, and the Metropolitan ones none for Friday either. The `seed_line_frequencies` fallback does not apply, because a timetable exists. `int_station_measured_hours` then uses its no-timetable rule: it counts hours in which a train was seen, an hour with no train never counts as a gap, and a suspension is not detected. Never Good Service.
 - **Scope:** none of these stops is a measurement station, so the league, the measured view and W46 do not change. Only the unpublished station views do, at these 7 stops.
 - **Follow-up:** model a schedule that runs on one weekday, for example a nullable `iso_day_of_week` in `timetable_schedule_day_types`, carried through `int_scheduled_headways` and matched by the measured-hours models. Before station publishing is switched on.
+
+### D71. Countdown drift: how a prediction is matched and scored
+
+- **Entered:** 2026-11-20. **Deadline:** 2026-11-23 12:00 UTC (a reminder only). **Class:** `never-default` (a new metric's definition; nothing is published until it is settled). **Default:** none; recommended as implemented.
+- **Question:** does "2 min" on the board mean two minutes? New models `int_prediction_errors` and `rpt_prediction_accuracy` score TfL's countdown at 2, 5 and 10 minutes out, per line and London week. Methodology, section 3, "Countdown drift".
+- **The caveat, to be stated wherever a figure appears:** the "actual" arrival is inferred from the predictions themselves: TfL's last prediction before the train left the board, at about one-minute poll resolution (PLAN 7.2). This measures how far TfL's countdown drifts before the end. It is not checked against an independent clock. Countdowns under 2 minutes are too close to the prediction that sets the arrival time and are not scored.
+- **Definitions (as implemented):**
+  - Source: the measurement-station feed (`int_inferred_arrivals`, from 4 November), not the every-station feed (`int_station_inferred_arrivals`, from 17 November). One consistent series from the first week, and termini can be left out from `seed_measurement_stations.role` (D66). The every-station feed would need station roles (`dim_line_station_role`, PR #46) and would start a second series on 17 November.
+  - Lines: those `seed_vehicle_id_lines` links by vehicle id (D27). Out: District (unstable ids), DLR (no ids), and the lines not linked. Termini out (D66).
+  - Matching: for each inferred arrival with a vehicle id and a direction, and each horizon, the prediction for the same vehicle id on the same board (request, stop, line, platform, direction) whose countdown at the poll (D40) is nearest the horizon, within 30 s either side, lower edge in, upper edge out. Polled within 30 minutes before the arrival, and before the sighting that sets the arrival time. Ties to the earlier poll.
+  - Signed error: actual seconds to arrival minus the countdown. Positive is later than the board said.
+  - Weekly: eligible arrivals, matched share, nearest-rank median and p90 of absolute error, median signed error, share within 60 s, and real seconds per countdown minute (60 × total actual ÷ total predicted).
+  - Minimum before a line-week-horizon is shown: 200 matched predictions (`prediction_accuracy_min_matched`). With 200, the p90 rests on 20 predictions above it. Every line clears it in every week so far, including the part weeks.
+- **Options:**
+  1. Accept as implemented (recommended).
+  2. Bucket by time actually elapsed before the arrival, not by the countdown shown. That answers "how wrong was the board 10 minutes before the train came" rather than "how wrong is '10 min'". The countdown is what a passenger reads, so option 1 is recommended. On 17 November both give the same sign of bias on every line.
+  3. Use the every-station feed from 17 November once station roles are merged: more stations, a shorter series.
+- **Known biases:** only trains that reached the station are scored; a train withdrawn or lost from the board is never matched, so the figures say nothing about trains that never came. Circle and Hammersmith & City share misfiled trains (D52), so read them together.
+- **Not published.** Publishing would need a contract change (a `prediction_accuracy` block or file, a new flag defaulting off, a `schema_version` bump), described in the pull request.
 
 ## Settled on 2026-11-18, with the detail
 

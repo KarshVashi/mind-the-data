@@ -273,6 +273,20 @@ From M8 the same method is applied at every station, not only the 50 measurement
 
 Station figures start provisional: one full week for a first snapshot, four for trends.
 
+### Countdown drift (not published, D71 pending)
+
+Does "2 min" on the board mean two minutes? `int_prediction_errors` and `rpt_prediction_accuracy` score TfL's countdown at 2, 5 and 10 minutes out, per line and London week.
+
+**What it measures.** The "actual" arrival is not an independent observation: it is the inferred arrival (section 3, Inferring arrivals), which is TfL's own last prediction before the train left the board, at about one-minute poll resolution. So this measures **how far TfL's countdown drifts before the end**, not whether trains arrived when the board said by any outside clock. A countdown under 2 minutes is too close to the prediction that sets the arrival time to say anything, and is not scored.
+
+- **Source.** The 50 measurement stations (`int_inferred_arrivals`), which run from 4 November, so the series is consistent from its first week, and whose stations carry a role, so termini can be left out (D66). The every-station feed starts on 17 November and has no station roles on `main` yet.
+- **Lines.** Only lines linked by vehicle id (D27): Bakerloo, Central, Circle, Hammersmith & City, Jubilee, Metropolitan, Northern, Piccadilly and Victoria. The District (unstable ids), the DLR (no ids), the Elizabeth line, the Overground, the Tram and the Waterloo & City are left out.
+- **Matching.** For each inferred arrival with a vehicle id and a direction, at a core or branch station, and each horizon, the prediction for the same vehicle id on the same board (station request, stop, line, platform and direction) whose countdown at the poll (expected arrival minus poll time, D40) was nearest the horizon, within 30 seconds either side (lower edge in, upper edge out). It must be polled within 30 minutes before the arrival and before the sighting that sets the arrival time, which is never scored against itself. Ties go to the earlier poll.
+- **Error.** Signed error is the actual time to arrival minus the countdown: positive means the train came later than the board said. Absolute error is its size.
+- **Weekly figures.** Arrivals eligible, the share with a matched prediction, the median and 90th percentile of absolute error, the median signed error, the share within 60 seconds, and how many real seconds a countdown minute lasted (60 × total actual ÷ total predicted). Percentiles are nearest-rank, so they are exact and can be checked by hand.
+- **Minimum.** A line-week-horizon is shown only with at least 200 matched predictions.
+- **Known biases.** Only trains that reached the station are scored: a prediction for a train that was withdrawn, reformed or vanished from the board is never matched, so the figures say nothing about trains that never came. The Circle and Hammersmith & City boards file some trains under the other line (D52); a misfiled train can only match if its vehicle id matches, but the two lines' figures should be read together.
+
 ---
 
 ## 4. What is published
@@ -357,6 +371,7 @@ On 15 November 2026 the owner accepted every recommended reading below, so each 
 | D64 | Iceberg maintenance scope (auto-apply) | operations (decided) |
 | D65 | A prediction with no direction takes one where the boards show it | measured (decided) |
 | D66 | Trains run measured at core and branch stations, not termini | measured, publishing (decided) |
+| D71 | Countdown drift: matching, horizons, minimum count | measured, not published (pending) |
 | [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing (decided) |
 | D57 | Division size, monthly measure, promotion and relegation | declared, publishing (decided) |
 | D58 | Season table, April to March | declared, publishing (decided) |
