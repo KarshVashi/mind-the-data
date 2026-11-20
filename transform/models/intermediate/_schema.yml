@@ -955,3 +955,74 @@ models:
         data_tests: [not_null]
       - name: is_long_gap
         description: More than twice the ending hour's longest scheduled gap (D34); null without a timetable (no scheduled gap to judge it by).
+
+  - name: int_step_free_slots
+    description: >
+      One row per station and 5-minute UTC slot in which a successful
+      stop_disruption poll listed a step-free access outage (D73), with the
+      outage episode the slot belongs to. The feed lists only current faults
+      and gives no clear time. Between two seen slots of a station, an
+      observed slot (one with a successful poll) means the outage was not
+      listed and a new episode starts; otherwise the slots between were
+      never polled, which is unknown, so the episode continues and those
+      slots are counted in missing_slots_before, never as seen. Closures,
+      standing notices and text that is not a step-free outage are left out
+      (is_step_free_outage_text).
+    columns:
+      - name: step_free_slot_key
+        description: Row key, a hash of (naptan_id, slot_utc).
+        data_tests: [unique, not_null]
+      - name: naptan_id
+        description: Station id (the disrupted point's parent station code, or its own code when TfL gives no parent).
+        data_tests: [not_null]
+      - name: slot_utc
+        description: Start of the 5-minute UTC slot.
+        data_tests: [not_null]
+      - name: is_planned
+        description: Every outage seen in the slot is planned work.
+        data_tests: [not_null]
+      - name: episode_number
+        description: 1-based number of the episode among the station's episodes, in time order.
+        data_tests: [not_null]
+      - name: episode_key
+        description: Row key of the episode, a hash of (naptan_id, first slot of the episode).
+        data_tests: [not_null]
+      - name: missing_slots_before
+        description: Unobserved slots between the previous seen slot of the same episode and this one; 0 for the first slot of an episode.
+        data_tests: [not_null]
+
+  - name: int_step_free_outages
+    description: >
+      Step-free outage episodes per station (D73): first and last slot seen,
+      hours seen, and hours of unobserved slots inside the episode, kept
+      apart. hours_seen is a lower bound: the feed has no clear time, so the
+      outage began before first_seen and ended after last_seen by an unknown
+      amount. Episode rules are in int_step_free_slots.
+    columns:
+      - name: episode_key
+        description: Row key, a hash of (naptan_id, first slot of the episode).
+        data_tests: [unique, not_null]
+      - name: naptan_id
+        description: Station id.
+        data_tests: [not_null]
+      - name: first_seen_slot_utc
+        description: Start of the first slot in which the outage was listed.
+        data_tests: [not_null]
+      - name: last_seen_slot_utc
+        description: Start of the last slot in which the outage was listed.
+        data_tests: [not_null]
+      - name: hours_seen
+        description: Slots in which the outage was listed, in hours. A lower bound.
+        data_tests: [not_null]
+      - name: hours_missing_inside
+        description: Unobserved slots between sightings inside the episode, in hours. Neither fixed nor broken; not in hours_seen.
+        data_tests: [not_null]
+      - name: planned_hours_seen
+        description: Hours seen in which every listed outage was planned work.
+        data_tests: [not_null]
+      - name: starts_at_feed_start
+        description: The episode starts at the feed's first observed slot, so the outage began earlier.
+        data_tests: [not_null]
+      - name: open_at_feed_end
+        description: The outage is listed at the feed's latest observed slot, so it may still be going.
+        data_tests: [not_null]
