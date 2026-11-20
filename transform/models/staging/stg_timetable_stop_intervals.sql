@@ -78,7 +78,7 @@ select
     json_extract_scalar(timetable_json, '$.timetable.departureStopId') as departure_stop_id,
     route_ordinal,
     interval_ordinal,
-    cast(json_extract_scalar(interval_json, '$.id') as integer) as interval_id,
+    try_cast(json_extract_scalar(interval_json, '$.id') as integer) as interval_id,
     stop_ordinal,
     json_extract_scalar(stop_json, '$.stopId') as stop_id,
     cast(json_extract_scalar(stop_json, '$.timeToArrival') as double) as minutes_to_arrival,

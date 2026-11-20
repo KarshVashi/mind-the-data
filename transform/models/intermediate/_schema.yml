@@ -924,10 +924,12 @@ models:
       stations either side of X along one of the line's latest routes.
       Passes A, X, C are `shown`. Passes A then C, with X the only station
       between them, are `shown` when X's own listings
-      (int_station_arrivals_directed, any direction) had the train within
+      (int_station_arrivals_directed, in the trip's direction from A and C
+      or with none; any direction when A and C disagree) had the train within
       `vehicle_pass_threshold_seconds` between the two passes, and
       `dropped` otherwise. `exclusion_reason` leaves out lines not measured
-      (seed_board_dropout_lines), termini, stations a timetabled pattern
+      (seed_board_dropout_lines), trains whose run from A to C overlaps a
+      collection gap in the line feed (D28), termini, stations a timetabled pattern
       runs through, stations where a dropout cannot be seen (a branch joins
       either side), and passes more than `board_dropout_max_span_minutes`
       apart. A floor on what boards drop: trains missing from two boards in
@@ -986,7 +988,7 @@ models:
         data_tests:
           - accepted_values:
               arguments:
-                values: [line_not_measured, terminus, dropout_undetectable, timetabled_run_through, span_too_long]
+                values: [line_not_measured, collection_gap, terminus, dropout_undetectable, timetabled_run_through, span_too_long]
       - name: is_judged
         description: True when exclusion_reason is null; only these rows count.
         data_tests: [not_null]

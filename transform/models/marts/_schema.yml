@@ -1080,3 +1080,12 @@ models:
         data_tests: [not_null]
       - name: line_long_gap_dropout_share
         description: line_long_gaps_with_dropout / line_long_gaps; null under board_dropout_min_long_gaps.
+      - name: is_measurement_station
+        description: The station is a core or branch measurement station of the line (seed_measurement_stations), D68's ground.
+        data_tests: [not_null]
+      - name: line_measurement_long_gaps
+        description: line_long_gaps at the line's core and branch measurement stations only.
+        data_tests: [not_null]
+      - name: line_measurement_long_gaps_with_dropout
+        description: line_long_gaps_with_dropout at the line's core and branch measurement stations only.
+        data_tests: [not_null]

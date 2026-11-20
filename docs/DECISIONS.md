@@ -39,14 +39,16 @@ D1, D67 and D75 are open.
 - **Context:** D68 pre-registers a dropout test, to be reported beside the 18 to 24 November Honesty Gap and not used to change it. The 17 November test was an ad hoc query. This puts it in the build, so it can be rerun every week and checked.
 - **Rule** (`int_board_dropouts`, `rpt_board_reliability_weekly`, seed `seed_board_dropout_lines`, staging `stg_timetable_stop_intervals`):
   1. A train's consecutive vehicle-id passes (`int_station_vehicle_passes`) at A, X and C, three stations in a row on one of the line's latest routes, are **shown** at X.
-  2. Consecutive passes at A then C, with X the only station between them on the line's routes, are a candidate. X's own listings decide it, in any direction or none, from 10 minutes before the pass at A to 2 minutes after the pass at C. A listing in the other direction is the train's previous trip and is ignored. If X listed the train within 120 s of arrival, it was **shown**: its pass was out of order, or had no direction (D65). Otherwise it was **dropped**: `never_listed`, or `listed_not_arriving` (on the board but gone before arrival).
+  2. Consecutive passes at A then C, with X the only station between them on the line's routes, are a candidate. X's own listings decide it, from 10 minutes before the pass at A to 2 minutes after the pass at C, in the trip's direction (A's and C's, when they agree) or with none. A listing in the other direction is the train's previous trip and is ignored; when A and C disagree, any direction counts. If X listed the train within 120 s of arrival, it was **shown**: its pass was out of order, or had no direction (D65). Otherwise it was **dropped**: `never_listed`, or `listed_not_arriving` (on the board but gone before arrival).
   3. **Not judged:**
      - lines the seed leaves out: the DLR (no ids), the Elizabeth line (run-through services and no timetable), the Waterloo & City (no middle station);
+     - trains whose run from A to C (with the same margins) overlaps a collection gap in the line feed (D28): X's boards were not read, and missing data is never a verdict on them;
      - termini, as in D66 and D70;
-     - stations where a dropout could not be seen, because A and C are next to each other on another branch (Mornington Crescent);
+     - stations where a dropout could not be seen, because A and C are next to each other, or three or more stops apart, on another route (Mornington Crescent);
      - stations a TfL timetable stopping pattern runs through (`stationIntervals`). This covers the Piccadilly at Turnham Green and the Metropolitan between Wembley Park and Finchley Road. Shown and dropped trains are both left out there;
      - passes at A and C more than 20 minutes apart (`board_dropout_max_span_minutes`).
-  4. **Report:** per ISO week, line and station, the trains judged, dropped and never listed, and the dropout share. Per line, the same totals, plus the share of the measured view's long gaps (scheduled, gated hours, D34) at these stations that contain a dropped train at the same station and direction, with the pass time taken as halfway between A and C. A share needs at least 100 judged trains (`board_dropout_min_trains`) or 20 long gaps (`board_dropout_min_long_gaps`). Below that it is null.
+  4. **Report:** per ISO week, line and station, the trains judged, dropped and never listed, and the dropout share. Per line, the same totals, plus the share of the measured view's long gaps (scheduled, gated hours, D34) at these stations that contain a dropped train at the same station and direction, with the pass time taken as halfway between A and C. The long-gap count is repeated for the core and branch measurement stations alone, D68's ground. Neither is limited to Good Service hours.
+  5. **Reproducible:** routes and timetable stopping patterns are read as fetched by the last day of the build window, so rebuilding a past week gives it the same exclusions. A share needs at least 100 judged trains (`board_dropout_min_trains`) or 20 long gaps (`board_dropout_min_long_gaps`). Below that it is null.
 - **The District:** it is shown, with `line_caveat: unstable_vehicle_ids`. Leaving it out would hide the one line where D68 found that dropouts explain long gaps, the result D68 asks to be repeated. Unstable ids make its figure a mix of board and identity errors, which the caveat says.
 - **Also caveated:**
   - The Circle and the Hammersmith & City (`shared_section_misfiled`, D52): a train filed under the other line reads as a dropout.
@@ -59,19 +61,19 @@ D1, D67 and D75 are open.
   | Central | 13,925 | 44 | 0.32% | 0 of 136 | 0.4%; 1 of 82 |
   | District (caveat) | 13,345 | 208 | 1.56% | 25 of 46 (54%) | 1.6%; 27 of 45 |
   | Jubilee | 11,400 | 7 | 0.06% | 0 of 59 | 0.3% |
-  | Metropolitan | 3,340 | 52 | 1.56% | 0 of 103 | 7.3%; 0 of 56 |
-  | Northern | 20,620 | 5 | 0.02% | 0 of 158 | 2.4%; 0 of 70 |
+  | Metropolitan | 3,325 | 52 | 1.56% | 0 of 103 | 7.3%; 0 of 56 |
+  | Northern | 20,146 | 5 | 0.02% | 0 of 158 | 2.4%; 0 of 70 |
   | Piccadilly | 12,117 | 18 | 0.15% | 1 of 260 | 3.1%; 0 of 78 |
   | Victoria | 8,059 | 32 | 0.40% | 0 of 59 | 6.9%; 0 of 47 |
   | Circle (caveat) | 2,713 | 72 | 2.65% | 0 of 3 | |
   | Hammersmith & City (caveat) | 4,820 | 2 | 0.04% | 0 of 24 | |
   | Tram | 2,781 | 109 | 3.92% | 14 of 110 (12.7%) | |
 
-  The six Overground lines read 0 to 0.12%, with too few long gaps to judge. Leaving the Elizabeth line out removes 189 dropped trains of 5,813 (3.25%; the 17 November test gave 7.9%). Every measured line has enough judged trains for a share, and 330 of 463 station rows do. Across all lines, 564 of 110,771 judged trains were dropped (0.51%).
+  The six Overground lines read 0 to 0.12%, with too few long gaps to judge. Leaving the Elizabeth line out removes 189 dropped trains of 5,813 (3.25%; the 17 November test gave 7.9%). Every measured line has enough judged trains for a share, and 330 of 463 station rows do. Across all lines, 564 of 110,282 judged trains were dropped (0.51%). No train was left out for a collection gap in this window.
 - **What the evidence says:**
-  - The long-gap result repeats: on every Tube line except the District, almost no long gap holds a dropout. On the District, 25 of 46 do, and all 25 are at Earl's Court (of its 34 long gaps).
+  - The long-gap result repeats: on every Tube line except the District, almost no long gap holds a dropout. On the District, 25 of 46 do, and all 25 are at Earl's Court (of its 34 long gaps). On D68's own ground, the core and branch measurement stations, it is 25 of 46 on the District and none on any other Tube line: Bakerloo 0 of 24, Central 0 of 87, Jubilee 0 of 34, Metropolitan 0 of 50, Northern 0 of 77, Piccadilly 0 of 85, Victoria 0 of 59.
   - The dropout shares are lower than the 17 November test on the Victoria, Metropolitan, Northern and Piccadilly lines. The 17 November query is not in the repository, so the causes cannot be traced exactly. On this build, three effects that a plain "no pass at X" count would include are taken out:
-    - Bank-branch trains at Euston then Camden Town, which would read as dropped at Mornington Crescent (`dropout_undetectable`, 495 trains);
+    - Bank-branch trains at Euston then Camden Town, which would read as dropped at Mornington Crescent (`dropout_undetectable`, 982 trains, with pairs further apart on another route);
     - Piccadilly trains through Turnham Green, and Metropolitan trains from Wembley Park to Finchley Road (`timetabled_run_through`, 341);
     - out-of-order passes, and listings without a direction, which X's own listings show were on the board (550 trains across all lines on the first build without the check, 1,114 dropped against 564 now).
 

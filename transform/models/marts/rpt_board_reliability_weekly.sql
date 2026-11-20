@@ -6,7 +6,11 @@
 -- how many the station never listed at all. Line columns
 -- repeat on each of the line's rows: the line's dropout share, and the
 -- share of the measured view's long gaps at these stations that a dropped
--- train sits inside, the test D68 reports beside the Honesty Gap.
+-- train sits inside, the test D68 reports beside the Honesty Gap. The
+-- `line_measurement_` columns repeat the long-gap count on D68's own
+-- ground, the core and branch measurement stations, so it can be read
+-- like for like beside the Honesty Gap; they are not limited to Good
+-- Service hours.
 --
 -- Only judged trains count; a station with none in a week has no row.
 -- Shares are null, never 0, below the minimum n: `board_dropout_min_trains`
@@ -85,6 +89,15 @@ station_gaps as (
     group by week_start, line_id, naptan_id
 ),
 
+measurement_stations as (
+    -- The Honesty Gap's ground (D68): core and branch measurement stations.
+    select distinct
+        line_id,
+        naptan_id
+    from {{ ref('seed_measurement_stations') }}
+    where role in ('core', 'branch')
+),
+
 stations as (
     select
         station_trains.week_start,
@@ -94,8 +107,13 @@ stations as (
         station_trains.trains_dropped,
         station_trains.trains_never_listed,
         coalesce(station_gaps.long_gaps, 0) as long_gaps,
-        coalesce(station_gaps.long_gaps_with_dropout, 0) as long_gaps_with_dropout
+        coalesce(station_gaps.long_gaps_with_dropout, 0) as long_gaps_with_dropout,
+        measurement_stations.naptan_id is not null as is_measurement_station
     from station_trains
+    left join measurement_stations
+        on
+            station_trains.line_id = measurement_stations.line_id
+            and station_trains.naptan_id = measurement_stations.naptan_id
     left join station_gaps
         on
             station_trains.week_start = station_gaps.week_start
@@ -110,7 +128,11 @@ with_line as (
         sum(trains_dropped) over line_week as line_trains_dropped,
         sum(trains_never_listed) over line_week as line_trains_never_listed,
         sum(long_gaps) over line_week as line_long_gaps,
-        sum(long_gaps_with_dropout) over line_week as line_long_gaps_with_dropout
+        sum(long_gaps_with_dropout) over line_week as line_long_gaps_with_dropout,
+        sum(if(is_measurement_station, long_gaps, 0)) over line_week
+            as line_measurement_long_gaps,
+        sum(if(is_measurement_station, long_gaps_with_dropout, 0)) over line_week
+            as line_measurement_long_gaps_with_dropout
     from stations
     window line_week as (partition by week_start, line_id)
 )
@@ -143,6 +165,9 @@ select
         with_line.line_long_gaps >= {{ var('board_dropout_min_long_gaps') }},
         1e0 * with_line.line_long_gaps_with_dropout / with_line.line_long_gaps
     ) as line_long_gap_dropout_share,
+    with_line.is_measurement_station,
+    with_line.line_measurement_long_gaps,
+    with_line.line_measurement_long_gaps_with_dropout,
     {{ row_key(['with_line.week_start', 'with_line.line_id', 'with_line.naptan_id']) }}
         as board_reliability_key
 from with_line

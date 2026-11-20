@@ -78,7 +78,11 @@ unit_tests:
       listed at V3 at 20:00, 300 s out, and never closer: dropped
       (listed_not_arriving). Two V3 listings of b count for nothing: one at
       09:00, before the 10-minute lead-in to its pass at V2, and one at
-      10:55, 30 s out but outbound, the train's previous trip the other way. The window is 17 November; every
+      10:55, 30 s out but outbound, the train's previous trip the other way.
+      The Victoria feed has no successful poll from 20:58 to 21:03, a
+      collection gap: vehicle m (V2 21:05, V4 21:09, never listed at V3) is
+      excluded, since its run from 20:55 overlaps the gap. Vehicle n (V1
+      then V4, three stops apart) is no candidate and has no row. The window is 17 November; every
       row is in GMT, so London is UTC.
     model: int_board_dropouts
     overrides:
@@ -165,8 +169,22 @@ unit_tests:
                   ('victoria', 'V2', 'inbound', 'j', timestamp '2026-11-17 19:00:00'),
                   ('victoria', 'V4', 'inbound', 'j', timestamp '2026-11-17 19:04:00'),
                   ('victoria', 'V2', 'inbound', 'k', timestamp '2026-11-17 20:00:00'),
-                  ('victoria', 'V4', 'inbound', 'k', timestamp '2026-11-17 20:04:00')
+                  ('victoria', 'V4', 'inbound', 'k', timestamp '2026-11-17 20:04:00'),
+                  ('victoria', 'V2', 'inbound', 'm', timestamp '2026-11-17 21:05:00'),
+                  ('victoria', 'V4', 'inbound', 'm', timestamp '2026-11-17 21:09:00'),
+                  ('victoria', 'V1', 'inbound', 'n', timestamp '2026-11-17 22:00:00'),
+                  ('victoria', 'V4', 'inbound', 'n', timestamp '2026-11-17 22:06:00')
           ) as t (line_id, naptan_id, direction, vehicle_id, pass_time)
+      - input: ref('stg_line_arrival_polls')
+        format: sql
+        rows: |
+          select
+              format_datetime(polled_at, 'HHmm') as poll_id, '/Line/victoria/Arrivals' as request_path,
+              polled_at, true as is_ok, cast(polled_at as date) as dt
+          from unnest(
+              sequence(timestamp '2026-11-17 09:00:00', timestamp '2026-11-17 20:58:00', interval '1' minute)
+              || sequence(timestamp '2026-11-17 21:03:00', timestamp '2026-11-17 23:00:00', interval '1' minute)
+          ) as t (polled_at)
       - input: ref('int_station_arrivals_directed')
         format: sql
         rows: |
@@ -192,16 +210,17 @@ unit_tests:
         - {line_id: northern, naptan_id: N2, vehicle_id: i, board_outcome: shown, dropout_kind: null, exclusion_reason: dropout_undetectable, is_judged: false, is_dropped: false, direction: inbound, estimated_pass_time: "2026-11-17 17:02:00", week_start: "2026-11-16"}
         - {line_id: victoria, naptan_id: V3, vehicle_id: j, board_outcome: shown, dropout_kind: null, exclusion_reason: null, is_judged: true, is_dropped: false, direction: inbound, estimated_pass_time: "2026-11-17 19:02:30", week_start: "2026-11-16"}
         - {line_id: victoria, naptan_id: V3, vehicle_id: k, board_outcome: dropped, dropout_kind: listed_not_arriving, exclusion_reason: null, is_judged: true, is_dropped: true, direction: inbound, estimated_pass_time: "2026-11-17 20:02:00", week_start: "2026-11-16"}
+        - {line_id: victoria, naptan_id: V3, vehicle_id: m, board_outcome: dropped, dropout_kind: never_listed, exclusion_reason: collection_gap, is_judged: false, is_dropped: true, direction: inbound, estimated_pass_time: "2026-11-17 21:07:00", week_start: "2026-11-16"}
         - {line_id: elizabeth, naptan_id: E2, vehicle_id: h, board_outcome: dropped, dropout_kind: never_listed, exclusion_reason: line_not_measured, is_judged: false, is_dropped: true, direction: inbound, estimated_pass_time: "2026-11-17 18:03:00", week_start: "2026-11-16"}
 
-  - name: rpt_board_reliability_weekly_shares_long_gaps_and_minimum_n
+  - name: rpt_board_reliability_weekly_counts_each_long_gap_once
     description: >
       Week of 16 November, minimum 4 judged trains and 2 long gaps.
       Victoria X has 6 judged trains, 3 dropped: 0.5. Y has 2 judged, 1
       dropped: below the minimum, so null. The line has 8 judged, 4
       dropped: 0.5. A dropped train at X that is not judged (09:05) counts
-      nowhere. Long gaps at X: g1 inbound 08:00 to 08:10 holds the 08:05
-      inbound dropout; g2 outbound over the same minutes does not (other
+      nowhere. Long gaps at X: g1 inbound 08:00 to 08:10 holds two inbound
+      dropouts (08:05 and 08:07) and counts once; g2 outbound over the same minutes does not (other
       direction); g3 inbound 09:00 to 09:10 holds only the excluded
       dropout; g4 inbound 11:55 to 12:05 holds the 12:00 dropout, whose
       direction is unknown, so it matches no gap. g5 is out of band and g6
@@ -209,8 +228,10 @@ unit_tests:
       long gap but no judged train, so no row. The line: 5 long gaps, 1
       with a dropout: 0.2. Metropolitan Z: 4 judged, 1 dropped (0.25), and
       1 long gap with that dropout inside it: under 2 long gaps, so the
-      line's long-gap share is null. x2 was listed but never shown
+      line's long-gap share is null. x4 was listed but never shown
       arriving; every other dropout was never listed: X 2, Y 1, line 3.
+      Only X is a core measurement station (Y is a terminus), so the
+      line's measurement-station long gaps are X's: 4, 1 with a dropout.
     model: rpt_board_reliability_weekly
     overrides:
       vars:
@@ -221,6 +242,10 @@ unit_tests:
         rows:
           - {line_id: victoria, caveat: null}
           - {line_id: metropolitan, caveat: null}
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: victoria, naptan_id: X, role: core}
+          - {line_id: victoria, naptan_id: Y, role: terminus}
       - input: ref('dim_station')
         rows:
           - {naptan_id: X, station_name: Ex}
@@ -232,13 +257,13 @@ unit_tests:
           select
               key as board_dropout_key, line_id, naptan_id, direction, estimated_pass_time,
               is_judged, is_dropped, date '2026-11-16' as week_start,
-              if(is_dropped, if(key = 'x2', 'listed_not_arriving', 'never_listed')) as dropout_kind
+              if(is_dropped, if(key = 'x4', 'listed_not_arriving', 'never_listed')) as dropout_kind
           from (
               values
                   ('x1', 'victoria', 'X', 'inbound', timestamp '2026-11-17 08:05:00', true, true),
-                  ('x2', 'victoria', 'X', 'inbound', timestamp '2026-11-17 11:00:00', true, true),
+                  ('x2', 'victoria', 'X', 'inbound', timestamp '2026-11-17 11:00:00', true, false),
                   ('x3', 'victoria', 'X', null, timestamp '2026-11-17 12:00:00', true, true),
-                  ('x4', 'victoria', 'X', 'inbound', timestamp '2026-11-17 08:02:00', true, false),
+                  ('x4', 'victoria', 'X', 'inbound', timestamp '2026-11-17 08:07:00', true, true),
                   ('x5', 'victoria', 'X', 'inbound', timestamp '2026-11-17 08:12:00', true, false),
                   ('x6', 'victoria', 'X', 'outbound', timestamp '2026-11-17 08:03:00', true, false),
                   ('x7', 'victoria', 'X', 'inbound', timestamp '2026-11-17 09:05:00', false, true),
@@ -272,6 +297,6 @@ unit_tests:
           )
     expect:
       rows:
-        - {line_id: victoria, naptan_id: X, station_name: Ex, trains_judged: 6, trains_dropped: 3, trains_never_listed: 2, dropout_share: 0.5, long_gaps: 4, long_gaps_with_dropout: 1, line_trains_judged: 8, line_trains_dropped: 4, line_trains_never_listed: 3, line_dropout_share: 0.5, line_long_gaps: 5, line_long_gaps_with_dropout: 1, line_long_gap_dropout_share: 0.2}
-        - {line_id: victoria, naptan_id: Y, station_name: Why, trains_judged: 2, trains_dropped: 1, trains_never_listed: 1, dropout_share: null, long_gaps: 1, long_gaps_with_dropout: 0, line_trains_judged: 8, line_trains_dropped: 4, line_trains_never_listed: 3, line_dropout_share: 0.5, line_long_gaps: 5, line_long_gaps_with_dropout: 1, line_long_gap_dropout_share: 0.2}
-        - {line_id: metropolitan, naptan_id: Z, station_name: Zed, trains_judged: 4, trains_dropped: 1, trains_never_listed: 1, dropout_share: 0.25, long_gaps: 1, long_gaps_with_dropout: 1, line_trains_judged: 4, line_trains_dropped: 1, line_trains_never_listed: 1, line_dropout_share: 0.25, line_long_gaps: 1, line_long_gaps_with_dropout: 1, line_long_gap_dropout_share: null}
+        - {line_id: victoria, naptan_id: X, station_name: Ex, is_measurement_station: true, trains_judged: 6, trains_dropped: 3, trains_never_listed: 2, dropout_share: 0.5, long_gaps: 4, long_gaps_with_dropout: 1, line_trains_judged: 8, line_trains_dropped: 4, line_trains_never_listed: 3, line_dropout_share: 0.5, line_long_gaps: 5, line_long_gaps_with_dropout: 1, line_long_gap_dropout_share: 0.2, line_measurement_long_gaps: 4, line_measurement_long_gaps_with_dropout: 1}
+        - {line_id: victoria, naptan_id: Y, station_name: Why, is_measurement_station: false, trains_judged: 2, trains_dropped: 1, trains_never_listed: 1, dropout_share: null, long_gaps: 1, long_gaps_with_dropout: 0, line_trains_judged: 8, line_trains_dropped: 4, line_trains_never_listed: 3, line_dropout_share: 0.5, line_long_gaps: 5, line_long_gaps_with_dropout: 1, line_long_gap_dropout_share: 0.2, line_measurement_long_gaps: 4, line_measurement_long_gaps_with_dropout: 1}
+        - {line_id: metropolitan, naptan_id: Z, station_name: Zed, is_measurement_station: false, trains_judged: 4, trains_dropped: 1, trains_never_listed: 1, dropout_share: 0.25, long_gaps: 1, long_gaps_with_dropout: 1, line_trains_judged: 4, line_trains_dropped: 1, line_trains_never_listed: 1, line_dropout_share: 0.25, line_long_gaps: 1, line_long_gaps_with_dropout: 1, line_long_gap_dropout_share: null, line_measurement_long_gaps: 0, line_measurement_long_gaps_with_dropout: 0}
