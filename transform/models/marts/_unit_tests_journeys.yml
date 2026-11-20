@@ -53,29 +53,35 @@ unit_tests:
   - name: rpt_journey_slots_counts_gated_days_and_waits
     description: >
       Victoria inbound, A to B, one window 08:00-08:30 (slots 480 and 495),
-      GMT. A's hour 8 was observed and in band on Wed 11 and Wed 18
-      November (counted), observed but out of band on Thu 12 (not counted)
-      and not observed on Fri 13: 3 days observed, 2 counted, and with at
-      most half out of band allowed the gate passes.
-      Runs on the 11th: 07:58 (lookback, 500 s), 08:00 540 s, 08:02 560 s,
-      08:06 600 s, 08:16 520 s (slot 495). The 12th: 08:01 900 s, not
-      counted. The 18th: 08:01 550 s, 08:05 580 s, 08:12 3000 s, reaching B
-      in hour 9, which was not observed, so it is no run time (but is still
-      a train for the wait).
-      Slot 480: runs 540, 550, 560, 580, 600 (n = 5, 2 ISO weeks): p10 =
-      rank 1 = 540, p50 = rank 3 = 560, p90 = rank 5 = 600; 2.5 a day; ok
-      with at least 3 runs over 2 weeks.
-      Gaps ending in slot 480: the 11th 120, 120, 240 (from the 07:58 train,
-      whose hour 7 was observed): expected wait 86400 / 960 = 90 s, longest
-      240; the 18th 240, 420 (the first train has none before it): 234000 /
-      1320 = 177.3 s, longest 420. Typical = median day = rank 1 of 2 = 90;
-      worst = p90 of longest = rank 2 = 420; 5 gaps.
-      Trains seen at A: the 11th 4 in slot 480 (one never matched at B) and
-      1 in 495; the 18th 3 and 0: 3.5 and 0.5 a day. Timetable (latest
-      fetch t1; the older t0 is ignored): Monday - Thursday departures at
-      480, 484, 488, 492, 496 and 500: 4 and 2 a day.
-      Slot 495: one run (520 s, one week): not_enough_data. One gap, 600 s:
-      typical 300, worst 600.
+      GMT, 30 minutes looked at past each slot. A's hour 8: Wed 11 and
+      Wed 18 November observed and in band; Tue 17 observed and suspended
+      (9 timetabled, no train seen or inferred), which counts; Thu 12
+      observed but out of band, not counted; Fri 13 not observed. 4 days
+      observed, 3 gate-ok, so the gate passes (at most 30% out); B's hour 8
+      is observed on all three counted days.
+      Runs (origin time, seconds). 11th: 08:00 540, 08:02 560, 08:06 600,
+      08:16 520 (slot 495), 08:33 500 (after the window). 12th: 08:01 900,
+      not counted. 18th: 08:01 550, 08:05 580, 08:12 3000 (B's hour 9 not
+      observed, so no run time, but a train for the wait), 08:40 500.
+      Slot 480 run times 540, 550, 560, 580, 600: p10 = rank 1 = 540,
+      p50 = rank 3 = 560, p90 = rank 5 = 600, over 2 ISO weeks: ok with at
+      least 3 runs over 2 weeks. Slot 495: one run, 520: not_enough_data.
+      Waits, slot 480 [08:00, 08:15), censored at 08:45. The 11th: next
+      trains 08:02, 08:06, 08:16, so waits fall 120 to 0, 240 to 0, 600 to
+      60: (14400 + 57600 + 356400) / 2 / 900 = 238 s, longest 600. The
+      18th: 08:01, 08:05, 08:12, 08:40: 60 to 0, 240 to 0, 420 to 0, 1680
+      to 1500: (3600 + 57600 + 176400 + 572400) / 2 / 900 = 450, longest
+      1680. The 17th: no train, censored at 08:45: 2700 to 1800 =
+      4050000 / 2 / 900 = 2250, longest 2700. Typical = median of 238, 450,
+      2250 = 450; worst = p90 = rank 3 of 600, 1680, 2700 = 2700; 1
+      censored day.
+      Slot 495 [08:15, 08:30), censored at 09:00. The 11th: 08:16, 08:33:
+      60 to 0, 1020 to 180: (3600 + 1008000) / 2 / 900 = 562, longest
+      1020. The 18th: 08:40: 1500 to 600: 1890000 / 2 / 900 = 1050. The
+      17th: 2700 to 1800: 2250. Typical 1050, worst 2700, 1 censored day.
+      Trains seen at A (counted days): slot 480, 5 on the 11th and 4 on the
+      18th, 9 / 3 = 3.0; slot 495, 3 / 3 = 1.0. Timetable (latest fetch
+      t1; the older t0 is ignored), Monday - Thursday: 4 and 2 a day.
     model: rpt_journey_slots
     overrides:
       vars:
@@ -83,9 +89,12 @@ unit_tests:
         journey_source: station
         journey_slot_minutes: 15
         journey_slot_windows: [[480, 510]]
+        journey_wait_lookahead_minutes: 30
+        journey_history_days: null
+        journey_withheld_lines: ["northern"]
         journey_min_runs: 3
         journey_min_weeks: 2
-        gate_max_out_of_band_share: 0.5
+        gate_max_out_of_band_share: 0.3
     given:
       - input: ref('int_station_vehicle_runs')
         format: sql
@@ -93,7 +102,7 @@ unit_tests:
           select
               'victoria' as line_id, 'inbound' as direction, vehicle_id,
               'A' as origin_naptan_id, 'B' as destination_naptan_id,
-              origin_pass_time, run_seconds,
+              origin_pass_time, origin_pass_time as origin_london_ts, run_seconds,
               cast(origin_pass_time as date) as london_date,
               hour(origin_pass_time) * 60 + minute(origin_pass_time) as origin_london_minute,
               hour(origin_pass_time) as origin_london_hour,
@@ -103,33 +112,39 @@ unit_tests:
                   as destination_london_hour
           from (
               values
-                  ('11', timestamp '2026-11-11 07:58:00', 500),
                   ('12', timestamp '2026-11-11 08:00:00', 540),
                   ('13', timestamp '2026-11-11 08:02:00', 560),
                   ('14', timestamp '2026-11-11 08:06:00', 600),
                   ('15', timestamp '2026-11-11 08:16:00', 520),
+                  ('16', timestamp '2026-11-11 08:33:00', 500),
                   ('21', timestamp '2026-11-12 08:01:00', 900),
                   ('31', timestamp '2026-11-18 08:01:00', 550),
                   ('32', timestamp '2026-11-18 08:05:00', 580),
-                  ('33', timestamp '2026-11-18 08:12:00', 3000)
+                  ('33', timestamp '2026-11-18 08:12:00', 3000),
+                  ('34', timestamp '2026-11-18 08:40:00', 500)
           ) as t (vehicle_id, origin_pass_time, run_seconds)
       - input: ref('int_station_measured_hours')
         format: sql
         rows: |
           select
               'victoria' as line_id, naptan_id, 'inbound' as direction, london_date,
-              london_hour, is_observed, is_in_band
+              london_hour, is_observed, is_in_band, scheduled_departures, observed_trains,
+              inferred_arrivals
           from (
               values
-                  ('A', date '2026-11-11', 7, true, true),
-                  ('A', date '2026-11-11', 8, true, true),
-                  ('A', date '2026-11-12', 8, true, false),
-                  ('A', date '2026-11-13', 8, false, false),
-                  ('A', date '2026-11-18', 8, true, true),
-                  ('B', date '2026-11-11', 8, true, true),
-                  ('B', date '2026-11-12', 8, true, true),
-                  ('B', date '2026-11-18', 8, true, true)
-          ) as t (naptan_id, london_date, london_hour, is_observed, is_in_band)
+                  ('A', date '2026-11-11', 8, true, true, 9, 9, 9),
+                  ('A', date '2026-11-12', 8, true, false, 9, 9, 5),
+                  ('A', date '2026-11-13', 8, false, false, 9, 0, 0),
+                  ('A', date '2026-11-17', 8, true, false, 9, 0, 0),
+                  ('A', date '2026-11-18', 8, true, true, 9, 9, 9),
+                  ('B', date '2026-11-11', 8, true, true, 9, 9, 9),
+                  ('B', date '2026-11-12', 8, true, true, 9, 9, 9),
+                  ('B', date '2026-11-17', 8, true, false, 9, 0, 0),
+                  ('B', date '2026-11-18', 8, true, true, 9, 9, 9)
+          ) as t (
+              naptan_id, london_date, london_hour, is_observed, is_in_band,
+              scheduled_departures, observed_trains, inferred_arrivals
+          )
       - input: ref('int_station_vehicle_passes')
         format: sql
         rows: |
@@ -142,11 +157,15 @@ unit_tests:
                   (timestamp '2026-11-11 08:02:00'),
                   (timestamp '2026-11-11 08:06:00'),
                   (timestamp '2026-11-11 08:09:00'),
+                  (timestamp '2026-11-11 08:11:00'),
                   (timestamp '2026-11-11 08:16:00'),
+                  (timestamp '2026-11-11 08:25:00'),
                   (timestamp '2026-11-12 08:01:00'),
                   (timestamp '2026-11-18 08:01:00'),
                   (timestamp '2026-11-18 08:05:00'),
-                  (timestamp '2026-11-18 08:12:00')
+                  (timestamp '2026-11-18 08:12:00'),
+                  (timestamp '2026-11-18 08:14:00'),
+                  (timestamp '2026-11-18 08:20:00')
           ) as t (pass_time)
       - input: ref('stg_timetable')
         format: sql
@@ -170,10 +189,11 @@ unit_tests:
           - {schedule_name: Monday - Thursday, day_type: mon_thu}
       - input: ref('day_types')
         rows:
+          - {iso_day_of_week: 2, day_name: Tuesday, day_type: mon_thu, day_class: weekday}
           - {iso_day_of_week: 3, day_name: Wednesday, day_type: mon_thu, day_class: weekday}
           - {iso_day_of_week: 4, day_name: Thursday, day_type: mon_thu, day_class: weekday}
           - {iso_day_of_week: 5, day_name: Friday, day_type: fri, day_class: weekday}
     expect:
       rows:
-        - {slot_start_minute: 480, slot_end_minute: 495, days_observed: 3, days_counted: 2, passes_gate: true, runs: 5, weeks_with_runs: 2, run_p10_seconds: 540, run_p50_seconds: 560, run_p90_seconds: 600, runs_per_day: 2.5, trains_seen_per_day: 3.5, scheduled_per_day: 4.0, gaps: 5, typical_wait_seconds: 90.0, worst_wait_p90_seconds: 420, enough_data: true, status: ok}
-        - {slot_start_minute: 495, slot_end_minute: 510, days_observed: 3, days_counted: 2, passes_gate: true, runs: 1, weeks_with_runs: 1, run_p10_seconds: 520, run_p50_seconds: 520, run_p90_seconds: 520, runs_per_day: 0.5, trains_seen_per_day: 0.5, scheduled_per_day: 2.0, gaps: 1, typical_wait_seconds: 300.0, worst_wait_p90_seconds: 600, enough_data: false, status: not_enough_data}
+        - {slot_start_minute: 480, slot_end_minute: 495, days_observed: 4, days_counted: 3, passes_gate: true, runs: 5, weeks_with_runs: 2, run_p10_seconds: 540, run_p50_seconds: 560, run_p90_seconds: 600, trains_seen_per_day: 3.0, scheduled_per_day: 4.0, wait_censored_days: 1, typical_wait_seconds: 450.0, worst_wait_p90_seconds: 2700.0, enough_data: true, status: ok}
+        - {slot_start_minute: 495, slot_end_minute: 510, days_observed: 4, days_counted: 3, passes_gate: true, runs: 1, weeks_with_runs: 1, run_p10_seconds: 520, run_p50_seconds: 520, run_p90_seconds: 520, trains_seen_per_day: 1.0, scheduled_per_day: 2.0, wait_censored_days: 1, typical_wait_seconds: 1050.0, worst_wait_p90_seconds: 2700.0, enough_data: false, status: not_enough_data}

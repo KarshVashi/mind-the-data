@@ -254,9 +254,9 @@ macros:
       - name: minute_expr
         type: string
         description: SQL for the London minute of the day.
-      - name: lookback
+      - name: lookahead
         type: integer
-        description: Minutes to widen each window at its start.
+        description: Minutes to widen each window at its end.
   - name: nearest_rank
     description: Nearest-rank percentile as an aggregate, given a row number and a row count per group.
     arguments:

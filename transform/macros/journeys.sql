@@ -69,18 +69,29 @@
 
 {#
   True when a London minute of the day falls in one of the slot windows
-  (`journey_slot_windows`, [start, end) in minutes), widened at the start
-  by `lookback` minutes.
+  (`journey_slot_windows`, [start, end) in minutes), widened by
+  `lookahead` minutes at the end.
 #}
-{% macro in_journey_windows(minute_expr, lookback=0) %}
-
+{% macro in_journey_windows(minute_expr, lookahead=0) %}
     (
-    {%- for window in var('journey_slot_windows') %}
-
-            ({{ minute_expr }} >= {{ window[0] - lookback }} and {{ minute_expr }} < {{ window[1] }})
-        {{- ' or' if not loop.last }}
-    {%- endfor %}
+        {%- for window in var('journey_slot_windows') %}
+            ({{ minute_expr }} >= {{ window[0] }} and {{ minute_expr }} < {{ window[1] + lookahead }})
+            {{- ' or' if not loop.last }}
+        {%- endfor %}
     )
+{%- endmacro %}
+
+
+{#
+  The history the journey models read: the last `journey_history_days`
+  London days, or everything when it is null (unit tests).
+#}
+{% macro journey_history_filter(column) %}
+    {%- if var('journey_history_days') is none -%}
+        true
+    {%- else -%}
+        {{ column }} >= current_date - interval '{{ var("journey_history_days") }}' day
+    {%- endif -%}
 {%- endmacro %}
 
 

@@ -115,9 +115,18 @@ vars:
   # [start, end) in minutes after midnight: 06:00-10:00 and 16:00-19:00.
   journey_slot_minutes: 15
   journey_slot_windows: [[360, 600], [960, 1140]]
-  # Runs from this many minutes before a window are kept, so the wait for
-  # the first train of the window has the train before it.
-  journey_wait_lookback_minutes: 30
+  # Trains up to this many minutes after a window are kept, so the wait at
+  # the end of the window has the train that ends it. With no train by then
+  # the wait is censored there: read as at least that long, never shorter.
+  journey_wait_lookahead_minutes: 30
+  # London days of history read (null: all, as unit tests use). Bounds every
+  # scan of the passes until the models are built incrementally.
+  journey_history_days: 56
+  # Lines whose journey figures are withheld (status `withheld`, ADR-018):
+  # Northern Bank-branch runs from Camden Town read minutes longer than the
+  # timetable, unexplained; Circle and Hammersmith & City trains are misfiled
+  # between the two on the shared section (D52), and few runs match.
+  journey_withheld_lines: ["northern", "circle", "hammersmith-city"]
   # A slot's figures are published only with at least this many matched
   # runs over at least this many ISO weeks, on days that passed the gate.
   journey_min_runs: 20

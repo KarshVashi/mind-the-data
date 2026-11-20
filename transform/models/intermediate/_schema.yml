@@ -925,7 +925,7 @@ models:
       at B within `journey_max_run_minutes` of its pass at A and before its
       next pass at A, so an id seen twice at A with no B between gives no
       run for the earlier pass. Passes at A on weekdays inside the slot
-      windows (widened by `journey_wait_lookback_minutes`) only. Reads
+      windows (widened by `journey_wait_lookahead_minutes` at the end) only. Reads
       int_station_vehicle_passes, or int_vehicle_passes with
       `journey_source: measurement`.
     columns:
@@ -958,6 +958,9 @@ models:
         data_tests: [not_null]
       - name: london_date
         description: London date of the pass at A.
+        data_tests: [not_null]
+      - name: origin_london_ts
+        description: The pass at A as London wall-clock time, to place it within a slot.
         data_tests: [not_null]
       - name: origin_london_minute
         description: London minute of the day of the pass at A (0 to 1439).

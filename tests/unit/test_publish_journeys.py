@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from jsonschema import ValidationError
 
 from mind_the_data.publish import export
 from mind_the_data.publish.documents import Stamp
@@ -237,3 +238,25 @@ def test_recorded_journeys_round_trip(tmp_path: Path) -> None:
         f"journeys/victoria/inbound/{KSX}.json"
     ]
     assert json.loads(json.dumps(doc))["destinations"][0]["slots"][0]["scheduled_per_day"] is None
+
+
+def test_withheld_slots_carry_no_figures() -> None:
+    rows = JourneyRows(slots=[slot(480, "withheld")], reach=ROWS.reach)
+    doc = {p: d for p, d, _ in journey_documents(rows, STAMP)}[
+        f"journeys/victoria/inbound/{KSX}.json"
+    ]
+    withheld = next(d for d in doc["destinations"] if d["naptan_id"] == VIC)["slots"][0]
+    assert withheld["status"] == "withheld" and withheld["run_seconds"] is None
+    validate(doc, "journey_origin")
+
+
+def test_the_schema_refuses_figures_on_a_thin_slot_and_nulls_on_an_ok_one() -> None:
+    doc = by_path()[f"journeys/victoria/inbound/{KSX}.json"]
+    ok, thin = next(d for d in doc["destinations"] if d["naptan_id"] == VIC)["slots"]
+    thin["run_seconds"] = {"p50": 500, "p90": 600}
+    with pytest.raises(ValidationError):
+        validate(doc, "journey_origin")
+    thin["run_seconds"] = None
+    ok["run_seconds"] = None
+    with pytest.raises(ValidationError):
+        validate(doc, "journey_origin")

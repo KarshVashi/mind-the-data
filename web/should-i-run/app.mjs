@@ -182,6 +182,12 @@ function renderPlan() {
     box.replaceChildren(el("p", {}, "This arrival time is outside the published weekday windows (06:00 to 10:00, 16:00 to 19:00)."));
     return;
   }
+  if (plan.status === "withheld") {
+    box.replaceChildren(
+      el("p", {}, `Figures for this line are held back while they are checked (${plan.slot.start} to ${plan.slot.end} window).`),
+    );
+    return;
+  }
   if (plan.status === "not_enough_data") {
     box.replaceChildren(
       el("p", {}, `Not enough data yet for the ${plan.slot.start} to ${plan.slot.end} window.`),
@@ -244,14 +250,14 @@ async function refreshLive() {
         journey.origin,
         journey.destination,
       );
-  const slot = destinationEntry ? slotAt(destinationEntry.slots, londonMinuteNow(now)) : null;
+  const slot = destinationEntry ? slotAt(destinationEntry.slots, now) : null;
   try {
     const arrivals = await getJson(`${TFL}/StopPoint/${encodeURIComponent(journey.origin)}/Arrivals`);
     const verdict = assessArrivals({
       arrivals,
       journey: { ...journey, destinationName: stationName(journey.destination) },
       reach,
-      runP90Seconds: slot?.status === "ok" ? slot.run_seconds.p90 : null,
+      runP90Seconds: slot?.status === "ok" && slot.run_seconds ? slot.run_seconds.p90 : null,
       nowMs: now,
       arriveByMs,
       missShare: boardsMissShare(slot),
@@ -267,11 +273,6 @@ async function refreshLive() {
       trains: [],
     });
   }
-}
-
-function londonMinuteNow(ms) {
-  const [h, m] = londonClock(ms).split(":");
-  return Number(h) * 60 + Number(m);
 }
 
 function stationName(id) {
@@ -336,7 +337,7 @@ async function start() {
   const saved = loadSaved();
   fillForm(saved);
   if (saved) {
-    if (!saved.direction) saved.direction = directionFor(saved.line, saved.origin, saved.destination);
+    saved.direction = directionFor(saved.line, saved.origin, saved.destination);
     if (saved.direction) useJourney(saved);
   }
 }

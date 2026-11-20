@@ -1068,10 +1068,11 @@ models:
       matched runs and their p10, p50 and p90 run time, trains seen at A per
       day against the timetable, and the typical and p90-worst wait at A for
       a train that reaches B. Only days on which the origin's hour was
-      observed and passed the quality gate count; missing data is never a
-      good day. `status` is `ok` only with the gate passed and at least
-      `journey_min_runs` runs over `journey_min_weeks` ISO weeks, otherwise
-      `not_enough_data`. Method in docs/methodology.md, Should I Run.
+      observed and passed the quality gate, or was a suspension, and B's
+      hour was observed count; missing data is never a good day. `status`
+      is `withheld` on `journey_withheld_lines`, `ok` with the gate passed
+      and at least `journey_min_runs` runs over `journey_min_weeks` ISO
+      weeks, otherwise `not_enough_data`. Method in docs/methodology.md, Should I Run.
     columns:
       - name: journey_slot_key
         description: Row key, a hash of the grain.
@@ -1101,14 +1102,14 @@ models:
         description: Weekdays on which the origin's hour holding the slot was observed.
         data_tests: [not_null]
       - name: days_counted
-        description: Of those, days on which that hour also passed the gate; every other figure is over these days.
+        description: Of those, days on which that hour passed the gate or was a suspension (scheduled, no train seen or inferred), and B's same hour was observed; every other figure is over these days.
         data_tests: [not_null]
       - name: first_london_date
         description: First weekday with a measured-hours row for the slot.
       - name: last_london_date
         description: Last weekday with a measured-hours row for the slot.
       - name: passes_gate
-        description: At least one day observed, and at most gate_max_out_of_band_share of observed days out of band.
+        description: At least one day observed, and at most gate_max_out_of_band_share of observed days out of band (a suspension is not out of band).
         data_tests: [not_null]
       - name: runs
         description: Matched runs A to B on counted days whose pass at B fell in an observed hour.
@@ -1128,20 +1129,20 @@ models:
         description: Vehicle-id passes at A in the direction and slot per counted day, matched at B or not.
       - name: scheduled_per_day
         description: Timetabled departures from A in the slot per counted day (latest timetable, by day type); null where TfL serves no timetable.
-      - name: gaps
-        description: Gaps (over 0 s) between consecutive matched trains at A that end in the slot, on counted days.
+      - name: wait_censored_days
+        description: Counted days with no matched train from somewhere in the slot until journey_wait_lookahead_minutes after it (a suspension, or no train to B); their waits are lower bounds.
         data_tests: [not_null]
       - name: typical_wait_seconds
-        description: Median over counted days of the day's sum(gap^2) / (2 sum(gap)), the expected wait for someone arriving at random (PLAN 7.3). Reads long when a train went unmatched.
+        description: Median over counted days of the day's expected wait for someone arriving at random in the slot (the mean time to the next matched train). Reads long when a train went unmatched.
       - name: worst_wait_p90_seconds
-        description: Nearest-rank 90th percentile, over counted days, of the longest gap ending in the slot.
+        description: Nearest-rank 90th percentile, over counted days, of the longest wait anyone arriving in the slot had; censored days count at their lower bound.
       - name: enough_data
-        description: status = 'ok'.
+        description: passes_gate and at least journey_min_runs runs over journey_min_weeks ISO weeks (true even on a withheld line).
         data_tests: [not_null]
       - name: status
-        description: "`ok` or `not_enough_data`."
+        description: "`withheld` (journey_withheld_lines), `ok` (enough_data) or `not_enough_data`."
         data_tests:
           - not_null
           - accepted_values:
               arguments:
-                values: [ok, not_enough_data]
+                values: [ok, not_enough_data, withheld]

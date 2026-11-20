@@ -16,6 +16,7 @@ import {
   planLeaveBy,
   reachFromPublished,
   reachFromStops,
+  slotAt,
 } from "./plan.mjs";
 import { VICTORIA } from "./lines.mjs";
 
@@ -222,7 +223,7 @@ test("live: no trains shown is never good news", () => {
   assert.equal(verdict.kind, "none_shown");
   assert.equal(verdict.headline, "No trains to Victoria shown on the boards.");
   // 1 - 7.7/9 = 0.144: about 1 in 7.
-  assert.match(verdict.detail, /about 1 in 7 trains/);
+  assert.match(verdict.detail, /About 1 in 7 timetabled trains here are not tracked/);
   assert.doesNotMatch(verdict.detail, /cancel|fine|good service/i);
 });
 
@@ -272,4 +273,58 @@ test("fragment round trip and validation", () => {
   assert.equal(journeyFromFragment("#line=victoria&from=<script>&to=x&by=09:00&walk=1&buffer=1"), null);
   assert.equal(isValidJourney({ ...j, destination: KSX }), false);
   assert.equal(journeyFromFragment("#line=victoria&from=A&to=B&by=09:00&walk=500&buffer=1"), null);
+});
+
+test("plan: never carries a departure across the gap between windows", () => {
+  // Every slot published, 06:00-10:00 and 16:00-19:00. Arriving by 13:00 or
+  // 16:05 means departing by 12:48 or 15:53, in neither window.
+  const slots = [];
+  for (const [from, to] of [
+    [360, 600],
+    [960, 1140],
+  ]) {
+    for (let m = from; m < to; m += 15) {
+      slots.push(slot(clock(m), clock(m + 15), { run_seconds: { p50: 540, p90: 600 } }));
+    }
+  }
+  for (const arriveBy of [780, 965]) {
+    const plan = planLeaveBy({ slots, arriveByMinute: arriveBy, walkMinutes: 6, bufferMinutes: 2 });
+    assert.equal(plan.status, "outside_slots");
+  }
+  // Arriving by 16:30: depart by 16:18, in the 16:15 slot.
+  const plan = planLeaveBy({ slots, arriveByMinute: 990, walkMinutes: 6, bufferMinutes: 2 });
+  assert.equal(plan.slot.start, "16:15");
+});
+
+test("plan: a withheld line says so", () => {
+  const withheld = { ...THIN, status: "withheld" };
+  const slots = [slot("08:30", "08:45", withheld), slot("08:45", "09:00", withheld)];
+  const plan = planLeaveBy({ slots, arriveByMinute: 540, walkMinutes: 6, bufferMinutes: 2 });
+  assert.equal(plan.status, "withheld");
+});
+
+test("live: weekend instants have no weekday slot", () => {
+  const slots = [slot("08:30", "08:45")];
+  assert.equal(slotAt(slots, Date.parse("2026-11-18T08:35:00Z")).start, "08:30");
+  // Saturday 21 November.
+  assert.equal(slotAt(slots, Date.parse("2026-11-21T08:35:00Z")), null);
+});
+
+test("live: a train going the other way round is not counted", () => {
+  const verdict = assessArrivals({
+    arrivals: [arrival("x", 12, BXN, { direction: "outbound" })],
+    journey: { ...JOURNEY, direction: "inbound" },
+    reach: REACH,
+    runP90Seconds: 614,
+    nowMs: NOW,
+    arriveByMs: BY_0900,
+  });
+  assert.equal(verdict.kind, "none_shown");
+  assert.equal(verdict.trains.length, 0);
+});
+
+test("fragment: only inbound or outbound directions", () => {
+  const rest = `from=${KSX}&to=${VIC}&by=09:00&walk=6&buffer=2`;
+  assert.equal(journeyFromFragment(`#line=victoria&dir=__proto__&${rest}`), null);
+  assert.equal(journeyFromFragment(`#line=victoria&dir=outbound&${rest}`).direction, "outbound");
 });

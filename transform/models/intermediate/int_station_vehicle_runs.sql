@@ -19,14 +19,14 @@
 -- that does not call at B has no pass at B, so it has no run.
 --
 -- Only passes at A on weekdays (day_types) inside the slot windows, widened
--- by `journey_wait_lookback_minutes` so the slot model has the train before
--- the first of each window, are kept. A pass time is the expected arrival
+-- by `journey_wait_lookahead_minutes` after each, so the slot model has the
+-- train that ends the last wait of a window, are kept. A pass time is the expected arrival
 -- at the train's last sighting (PLAN 7.2), so a run is arrival at A to
 -- arrival at B: it includes the dwell at A, and each end carries about a
 -- minute of board resolution.
 --
--- Rebuilt in full; bounded by the slot windows only. Bound it by date
--- before it moves to prod.
+-- Rebuilt in full over the last `journey_history_days`; it needs an
+-- incremental, date-windowed build before it moves to prod.
 
 with route_stops as (
     {{ latest_route_stops() }}
@@ -67,6 +67,7 @@ passes as (
         on
             passes.line_id = linked.line_id
             and linked.link_by_vehicle_id
+    where {{ journey_history_filter('passes.london_date') }}
 ),
 
 origins as (
@@ -80,7 +81,7 @@ origins as (
         day_types.day_class = 'weekday'
         and {{ in_journey_windows(
             'hour(passes.london_ts) * 60 + minute(passes.london_ts)',
-            var('journey_wait_lookback_minutes'),
+            var('journey_wait_lookahead_minutes'),
         ) }}
 ),
 
@@ -158,6 +159,7 @@ select
     destination_pass_time,
     date_diff('second', origin_pass_time, destination_pass_time) as run_seconds,
     london_date,
+    origin_london_ts,
     origin_london_minute,
     hour(origin_london_ts) as origin_london_hour,
     cast(destination_london_ts as date) as destination_london_date,

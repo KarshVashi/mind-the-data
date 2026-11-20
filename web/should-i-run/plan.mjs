@@ -78,35 +78,38 @@ function slotRange(slot) {
  * using that slot's own p90. To be on the platform for it, allow the slot's
  * worst wait (p90 of each day's longest gap), then the walk.
  *
- * Returns {status: "ok", ...} or {status: "not_enough_data", slot} or
- * {status: "outside_slots"} when the trip falls outside the published windows.
+ * Returns {status: "ok", ...}; {status: "not_enough_data" | "withheld",
+ * slot} when the departure falls in a slot without figures; or
+ * {status: "outside_slots"} when it falls outside the published windows.
  */
+const MAX_RUN_MINUTES = 90;
+
+function isPublished(slot) {
+  return slot.status === "ok" && Boolean(slot.run_seconds) && Boolean(slot.wait_seconds);
+}
+
+function thin(slot) {
+  return { status: slot.status === "withheld" ? "withheld" : "not_enough_data", slot };
+}
+
 export function planLeaveBy({ slots, arriveByMinute, walkMinutes, bufferMinutes }) {
   const target = arriveByMinute - bufferMinutes;
   const ordered = [...slots]
     .filter((s) => s.day_class === "weekday")
     .sort((a, b) => parseClock(b.start) - parseClock(a.start));
-  let laterThin = null;
-  let sawLaterSlot = false;
-  for (const slot of ordered) {
+  for (const [i, slot] of ordered.entries()) {
+    if (!isPublished(slot)) continue;
     const [start, end] = slotRange(slot);
-    if (slot.status !== "ok" || !slot.run_seconds || !slot.wait_seconds) {
-      if (start < target) laterThin = slot;
-      continue;
-    }
     let departBy = target - slot.run_seconds.p90 / 60;
-    if (departBy < start) {
-      // The departure is earlier than this slot; a later thin slot is moot.
-      laterThin = null;
-      sawLaterSlot = true;
-      continue;
-    }
+    if (departBy < start) continue;
     if (departBy >= end) {
-      // The departure falls after this slot: in one without figures, or
-      // past the published windows. Between two published slots whose p90s
-      // disagree, take the end of this one, the earlier and safer time.
-      if (laterThin) return { status: "not_enough_data", slot: laterThin };
-      if (!sawLaterSlot) return { status: "outside_slots" };
+      // The departure is after this slot. If the next slot follows straight
+      // on, it is either without figures, or published with a p90 that put
+      // its own departure earlier: then take this slot's end, the earlier
+      // and safer time. A gap (10:00 to 16:00) means outside the windows.
+      const next = i > 0 ? ordered[i - 1] : null;
+      if (!next || parseClock(next.start) !== end) return { status: "outside_slots" };
+      if (!isPublished(next)) return thin(next);
       departBy = end;
     }
     const atPlatformBy = departBy - slot.wait_seconds.worst_p90 / 60;
@@ -120,7 +123,13 @@ export function planLeaveBy({ slots, arriveByMinute, walkMinutes, bufferMinutes 
         arriveByMinute - bufferMinutes - slot.run_seconds.p50 / 60 - slot.wait_seconds.typical / 60 - walkMinutes,
     };
   }
-  return laterThin ? { status: "not_enough_data", slot: laterThin } : { status: "outside_slots" };
+  // No published slot holds the departure: a slot without figures that
+  // could (it starts before the target, within a run's length of it) says so.
+  const candidate = ordered.find((s) => {
+    const [start, end] = slotRange(s);
+    return !isPublished(s) && start < target && end > target - MAX_RUN_MINUTES;
+  });
+  return candidate ? thin(candidate) : { status: "outside_slots" };
 }
 
 /**
@@ -150,8 +159,16 @@ export function reachFromStops(stops, origin, destination) {
   return reach;
 }
 
-/** The planning slot holding a London minute, if any. */
-export function slotAt(slots, minute) {
+/** True on a London Monday to Friday (bank holidays are not known here). */
+export function isLondonWeekday(ms) {
+  const day = new Intl.DateTimeFormat("en-GB", { timeZone: LONDON, weekday: "short" }).format(new Date(ms));
+  return !["Sat", "Sun"].includes(day);
+}
+
+/** The weekday planning slot holding an instant, or null (also at weekends). */
+export function slotAt(slots, ms) {
+  if (!isLondonWeekday(ms)) return null;
+  const minute = londonMinute(ms);
   return (
     slots.find((s) => {
       const [start, end] = slotRange(s);
@@ -160,7 +177,7 @@ export function slotAt(slots, minute) {
   );
 }
 
-/** "about 1 in N" from trains seen and scheduled per day, or null. */
+/** Share of timetabled trains not tracked on the boards, or null. */
 export function boardsMissShare(slot) {
   if (!slot || slot.status !== "ok" || !slot.scheduled_per_day || slot.trains_seen_per_day == null) return null;
   const missed = 1 - slot.trains_seen_per_day / slot.scheduled_per_day;
@@ -187,6 +204,8 @@ export function assessArrivals({ arrivals, journey, reach, runP90Seconds, nowMs,
   const trains = [];
   for (const a of arrivals ?? []) {
     if (a.naptanId !== journey.origin || a.lineId !== journey.line) continue;
+    // On a loop a board destination can be reached either way round.
+    if (journey.direction && a.direction && a.direction !== journey.direction) continue;
     const arrivalMs = Date.parse(a.expectedArrival);
     if (!Number.isFinite(arrivalMs) || arrivalMs < nowMs - MINUTE) continue;
     const destination = a.destinationNaptanId || null;
@@ -216,7 +235,7 @@ export function assessArrivals({ arrivals, journey, reach, runP90Seconds, nowMs,
   const missText =
     missShare == null
       ? "The boards do not list every train."
-      : `The boards miss about 1 in ${Math.max(2, Math.round(1 / missShare))} trains here.`;
+      : `About 1 in ${Math.max(2, Math.round(1 / missShare))} timetabled trains here are not tracked on the boards.`;
   const usable = trains.filter((t) => t.kind === "reaches");
   if (usable.length === 0) {
     return {
@@ -230,7 +249,7 @@ export function assessArrivals({ arrivals, journey, reach, runP90Seconds, nowMs,
     return {
       kind: "no_run_time",
       headline: `Next train to ${journey.destinationName}: ${usable[0].arrival}.`,
-      detail: "Run times for this journey are not published yet, so the arrival time cannot be estimated.",
+      detail: "Journey times for this trip are not published yet, so the arrival time cannot be estimated.",
       trains,
     };
   }
@@ -302,6 +321,7 @@ export function journeyFromFragment(hash) {
 }
 
 const ID = /^[0-9A-Za-z]+$/;
+const DIRECTIONS = ["inbound", "outbound"];
 const LINE = /^[a-z0-9-]+$/;
 
 export function isValidJourney(j) {
@@ -311,6 +331,7 @@ export function isValidJourney(j) {
       ID.test(j.origin) &&
       ID.test(j.destination) &&
       j.origin !== j.destination &&
+      (j.direction == null || DIRECTIONS.includes(j.direction)) &&
       parseClock(j.arriveBy) !== null &&
       Number.isFinite(j.walkMinutes) &&
       Number.isFinite(j.bufferMinutes),

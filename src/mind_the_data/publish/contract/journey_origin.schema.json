@@ -165,6 +165,46 @@
     },
     "slot": {
       "type": "object",
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "ok"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "run_seconds": {
+                "type": "object"
+              },
+              "wait_seconds": {
+                "type": "object"
+              },
+              "trains_seen_per_day": {
+                "type": "number"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "run_seconds": {
+                "type": "null"
+              },
+              "wait_seconds": {
+                "type": "null"
+              },
+              "trains_seen_per_day": {
+                "type": "null"
+              },
+              "scheduled_per_day": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ],
       "additionalProperties": false,
       "required": [
         "day_class",
@@ -199,9 +239,10 @@
         "status": {
           "enum": [
             "ok",
-            "not_enough_data"
+            "not_enough_data",
+            "withheld"
           ],
-          "description": "ok: the gate passed and at least journey_min_runs runs over journey_min_weeks ISO weeks. not_enough_data: every figure below is null and must never be read as a good slot."
+          "description": "ok: the gate passed and at least journey_min_runs runs over journey_min_weeks ISO weeks. not_enough_data or withheld (a line whose figures are held back, ADR-018): every figure below is null and must never be read as a good slot."
         },
         "days_counted": {
           "type": "integer",
