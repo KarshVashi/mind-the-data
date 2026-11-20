@@ -21,7 +21,17 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
-D1 and D67 are open.
+D1, D67 and D74 are open.
+
+### D74. Disruption causes are the cause TfL names first, not the root cause
+
+- **Entered:** 2026-11-20. **Class:** `never-default` (metric semantics; nothing is published). **Default:** as implemented; the table stays unpublished until the owner answers.
+- **Context:** exploratory work toward v2, "What TfL says goes wrong": a weekly league of causes per line and network-wide, read from the status text.
+- **Implemented:** seed `disruption_cause_patterns` (19 causes, a regular expression and a priority each), `int_status_causes` (per disrupted scored minute, the cause) and `rpt_disruption_causes_weekly` (per week, line and cause, plus the network: minutes, share of disrupted minutes, share of suspended minutes). The rule is the cause whose words start earliest in the lower-cased reason; priority only breaks a tie. A reason with no cause words, or none, is "No cause given". Missing, engineering-works and Service Closed minutes are never in it.
+- **What it claims, and not:** the cause as TfL names it. It is not the root cause: a points failure may be the real reason behind "train cancellations", and TfL names only the first of several. A text such as "train cancellations ... signal failure" counts for the cancellations. It also counts minutes, so a long suspension weighs more than many short delays.
+- **Choices to confirm:** "Suspended" for the suspended share means Suspended plus Part Suspended (Part Suspended is 84% of those minutes in W46); five causes were added to the first 14 (planned service changes, platform screen doors, track inspections, late running, congestion from other lines); a word that is a substring (fire, obstruction, flood) matches anywhere after a word boundary, so "firefighters" counts as fire.
+- **Seed rule:** patterns never contain a backslash, because OpenCSVSerde drops it; `(^|[^a-z])` stands for a word boundary.
+- **Alternatives:** weight causes by severity or time instead of minutes; count incidents (a cause per incident, not per minute); give each text every cause it names, with shares that sum above 100%; classify from the incident's whole run of texts; leave "No cause given" out of the denominator.
 
 ### D67. Single-weekday timetables are left out until a weekday can be modelled
 

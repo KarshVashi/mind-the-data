@@ -1,0 +1,20 @@
+cause,pattern,priority
+Train cancellations,"(^|[^a-z])(train cancell?ations?|cancell?ations?)([^a-z]|$)",1
+Signal failures,"(^|[^a-z])signal(l?ing)? (system )?(failure|fault|problem)s?([^a-z]|$)",2
+Points failures,"(^|[^a-z])points? (failure|fault)s?([^a-z]|$)",3
+Faulty trains,"(^|[^a-z])(faulty train|defective train|train fault|broken.down train)s?([^a-z]|$)",4
+Track faults,"(^|[^a-z])(track fault|faulty track|broken rail|defective rail)s?([^a-z]|$)",5
+Customer incidents and illness,"(^|[^a-z])(customer incident|person ill|ill customer|customer taken ill)s?([^a-z]|$)",6
+"People, animals or objects on the track","(^|[^a-z])(trespass|animals? on the track|person on the track|people on the track|obstruction)",7
+Staff unavailable,"(^|[^a-z])(unavailability of|staff shortage|shortage of staff|lack of available staff)",8
+Fire alerts and fires,"(^|[^a-z])fire",9
+Power and electrical faults,"(^|[^a-z])(electrical|power supply|power lines?|overhead (line|wire)|traction current)",10
+Road and bridge incidents,"(^|[^a-z])(road traffic|vehicle|bridge strike|hitting a bridge)",11
+Engineering works and overruns,"(^|[^a-z])engineering",12
+Flooding and weather,"(^|[^a-z])(flood|weather|high winds|trees?([^a-z]|$))",13
+Emergency services and security alerts,"(^|[^a-z])(police|security alert|emergency services|casualty on the track)",14
+Planned service changes,"(^|[^a-z])(service (will operate|operates)|will not run|will terminate)",15
+Platform screen door faults,"(^|[^a-z])platform screen doors?",16
+Track inspections,"(^|[^a-z])track inspections?([^a-z]|$)",17
+Late running,"(^|[^a-z])late running([^a-z]|$)",18
+Congestion from other lines,"(^|[^a-z])congestion([^a-z]|$)",19
