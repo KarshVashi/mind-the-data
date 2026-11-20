@@ -273,6 +273,22 @@ From M8 the same method is applied at every station, not only the 50 measurement
 
 Station figures start provisional: one full week for a first snapshot, four for trends.
 
+### Board dropouts (exploratory, not published)
+
+Can you trust TfL's boards? A train that shows on the boards at the station before X and at the station after X, in route order, has passed X. If X's boards never showed it, X's boards **dropped** it (D75, pending). This is the companion test D68 reports beside the Honesty Gap; it does not change the Honesty Gap.
+
+- **Source.** Vehicle-id passes at every station (`int_station_vehicle_passes`, M8): a train is "shown" at X when its id came within 2 minutes of X on X's boards. A train's consecutive passes A, X, C along one of the line's routes are shown at X. Consecutive passes A then C, with X the only station between them on the line's routes, are checked against X's own listings for that trip (any direction or none, from 10 minutes before A to 2 minutes after C). If X listed the train within 2 minutes of arrival, it was shown; its pass was out of order or had no direction. Otherwise X **dropped** it, either never listing it or losing it before it arrived.
+- **Not judged:**
+  - lines left out by `seed_board_dropout_lines`: the DLR (no vehicle ids), the Elizabeth line (some trains run through stations and TfL serves no timetable to say which), the Waterloo & City (no station between two others);
+  - termini: the first or last stop of any route of the line, or a seeded terminus (D66, D70);
+  - stations where a dropout could not be seen, because A and C are next to each other on another branch (Mornington Crescent, between Euston and Camden Town);
+  - stations a TfL timetable stopping pattern runs through, read from the timetables' station intervals (the Piccadilly at Turnham Green, the Metropolitan between Wembley Park and Finchley Road). Shown and dropped trains are both left out there, so the share is not biased either way;
+  - passes at A and C more than 20 minutes apart: the train may have been held, stabled or reversed.
+- **Per station and line, each ISO week:** trains judged, trains dropped and the dropout share. A share needs at least 100 judged trains.
+- **Long gaps.** Per line, the share of the measured view's long gaps (scheduled, gated hours, D34) at these stations that contain a train dropped at the same station in the same direction, its pass time taken as halfway between A and C. A share needs at least 20 long gaps. A long gap with a dropout inside it is at least partly the boards' doing, not the service's.
+- **Caveats carried per line.** The District's vehicle ids are not stable (D27), so a reused id can join two trains. On the Circle and Hammersmith & City, boards on the shared section file some trains under the other line (D52), which reads as a dropout. The Overground has no timetable, so every train is taken to call at every station.
+- **A floor, not a count.** A train missing from two boards in a row is not judged, nor is one missing from every board: that still needs TfL's own train counts (ADR-014, open item 2).
+
 ---
 
 ## 4. What is published

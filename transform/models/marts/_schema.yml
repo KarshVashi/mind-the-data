@@ -1015,3 +1015,68 @@ models:
         description: Sum of base severity weight x time weight.
       - name: time_weighted_scored_minutes
         description: Sum of base time weight.
+
+  - name: rpt_board_reliability_weekly
+    description: >
+      Can you trust TfL's boards? One row per London ISO week, line and
+      station with at least one judged train (int_board_dropouts, D75,
+      pending): trains judged and dropped at the station, and the line's
+      totals repeated on each row. The long-gap columns count the measured
+      view's long gaps (D34, scheduled and gated hours) at these stations,
+      and those a dropped train in the same direction sits inside: the test
+      D68 reports beside the Honesty Gap. Shares are null below
+      `board_dropout_min_trains` judged trains or `board_dropout_min_long_gaps`
+      long gaps. `line_caveat` carries the seed's caveat. Not published.
+    columns:
+      - name: board_reliability_key
+        description: Row key, a hash of (week_start, line_id, naptan_id).
+        data_tests: [unique, not_null]
+      - name: week_start
+        description: Monday of the London ISO week.
+        data_tests: [not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Station.
+        data_tests: [not_null]
+      - name: station_name
+        description: Station name from dim_station.
+      - name: line_caveat
+        description: seed_board_dropout_lines.caveat for the line, or null.
+      - name: trains_judged
+        description: Trains judged at the station (shown plus dropped).
+        data_tests: [not_null]
+      - name: trains_dropped
+        description: Judged trains the station's boards dropped.
+        data_tests: [not_null]
+      - name: trains_never_listed
+        description: Dropped trains the station never listed between the passes either side (dropout_kind never_listed); the rest were listed but never shown arriving.
+        data_tests: [not_null]
+      - name: dropout_share
+        description: trains_dropped / trains_judged; null under board_dropout_min_trains.
+      - name: long_gaps
+        description: Long gaps at the station in scheduled, gated hours.
+        data_tests: [not_null]
+      - name: long_gaps_with_dropout
+        description: Long gaps with a dropped train at the station, in the same direction, inside them.
+        data_tests: [not_null]
+      - name: line_trains_judged
+        description: trains_judged summed over the line's stations that week.
+        data_tests: [not_null]
+      - name: line_trains_dropped
+        description: trains_dropped summed over the line's stations that week.
+        data_tests: [not_null]
+      - name: line_trains_never_listed
+        description: trains_never_listed summed over the line's stations that week.
+        data_tests: [not_null]
+      - name: line_dropout_share
+        description: line_trains_dropped / line_trains_judged; null under board_dropout_min_trains.
+      - name: line_long_gaps
+        description: long_gaps summed over the line's stations that week.
+        data_tests: [not_null]
+      - name: line_long_gaps_with_dropout
+        description: long_gaps_with_dropout summed over the line's stations that week.
+        data_tests: [not_null]
+      - name: line_long_gap_dropout_share
+        description: line_long_gaps_with_dropout / line_long_gaps; null under board_dropout_min_long_gaps.

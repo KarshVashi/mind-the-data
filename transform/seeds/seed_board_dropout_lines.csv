@@ -1,0 +1,21 @@
+line_id,is_measured,caveat,reason
+bakerloo,true,,
+central,true,,
+circle,true,shared_section_misfiled,"Boards on the shared section file some trains under the Hammersmith & City (D52), which reads here as a dropout"
+district,true,unstable_vehicle_ids,"Vehicle ids are not stable (D27): a reused id can join two trains, and a changed id hides a pass"
+dlr,false,,"No vehicle ids on DLR boards (D27)"
+elizabeth,false,,"Some trains run through stations and TfL serves no Elizabeth line timetable, so a run-through cannot be told from a dropout"
+hammersmith-city,true,shared_section_misfiled,"Boards on the shared section file some trains under the Circle (D52), which reads here as a dropout"
+jubilee,true,,
+liberty,true,no_stopping_patterns,"No TfL timetable; every train is taken to call at every station"
+lioness,true,no_stopping_patterns,"No TfL timetable; every train is taken to call at every station"
+metropolitan,true,,
+mildmay,true,no_stopping_patterns,"No TfL timetable; every train is taken to call at every station"
+northern,true,,
+piccadilly,true,,
+suffragette,true,no_stopping_patterns,"No TfL timetable; every train is taken to call at every station"
+tram,true,,
+victoria,true,,
+waterloo-city,false,,"Two stations, both termini: no station has a station either side"
+weaver,true,no_stopping_patterns,"No TfL timetable; every train is taken to call at every station"
+windrush,true,no_stopping_patterns,"No TfL timetable; every train is taken to call at every station"
