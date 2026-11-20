@@ -113,3 +113,51 @@ jobs:
           uv run --locked --no-dev python scripts/ops_issue.py --label ops-health \
             --title "Collector health: targets missed (since $DAY)" \
             --body-file report.md --status "$STATUS" --run-url "$RUN_URL"
+
+  # What visitors see, not what the collector wrote: meta/index.json and
+  # league/latest.json over HTTPS. No AWS, so it runs even when the observer
+  # role is not set up, and has its own issue label so the two never close
+  # each other's issue.
+  published:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.11.16"
+          enable-cache: true
+
+      - name: install
+        run: uv sync --locked --no-dev
+
+      - name: check
+        id: check
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # 0: fresh, 3: stale or unreachable, anything else: the check broke.
+          rc=0
+          uv run --locked --no-dev python scripts/ops_published.py \
+            --out published.md --footer "Run: $RUN_URL" || rc=$?
+          case $rc in 0) status=passing ;; 3) status=failing ;; *) exit "$rc" ;; esac
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          cat published.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: issue
+        if: steps.check.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STATUS: ${{ steps.check.outputs.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          uv run --locked --no-dev python scripts/ops_issue.py --label ops-publish \
+            --title "Published output is stale or unreachable" \
+            --body-file published.md --status "$STATUS" --run-url "$RUN_URL"
