@@ -1,0 +1,14 @@
+{
+  "request": {
+    "path": "/crowding/940GZZLUKSX/Live"
+  },
+  "http_status": 200,
+  "recorded_at": "2026-11-20T03:30:33Z",
+  "trimmed": [],
+  "payload": {
+    "dataAvailable": true,
+    "percentageOfBaseline": 0.001598721,
+    "timeUtc": "2026-11-20T03:26:00.000Z",
+    "timeLocal": "2026-11-20 03:26:00"
+  }
+}

@@ -131,6 +131,21 @@ macros:
       - name: path
         type: string
         description: JSONPath of the array.
+  - name: place_property
+    description: >
+      One entry of a TfL Place's `additionalProperties`, by key, as text:
+      its `value` by default. Null when the key is missing or the field is
+      empty. BikePoint counts arrive this way (ADR-019).
+    arguments:
+      - name: json_expr
+        type: string
+        description: SQL expression of type json, one Place.
+      - name: key
+        type: string
+        description: The property's `key`, e.g. 'NbBikes'.
+      - name: field
+        type: string
+        description: Field of the entry to read, 'value' (default) or 'modified'.
   - name: row_key
     description: md5 hex of the given columns joined with '|', nulls spelled out. Staging merge key.
     arguments:

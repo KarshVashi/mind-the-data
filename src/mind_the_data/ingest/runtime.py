@@ -4,10 +4,20 @@ import logging
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from functools import cache
 from pathlib import Path
+from typing import Any
 
-from mind_the_data.common.config import Line, Station, default_config_dir, load_config
+from mind_the_data.common.clock import ensure_utc
+from mind_the_data.common.config import (
+    CrowdingStation,
+    Line,
+    Station,
+    default_config_dir,
+    load_config,
+    load_crowding_stations,
+)
 from mind_the_data.common.telemetry import configure_logging
 from mind_the_data.common.writer import LocalRawWriter, RawWriter, S3RawWriter
 from mind_the_data.ingest.app_key import KeySource, resolve_app_key
@@ -46,6 +56,17 @@ class Settings:
         )
 
 
+def scheduled_slot(event: Mapping[str, Any], fallback: datetime) -> datetime:
+    """The schedule's own time when present, so a late run keeps its minute's cadence."""
+    raw = event.get("scheduled_time")
+    if isinstance(raw, str):
+        try:
+            return ensure_utc(datetime.fromisoformat(raw))
+        except ValueError:
+            logger.warning("unparseable scheduled_time; using the clock")
+    return fallback
+
+
 def budget_for(settings: Settings, context: object | None) -> float:
     """The configured budget, capped by what the Lambda has left minus a write margin."""
     remaining_ms = getattr(context, "get_remaining_time_in_millis", None)
@@ -74,6 +95,11 @@ def app_key() -> tuple[str | None, KeySource]:
 @cache
 def config(config_dir: Path) -> tuple[list[Line], list[Station]]:
     return load_config(config_dir)
+
+
+@cache
+def crowding_stations(config_dir: Path) -> list[CrowdingStation]:
+    return load_crowding_stations(config_dir / "crowding_stations.yaml")
 
 
 def raw_writer(settings: Settings, local_out: Path | None = None) -> RawWriter:

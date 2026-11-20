@@ -56,3 +56,22 @@
         {%- endfor %}
     ))))
 {%- endmacro %}
+
+
+{#
+  One entry of a TfL Place's `additionalProperties` list, by key: its
+  `value` (or another field, e.g. `modified`) as text, or null when the key
+  is missing or the field is empty. BikePoint carries its counts this way.
+#}
+{% macro place_property(json_expr, key, field='value') %}
+    nullif(json_extract_scalar(
+        element_at(
+            filter(
+                cast(json_extract({{ json_expr }}, '$.additionalProperties') as array(json)),
+                prop -> json_extract_scalar(prop, '$.key') = '{{ key }}'
+            ),
+            1
+        ),
+        '$.{{ field }}'
+    ), '')
+{%- endmacro %}

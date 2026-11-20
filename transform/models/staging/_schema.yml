@@ -638,3 +638,227 @@ models:
       - name: dt
         description: UTC date of the raw partition. Partition column.
         data_tests: [not_null]
+
+  # ---- Station context feeds (ADR-019) ------------------------------------
+  # Enabled by var context_feeds_enabled once the Glue tables exist.
+
+  - name: stg_lift_disruption
+    description: >
+      Lifts out of service, at a grain of poll x station x lift, from
+      `Disruptions/Lifts/v2` every minute. A successful poll that lists no
+      station keeps one row with `has_disruption` false and null station and
+      lift columns, so every successful poll has at least one row: a minute
+      with no row is missing data, never "every lift working". A station
+      listed with no lift ids keeps one row with null lift columns. Station
+      ids are 940GZZ, 910G or HUB ids, as TfL sends them. Only successful
+      envelopes.
+    columns:
+      - name: lift_disruption_key
+        description: Row key, a hash of (poll_id, request_path, station position, lift position). Merge key.
+        data_tests: [unique, not_null]
+      - name: poll_id
+        description: Collector run that fetched the list.
+        data_tests: [not_null]
+      - name: request_path
+        description: TfL path requested.
+        data_tests: [not_null]
+      - name: polled_at
+        description: Poll start, UTC.
+        data_tests: [not_null]
+      - name: poll_minute
+        description: "`polled_at` truncated to the minute, UTC."
+        data_tests: [not_null]
+      - name: station_ordinal
+        description: 1-based position of the station in the response; null when no station was listed.
+      - name: station_unique_id
+        description: TfL's station id (`stationUniqueId`); null when no station was listed.
+        data_tests:
+          - not_null:
+              config:
+                where: "has_disruption and dt >= current_date - interval '7' day"
+      - name: lift_ordinal
+        description: 1-based position of the lift in the station's list; null when it lists none.
+      - name: lift_unique_id
+        description: Lift id, the station id plus `-Lift-<n>`.
+      - name: message
+        description: TfL's passenger message for the station.
+      - name: has_disruption
+        description: False only on the one row of a poll that listed no station.
+        data_tests: [not_null]
+      - name: dt
+        description: UTC date of the raw partition. Partition column.
+        data_tests: [not_null]
+
+  - name: stg_crowding
+    description: >
+      Live busyness of one Tube station per row, from
+      `crowding/{naptanId}/Live`: each station every 5 minutes. TfL gives
+      busyness as a share of a typical baseline for the station. When TfL
+      has no data it sends a share of 0; here that is `is_data_available`
+      false with a null share, never an empty station. Only successful
+      envelopes.
+    columns:
+      - name: crowding_key
+        description: Row key, a hash of (poll_id, request_path). Merge key.
+        data_tests: [unique, not_null]
+      - name: poll_id
+        description: Collector run that fetched the value.
+        data_tests: [not_null]
+      - name: request_path
+        description: TfL path requested.
+        data_tests: [not_null]
+      - name: polled_at
+        description: Poll start, UTC.
+        data_tests: [not_null]
+      - name: poll_minute
+        description: "`polled_at` truncated to the minute, UTC."
+        data_tests: [not_null]
+      - name: naptan_id
+        description: The station asked about, from the request path (TfL's answer does not name it).
+        data_tests: [not_null]
+      - name: is_data_available
+        description: TfL's `dataAvailable`; false when it was missing.
+        data_tests: [not_null]
+      - name: share_of_baseline
+        description: Busyness as a share of the station's typical level (TfL's `percentageOfBaseline`, a fraction); null without data.
+        data_tests:
+          - not_null:
+              config:
+                where: "is_data_available and dt >= current_date - interval '7' day"
+      - name: measured_at
+        description: Minute TfL's value refers to (`timeUtc`), UTC; null without data.
+      - name: dt
+        description: UTC date of the raw partition. Partition column.
+        data_tests: [not_null]
+
+  - name: stg_bike_point
+    description: >
+      Cycle hire docking stations at a grain of poll x dock, from `BikePoint`
+      every 5 minutes. Counts come from the Place's text properties; a missing
+      or unreadable count is null, never 0. Bikes plus empty docks can fall
+      short of `docks`: the rest are out of service. Only successful
+      envelopes.
+    columns:
+      - name: bike_point_key
+        description: Row key, a hash of (poll_id, request_path, bike_point_id, position). Merge key.
+        data_tests: [unique, not_null]
+      - name: poll_id
+        description: Collector run that fetched the list.
+        data_tests: [not_null]
+      - name: request_path
+        description: TfL path requested.
+        data_tests: [not_null]
+      - name: polled_at
+        description: Poll start, UTC.
+        data_tests: [not_null]
+      - name: poll_minute
+        description: "`polled_at` truncated to the minute, UTC."
+        data_tests: [not_null]
+      - name: dock_ordinal
+        description: 1-based position of the dock in the response.
+        data_tests: [not_null]
+      - name: bike_point_id
+        description: TfL's id, e.g. `BikePoints_1`.
+        data_tests: [not_null]
+      - name: common_name
+        description: Dock name.
+      - name: latitude
+        description: WGS84 latitude.
+      - name: longitude
+        description: WGS84 longitude.
+      - name: bikes
+        description: Bikes docked (`NbBikes`), standard and e-bikes together.
+        data_tests:
+          - not_null:
+              config: {severity: warn}
+      - name: standard_bikes
+        description: Standard bikes docked (`NbStandardBikes`).
+      - name: e_bikes
+        description: E-bikes docked (`NbEBikes`).
+      - name: empty_docks
+        description: Free docks (`NbEmptyDocks`).
+        data_tests:
+          - not_null:
+              config: {severity: warn}
+      - name: docks
+        description: Docks at the station (`NbDocks`), working or not.
+      - name: is_installed
+        description: TfL's `Installed` property.
+      - name: is_locked
+        description: TfL's `Locked` property.
+      - name: is_temporary
+        description: TfL's `Temporary` property.
+      - name: counts_modified_at
+        description: When TfL last updated the bike count (`NbBikes`'s `modified`), UTC.
+      - name: dt
+        description: UTC date of the raw partition. Partition column.
+        data_tests: [not_null]
+
+  - name: stg_line_status_ahead
+    description: >
+      Line statuses TfL announces for a window of dates, at a grain of fetch
+      x line x status entry x validity period, parsed as stg_line_status.
+      Fetched 4 times a day for today to 14 days ahead, so planned closures
+      can later be compared with what ran. The window is read from the
+      request path. A line listed twice keeps only its first listing. Only
+      successful envelopes; a fetch that failed leaves no rows, which means
+      unknown, not "nothing planned".
+    columns:
+      - name: line_status_ahead_key
+        description: Row key, a hash of (poll_id, request_path, line_id, status_ordinal, validity_ordinal). Merge key.
+        data_tests: [unique, not_null]
+      - name: poll_id
+        description: Collector run that fetched the statuses.
+        data_tests: [not_null]
+      - name: request_path
+        description: TfL path requested.
+        data_tests: [not_null]
+      - name: polled_at
+        description: Fetch time, UTC.
+        data_tests: [not_null]
+      - name: poll_minute
+        description: "`polled_at` truncated to the minute, UTC."
+        data_tests: [not_null]
+      - name: window_start_date
+        description: First date of the window asked for (UTC date of the fetch).
+        data_tests: [not_null]
+      - name: window_end_date
+        description: Last date of the window asked for, 14 days after the first.
+        data_tests: [not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: line_name
+        description: Line name.
+      - name: mode_name
+        description: TfL mode.
+      - name: status_ordinal
+        description: 1-based position of the status entry within the line.
+        data_tests: [not_null]
+      - name: status_severity
+        description: TfL severity code, per mode.
+        data_tests: [not_null]
+      - name: status_severity_description
+        description: TfL text for the code.
+      - name: reason
+        description: TfL's passenger text for the entry.
+      - name: disruption_category
+        description: TfL category of the entry's disruption, e.g. `PlannedWork`, `RealTime`, `Information`.
+      - name: closure_text
+        description: TfL closure text, when given.
+      - name: disruption_created_at
+        description: When TfL created the disruption, UTC; for planned works, close to when they were announced.
+      - name: is_planned
+        description: True when the disruption is filed as `PlannedWork`.
+        data_tests: [not_null]
+      - name: validity_ordinal
+        description: 1-based position of the validity period; null when the entry has none.
+      - name: valid_from
+        description: Start of the period, UTC.
+      - name: valid_to
+        description: End of the period, UTC.
+      - name: is_now
+        description: TfL's flag that the period covers the fetch time.
+      - name: dt
+        description: UTC date of the raw partition. Partition column.
+        data_tests: [not_null]

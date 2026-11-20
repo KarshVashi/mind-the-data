@@ -8,12 +8,12 @@ Local run: ``uv run python -m mind_the_data.ingest.poller --local --out ./tmp``.
 import argparse
 import logging
 import os
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any, NoReturn
 
-from mind_the_data.common.clock import ensure_utc, utc_now
+from mind_the_data.common.clock import utc_now
 from mind_the_data.common.config import Line, Mode, Station, distinct_station_ids
 from mind_the_data.common.raw import Feed
 from mind_the_data.common.writer import RawWriter
@@ -26,6 +26,9 @@ from mind_the_data.ingest.collect import (
     PlannedRequest,
     run_collection,
 )
+from mind_the_data.ingest.runtime import scheduled_slot
+
+__all__ = ["handler", "main", "plan_poll", "run", "scheduled_slot"]
 
 logger = logging.getLogger(__name__)
 
@@ -58,17 +61,6 @@ def plan_poll(
     # the budget, never the station boards' continuous history.
     planned += [PlannedRequest(Feed.LINE_ARRIVALS, f"/Line/{line.id}/Arrivals") for line in lines]
     return planned
-
-
-def scheduled_slot(event: Mapping[str, Any], fallback: datetime) -> datetime:
-    """The schedule's own time when present, so a late run keeps its minute's cadence."""
-    raw = event.get("scheduled_time")
-    if isinstance(raw, str):
-        try:
-            return ensure_utc(datetime.fromisoformat(raw))
-        except ValueError:
-            logger.warning("unparseable scheduled_time; using the clock")
-    return fallback
 
 
 def run(

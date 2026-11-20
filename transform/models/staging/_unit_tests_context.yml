@@ -1,0 +1,324 @@
+version: 2
+
+# Station context feeds (ADR-019). Hand-written envelopes shaped like the
+# recorded fixtures in tests/fixtures/tfl/ (lift_disruption, crowding_live_*,
+# bike_point, line_status_ahead). The models are enabled by var
+# context_feeds_enabled, and so are these tests. Unit tests run in the
+# warehouse.
+
+unit_tests:
+  - name: stg_lift_disruption_keeps_a_row_for_a_poll_with_no_lifts_down
+    description: >
+      Fulham Broadway lists two lifts and Wembley Central one: three rows. A
+      later poll that lists no station keeps one row with has_disruption
+      false, so it reads as "no lift down" rather than as a missing minute.
+      A 503 adds no rows, nor does a 200 whose body is JSON null: both are
+      missing data.
+    model: stg_lift_disruption
+    overrides: &full_history_window
+      macros:
+        is_incremental: false
+      vars:
+        context_feeds_enabled: true
+        start_date: null
+        end_date: null
+        raw_start_date: "2026-11-01"
+        station_initial_days: null
+    given:
+      - input: source('raw', 'lift_disruption')
+        format: sql
+        rows: |
+          select
+              'p1' as poll_id,
+              '2026-11-20T08:15:00.123Z' as polled_at,
+              'lift_disruption' as feed,
+              cast(row('/Disruptions/Lifts/v2') as row(path varchar)) as request,
+              200 as http_status,
+              120 as latency_ms,
+              cast(null as varchar) as error,
+              '[{"stationUniqueId": "940GZZLUFBY",
+                 "disruptedLiftUniqueIds": ["940GZZLUFBY-Lift-2", "940GZZLUFBY-Lift-3"],
+                 "message": "Fulham Broadway: No Step Free Access."},
+                {"stationUniqueId": "HUBWMB",
+                 "disruptedLiftUniqueIds": ["HUBWMB-Lift-3"],
+                 "message": "Wembley Central: No Step Free Access."}]' as payload,
+              '2026-11-20' as dt,
+              '08' as hour
+          union all
+          select
+              'p2',
+              '2026-11-20T08:16:00.045Z',
+              'lift_disruption',
+              cast(row('/Disruptions/Lifts/v2') as row(path varchar)),
+              200,
+              110,
+              cast(null as varchar),
+              '[]',
+              '2026-11-20',
+              '08'
+          union all
+          select
+              'p3',
+              '2026-11-20T08:17:00.001Z',
+              'lift_disruption',
+              cast(row('/Disruptions/Lifts/v2') as row(path varchar)),
+              503,
+              90,
+              'http_503',
+              cast(null as varchar),
+              '2026-11-20',
+              '08'
+          union all
+          select
+              'p4',
+              '2026-11-20T08:18:00.010Z',
+              'lift_disruption',
+              cast(row('/Disruptions/Lifts/v2') as row(path varchar)),
+              200,
+              100,
+              cast(null as varchar),
+              'null',
+              '2026-11-20',
+              '08'
+    expect:
+      rows:
+        - poll_id: p1
+          poll_minute: "2026-11-20 08:15:00"
+          station_ordinal: 1
+          station_unique_id: 940GZZLUFBY
+          lift_ordinal: 1
+          lift_unique_id: 940GZZLUFBY-Lift-2
+          has_disruption: true
+        - poll_id: p1
+          poll_minute: "2026-11-20 08:15:00"
+          station_ordinal: 1
+          station_unique_id: 940GZZLUFBY
+          lift_ordinal: 2
+          lift_unique_id: 940GZZLUFBY-Lift-3
+          has_disruption: true
+        - poll_id: p1
+          poll_minute: "2026-11-20 08:15:00"
+          station_ordinal: 2
+          station_unique_id: HUBWMB
+          lift_ordinal: 1
+          lift_unique_id: HUBWMB-Lift-3
+          has_disruption: true
+        - poll_id: p2
+          poll_minute: "2026-11-20 08:16:00"
+          station_ordinal: null
+          station_unique_id: null
+          lift_ordinal: null
+          lift_unique_id: null
+          has_disruption: false
+
+  - name: stg_crowding_reads_no_data_as_unknown_not_empty
+    description: >
+      King's Cross has data: its share and minute are kept. Oxford Circus has
+      none, and TfL sends a share of 0 with it: the share is null. The
+      station comes from the request path. A timed-out request adds no row.
+    model: stg_crowding
+    overrides: *full_history_window
+    given:
+      - input: source('raw', 'crowding')
+        format: sql
+        rows: |
+          select
+              'p1' as poll_id,
+              '2026-11-20T08:15:00.123Z' as polled_at,
+              'crowding' as feed,
+              cast(row('/crowding/940GZZLUKSX/Live') as row(path varchar)) as request,
+              200 as http_status,
+              80 as latency_ms,
+              cast(null as varchar) as error,
+              '{"dataAvailable": true, "percentageOfBaseline": 0.6125,
+                "timeUtc": "2026-11-20T08:13:00.000Z",
+                "timeLocal": "2026-11-20 08:13:00"}' as payload,
+              '2026-11-20' as dt,
+              '08' as hour
+          union all
+          select
+              'p1',
+              '2026-11-20T08:15:00.123Z',
+              'crowding',
+              cast(row('/crowding/940GZZLUOXC/Live') as row(path varchar)),
+              200,
+              85,
+              cast(null as varchar),
+              '{"dataAvailable": false, "percentageOfBaseline": 0,
+                "timeUtc": null, "timeLocal": null}',
+              '2026-11-20',
+              '08'
+          union all
+          select
+              'p1',
+              '2026-11-20T08:15:00.123Z',
+              'crowding',
+              cast(row('/crowding/940GZZLUWLO/Live') as row(path varchar)),
+              cast(null as integer),
+              10000,
+              'timeout',
+              cast(null as varchar),
+              '2026-11-20',
+              '08'
+    expect:
+      rows:
+        - naptan_id: 940GZZLUKSX
+          poll_minute: "2026-11-20 08:15:00"
+          is_data_available: true
+          share_of_baseline: 0.6125
+          measured_at: "2026-11-20 08:13:00"
+        - naptan_id: 940GZZLUOXC
+          poll_minute: "2026-11-20 08:15:00"
+          is_data_available: false
+          share_of_baseline: null
+          measured_at: null
+
+  - name: stg_bike_point_reads_counts_and_keeps_a_blank_one_null
+    description: >
+      River Street has 6 bikes (1 standard, 5 e-bikes) and 10 free docks of
+      19: three docks are out of service. Phillimore Gardens' bike count is
+      blank and stays null, never 0.
+    model: stg_bike_point
+    overrides: *full_history_window
+    given:
+      - input: source('raw', 'bike_point')
+        format: sql
+        rows: |
+          select
+              'p1' as poll_id,
+              '2026-11-20T08:17:00.500Z' as polled_at,
+              'bike_point' as feed,
+              cast(row('/BikePoint') as row(path varchar)) as request,
+              200 as http_status,
+              900 as latency_ms,
+              cast(null as varchar) as error,
+              '[{"id": "BikePoints_1", "commonName": "River Street , Clerkenwell",
+                 "lat": 51.529163, "lon": -0.10997, "additionalProperties": [
+                   {"key": "Installed", "value": "true", "modified": "2026-11-20T08:12:13.67Z"},
+                   {"key": "Locked", "value": "false", "modified": "2026-11-20T08:12:13.67Z"},
+                   {"key": "Temporary", "value": "false", "modified": "2026-11-20T08:12:13.67Z"},
+                   {"key": "NbBikes", "value": "6", "modified": "2026-11-20T08:12:13.67Z"},
+                   {"key": "NbEmptyDocks", "value": "10", "modified": "2026-11-20T08:12:13.67Z"},
+                   {"key": "NbDocks", "value": "19", "modified": "2026-11-20T08:12:13.67Z"},
+                   {"key": "NbStandardBikes", "value": "1", "modified": "2026-11-20T08:12:13.67Z"},
+                   {"key": "NbEBikes", "value": "5", "modified": "2026-11-20T08:12:13.67Z"}]},
+                {"id": "BikePoints_2", "commonName": "Phillimore Gardens, Kensington",
+                 "lat": 51.499606, "lon": -0.197574, "additionalProperties": [
+                   {"key": "NbBikes", "value": "", "modified": "2026-11-20T08:10:00Z"},
+                   {"key": "NbEmptyDocks", "value": "30", "modified": "2026-11-20T08:10:00Z"},
+                   {"key": "NbDocks", "value": "37", "modified": "2026-11-20T08:10:00Z"}]}]'
+                  as payload,
+              '2026-11-20' as dt,
+              '08' as hour
+    expect:
+      rows:
+        - bike_point_id: BikePoints_1
+          dock_ordinal: 1
+          bikes: 6
+          standard_bikes: 1
+          e_bikes: 5
+          empty_docks: 10
+          docks: 19
+          is_installed: true
+          is_locked: false
+          counts_modified_at: "2026-11-20 08:12:13.670"
+        - bike_point_id: BikePoints_2
+          dock_ordinal: 2
+          bikes: null
+          standard_bikes: null
+          e_bikes: null
+          empty_docks: 30
+          docks: 37
+          is_installed: null
+          is_locked: null
+          counts_modified_at: "2026-11-20 08:10:00"
+
+  - name: stg_line_status_ahead_keeps_announced_periods_and_the_window
+    description: >
+      The Bakerloo's weekend Part Closure is planned and in the future; its
+      current Service Closed is not planned. The District's Part Closure has
+      two periods, one row each. The window comes from the request path.
+    model: stg_line_status_ahead
+    overrides: *full_history_window
+    given:
+      - input: source('raw', 'line_status_ahead')
+        format: sql
+        rows: |
+          select
+              'p1' as poll_id,
+              '2026-11-20T00:07:00.250Z' as polled_at,
+              'line_status_ahead' as feed,
+              cast(row('/Line/bakerloo,district/Status/2026-11-20/to/2026-12-04')
+                  as row(path varchar)) as request,
+              200 as http_status,
+              300 as latency_ms,
+              cast(null as varchar) as error,
+              '[{"id": "bakerloo", "name": "Bakerloo", "modeName": "tube", "lineStatuses": [
+                  {"statusSeverity": 5, "statusSeverityDescription": "Part Closure",
+                   "reason": "No service between Queens Park and Harrow & Wealdstone.",
+                   "validityPeriods": [{"fromDate": "2026-11-21T04:30:00Z",
+                                        "toDate": "2026-11-23T01:29:00Z", "isNow": false}],
+                   "disruption": {"category": "PlannedWork", "description": "Planned works.",
+                                  "created": "2026-10-23T14:21:00Z"}},
+                  {"statusSeverity": 20, "statusSeverityDescription": "Service Closed",
+                   "validityPeriods": [{"fromDate": "2026-11-20T01:24:30Z",
+                                        "toDate": "2026-11-20T06:28:03Z", "isNow": true}],
+                   "disruption": {"category": "RealTime", "description": "Closed.",
+                                  "created": "0001-01-01T00:00:00"}}]},
+                {"id": "district", "name": "District", "modeName": "tube", "lineStatuses": [
+                  {"statusSeverity": 5, "statusSeverityDescription": "Part Closure",
+                   "validityPeriods": [
+                     {"fromDate": "2026-11-28T04:30:00Z", "toDate": "2026-11-28T23:59:00Z",
+                      "isNow": false},
+                     {"fromDate": "2026-11-29T04:30:00Z", "toDate": "2026-11-30T01:29:00Z",
+                      "isNow": false}],
+                   "disruption": {"category": "PlannedWork", "description": "Planned works."}}]}]'
+                  as payload,
+              '2026-11-20' as dt,
+              '00' as hour
+    expect:
+      rows:
+        - line_id: bakerloo
+          window_start_date: 2026-11-20
+          window_end_date: 2026-12-04
+          status_ordinal: 1
+          status_severity: 5
+          is_planned: true
+          disruption_created_at: "2026-10-23 14:21:00"
+          validity_ordinal: 1
+          valid_from: "2026-11-21 04:30:00"
+          valid_to: "2026-11-23 01:29:00"
+          is_now: false
+        - line_id: bakerloo
+          window_start_date: 2026-11-20
+          window_end_date: 2026-12-04
+          status_ordinal: 2
+          status_severity: 20
+          is_planned: false
+          disruption_created_at: null
+          validity_ordinal: 1
+          valid_from: "2026-11-20 01:24:30"
+          valid_to: "2026-11-20 06:28:03"
+          is_now: true
+        - line_id: district
+          window_start_date: 2026-11-20
+          window_end_date: 2026-12-04
+          status_ordinal: 1
+          status_severity: 5
+          is_planned: true
+          disruption_created_at: null
+          validity_ordinal: 1
+          valid_from: "2026-11-28 04:30:00"
+          valid_to: "2026-11-28 23:59:00"
+          is_now: false
+        - line_id: district
+          window_start_date: 2026-11-20
+          window_end_date: 2026-12-04
+          status_ordinal: 1
+          status_severity: 5
+          is_planned: true
+          disruption_created_at: null
+          validity_ordinal: 2
+          valid_from: "2026-11-29 04:30:00"
+          valid_to: "2026-11-30 01:29:00"
+          is_now: false

@@ -65,6 +65,52 @@ resource "aws_cloudwatch_metric_alarm" "poller_errors" {
   }
 }
 
+# The context collector (ADR-019) fails a run when every request of a feed
+# failed, which for the single lift request is any lasting TfL error. It uses
+# the poller's 3-of-5-minutes error-rate rule, so one bad minute sends no email.
+resource "aws_cloudwatch_metric_alarm" "context_errors" {
+  count = var.context_function_name == "" ? 0 : 1
+
+  alarm_name          = "${var.context_function_name}-error-rate"
+  alarm_description   = "Context collector invocations are failing: ${var.error_rate_threshold_percent}% or more in ${var.error_rate_datapoints} of the last ${var.error_rate_periods} minutes."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = var.error_rate_threshold_percent
+  evaluation_periods  = var.error_rate_periods
+  datapoints_to_alarm = var.error_rate_datapoints
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.actions
+  ok_actions          = local.actions
+
+  metric_query {
+    id          = "error_rate"
+    expression  = "100 * errors / invocations"
+    label       = "Context error rate (%)"
+    return_data = true
+  }
+
+  metric_query {
+    id = "errors"
+    metric {
+      namespace   = "AWS/Lambda"
+      metric_name = "Errors"
+      dimensions  = { FunctionName = var.context_function_name }
+      period      = 60
+      stat        = "Sum"
+    }
+  }
+
+  metric_query {
+    id = "invocations"
+    metric {
+      namespace   = "AWS/Lambda"
+      metric_name = "Invocations"
+      dimensions  = { FunctionName = var.context_function_name }
+      period      = 60
+      stat        = "Sum"
+    }
+  }
+}
+
 # A throttle means an invocation got no concurrency slot (a poll overlapping
 # the one before it under reserved concurrency, or the account limit), so
 # that minute may not have been polled.

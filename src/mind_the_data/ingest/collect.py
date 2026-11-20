@@ -111,6 +111,10 @@ _LIST_MODELS: dict[Feed, type[BaseModel]] = {
     Feed.LINE_ARRIVALS: models.Arrival,
     Feed.STOP_DISRUPTION: models.StopDisruption,
     Feed.REF_SEVERITY: models.Severity,
+    Feed.LIFT_DISRUPTION: models.LiftDisruption,
+    Feed.BIKE_POINT: models.BikePoint,
+    # Same Line shape as the live status, for a window of dates (ADR-019).
+    Feed.LINE_STATUS_AHEAD: models.LineStatus,
 }
 
 
@@ -122,6 +126,8 @@ def _timetable_is_usable(payload: Any) -> bool:
 _DOCUMENT_CHECKS: dict[Feed, Callable[[Any], object]] = {
     Feed.REF_ROUTE_SEQUENCE: models.parse_route_sequence,
     Feed.REF_TIMETABLE: _timetable_is_usable,
+    # A station without live data still parses: it is a valid "no data" record.
+    Feed.CROWDING: models.parse_crowding_live,
 }
 
 
@@ -227,9 +233,26 @@ async def collect(
     return summary
 
 
-def report(summary: CollectionSummary, namespace: str, message: str) -> None:
-    """One summary log line, plus one embedded-metric line per feed."""
+def report(
+    summary: CollectionSummary,
+    namespace: str,
+    message: str,
+    metric_feeds: frozenset[Feed] | None = None,
+) -> None:
+    """One summary log line, plus one embedded-metric line per feed.
+
+    ``metric_feeds`` limits the metric lines to those feeds (None: every feed).
+    Each feed's metrics are billed custom metrics, so a collector whose other
+    feeds no alarm reads keeps them to the log line.
+    """
     logger.info(message, extra=summary.log_fields())
+    feeds = {
+        feed: outcome
+        for feed, outcome in summary.feeds.items()
+        if metric_feeds is None or feed in metric_feeds
+    }
+    if not feeds:
+        return
     print_emf(
         emf_record(
             namespace,
@@ -238,7 +261,7 @@ def report(summary: CollectionSummary, namespace: str, message: str) -> None:
                     "ObjectsWritten": int(outcome.written_key is not None),
                     "RequestFailures": outcome.failures,
                 }
-                for feed, outcome in summary.feeds.items()
+                for feed, outcome in feeds.items()
             },
             {"poll_id": str(summary.poll_id)},
             timestamp=summary.polled_at,
@@ -259,6 +282,7 @@ def run_collection(
     client_factory: Callable[..., TflClient] = TflClient,
     on_auth_failure: Callable[[], None] = lambda: None,
     follow_up: FollowUp | None = None,
+    metric_feeds: frozenset[Feed] | None = None,
 ) -> CollectionSummary:
     """Run one collection end to end and raise if it should alarm."""
 
@@ -276,7 +300,7 @@ def run_collection(
             )
 
     summary = asyncio.run(go())
-    report(summary, namespace, message)
+    report(summary, namespace, message, metric_feeds)
 
     if summary.auth_failed:
         # The cached key may have been rotated or revoked: fetch it afresh next time.
