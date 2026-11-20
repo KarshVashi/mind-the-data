@@ -9,7 +9,9 @@ models:
       "network", all lines together). Only causes with minutes have a row.
       Shares are of the scope's disrupted minutes, and of its suspended
       (Suspended and Part Suspended) minutes, that week; the suspended share
-      is null when the scope had none. Counts the cause as TfL names it, not
+      is null when the scope had none. Shares are of observed minutes only;
+      the table does not say how many minutes were missing that week (see
+      fct_line_weekly completeness). Counts the cause as TfL names it, not
       the root cause. Not published (D74).
     columns:
       - name: disruption_cause_key
