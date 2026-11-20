@@ -16,10 +16,13 @@ flowchart LR
   subgraph AWS["AWS eu-west-2"]
     EB[EventBridge Scheduler<br/>every minute] --> P[Lambda: poller<br/>arm64, concurrency 1]
     EBW[EventBridge Scheduler<br/>daily] --> RF[Lambda: reference fetch]
+    EBC[EventBridge Scheduler<br/>every minute] --> CX[Lambda: context<br/>lifts, busyness, bikes]
     SSM[(SSM Parameter Store<br/>TfL app key)] -.-> P
     SSM -.-> RF
+    SSM -.-> CX
     P --> RAW[(S3 raw<br/>gzipped NDJSON<br/>feed / dt / hour)]
     RF --> RAW
+    CX --> RAW
     RAW --> GC[Glue Data Catalog<br/>partition projection]
     GC --> ATH[Athena engine v3<br/>dev, prod, ops workgroups]
     ATH <--> ICE[(S3 curated<br/>Iceberg tables)]
@@ -45,7 +48,7 @@ flowchart LR
 
 ## Data flow
 
-1. **Collect.** EventBridge Scheduler invokes the poller Lambda every minute. It calls TfL for line status, line disruption, the Arrivals board of every measurement station and, since M8, the line-wide Arrivals board of every configured line (`Line/{id}/Arrivals`, every stop on the line, ADR-016): 72 calls a minute, 73 every fifth minute with stop disruption, at concurrency 10 inside a 45-second budget. The line-wide boards are queued after everything else, so a slow line endpoint can only use up its own share of the budget, and a failure of that feed never stops the other feeds being written. The poller writes each feed's responses as one gzipped NDJSON object to the raw bucket under `raw/{feed}/dt=YYYY-MM-DD/hour=HH/`. Each line is an envelope with the poll id, UTC poll time, request, HTTP status, latency and TfL's payload unchanged. Failed calls are written too, so missing data is visible (ADR-003). The poller runs with reserved concurrency 1, so polls never overlap (ADR-006). A second Lambda runs daily at 03:00 London time (ADR-007, ADR-016). Each run fetches severity codes and every line's route sequences. On Mondays it fetches the measurement stations' timetables, as before M8; on the other six days it fetches one sixth of every other station on the tube, DLR and tram lines (from that run's route sequences), each station on a fixed weekday from a CRC-32 of line and station, so the whole network is refreshed weekly in runs of about 150 to 200 calls. Elizabeth line and Overground timetables are skipped outside the measurement stations, because TfL answers 404 to all of them. Both read the TfL app key from SSM at cold start.
+1. **Collect.** EventBridge Scheduler invokes the poller Lambda every minute. It calls TfL for line status, line disruption, the Arrivals board of every measurement station and, since M8, the line-wide Arrivals board of every configured line (`Line/{id}/Arrivals`, every stop on the line, ADR-016): 72 calls a minute, 73 every fifth minute with stop disruption, at concurrency 10 inside a 45-second budget. The line-wide boards are queued after everything else, so a slow line endpoint can only use up its own share of the budget, and a failure of that feed never stops the other feeds being written. The poller writes each feed's responses as one gzipped NDJSON object to the raw bucket under `raw/{feed}/dt=YYYY-MM-DD/hour=HH/`. Each line is an envelope with the poll id, UTC poll time, request, HTTP status, latency and TfL's payload unchanged. Failed calls are written too, so missing data is visible (ADR-003). The poller runs with reserved concurrency 1, so polls never overlap (ADR-006). A second Lambda runs daily at 03:00 London time (ADR-007, ADR-016). Each run fetches severity codes and every line's route sequences. On Mondays it fetches the measurement stations' timetables, as before M8; on the other six days it fetches one sixth of every other station on the tube, DLR and tram lines (from that run's route sequences), each station on a fixed weekday from a CRC-32 of line and station, so the whole network is refreshed weekly in runs of about 150 to 200 calls. Elizabeth line and Overground timetables are skipped outside the measurement stations, because TfL answers 404 to all of them. A third Lambda, the context collector, runs every minute beside the poller (ADR-019): lift disruptions every minute, live busyness for every Tube station every 5 minutes (a fifth of them each minute), BikePoint every 5 minutes and every line's status for the next 14 days 4 times a day, about 55 calls a minute. These feeds have staging models only, off until `context_feeds_enabled` is set. All three read the TfL app key from SSM at cold start.
 2. **Catalogue.** Glue tables with partition projection expose the raw prefixes to Athena. There are no crawlers: partitions resolve from the path.
 3. **Transform.** `transform-daily.yml` runs `dbt build --target prod` at 03:30 London time with `dbt-athena`. Staging models flatten, type and deduplicate the raw envelopes into Iceberg tables, merging whole days on a row key (ADR-008). Intermediate models compute the status of every line-minute, incidents, inferred arrivals and headways; they rebuild in full from the seeds each run, so a definition change applies to all history at once (ADR-012, proposed). Marts hold daily and weekly scores per line. Tests (generic, singular and unit tests against hand-computed cases) run in the same build. Raw is kept indefinitely; everything downstream can be rebuilt from it, and a manual run can full-refresh named models from raw as the same role (runbook, "Full refresh in prod"). On Sundays the run ends with `dbt run-operation iceberg_maintenance`: `OPTIMIZE` and `VACUUM` on the incremental staging tables, the only ones that persist between runs (D64).
 4. **Export.** `publish-weekly.yml` runs on Mondays at 06:30 London time. It reads the marts through Athena, builds every JSON file in the published contract (`src/mind_the_data/publish/contract/`), validates each against its JSON Schema, and renders the share cards from an HTML template in headless Chromium.
@@ -57,7 +60,7 @@ flowchart LR
 
 ## Monitoring
 
-- **CloudWatch alarms** to SNS email: poller error rate, poller throttles, no objects written per feed for 10 minutes (line status, line disruption, station arrivals, line arrivals), and TfL request failures.
+- **CloudWatch alarms** to SNS email: poller and context error rates, poller throttles, no objects written per feed for 10 minutes (line status, line disruption, station arrivals, line arrivals, lift disruption), and TfL request failures.
 - **ops-daily** reports the previous UTC day's completeness, alarm history, Lambda errors and raw freshness, and keeps one open GitHub issue while anything misses its target. **ops-daytime** checks at midday on weekdays that every configured line shows predictions at its stations in the stored arrivals.
 - `make status` gives the same picture from a laptop, read-only.
 
@@ -108,7 +111,7 @@ Every Athena workgroup enforces a per-query scan cap that clients cannot lift. L
 
 | Path | Contents |
 | --- | --- |
-| `src/mind_the_data/ingest/` | poller and reference Lambdas, TfL client, Pydantic models, raw writer |
+| `src/mind_the_data/ingest/` | poller, context and reference Lambdas, TfL client, Pydantic models, raw writer |
 | `src/mind_the_data/analysis/` | Python reference implementation of arrival inference (the SQL's test oracle) |
 | `src/mind_the_data/publish/` | export, JSON contract, share cards, monthly open data, R2 upload |
 | `src/mind_the_data/ops/` | health checks, status report, merge gate |

@@ -780,6 +780,58 @@ aws lambda invoke --profile mtd-admin --region eu-west-2 \
 
 Locally, `uv run python -m mind_the_data.ingest.reference --local --out ./tmp --date 2026-11-17` fetches the same share into `./tmp`.
 
+## Station context feeds
+
+ADR-019, D77. The `mind-the-data-context` Lambda runs every minute (`mind-the-data-context-every-minute`) and writes four raw feeds:
+
+- `lift_disruption`: every minute;
+- `crowding`: each Tube station in `config/crowding_stations.yaml` every 5 minutes, a fifth of them each minute;
+- `bike_point`: every fifth minute (minute % 5 = 2);
+- `line_status_ahead`: at 00:07, 06:07, 12:07 and 18:07 UTC, today to 14 days ahead.
+
+It adds about 55 calls a minute (64 at most) to the poller's 73.
+
+| Alarm | Fires when | First check |
+| --- | --- | --- |
+| `mind-the-data-context-error-rate` | The context run ends in an error in 3 of the last 5 minutes. A run fails when every request of a feed failed, including the single lift call. | Logs (`/aws/lambda/mind-the-data-context`), then TfL's status |
+| `mind-the-data-no-objects-lift-disruption` | No `lift_disruption` object for 10 minutes, including when the context Lambda is not running | Schedule state, then logs |
+
+**After the merge has been deployed.** The `infra.yml` run on merge applies the change once it is approved (ADR-005). Then:
+
+1. Check the first objects arrive:
+
+   ```sh
+   aws s3 ls --profile mtd-dev s3://mind-the-data-raw-<account>/raw/lift_disruption/dt=$(date -u +%F)/ --recursive | tail -3
+   aws s3 ls --profile mtd-dev s3://mind-the-data-raw-<account>/raw/crowding/dt=$(date -u +%F)/ --recursive | tail -3
+   ```
+
+2. Check the busyness endpoint with the key, in the day. Run it in London daytime on the first weekday:
+
+   ```sh
+   AWS_PROFILE=mtd-dev uv run python scripts/athena_query.py "
+     with r as (
+       select request.path as path,
+              json_extract_scalar(payload, '$.dataAvailable') as available
+       from mind_the_data_raw.crowding
+       where dt = cast(current_date as varchar) and http_status = 200)
+     select count(distinct path) as stations,
+            count_if(available = 'true') * 1.0 / count(*) as share_with_data
+     from r"
+   ```
+
+   Expect 270 stations, and most rows with data between 07:00 and 22:00 London time. HTTP statuses other than 200 (`select http_status, count(*) ... group by 1`) mean the keyed endpoint behaves differently from the anonymous probe: stop and look. Stations that never have data in the day can come out of the list.
+3. After a day of collection, build the models in dev with the var on, unit tests included:
+
+   ```sh
+   make dbt-build-dev DBT_FLAGS="--profiles-dir . --select stg_lift_disruption stg_crowding stg_bike_point stg_line_status_ahead --vars '{context_feeds_enabled: true}'"
+   ```
+
+4. Switch on the staging models. Set `context_feeds_enabled: true` in `transform/dbt_project.yml` in a small PR, after the Glue tables exist. The next daily transform builds `stg_lift_disruption`, `stg_crowding`, `stg_bike_point` and `stg_line_status_ahead` from `raw_start_date`. Only the days collected have rows.
+
+**Locally**, without a key or with `TFL_APP_KEY` set, `uv run python -m mind_the_data.ingest.context --local --out ./tmp --slot 2026-11-20T00:07:00+00:00` runs the minute that fetches every feed. Without a key it uses the anonymous allowance (about 50 a minute), so run it only once.
+
+**Station list.** `uv run python scripts/discover_crowding_stations.py` regenerates `config/crowding_stations.yaml` from `Line/{id}/StopPoints` (11 anonymous calls). Run it when a Tube station opens or closes, then review the diff. The loader rejects more than 300 stations.
+
 ---
 
 ## Planning locally
