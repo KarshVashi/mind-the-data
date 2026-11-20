@@ -165,5 +165,5 @@ def test_station_models_build_in_their_own_step() -> None:
     station = step("build", "name", "dbt build station models")
     # A station failure must never fail the line-level job.
     assert station["continue-on-error"] is True
-    assert "--select tag:station" in station["run"]
+    assert "--select tag:station --exclude tag:exploratory" in station["run"]
     assert "needs.gate.outputs.select == ''" in station["if"]

@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='table', tags=['exploratory']) }}
 
 -- The cause TfL names in the status text of each disrupted minute (D74).
 -- It is the cause as named, not the root cause: TfL's wording is the only

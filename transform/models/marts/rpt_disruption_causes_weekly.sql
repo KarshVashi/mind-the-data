@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='table', tags=['exploratory']) }}
 
 -- What TfL says goes wrong (D74): per ISO week and cause, the scored
 -- non-Good-Service minutes whose status text names that cause first. One row

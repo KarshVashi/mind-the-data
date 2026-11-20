@@ -314,7 +314,7 @@ From M8 the same method is applied at every station, not only the 50 measurement
 
 Station figures start provisional: one full week for a first snapshot, four for trends.
 
-#### Step-free access (D73, exploratory, unpublished)
+#### Step-free access (D73, unpublished)
 
 How often a station was seen with step-free access out (a lift, ramp or step-free route), from the same feed.
 
@@ -402,7 +402,7 @@ The card's insight line names, in order: the lowest trains-run share under 95%; 
 - **Strikes** are kept in the main table. The strikes-excluded table drops whole days, so a noon-to-noon strike also drops the unaffected half of each day (D60). The seed is maintained by hand from public sources; an announced strike is updated once its date passes.
 - **Divisions seeded on two weeks.** One unusual week can put a line in the wrong division for a month; the seeding is marked provisional until four weeks exist (ADR-015).
 - **Station views at termini and split interchanges.** The line view leaves termini out of its gate because trains there are counted twice (D33). Station views judge termini on their own hours, so termini often show as not measured. An interchange with both a Tube and a rail id (for example Canada Water) appears as two stations.
-- **Disruption categories are a judgement.** They follow TfL's own types plus a text match for lift, ramp and step-free outages (D73); Part Closure counts as a closure.
+- **Disruption categories are a judgement.** They follow TfL's own types plus a keyword match for lifts and step-free access; Part Closure counts as a closure.
 - **No external validation yet.** Once three 4-week periods exist, the ranking will be compared with TfL's own share of scheduled trips operated, and the rank correlation reported here.
 
 ---
@@ -456,14 +456,16 @@ On 15 November 2026 the owner accepted every recommended reading below, so each 
 | D69 | Planned works under a suspension or delay code are engineering works; overruns count | declared (pending) |
 | D70 | Station views withhold their measured figures at an end of the line | stations (pending) |
 | D71 | Countdown drift: matching, horizons, minimum count | measured, not published (pending) |
+| D72 | Segment run times: which lines, which pairs, and what a time means | measured, not published (pending) |
 | D73 | Step-free outage hours are a lower bound, counted from sightings | station views (pending, unpublished) |
+| D74 | Disruption causes as TfL names them, not root causes (not published) | declared (pending) |
+| D75 | Board dropouts: a train seen either side of a station but not at it | station views, not published (pending) |
 | [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing (decided) |
 | D57 | Division size, monthly measure, promotion and relegation | declared, publishing (decided) |
 | D58 | Season table, April to March | declared, publishing (decided) |
 | D59 | Recovery Time table (provisional on D18) | declared, publishing (decided) |
 | D60 | Industrial action seed and strikes-excluded table | declared, publishing (decided) |
 | D61 | Sensitivity weight sets | declared, publishing (decided) |
-| D74 | Disruption causes as TfL names them, not root causes (not published) | declared (pending) |
 
 The weights for the status codes the plan names, and the time-band weights, are the build plan's values. D16 adds Service Closed to the weights, and D21 decides how the bands map onto calendar days. Sensitivity under three alternative weight sets is reported each week in `meta/methodology.json` (see Sensitivity above, D61).
 

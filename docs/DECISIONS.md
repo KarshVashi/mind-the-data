@@ -147,8 +147,6 @@ D1 and D67 to D75 are open.
 - **Alternatives:** withhold only the share and keep the gap figures (the gaps are distorted by the same missing departures); derive the end from each day's destinations, as D65 does for turnbacks (it needs the whole line feed per week, and a short-turned train would withhold a through station).
 - **Effect:** no published value moves while `STATIONS_PUBLISH_ENABLED` is off. The league, lines and measured view are unchanged. Station files gain the reason `terminus` and the summary can list it in `status_reasons`.
 
-## Settled on 2026-11-18, with the detail
-
 ### D71. Countdown drift: how a prediction is matched and scored
 
 - **Entered:** 2026-11-20. **Deadline:** 2026-11-23 12:00 UTC (a reminder only). **Class:** `never-default` (a new metric's definition; nothing is published until it is settled). **Default:** none; recommended as implemented.
@@ -169,13 +167,11 @@ D1 and D67 to D75 are open.
 - **Median:** nearest-rank, the lower middle value for an even count. `fct_station_weekly_measured` takes the mean of the middle two; if this is published, the project may want one definition.
 - **Not published, not built in prod.** Both models carry the tag `exploratory`, which the daily prod build excludes; they are built on demand. Publishing would need a contract change (a `prediction_accuracy` block or file, a new flag defaulting off, a `schema_version` bump), described in the pull request.
 
-## Settled on 2026-11-18, with the detail
-
 ### D72. Segment run times: which lines, which pairs, and what a time means
 
 - **Entered:** 2026-11-20. **Deadline:** 2026-11-23 18:00 UTC (a reminder only). **Class:** `never-default` (metric semantics; a published figure would follow). **Default:** none; the models are built but nothing is published.
 - **Context:** the every-station feed (M8) lets a vehicle id be followed from station to station, so the time between adjacent stations can be measured and the slowest and least predictable segments found per line (exploratory work toward v2).
-- **Implemented** (`int_segment_run_times`, `rpt_segment_run_times_weekly`, both tagged `station`, not published):
+- **Implemented** (`int_segment_run_times`, `rpt_segment_run_times_weekly`, both tagged `exploratory`, not published):
   - a run is two consecutive passes of one vehicle at stations next to each other in the line's latest route sequence, in the same direction;
   - dropped: a pair that is not adjacent, a direction change (a turnback), and a gap over 15 minutes (`segment_max_run_seconds`);
   - weekly per line, direction and segment: runs, p10, p50, p90 (nearest rank on exact values) and variability = p90 - p50; at least 30 runs (`segment_min_runs`);
@@ -187,13 +183,11 @@ D1 and D67 to D75 are open.
 - **Open points:** whether a published run time should be arrival to departure (no dwell), which the boards cannot give; whether Circle and Hammersmith & City, whose boards misfile trains between Baker Street and Liverpool Street (D52), should be withheld here too; and whether "slowest" is worth publishing at all when it mostly ranks distance.
 - **Alternatives:** departure to arrival using the last sighting at each end; include the District with a flag; a minimum of 100 runs.
 
-## Settled on 2026-11-18, with the detail
-
 ### D73. Step-free outage hours are a lower bound, counted from sightings
 
 - **Entered:** 2026-11-20. **Deadline:** 2026-11-23 18:00 UTC (a reminder only). **Class:** `never-default` (metric semantics; a publish is a separate, later step). **Default:** as implemented, unpublished.
 - **Context:** the stop disruption feed (every 5 minutes) lists only faults that exist at the poll. It has no clear time, so how long a lift was out cannot be read, only how long it was listed.
-- **Implemented** (`int_step_free_slots`, `int_step_free_outages`, `rpt_step_free_weekly`, exploratory):
+- **Implemented** (`int_step_free_slots`, `int_step_free_outages`, `rpt_step_free_weekly`, tagged `station`, unpublished):
   - an outage is *seen* in a 5-minute slot when a successful poll in it lists a step-free outage for the station;
   - an episode is a run of seen slots. If a slot between two sightings was observed (a successful poll listed nothing), the episode ends; if no poll succeeded in between, the gap is unknown, the episode continues and the gap is counted apart as missing hours, never as seen and never as fixed;
   - hours seen are a lower bound: the outage began before the first sighting and ended after the last by an unknown amount. Episodes at the feed's first slot, or listed at its latest, are flagged;
@@ -209,7 +203,7 @@ D1 and D67 to D75 are open.
 
 - **Entered:** 2026-11-20. **Class:** `never-default` (metric semantics; nothing is published). **Default:** as implemented; the table stays unpublished until the owner answers.
 - **Context:** exploratory work toward v2, "What TfL says goes wrong": a weekly league of causes per line and network-wide, read from the status text.
-- **Implemented:** seed `disruption_cause_patterns` (19 causes, a regular expression and a priority each), `int_status_causes` (per disrupted scored minute, the cause) and `rpt_disruption_causes_weekly` (per week, line and cause, plus the network: minutes, share of disrupted minutes, share of suspended minutes). The rule is the cause whose words start earliest in the lower-cased reason; priority only breaks a tie. A reason with no cause words, or none, is "No cause given". Missing, engineering-works and Service Closed minutes are never in it.
+- **Implemented:** seed `disruption_cause_patterns` (19 causes, a regular expression and a priority each), `int_status_causes` (per disrupted scored minute, the cause) and `rpt_disruption_causes_weekly` (per week, line and cause, plus the network: minutes, share of disrupted minutes, share of suspended minutes). The rule is the cause whose words start earliest in the lower-cased reason; priority only breaks a tie. A reason with no cause words, or none, is "No cause given". Missing, engineering-works and Service Closed minutes are never in it. Both models are tagged `exploratory`, so the prod build leaves them out until this is accepted.
 - **What it claims, and not:** the cause as TfL names it. It is not the root cause: a points failure may be the real reason behind "train cancellations", and TfL names only the first of several. A text such as "train cancellations ... signal failure" counts for the cancellations. It also counts minutes, so a long suspension weighs more than many short delays.
 - **Choices to confirm:** "Suspended" for the suspended share means Suspended plus Part Suspended (Part Suspended is 84% of those minutes in W46); five causes were added to the first 14 (planned service changes, platform screen doors, track inspections, late running, congestion from other lines); a word that is a substring (fire, obstruction, flood) matches anywhere after a word boundary, so "firefighters" counts as fire.
 - **Seed rule:** patterns never contain a backslash, because OpenCSVSerde drops it; `(^|[^a-z])` stands for a word boundary.

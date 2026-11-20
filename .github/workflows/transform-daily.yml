@@ -239,7 +239,7 @@ jobs:
         if: ${{ !cancelled() && steps.creds.outcome == 'success' && needs.gate.outputs.select == '' }}
         working-directory: transform
         continue-on-error: true
-        run: uv run --locked dbt build --target prod --profiles-dir . --select tag:station
+        run: uv run --locked dbt build --target prod --profiles-dir . --select tag:station --exclude tag:exploratory
 
       - name: warn on failed station build
         if: ${{ steps.station_build.outcome == 'failure' }}
