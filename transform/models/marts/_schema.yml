@@ -52,6 +52,66 @@ models:
         description: True when the station is in seed_measurement_stations for any line.
         data_tests: [not_null]
 
+  - name: rpt_step_free_weekly
+    description: >
+      Step-free outages per ISO week (London) and station (D73), from the
+      5-minute stop disruption feed. One row per week for every station with
+      an outage seen in any week; stations never seen with one have no row.
+      Hours are a lower bound: the feed lists only current faults and has no
+      clear time. Time with no successful poll inside an episode is counted in
+      missing_hours_inside, never in the hours seen. No collected data says
+      which stations have step-free access, so there is no denominator of
+      step-free stations. repeat_offender needs four weeks of feed.
+    columns:
+      - name: step_free_weekly_key
+        description: Row key, a hash of (naptan_id, week_start).
+        data_tests: [unique, not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: iso_week
+        description: "ISO week of week_start, 'YYYY-Www'."
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Station id.
+        data_tests: [not_null]
+      - name: station_name
+        description: Station name from dim_station; null for a station not in it.
+      - name: line_ids
+        description: Lines serving the station from dim_station; null for a station not in it.
+      - name: outage_hours_seen
+        description: Hours with a step-free outage listed (observed slots only). A lower bound.
+        data_tests: [not_null]
+      - name: planned_hours_seen
+        description: Of those, hours in which every listed outage was planned work.
+        data_tests: [not_null]
+      - name: unplanned_hours_seen
+        description: Of those, hours with at least one outage that was not planned work.
+        data_tests: [not_null]
+      - name: missing_hours_inside
+        description: Unobserved hours between sightings inside episodes, kept out of the hours seen.
+        data_tests: [not_null]
+      - name: episodes
+        description: Episodes with a slot in the week.
+        data_tests: [not_null]
+      - name: episodes_started
+        description: Episodes whose first slot is in the week.
+        data_tests: [not_null]
+      - name: outage_weeks_last4
+        description: Weeks among this and the 3 before with an outage seen.
+        data_tests: [not_null]
+      - name: repeat_offender
+        description: Outages seen in at least 3 of the last 4 weeks; null until there are 4 weeks of feed, and when under-observed weeks leave it open.
+      - name: expected_slots
+        description: 5-minute slots the week should hold (from fct_station_disruption_weekly).
+        data_tests: [not_null]
+      - name: observed_slots
+        description: Slots with a successful poll.
+        data_tests: [not_null]
+      - name: observed_share
+        description: observed_slots over expected_slots. Hours are a lower bound when under 1.
+        data_tests: [not_null]
+
   - name: fct_station_disruption_weekly
     description: >
       Station disruption per ISO week (London) and station (M8), from the

@@ -21,7 +21,23 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
-D1 and D67 are open.
+D1, D67 and D73 are open.
+
+### D73. Step-free outage hours are a lower bound, counted from sightings
+
+- **Entered:** 2026-11-20. **Deadline:** 2026-11-23 18:00 UTC (a reminder only). **Class:** `never-default` (metric semantics; a publish is a separate, later step). **Default:** as implemented, unpublished.
+- **Context:** the stop disruption feed (every 5 minutes) lists only faults that exist at the poll. It has no clear time, so how long a lift was out cannot be read, only how long it was listed.
+- **Implemented** (`int_step_free_slots`, `int_step_free_outages`, `rpt_step_free_weekly`, exploratory):
+  - an outage is *seen* in a 5-minute slot when a successful poll in it lists a step-free outage for the station;
+  - an episode is a run of seen slots. If a slot between two sightings was observed (a successful poll listed nothing), the episode ends; if no poll succeeded in between, the gap is unknown, the episode continues and the gap is counted apart as missing hours, never as seen and never as fixed;
+  - hours seen are a lower bound: the outage began before the first sighting and ended after the last by an unknown amount. Episodes at the feed's first slot, or listed at its latest, are flagged;
+  - planned works (appearance `PlannedWork`) are split from the rest;
+  - a repeat offender has outages in 3 or more of the last 4 weeks, null until 4 weeks of feed exist.
+- **Classifier fixed (new models only):** the old keyword match counted the "No Step Free Access -" headline TfL puts on escalator faults, delays and staff closures, and text saying step-free access remains available. `is_step_free_outage_text` strips the headline and needs the body to say a lift, ramp or step-free route is out. `fct_station_disruption_weekly` still uses the old match, because its `step_free_hours` go into the station JSON and that is a published figure: moving it to the new rule would cut it by about 6.5% for 9 to 15 November (3,529 to 3,299 hours). That is a separate change for the owner to approve. Measured precision and recall are in methodology "Step-free access".
+- **No denominator:** no collected data says which stations have step-free access, so the report says how often an outage was seen, not how often access was available. A station never listed is not known to have step-free access.
+- **Alternatives:** read the first sighting to the last as the outage's length (counts unpolled gaps as broken); end an episode at any gap (counts a missed poll as fixed); a TfL accessibility field for the denominator, which needs a new collector.
+- **Not published.** See the PR notes for a possible flag-gated document.
+- **Recommendation:** accept the lower-bound reading and keep it unpublished until four weeks of feed exist.
 
 ### D67. Single-weekday timetables are left out until a weekday can be modelled
 
