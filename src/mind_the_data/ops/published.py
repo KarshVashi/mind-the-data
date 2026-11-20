@@ -1,7 +1,8 @@
 """Freshness of the published output, read over HTTP like a visitor would.
 
-Collection has its own alarms. This checks the other end: that Monday's publish
-and the site deploy actually landed. Pure checks take the parsed JSON so tests
+Collection has its own alarms. This checks the other end: that the weekly
+publish's upload to R2 landed. It does not see the Pages deploy hook; a failed
+deploy leaves the site on an old build while these files stay fresh. Pure checks take the parsed JSON so tests
 never touch the network; only :func:`fetch_json` does I/O.
 """
 
@@ -61,7 +62,9 @@ def check_published(
             generated = generated.replace(tzinfo=UTC)
         age = now - generated
         if age > MAX_AGE:
-            problems.append(f"{name}: generated_at {raw} is {age.days} days old (limit 8)")
+            problems.append(
+                f"{name}: generated_at {raw} is {age.days} days old (limit {MAX_AGE.days})"
+            )
 
     week = (latest.get("data_window") or {}).get("iso_week")
     expected = expected_iso_week(now)
@@ -104,7 +107,7 @@ def published_section(
 
 def fetch_section(now: datetime, code_schema_version: str, base_url: str = BASE_URL) -> Section:
     try:
-        with httpx.Client(timeout=20.0) as client:
+        with httpx.Client(timeout=20.0, transport=httpx.HTTPTransport(retries=2)) as client:
             index = fetch_json(f"{base_url}/meta/index.json", client)
             latest = fetch_json(f"{base_url}/league/latest.json", client)
     except (httpx.HTTPError, TypeError, ValueError) as exc:

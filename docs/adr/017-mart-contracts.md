@@ -17,6 +17,8 @@ Enforce contracts, with a `data_type` on every column, on the table models `publ
 
 `tests/unit/test_dbt_contracts.py` parses the export's own SELECTs and fails when a mart it reads has no enforced contract, or when a column it reads is not declared. A new published mart therefore cannot skip the contract.
 
+Not contracted: `int_incidents` and `int_line_minute_status` (read by the export, but incremental merges), and the `seed_measured_lines` seed, whose column types are already pinned in `dbt_project.yml`. A column change there still fails at export time.
+
 ## Alternatives considered
 
 - Contracts on every model. Staging and intermediate models are incremental merges, where the adapter does not run the contract check in the same place, and they change often; the cost outweighs the gain.

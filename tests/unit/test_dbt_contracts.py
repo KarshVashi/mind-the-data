@@ -46,7 +46,7 @@ def _columns_read() -> dict[str, set[str]]:
             if name in marts:
                 read[name].add(column)
         # A single-table query lists bare column names between select and from.
-        if len(marts) == 1 and "join" not in sql:
+        if len(marts) == 1 and not re.search(r"\bjoin\b", sql):
             select_list = re.match(r"select (.*?) from db\.", sql)
             if select_list:
                 (name,) = marts
@@ -67,6 +67,7 @@ def test_the_parser_found_the_marts_it_should() -> None:
     )
     assert {"week_start", "disruption_rank", "built_at"} <= READ["fct_line_weekly"]
     assert {"honesty_gap_hours", "experienced_rank"} <= READ["fct_line_weekly_measured"]
+    assert all(READ.values()), "a mart parsed with no columns would pass vacuously"
 
 
 @pytest.mark.parametrize("model", sorted(READ))
