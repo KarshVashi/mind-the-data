@@ -43,6 +43,64 @@ models:
         data_tests: [not_null]
       - name: terminus_source
         description: "`route`, `seed` or `route_and_seed` for a terminus; null otherwise."
+  - name: rpt_segment_run_times_weekly
+    description: >
+      Run times between adjacent stations per London week, line, direction
+      and segment (D72, exploratory, not published): runs, p10, p50 and p90
+      in seconds (nearest rank), and variability as p90 minus p50. Segments
+      with fewer than `segment_min_runs` runs in the week are left out.
+      Times are arrival to arrival and include dwell. paired_share is the
+      runs over the vehicle-id passes at the first station, the coverage
+      measure for lines with partial ids (is_partial_id_line).
+    columns:
+      - name: segment_week_key
+        description: Row key, a hash of (line_id, direction, from_naptan_id, to_naptan_id, week_start).
+        data_tests: [unique, not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: iso_week
+        description: "ISO week of week_start, 'YYYY-Www'."
+        data_tests: [not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: direction
+        description: "`inbound` or `outbound`."
+        data_tests: [not_null]
+      - name: from_naptan_id
+        description: First station of the segment.
+        data_tests: [not_null]
+      - name: to_naptan_id
+        description: Next station in route order.
+        data_tests: [not_null]
+      - name: from_station_name
+        description: Name of the first station (dim_station).
+      - name: to_station_name
+        description: Name of the next station (dim_station).
+      - name: runs
+        description: Runs in the week, at least the minimum.
+        data_tests: [not_null]
+      - name: days_with_runs
+        description: London days of the week with a run.
+        data_tests: [not_null]
+      - name: p10_seconds
+        description: 10th percentile run, seconds.
+        data_tests: [not_null]
+      - name: p50_seconds
+        description: Median run, seconds.
+        data_tests: [not_null]
+      - name: p90_seconds
+        description: 90th percentile run, seconds.
+        data_tests: [not_null]
+      - name: variability_seconds
+        description: p90 minus p50, seconds.
+        data_tests: [not_null]
+      - name: paired_share
+        description: Runs over the vehicle-id passes at the first station; null if none counted.
+      - name: is_partial_id_line
+        description: The line's vehicle ids are only partly reliable (`segment_partial_id_lines`).
+        data_tests: [not_null]
 
   - name: dim_station
     description: >

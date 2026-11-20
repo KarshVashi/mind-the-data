@@ -337,6 +337,16 @@ Does "2 min" on the board mean two minutes? `int_prediction_errors` and `rpt_pre
 - **Weekly figures.** Arrivals eligible, the share with a matched prediction, the median and 90th percentile of absolute error, the median signed error, the share within 60 seconds, and how many real seconds a countdown minute lasted (60 × total actual ÷ total predicted). Percentiles are nearest-rank, so they are exact and can be checked by hand.
 - **Minimum.** A line-week-horizon is shown only with at least 200 matched predictions.
 - **Known biases.** Only trains with an inferred arrival are scored. A train that was withdrawn, reformed or vanished from the board more than 2 minutes out has no arrival, so it is in neither the matched share nor the errors: the figures say nothing about trains that never came. A train more than 30 minutes later than its countdown counts as unmatched. The Circle and Hammersmith & City boards file some trains under the other line (D52); a prediction filed under one line never matches an arrival filed under the other, so that arrival counts as unmatched. Read the two lines together.
+### Segment run times (exploratory, D72)
+
+Not published. From the every-station feed, the time a train takes between two adjacent stations, so the slowest and least predictable stretches of each line can be found.
+
+- **Lines.** Those that link by vehicle id (D27): Bakerloo, Central, Circle, Hammersmith & City, Jubilee, Metropolitan, Northern, Piccadilly and Victoria. The District (unstable ids), DLR (no ids), and the Elizabeth line, Overground and Tram (trip ids, not train ids) are left out for now. The Metropolitan's ids are only partly reliable, so its rows carry a flag.
+- **A run** is two consecutive passes of one vehicle at stations that are neighbours in the line's route sequence, in the same direction. A pair is dropped when it skips a station (a pass was missed), when the direction changes (a turnback), or when the passes are more than 15 minutes apart (a layover or a lost id).
+- **Per week, line, direction and segment:** the number of runs, the 10th, 50th and 90th percentile in seconds, and variability as p90 minus p50. A segment needs 30 runs in the week. `paired_share` says how many of the vehicle-id passes at the first station found a next-station pass.
+- **Times include one dwell.** A pass is the board's expected arrival at the last sighting, so a run holds a stop at one end, which end depending on how long the board keeps a train listed at the platform.
+- **Resolution is about a minute at each end.** The median of a few dozen runs is good to a few seconds, but p10, p90 and variability include the boards' timing noise, most on short segments, so read variability on long segments first.
+- **Slowest is mostly distance.** Long outer segments top any list by median; variability on longer segments is the better sign of trouble.
 
 ---
 

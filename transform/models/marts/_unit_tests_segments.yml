@@ -1,0 +1,72 @@
+version: 2
+
+# Hand-computed cases for the weekly segment run times (D72, exploratory).
+
+unit_tests:
+  - name: rpt_segment_run_times_weekly_percentiles_by_nearest_rank
+    description: >
+      Week of Monday 16 November 2026 (W47). Victoria outbound A to B has
+      10 runs, 5 on the 17th and 5 on the 18th, of 140, 100, 180, 120, 160,
+      110, 190, 130, 150, 170 s. Sorted: 100 to 190 in tens. Nearest rank:
+      p10 is rank ceil(0.1 x 10) = 1, 100 s; p50 is rank 5, 140 s; p90 is
+      rank 9, 180 s; variability 180 - 140 = 40. Twenty vehicle-id passes
+      were seen at A that week, so paired_share is 10 / 20 = 0.5.
+      Victoria B to C has only 4 runs, under the minimum of 5: no row.
+      Metropolitan X to Y has 5 runs of 60, 60, 60, 60, 300 s: p10 is rank
+      ceil(0.5) = 1, 60; p50 is rank 3, 60; p90 is rank ceil(4.5) = 5, 300;
+      variability 240. Five passes at X, so paired_share 1.0, and the line
+      is flagged as partial-id.
+    model: rpt_segment_run_times_weekly
+    overrides:
+      vars:
+        segment_min_runs: 5
+        segment_partial_id_lines: ["metropolitan"]
+    given:
+      - input: ref('dim_station')
+        rows:
+          - {naptan_id: A, station_name: Alpha}
+          - {naptan_id: B, station_name: Bravo}
+          - {naptan_id: C, station_name: Charlie}
+          - {naptan_id: X, station_name: Xray}
+          - {naptan_id: Y, station_name: Yankee}
+      - input: ref('int_segment_run_times')
+        format: sql
+        rows: |
+          select
+              line_id, direction, from_naptan_id, to_naptan_id, run_seconds,
+              cast(london_date as date) as london_date
+          from (
+              values
+                  ('victoria', 'outbound', 'A', 'B', 140, '2026-11-17'),
+                  ('victoria', 'outbound', 'A', 'B', 100, '2026-11-17'),
+                  ('victoria', 'outbound', 'A', 'B', 180, '2026-11-17'),
+                  ('victoria', 'outbound', 'A', 'B', 120, '2026-11-17'),
+                  ('victoria', 'outbound', 'A', 'B', 160, '2026-11-17'),
+                  ('victoria', 'outbound', 'A', 'B', 110, '2026-11-18'),
+                  ('victoria', 'outbound', 'A', 'B', 190, '2026-11-18'),
+                  ('victoria', 'outbound', 'A', 'B', 130, '2026-11-18'),
+                  ('victoria', 'outbound', 'A', 'B', 150, '2026-11-18'),
+                  ('victoria', 'outbound', 'A', 'B', 170, '2026-11-18'),
+                  ('victoria', 'outbound', 'B', 'C', 100, '2026-11-17'),
+                  ('victoria', 'outbound', 'B', 'C', 100, '2026-11-17'),
+                  ('victoria', 'outbound', 'B', 'C', 100, '2026-11-17'),
+                  ('victoria', 'outbound', 'B', 'C', 100, '2026-11-17'),
+                  ('metropolitan', 'outbound', 'X', 'Y', 60, '2026-11-17'),
+                  ('metropolitan', 'outbound', 'X', 'Y', 60, '2026-11-17'),
+                  ('metropolitan', 'outbound', 'X', 'Y', 60, '2026-11-17'),
+                  ('metropolitan', 'outbound', 'X', 'Y', 60, '2026-11-17'),
+                  ('metropolitan', 'outbound', 'X', 'Y', 300, '2026-11-17')
+          ) as t (line_id, direction, from_naptan_id, to_naptan_id, run_seconds, london_date)
+      - input: ref('int_station_vehicle_passes')
+        format: sql
+        rows: |
+          select 'victoria' as line_id, 'outbound' as direction, 'A' as naptan_id,
+              timestamp '2026-11-17 10:00:00' as pass_time
+          from unnest(sequence(1, 20))
+          union all
+          select 'metropolitan', 'outbound', 'X', timestamp '2026-11-17 10:00:00'
+          from unnest(sequence(1, 5))
+    expect:
+      rows:
+        - {iso_week: "2026-W47", line_id: victoria, direction: outbound, from_naptan_id: A, to_naptan_id: B, from_station_name: Alpha, to_station_name: Bravo, runs: 10, days_with_runs: 2, p10_seconds: 100, p50_seconds: 140, p90_seconds: 180, variability_seconds: 40, paired_share: 0.5, is_partial_id_line: false}
+        - {iso_week: "2026-W47", line_id: metropolitan, direction: outbound, from_naptan_id: X, to_naptan_id: Y, from_station_name: Xray, to_station_name: Yankee, runs: 5, days_with_runs: 1, p10_seconds: 60, p50_seconds: 60, p90_seconds: 300, variability_seconds: 240, paired_share: 1.0, is_partial_id_line: true}

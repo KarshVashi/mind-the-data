@@ -109,6 +109,13 @@ vars:
   # Last month rpt_divisions_monthly builds ('YYYY-MM-DD'); null means the
   # current month. Unit tests pin it.
   division_months_through: null
+  # Segment run times (D72): a pair of passes further apart than this is not
+  # one run (a layover or a lost id; missed passes and turnbacks are
+  # dropped by the adjacency and direction rules), and a segment needs this many runs in a week to be reported.
+  segment_max_run_seconds: 900
+  segment_min_runs: 30
+  # Lines whose vehicle ids are only partly reliable: reported, flagged.
+  segment_partial_id_lines: ["metropolitan"]
   # Weekly Iceberg maintenance (macros/iceberg_maintenance.sql, D64): OPTIMIZE
   # rewrites only partitions this many days back, which covers a week of
   # daily merges plus their lookback_days.

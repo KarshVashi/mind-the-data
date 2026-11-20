@@ -1097,4 +1097,43 @@ models:
         data_tests: [not_null]
       - name: week_start
         description: Monday of the arrival's London week.
+  - name: int_segment_run_times
+    description: >
+      Station-to-station run times (D72, exploratory): consecutive passes of
+      one vehicle on one line and direction at stations next to each other
+      in the line's route sequence, from int_station_vehicle_passes, for the
+      lines that link by vehicle id. Pairs that are not adjacent, change
+      direction (turnbacks) or are over `segment_max_run_seconds` apart are
+      dropped. Arrival to arrival, so the run includes dwell; resolution is
+      the boards' (about a minute).
+    columns:
+      - name: segment_run_key
+        description: Row key, a hash of (line_id, vehicle_id, from_naptan_id, to_naptan_id, from_pass_time).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: direction
+        description: "`inbound` or `outbound`."
+        data_tests: [not_null]
+      - name: vehicle_id
+        description: TfL vehicle id.
+        data_tests: [not_null]
+      - name: from_naptan_id
+        description: Station the run starts at.
+        data_tests: [not_null]
+      - name: to_naptan_id
+        description: Next station in route order.
+        data_tests: [not_null]
+      - name: from_pass_time
+        description: Pass at the first station, UTC.
+        data_tests: [not_null]
+      - name: to_pass_time
+        description: Pass at the next station, UTC.
+        data_tests: [not_null]
+      - name: run_seconds
+        description: Seconds from one pass to the next, above 0 and within `segment_max_run_seconds`.
+        data_tests: [not_null]
+      - name: london_date
+        description: London date of the first pass.
         data_tests: [not_null]
