@@ -325,8 +325,6 @@ How often a station was seen with step-free access out (a lift, ramp or step-fre
 - **Repeat offender.** True when 3 or more of the last 4 weeks had an outage seen. False only if 3 cannot be reached even if every week with fewer than half its slots observed had one; null otherwise, and until 4 weeks of feed exist.
 - **No denominator.** No collected data says which stations have step-free access (route sequences carry no accessibility fields), so this is how often an outage was seen, not availability. Both ids of an interchange (for example Willesden Junction 910G and 940G) carry the same notice, so totals by id count such a station twice.
 
----
-
 ### Countdown drift (not published, D71 pending)
 
 Does "2 min" on the board mean two minutes? `int_prediction_errors` and `rpt_prediction_accuracy` score TfL's countdown at 2, 5 and 10 minutes out, per line and London week.
@@ -368,6 +366,8 @@ Can you trust TfL's boards? A train that shows on the boards at the station befo
 - **Long gaps.** Per line, the share of the measured view's long gaps (scheduled, gated hours, D34) at these stations that contain a train dropped at the same station in the same direction, its pass time taken as halfway between A and C. A share needs at least 20 long gaps. A long gap with a dropout inside it is at least partly the boards' doing, not the service's.
 - **Caveats carried per line.** The District's vehicle ids are not stable (D27), so a reused id can join two trains. On the Circle and Hammersmith & City, boards on the shared section file some trains under the other line (D52), which reads as a dropout. The Overground has no timetable, so every train is taken to call at every station.
 - **A floor, not a count.** A train missing from two boards in a row is not judged, nor is one missing from every board: that still needs TfL's own train counts (ADR-014, open item 2).
+
+---
 
 ## 4. What is published
 
