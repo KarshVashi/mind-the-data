@@ -1,4 +1,4 @@
-{{ config(materialized='table', tags=['station']) }}
+{{ config(materialized='table', tags=['exploratory']) }}
 
 -- Run times between adjacent stations per London week (D72), from
 -- int_segment_run_times: for each line, direction and segment, the number
@@ -11,8 +11,10 @@
 -- `paired_share` is the runs over the vehicle-id passes at the segment's
 -- first station: the share of trains we could follow to the next one, and
 -- the coverage figure for lines whose ids are only partly reliable
--- (`is_partial_id_line`). Times include dwell and carry the boards'
--- resolution. Never published; nothing here is read as a good time.
+-- (`is_partial_id_line`). At a junction the passes split across the
+-- outgoing segments, so the share reads low there by design.
+-- Times include one dwell and carry the boards' resolution.
+-- Never published; nothing here is read as a good time.
 
 with runs as (
     select

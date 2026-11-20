@@ -1,4 +1,5 @@
-{{ config(materialized='table', tags=['station']) }}
+-- Tagged `exploratory`, not `station`, so the daily prod build leaves it out.
+{{ config(materialized='table', tags=['exploratory']) }}
 
 -- Station-to-station run times (D72): consecutive passes of one vehicle on
 -- one line and direction at stations that are next to each other in the
@@ -12,11 +13,16 @@
 -- passes are not strictly ordered, or when they are further apart than
 -- `segment_max_run_seconds` (a layover or a lost id).
 --
--- The times are arrival to arrival: they include the dwell at the first
--- station, and a pass is the expected arrival at the last sighting, so the
--- resolution is the board's, about a minute.
+-- A pass is the expected arrival at the train's last sighting, so a run
+-- holds one dwell, at an end that depends on how long the board keeps a
+-- train listed at the platform; it has not been checked against the
+-- timetable. Resolution is the board's, about a minute at each end.
+-- Passes with the same time are ordered by direction then station id, which
+-- is deterministic but not route order; a tie can cost a run, never invent
+-- one. Adjacency uses the latest route sequence, so history can change if
+-- TfL changes a route.
 --
--- Rebuilt in full, like int_station_headways: the passes are a small table.
+-- Rebuilt in full; unbounded over the passes, so bound it before it moves to prod.
 
 with latest_fetches as (
     -- The latest fetch of each line and direction, as in dim_station.
@@ -87,7 +93,7 @@ consecutive_passes as (
     from linked_passes
     window vehicle_passes as (
         partition by line_id, vehicle_id
-        order by pass_time, naptan_id
+        order by pass_time, direction, naptan_id
     )
 ),
 

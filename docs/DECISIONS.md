@@ -41,10 +41,11 @@ D1, D67 and D72 are open.
   - a run is two consecutive passes of one vehicle at stations next to each other in the line's latest route sequence, in the same direction;
   - dropped: a pair that is not adjacent, a direction change (a turnback), and a gap over 15 minutes (`segment_max_run_seconds`);
   - weekly per line, direction and segment: runs, p10, p50, p90 (nearest rank on exact values) and variability = p90 - p50; at least 30 runs (`segment_min_runs`);
-  - **dwell is included.** Both ends are arrivals, so a run is the stop at the first station plus the travel;
-  - **resolution is about 60 seconds.** A pass is the expected arrival at the last sighting on the boards;
+  - **one dwell is included**, at an end that depends on how long the board keeps a train listed at the platform; not checked against the timetable;
+  - **resolution is about 60 seconds at each end.** A pass is the expected arrival at the last sighting on the boards, so p10, p90 and variability include that timing noise, most on short segments, and fast runs near 0 s are dropped, which lifts p10 on those;
   - lines: those with `link_by_vehicle_id` in `seed_vehicle_id_lines`, which is Bakerloo, Central, Circle, Hammersmith & City, Jubilee, Metropolitan, Northern, Piccadilly and Victoria. The Metropolitan is included with `is_partial_id_line` and a `paired_share` coverage figure (`segment_partial_id_lines`).
 - **Left out, to be revisited:** District (ids not stable, D27), DLR (no ids), and the Elizabeth line, Overground and Tram, whose ids are trip ids, not train ids. A trip id might still give a run time within a trip; it has not been checked.
+- **Not checked:** skip-stop patterns (Metropolitan fast trains, Piccadilly past Turnham Green) against the route sequences; partial and current weeks are not flagged; adjacency is the latest route sequence applied to past weeks. The models are tagged `exploratory`, so the daily prod build does not run them.
 - **Open points:** whether a published run time should be arrival to departure (no dwell), which the boards cannot give; whether Circle and Hammersmith & City, whose boards misfile trains between Baker Street and Liverpool Street (D52), should be withheld here too; and whether "slowest" is worth publishing at all when it mostly ranks distance.
 - **Alternatives:** departure to arrival using the last sighting at each end; include the District with a flag; a minimum of 100 runs.
 
