@@ -3,19 +3,27 @@ version: 2
 models:
   - name: dim_lines
     description: Lines in scope, from config/lines.yaml through the `lines` seed.
+    config:
+      contract:
+        enforced: true
     columns:
       - name: line_id
+        data_type: varchar
         description: TfL line id.
         data_tests: [unique, not_null]
       - name: line_name
+        data_type: varchar
         description: Display name.
         data_tests: [not_null]
       - name: mode_name
+        data_type: varchar
         description: TfL mode.
         data_tests: [not_null]
       - name: colour
+        data_type: varchar
         description: Line colour, hex.
       - name: is_low_volume
+        data_type: boolean
         description: Shown but flagged as low volume.
         data_tests: [not_null]
 
@@ -110,28 +118,39 @@ models:
       station. An interchange TfL gives both a 940G and a 910G id (e.g.
       Canada Water) is two rows, matching the ids the arrivals and
       disruption feeds use.
+    config:
+      contract:
+        enforced: true
     columns:
       - name: naptan_id
+        data_type: varchar
         description: Station-level NaPTAN id (940GZZ... or 910G...).
         data_tests: [unique, not_null]
       - name: station_name
+        data_type: varchar
         description: >
           TfL's name without its stop-type suffix (" Underground Station",
           " Rail Station", " DLR Station", " Tram Stop"); null if no route
           sequence's `stations` list describes the station.
       - name: tfl_station_name
+        data_type: varchar
         description: TfL's name as sent, e.g. `Green Park Underground Station`.
       - name: lat
+        data_type: double
         description: Latitude, WGS84.
       - name: lon
+        data_type: double
         description: Longitude, WGS84.
       - name: line_ids
+        data_type: array(varchar)
         description: Lines in scope that stop here, sorted.
         data_tests: [not_null]
       - name: modes
+        data_type: array(varchar)
         description: Modes of those lines (the `lines` seed's mode_name), sorted.
         data_tests: [not_null]
       - name: is_measurement_station
+        data_type: boolean
         description: True when the station is in seed_measurement_stations for any line.
         data_tests: [not_null]
 
@@ -208,40 +227,54 @@ models:
       Standing notices (appearance Information) are left out. One row per
       week for every dim_station station, plus any other station with a
       counted disruption that week. The model comment has the full rules.
+    config:
+      contract:
+        enforced: true
     columns:
       - name: station_disruption_weekly_key
+        data_type: varchar
         description: Row key, a hash of (naptan_id, week_start).
         data_tests: [unique, not_null]
       - name: iso_week
+        data_type: varchar
         description: "ISO week of week_start, 'YYYY-Www'."
         data_tests: [not_null]
       - name: week_start
+        data_type: date
         description: Monday of the London week.
         data_tests: [not_null]
       - name: naptan_id
+        data_type: varchar
         description: >
           Station id: the disrupted point's parent station code, or its own
           code when TfL gives no parent.
         data_tests: [not_null]
       - name: closure_hours
+        data_type: double
         description: Hours the station was closed or not served by some of its trains (observed slots only).
         data_tests: [not_null]
       - name: step_free_hours
+        data_type: double
         description: Hours with a step-free access or lift outage (observed slots only).
         data_tests: [not_null]
       - name: other_disruption_hours
+        data_type: double
         description: Hours with any other disruption, e.g. escalator faults (observed slots only).
         data_tests: [not_null]
       - name: disruptions
+        data_type: integer
         description: Distinct disruptions (station, type, appearance, description) in force in the week.
         data_tests: [not_null]
       - name: expected_slots
+        data_type: bigint
         description: 5-minute slots in the week up to the feed's latest poll attempt.
         data_tests: [not_null]
       - name: observed_slots
+        data_type: bigint
         description: Of those, slots with a successful poll.
         data_tests: [not_null]
       - name: observed_share
+        data_type: double
         description: observed_slots / expected_slots, the share of the week's 5-minute polls that succeeded.
         data_tests: [not_null]
 
@@ -264,26 +297,36 @@ models:
       line, Overground) have null scheduled trains, trains-on-boards share,
       excess wait and long-gap rate. Missing polls never read as good: those
       hours are not observed and not judged.
+    config:
+      contract:
+        enforced: true
     columns:
       - name: station_weekly_measured_key
+        data_type: varchar
         description: Row key, a hash of (naptan_id, line_id, direction, week_start).
         data_tests: [unique, not_null]
       - name: iso_week
+        data_type: varchar
         description: "ISO week of week_start, 'YYYY-Www'."
         data_tests: [not_null]
       - name: week_start
+        data_type: date
         description: Monday of the London week.
         data_tests: [not_null]
       - name: naptan_id
+        data_type: varchar
         description: Station (dim_station).
         data_tests: [not_null]
       - name: line_id
+        data_type: varchar
         description: TfL line id.
         data_tests: [not_null]
       - name: direction
+        data_type: varchar
         description: "`inbound` or `outbound`, TfL's direction on the line."
         data_tests: [not_null]
       - name: measured_status
+        data_type: varchar
         description: "`measured`, `not_measured` or `withheld`; see the model description."
         data_tests:
           - not_null
@@ -291,6 +334,7 @@ models:
               arguments:
                 values: [measured, not_measured, withheld]
       - name: measured_withheld_reason
+        data_type: varchar
         description: Why the row is not measured; null when it is.
         data_tests:
           - accepted_values:
@@ -304,38 +348,54 @@ models:
                   - gate_failed
                   - too_few_measured_hours
       - name: observed_hours
+        data_type: double
         description: Hours of service that were observed (enough polls, no collection gap).
         data_tests: [not_null]
       - name: trains_observed
+        data_type: integer
         description: Trains on the boards (vehicle-id passes plus inferred trains without an id) in observed hours; null when withheld.
       - name: trains_per_hour
+        data_type: double
         description: trains_observed / observed_hours; null when withheld or with no observed hour.
       - name: median_gap_minutes
+        data_type: double
         description: Median in-service gap ending in a gated hour, in minutes (mean of the two middle gaps for an even count); null unless measured.
       - name: long_gaps
+        data_type: integer
         description: Gaps over twice the hour's longest scheduled gap, in gated timetabled hours; null unless measured with at least one gated timetabled hour (no timetable means not computable, not 0).
       - name: long_gaps_per_100_hours
+        data_type: double
         description: 100 x long_gaps / gated timetabled hours; null unless measured or without a timetable.
       - name: scheduled_trains
+        data_type: integer
         description: Timetabled trains in observed hours, the denominator of trains_on_boards_share; null when the week has no timetabled hour (no TfL timetable, e.g. Elizabeth line and Overground).
       - name: trains_on_boards_share
+        data_type: double
         description: Trains on the boards / scheduled trains, in observed timetabled hours (trains run, ADR-014); null when withheld, for trains_run_withheld_lines, or with no scheduled trains.
       - name: excess_wait_minutes
+        data_type: double
         description: Mean over gated timetabled hours with an in-service gap of actual minus scheduled average wait (PLAN 7.3), minutes; null unless measured or without a timetable.
       - name: gate_judged_hours
+        data_type: integer
         description: Observed hours with anything on the boards or inferred.
         data_tests: [not_null]
       - name: gate_pass_share
+        data_type: double
         description: Share of judged hours inside the gate band; null when none was judged.
       - name: service_hours
+        data_type: bigint
         description: Hours of service in the week (timetabled, or hours with trains without a timetable), the denominator of the too_few_measured_hours rule.
       - name: scheduled_hours
+        data_type: bigint
         description: Of those, hours from a timetable.
       - name: measured_hours
+        data_type: bigint
         description: Hours inside the gate band.
       - name: gate_in_band_hours
+        data_type: bigint
         description: Judged hours inside the gate band.
       - name: fallback_measured_hours
+        data_type: bigint
         description: Gated hours judged against seed_line_frequencies' estimate rather than a TfL timetable (weak evidence, D33).
 
   - name: dim_service_hours
@@ -378,52 +438,75 @@ models:
       (severity weight x time weight) / sum of time weight, over scored
       minutes: the time-weighted mean severity on a 0 to 800 scale (D19,
       decided 2026-11-14).
+    config:
+      contract:
+        enforced: true
     columns:
       - name: line_daily_key
+        data_type: varchar
         description: Row key, a hash of (line_id, london_date).
         data_tests: [unique, not_null]
       - name: line_id
+        data_type: varchar
         description: TfL line id.
         data_tests: [not_null]
       - name: london_date
+        data_type: date
         description: London date.
         data_tests: [not_null]
       - name: week_start
+        data_type: date
         description: Monday of the London week.
         data_tests: [not_null]
       - name: scheduled_minutes
+        data_type: bigint
         description: Minutes inside scheduled hours.
       - name: observed_minutes
+        data_type: bigint
         description: Scheduled minutes with a known status.
       - name: missing_minutes
+        data_type: bigint
         description: Scheduled minutes without one.
       - name: engineering_works_minutes
+        data_type: bigint
         description: Scheduled minutes whose worst status is a closure.
       - name: service_closed_minutes
+        data_type: bigint
         description: Scheduled minutes TfL reported as Service Closed.
       - name: scored_minutes
+        data_type: bigint
         description: The denominator of every score.
       - name: good_service_minutes
+        data_type: bigint
         description: Scored minutes at Good Service (code 10).
       - name: disrupted_minutes
+        data_type: bigint
         description: Scored minutes with a weight above 0.
       - name: weighted_disruption_minutes
+        data_type: double
         description: Sum of severity weight x time weight over scored minutes.
       - name: time_weighted_scored_minutes
+        data_type: double
         description: Sum of time weight over scored minutes; the Disruption Index's denominator (D19).
         data_tests: [not_null]
       - name: incidents
+        data_type: bigint
         description: Incidents starting on the date.
       - name: median_recovery_minutes
+        data_type: double
         description: Median recovery of closed incidents starting on the date.
       - name: completeness
+        data_type: double
         description: observed_minutes / scheduled_minutes.
         data_tests: [not_null]
       - name: disruption_index
+        data_type: double
         description: 100 x weighted_disruption_minutes / time_weighted_scored_minutes, 0 to 800 (D19); null with no scored minutes.
       - name: good_service_pct
+        data_type: double
         description: Percentage of scored minutes at Good Service.
       - name: incidents_per_100_hours
+        data_type: double
         description: Incidents per 100 scored service hours.
 
   - name: fct_line_weekly
@@ -437,60 +520,87 @@ models:
       index but is not ranked (D22, decided 2026-11-14). Holds no measured
       columns and does not depend on int_measured_hours, so a failing
       quality gate never skips it (ADR-014).
+    config:
+      contract:
+        enforced: true
     columns:
       - name: line_weekly_key
+        data_type: varchar
         description: Row key, a hash of (line_id, week_start).
         data_tests: [unique, not_null]
       - name: line_id
+        data_type: varchar
         description: TfL line id.
         data_tests: [not_null]
       - name: week_start
+        data_type: date
         description: Monday of the London week.
         data_tests: [not_null]
       - name: week_end
+        data_type: date
         description: Sunday of the London week.
       - name: service_days
+        data_type: bigint
         description: London dates with scheduled minutes.
       - name: scheduled_minutes
+        data_type: bigint
         description: Minutes inside scheduled hours.
       - name: observed_minutes
+        data_type: bigint
         description: Scheduled minutes with a known status.
       - name: missing_minutes
+        data_type: bigint
         description: Scheduled minutes without one.
       - name: engineering_works_minutes
+        data_type: bigint
         description: Engineering works minutes.
       - name: service_closed_minutes
+        data_type: bigint
         description: Service Closed minutes in scheduled hours.
       - name: scored_minutes
+        data_type: bigint
         description: Denominator of every score.
       - name: good_service_minutes
+        data_type: bigint
         description: Scored minutes at Good Service.
       - name: disrupted_minutes
+        data_type: bigint
         description: Scored minutes with a weight above 0.
       - name: weighted_disruption_minutes
+        data_type: double
         description: Sum of severity weight x time weight.
       - name: time_weighted_scored_minutes
+        data_type: double
         description: Sum of time weight over scored minutes (D19).
         data_tests: [not_null]
       - name: incidents
+        data_type: bigint
         description: Incidents starting in the week.
       - name: median_recovery_minutes
+        data_type: double
         description: Median recovery of closed incidents starting in the week.
       - name: completeness
+        data_type: double
         description: observed_minutes / scheduled_minutes.
         data_tests: [not_null]
       - name: disruption_index
+        data_type: double
         description: 100 x weighted_disruption_minutes / time_weighted_scored_minutes, 0 to 800 (D19).
       - name: good_service_pct
+        data_type: double
         description: Percentage of scored minutes at Good Service.
       - name: incidents_per_100_hours
+        data_type: double
         description: Incidents per 100 scored service hours.
       - name: engineering_works_share
+        data_type: double
         description: engineering_works_minutes / scheduled_minutes; null with no scheduled minutes.
       - name: is_ranked
+        data_type: boolean
         description: The line has a rank this week (D20, D22).
         data_tests: [not_null]
       - name: unranked_reason
+        data_type: varchar
         description: >
           Why the line has no rank: `no_scored_minutes`, or
           `engineering_works` when works took more than half its scheduled
@@ -500,22 +610,30 @@ models:
               arguments:
                 values: [no_scored_minutes, engineering_works]
       - name: is_week_complete
+        data_type: boolean
         description: The week's last London minute has passed by the wall clock, whatever the data holds; completeness and is_provisional say how much was observed.
         data_tests: [not_null]
       - name: is_provisional
+        data_type: boolean
         description: Completeness under the threshold.
         data_tests: [not_null]
       - name: is_low_volume
+        data_type: boolean
         description: Low-volume line.
       - name: disruption_rank
+        data_type: bigint
         description: Rank in the week among ranked lines, 1 = least disrupted; null when unranked.
       - name: previous_disruption_rank
+        data_type: bigint
         description: Rank in the previous week.
       - name: rank_movement
+        data_type: bigint
         description: previous rank minus this rank; positive means the line climbed.
       - name: previous_disruption_index
+        data_type: double
         description: The line's Disruption Index in the previous week; Line of the Week compares with it (D47).
       - name: built_at
+        data_type: timestamp
         description: When this table was built (UTC). The export compares it with fct_line_weekly_measured.built_at.
         data_tests: [not_null]
 
@@ -528,20 +646,28 @@ models:
       quality gate test skips it and the table keeps its last good build;
       the export then withholds every week that was not complete at
       `built_london_date` (`measured_not_rebuilt`).
+    config:
+      contract:
+        enforced: true
     columns:
       - name: line_weekly_measured_key
+        data_type: varchar
         description: Row key, a hash of (line_id, week_start).
         data_tests: [unique, not_null]
       - name: line_id
+        data_type: varchar
         description: TfL line id.
         data_tests: [not_null]
       - name: week_start
+        data_type: date
         description: Monday of the London week.
         data_tests: [not_null]
       - name: is_measured
+        data_type: boolean
         description: seed_measured_lines scores the line in the measured view (D43).
         data_tests: [not_null]
       - name: measurement_status
+        data_type: varchar
         description: >
           `measured`; `not_measured` when seed_measured_lines leaves the line
           out (no measured numbers are shown); `no_measured_hours` when no
@@ -552,37 +678,50 @@ models:
               arguments:
                 values: [measured, not_measured, no_measured_hours]
       - name: scheduled_measurement_hours
+        data_type: bigint
         description: Station-direction-hours with scheduled service on days the collector ran (int_measured_hours).
       - name: measured_share
+        data_type: double
         description: measured_hours / scheduled_measurement_hours; the measured view's coverage.
       - name: observed_trains
+        data_type: bigint
         description: Trains observed on the boards in observed station-direction-hours at core and branch stations (int_measured_hours, ADR-014, D66).
       - name: observed_hours_scheduled_trains
+        data_type: bigint
         description: Scheduled trains in the same observed hours, core and branch stations only (D66).
       - name: trains_run_share
+        data_type: double
         description: >
           observed_trains / observed_hours_scheduled_trains: trains run
           against the timetable at core and branch stations (ADR-014, D66).
           The boards may omit trains, so it is a lower bound. Withheld (null) for the lines in
           `trains_run_withheld_lines`, whose boards misfile trains.
       - name: is_measured_provisional
+        data_type: boolean
         description: measured_share below `min_measured_share` (0.5), so the line gets no experienced_rank (D42); null when the line is not measured.
       - name: excess_wait_hours
+        data_type: bigint
         description: Measured hours with at least one in-service headway, the denominator of excess_wait_minutes.
       - name: observed_measurement_hours
+        data_type: bigint
         description: Station-direction-hours with scheduled service and complete arrivals polling (int_measured_hours).
       - name: measured_hours
+        data_type: bigint
         description: Of those, hours inside the PLAN 7.2 quality gate, which feed the measured metrics.
       - name: excess_wait_minutes
+        data_type: double
         description: >
           PLAN 7.3 mean excess wait over measured hours, minutes: actual
           average wait from observed headways minus the scheduled one.
           Negative values are kept. Null when not measured.
       - name: long_gaps
+        data_type: bigint
         description: Headways over twice the longest scheduled gap of their hour (D34), in measured hours.
       - name: long_gaps_per_100_hours
+        data_type: double
         description: long_gaps per 100 measured station-direction-hours (D42).
       - name: honesty_gap_hours
+        data_type: bigint
         description: >
           PLAN 7.3 Honesty Gap (D68): London hours in which the line's
           declared status was Good Service for the whole hour and at least
@@ -592,10 +731,13 @@ models:
           honesty_gap_withheld_reason, on a line with too few core and
           branch measurement stations to corroborate any hour.
       - name: good_service_measured_hours
+        data_type: bigint
         description: London hours of whole-hour Good Service with at least one measured station-direction-hour; the Honesty Gap's denominator.
       - name: honesty_gap_share
+        data_type: double
         description: honesty_gap_hours / good_service_measured_hours; null when honesty_gap_hours is.
       - name: honesty_gap_withheld_reason
+        data_type: varchar
         description: >
           `honesty_gap_not_corroborable` when the line is measured but has
           fewer than `honesty_gap_min_stations` core and branch measurement
@@ -607,28 +749,36 @@ models:
               arguments:
                 values: [honesty_gap_not_corroborable]
       - name: experienced_rank
+        data_type: bigint
         description: >
           PLAN 7.3 Experienced Reliability rank within the week: lowest excess
           wait first, ties to fewer long gaps per 100 hours, among line-weeks
           whose measured numbers are published (measured_withheld_reason
           null, D51) and that are not weak evidence (D53). Null otherwise.
       - name: sum_excess_wait_seconds
+        data_type: double
         description: Sum of excess wait over excess_wait_hours, seconds; the numerator of excess_wait_minutes.
       - name: fallback_measured_hours
+        data_type: bigint
         description: Measured hours judged against the fallback frequencies of seed_line_frequencies (D33).
       - name: is_weak_evidence
+        data_type: boolean
         description: >
           At least one measured hour was judged against an estimated
           timetable (D33; today only the Elizabeth line and the Overground). Their gate compares
           boards with estimates partly checked against the same boards.
         data_tests: [not_null]
       - name: gate_judged_hours
+        data_type: bigint
         description: Judged station-direction-hours (ADR-014) at the line's core and branch stations; the line-week gate's denominator (D51).
       - name: gate_in_band_hours
+        data_type: bigint
         description: Of those, hours inside the gate band.
       - name: gate_pass_share
+        data_type: double
         description: gate_in_band_hours / gate_judged_hours.
       - name: measured_withheld_reason
+        data_type: varchar
         description: >
           Why the line-week's measured numbers are not published, the first
           that applies: `line_not_measured` (D43), `shared_section_misfiled`
@@ -648,6 +798,7 @@ models:
                   - gate_failed
                   - too_few_measured_hours
       - name: is_measured_published
+        data_type: boolean
         description: >
           measured_withheld_reason is null; the export publishes the measured
           numbers (D42, settled 2026-11-14). The measured columns keep their
@@ -655,9 +806,11 @@ models:
           them must filter on this flag.
         data_tests: [not_null]
       - name: built_at
+        data_type: timestamp
         description: When this table was built (UTC).
         data_tests: [not_null]
       - name: built_london_date
+        data_type: date
         description: The London date of the build; weeks that ended before it were complete when the table was built.
         data_tests: [not_null]
 
@@ -667,46 +820,66 @@ models:
       measured lines only (D43). Every column adds up over days, so
       fct_line_weekly sums it for the ISO week and the publish code sums it
       for a custom window.
+    config:
+      contract:
+        enforced: true
     columns:
       - name: line_measured_daily_key
+        data_type: varchar
         description: Row key, a hash of (line_id, london_date).
         data_tests: [unique, not_null]
       - name: line_id
+        data_type: varchar
         description: TfL line id.
         data_tests: [not_null]
       - name: london_date
+        data_type: date
         description: London calendar date.
         data_tests: [not_null]
       - name: week_start
+        data_type: date
         description: Monday of the London week.
         data_tests: [not_null]
       - name: scheduled_measurement_hours
+        data_type: bigint
         description: Station-direction-hours with scheduled service.
         data_tests: [not_null]
       - name: observed_measurement_hours
+        data_type: bigint
         description: Of those, hours with complete arrivals polling.
       - name: observed_trains
+        data_type: bigint
         description: Trains on the boards in observed hours at core and branch stations (ADR-014, D66).
       - name: observed_hours_scheduled_trains
+        data_type: bigint
         description: Scheduled trains in observed hours, core and branch stations only (D66).
       - name: measured_hours
+        data_type: bigint
         description: Hours inside the quality gate, which feed the measured metrics.
         data_tests: [not_null]
       - name: excess_wait_hours
+        data_type: bigint
         description: Measured hours with at least one in-service headway.
       - name: sum_excess_wait_seconds
+        data_type: double
         description: Sum of excess wait over those hours, seconds.
       - name: long_gaps
+        data_type: bigint
         description: Long gaps in measured hours (D34).
       - name: fallback_measured_hours
+        data_type: bigint
         description: Measured hours judged against fallback frequencies (D33).
       - name: gate_judged_hours
+        data_type: bigint
         description: Judged hours at core and branch stations (D51).
       - name: gate_in_band_hours
+        data_type: bigint
         description: Of those, hours inside the gate band.
       - name: good_service_measured_hours
+        data_type: bigint
         description: London hours of whole-hour Good Service with at least one measured hour of the line.
       - name: honesty_gap_hours
+        data_type: bigint
         description: >
           Of those, hours in which long gaps with a whole Good Service span
           ended at at least `honesty_gap_min_stations` core and branch
@@ -770,48 +943,68 @@ models:
       Index over Monday's AM peak (07:00 to 10:00 London time), with the
       weekly table's rules for scoring, completeness, ranking and works
       (D19, D20, D22).
+    config:
+      contract:
+        enforced: true
     columns:
       - name: monday_morning_key
+        data_type: varchar
         description: Row key, a hash of (line_id, week_start).
         data_tests: [unique, not_null]
       - name: line_id
+        data_type: varchar
         description: TfL line id.
         data_tests: [not_null]
       - name: week_start
+        data_type: date
         description: The Monday.
         data_tests: [not_null]
       - name: scheduled_minutes
+        data_type: bigint
         description: Scheduled AM-peak minutes.
       - name: observed_minutes
+        data_type: bigint
         description: Of those, minutes with a known status.
       - name: engineering_works_minutes
+        data_type: bigint
         description: Of those, engineering works minutes.
       - name: scored_minutes
+        data_type: bigint
         description: Scored minutes, the Good Service % denominator.
       - name: good_service_minutes
+        data_type: bigint
         description: Scored minutes at Good Service.
       - name: weighted_disruption_minutes
+        data_type: double
         description: Sum of severity weight x time weight.
       - name: time_weighted_scored_minutes
+        data_type: double
         description: Sum of time weight over scored minutes.
       - name: completeness
+        data_type: double
         description: observed_minutes / scheduled_minutes.
       - name: engineering_works_share
+        data_type: double
         description: engineering_works_minutes / scheduled_minutes.
       - name: monday_morning_index
+        data_type: double
         description: 100 x weighted_disruption_minutes / time_weighted_scored_minutes, 0 to 800.
       - name: good_service_pct
+        data_type: double
         description: Percentage of scored minutes at Good Service.
       - name: is_provisional
+        data_type: boolean
         description: Completeness under `provisional_completeness`.
         data_tests: [not_null]
       - name: unranked_reason
+        data_type: varchar
         description: "`no_scored_minutes` or `engineering_works`; null when ranked."
         data_tests:
           - accepted_values:
               arguments:
                 values: [no_scored_minutes, engineering_works]
       - name: monday_morning_rank
+        data_type: bigint
         description: Rank among ranked lines that Monday, 1 = least disrupted.
 
   - name: rpt_engineering_works
@@ -858,14 +1051,20 @@ models:
       start in Division One. Empty until enough complete weeks exist ("not
       yet seeded"). `seeding_status` is `provisional` while fewer than
       `division_full_seeding_weeks` complete weeks exist.
+    config:
+      contract:
+        enforced: true
     columns:
       - name: line_id
+        data_type: varchar
         description: TfL line id.
         data_tests: [unique, not_null]
       - name: seed_position
+        data_type: bigint
         description: 1 = best over the seeding weeks; no ties.
         data_tests: [unique, not_null]
       - name: division
+        data_type: integer
         description: 1 or 2.
         data_tests:
           - not_null
@@ -874,29 +1073,40 @@ models:
                 values: [1, 2]
                 quote: false
       - name: disruption_index
+        data_type: double
         description: Disruption Index over the seeding weeks (D19).
       - name: good_service_pct
+        data_type: double
         description: Good Service share of scored minutes over the seeding weeks.
       - name: completeness
+        data_type: double
         description: Observed over scheduled minutes in the seeding weeks.
       - name: engineering_works_share
+        data_type: double
         description: Closure minutes over scheduled minutes in the seeding weeks.
       - name: unranked_reason
+        data_type: varchar
         description: Why the line was seeded last (D20, D22); null when ranked.
       - name: seeding_start
+        data_type: date
         description: Monday of the first seeding week.
         data_tests: [not_null]
       - name: seeding_end
+        data_type: date
         description: Sunday of the last seeding week.
         data_tests: [not_null]
       - name: seeding_weeks
+        data_type: bigint
         description: Weeks the seeding used (`division_seeding_weeks`).
       - name: complete_weeks_available
+        data_type: bigint
         description: Complete weeks in the data at build time.
       - name: first_division_month
+        data_type: date
         description: First day of the first month the divisions play.
         data_tests: [not_null]
       - name: seeding_status
+        data_type: varchar
         description: "`provisional` or `confirmed` (ADR-015)."
         data_tests:
           - not_null
@@ -913,19 +1123,27 @@ models:
       up nor down, and nobody moves in a provisional month (a ranked line
       observed under `provisional_completeness`, D57). Empty until the
       divisions are seeded.
+    config:
+      contract:
+        enforced: true
     columns:
       - name: line_month_key
+        data_type: varchar
         description: Row key, a hash of (line_id, month_start).
         data_tests: [unique, not_null]
       - name: line_id
+        data_type: varchar
         description: TfL line id.
         data_tests: [not_null]
       - name: month_start
+        data_type: date
         description: First London date of the month.
         data_tests: [not_null]
       - name: month_end
+        data_type: date
         description: Last London date of the month.
       - name: division
+        data_type: integer
         description: The line's division this month, 1 or 2.
         data_tests:
           - not_null
@@ -934,6 +1152,7 @@ models:
                 values: [1, 2]
                 quote: false
       - name: joined_by
+        data_type: varchar
         description: "`seeded`, `promoted`, `relegated` or `stayed`: how the line got here."
         data_tests:
           - not_null
@@ -941,28 +1160,40 @@ models:
               arguments:
                 values: [seeded, promoted, relegated, stayed]
       - name: scheduled_minutes
+        data_type: bigint
         description: Scheduled minutes in the month so far.
       - name: observed_minutes
+        data_type: bigint
         description: Observed scheduled minutes.
       - name: engineering_works_minutes
+        data_type: bigint
         description: Scheduled minutes under a closure.
       - name: scored_minutes
+        data_type: bigint
         description: Minutes in the score.
       - name: disruption_index
+        data_type: double
         description: Disruption Index over the month (D19).
       - name: good_service_pct
+        data_type: double
         description: Good Service share of scored minutes.
       - name: completeness
+        data_type: double
         description: Observed over scheduled minutes.
       - name: is_provisional
+        data_type: boolean
         description: Completeness under `provisional_completeness`.
       - name: engineering_works_share
+        data_type: double
         description: Closure minutes over scheduled minutes.
       - name: unranked_reason
+        data_type: varchar
         description: "`no_scored_minutes` or `engineering_works` (D22); null when ranked."
       - name: division_rank
+        data_type: bigint
         description: Rank within the division, 1 = lowest index; null when unranked.
       - name: movement
+        data_type: varchar
         description: >
           `promoted`, `relegated` or `stays` at the month's end; while the
           month is running, where the line stands.
@@ -972,6 +1203,7 @@ models:
               arguments:
                 values: [promoted, relegated, stays]
       - name: movement_held_reason
+        data_type: varchar
         description: >
           `provisional_month` when the month is provisional (a ranked line
           observed under `provisional_completeness`), so every line stays in
@@ -981,9 +1213,11 @@ models:
               arguments:
                 values: [provisional_month]
       - name: next_division
+        data_type: integer
         description: The division the line plays in next month.
         data_tests: [not_null]
       - name: is_month_complete
+        data_type: boolean
         description: The month's last London date has passed.
         data_tests: [not_null]
 
@@ -993,61 +1227,89 @@ models:
       31 March, resetting each April, cumulative declared-view standings
       with the weekly table's rules. The 2026-27 season starts with the
       collector, so until April 2027 it is the season to date.
+    config:
+      contract:
+        enforced: true
     columns:
       - name: line_season_key
+        data_type: varchar
         description: Row key, a hash of (line_id, season start year).
         data_tests: [unique, not_null]
       - name: line_id
+        data_type: varchar
         description: TfL line id.
         data_tests: [not_null]
       - name: season
+        data_type: varchar
         description: Season label, e.g. 2026-27.
         data_tests: [not_null]
       - name: season_start
+        data_type: date
         description: 1 April.
         data_tests: [not_null]
       - name: season_end
+        data_type: date
         description: 31 March.
         data_tests: [not_null]
       - name: first_observed_date
+        data_type: date
         description: First London date with an observed minute this season.
       - name: last_observed_date
+        data_type: date
         description: Last London date with an observed minute this season.
       - name: scheduled_minutes
+        data_type: bigint
         description: Scheduled minutes in the season so far.
       - name: observed_minutes
+        data_type: bigint
         description: Observed scheduled minutes.
       - name: engineering_works_minutes
+        data_type: bigint
         description: Scheduled minutes under a closure.
       - name: scored_minutes
+        data_type: bigint
         description: Minutes in the score.
       - name: good_service_minutes
+        data_type: bigint
         description: Scored minutes at Good Service.
       - name: weighted_disruption_minutes
+        data_type: double
         description: Sum of severity weight x time weight over scored minutes.
       - name: time_weighted_scored_minutes
+        data_type: double
         description: Sum of time weight over scored minutes.
       - name: incidents
+        data_type: bigint
         description: Incidents starting in the season.
       - name: disruption_index
+        data_type: double
         description: Disruption Index over the season so far (D19).
       - name: good_service_pct
+        data_type: double
         description: Good Service share of scored minutes.
       - name: incidents_per_100_hours
+        data_type: double
         description: Incidents per 100 scored hours.
       - name: completeness
+        data_type: double
         description: Observed over scheduled minutes.
       - name: is_provisional
+        data_type: boolean
         description: Completeness under `provisional_completeness`.
       - name: engineering_works_share
+        data_type: double
         description: Closure minutes over scheduled minutes.
       - name: unranked_reason
+        data_type: varchar
         description: "`no_scored_minutes` or `engineering_works` (D22); null when ranked."
       - name: is_ranked
+        data_type: boolean
         description: The line has a season rank.
       - name: season_rank
+        data_type: bigint
         description: 1 = lowest index; equal lines share a rank; null when unranked.
       - name: is_season_complete
+        data_type: boolean
         description: 31 March has passed.
 
   - name: rpt_recovery_time
@@ -1103,51 +1365,74 @@ models:
       `announced` for it, ranked with the weekly table's rules. Equal to
       fct_line_weekly in weeks with no industrial action
       (assert_strikes_excluded_matches_league_without_strikes).
+    config:
+      contract:
+        enforced: true
     columns:
       - name: line_weekly_key
+        data_type: varchar
         description: Row key, a hash of (line_id, week_start).
         data_tests: [unique, not_null]
       - name: line_id
+        data_type: varchar
         description: TfL line id.
         data_tests: [not_null]
       - name: week_start
+        data_type: date
         description: Monday of the London week.
         data_tests: [not_null]
       - name: week_end
+        data_type: date
         description: Sunday of the London week.
       - name: strike_days
+        data_type: bigint
         description: London dates left out for this line.
         data_tests: [not_null]
       - name: week_has_industrial_action
+        data_type: boolean
         description: Some line has a date left out this week.
         data_tests: [not_null]
       - name: scheduled_minutes
+        data_type: bigint
         description: Scheduled minutes on the dates kept.
       - name: observed_minutes
+        data_type: bigint
         description: Observed scheduled minutes on the dates kept.
       - name: engineering_works_minutes
+        data_type: bigint
         description: Closure minutes on the dates kept.
       - name: scored_minutes
+        data_type: bigint
         description: Scored minutes on the dates kept.
       - name: good_service_minutes
+        data_type: bigint
         description: Good Service minutes on the dates kept.
       - name: weighted_disruption_minutes
+        data_type: double
         description: Sum of severity weight x time weight over the scored minutes kept.
       - name: time_weighted_scored_minutes
+        data_type: double
         description: Sum of time weight over the scored minutes kept.
       - name: disruption_index
+        data_type: double
         description: Disruption Index over the dates kept (D19).
       - name: good_service_pct
+        data_type: double
         description: Good Service share of the scored minutes kept.
       - name: completeness
+        data_type: double
         description: Observed over scheduled minutes on the dates kept.
       - name: is_provisional
+        data_type: boolean
         description: Completeness under `provisional_completeness`.
       - name: unranked_reason
+        data_type: varchar
         description: "`no_scored_minutes` or `engineering_works` (D22); null when ranked."
       - name: is_ranked
+        data_type: boolean
         description: The line has a rank in the variant.
       - name: disruption_rank
+        data_type: bigint
         description: Rank in the variant; equal lines share a rank.
 
   - name: rpt_weekly_status_mix
@@ -1157,31 +1442,43 @@ models:
       re-rank each week under the sensitivity weight sets.
       assert_status_mix_rebuilds_weekly_index checks it holds every scored
       minute of fct_line_weekly.
+    config:
+      contract:
+        enforced: true
     columns:
       - name: status_mix_key
+        data_type: varchar
         description: Row key, a hash of the grain.
         data_tests: [unique, not_null]
       - name: line_id
+        data_type: varchar
         description: TfL line id.
         data_tests: [not_null]
       - name: week_start
+        data_type: date
         description: Monday of the London week.
         data_tests: [not_null]
       - name: status_severity
+        data_type: integer
         description: The minute's worst status (ADR-004).
         data_tests: [not_null]
       - name: is_planned
+        data_type: boolean
         description: TfL filed the worst status as planned work, or the D69 rule classed it as planned works.
         data_tests: [not_null]
       - name: time_band
+        data_type: varchar
         description: The minute's time band (time_bands seed).
         data_tests: [not_null]
       - name: scored_minutes
+        data_type: bigint
         description: Scored minutes in the group.
         data_tests: [not_null]
       - name: weighted_disruption_minutes
+        data_type: double
         description: Sum of base severity weight x time weight.
       - name: time_weighted_scored_minutes
+        data_type: double
         description: Sum of base time weight.
 
   - name: rpt_prediction_accuracy

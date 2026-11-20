@@ -840,9 +840,10 @@ Scheduled checks that answer "is the collector healthy?" without anyone asking. 
 | Workflow | When | What it checks | Issue label |
 | --- | --- | --- | --- |
 | `ops-daily` | Every day at 02:10 UTC | The previous UTC day: completeness (`scripts/completeness.py`), alarm state and any alarm that fired, poller and reference Lambda errors and throttles, the newest raw object per feed, and announced strikes left in the industrial action seed past their date | `ops-health` |
+| `ops-daily` (job `published`) | Every day at 02:10 UTC | The published output on R2 over HTTPS, no AWS (it does not see the Pages deploy hook): `meta/index.json` and `league/latest.json` `generated_at` no more than 8 days old, `league/latest.json` on the last complete ISO week (the run is at 02:10 UTC, so a missed Monday publish shows on Tuesday), and the `schema_version` major equal to the code's | `ops-publish` |
 | `ops-daytime` | Weekdays at 12:00 UTC | The strict arrivals check: every configured line shows predictions at its station in the last 15 minutes of raw arrivals | `ops-daytime` |
 
-Each run writes its report to the run summary. When something misses its target, it opens one issue with that label, or comments on the open one. The first run that meets every target closes it. So an open `ops-health` or `ops-daytime` issue means something is wrong now.
+Each run writes its report to the run summary. When something misses its target, it opens one issue with that label, or comments on the open one. The first run that meets every target closes it. So an open `ops-health`, `ops-publish` or `ops-daytime` issue means something is wrong now.
 
 The daytime check reads what the collector stored rather than calling TfL. CI never needs the TfL key, and the check tests the data the league table is built from.
 
