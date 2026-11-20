@@ -102,3 +102,30 @@ sources:
       - name: ref_severity
         description: "`Line/Meta/Severity`, fetched weekly. Payload is an array of (mode, level, description)."
         columns: *envelope_columns
+
+      # Station context feeds (ADR-019), collected by ingest/context.py. Off
+      # until the Glue tables exist in prod: set var context_feeds_enabled.
+      - name: lift_disruption
+        description: "`Disruptions/Lifts/v2`, polled every minute. Payload is an array of stations with lifts out of service; an empty array means none."
+        config: &context_feed
+          enabled: "{{ var('context_feeds_enabled') }}"
+        columns: *envelope_columns
+
+      - name: crowding
+        description: >
+          `crowding/{naptanId}/Live` for every Tube station in
+          config/crowding_stations.yaml, each read every 5 minutes (a fifth
+          of the stations a minute). One row per station per poll; payload is
+          one object (`dataAvailable`, `percentageOfBaseline`, `timeUtc`).
+        config: *context_feed
+        columns: *envelope_columns
+
+      - name: bike_point
+        description: "`BikePoint`, polled every 5 minutes. Payload is an array of about 800 docking stations with counts as text properties."
+        config: *context_feed
+        columns: *envelope_columns
+
+      - name: line_status_ahead
+        description: "`Line/{ids}/Status/{from}/to/{to}` for every configured line, today to 14 days ahead, 4 times a day. Payload is an array of lines, in the `line_status` shape."
+        config: *context_feed
+        columns: *envelope_columns
