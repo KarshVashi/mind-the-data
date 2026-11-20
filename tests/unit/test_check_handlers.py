@@ -30,9 +30,10 @@ def test_finds_handlers_in_module_inputs(tmp_path: Path) -> None:
     assert load_script().find_handlers([tmp_path]) == ["pkg.a.handler", "pkg.b.handler"]
 
 
-def test_prod_stack_names_both_collector_handlers() -> None:
+def test_prod_stack_names_every_collector_handler() -> None:
     handlers = load_script().find_handlers([ROOT / "infra" / "envs" / "prod"])
     assert handlers == [
+        "mind_the_data.ingest.context.handler",
         "mind_the_data.ingest.poller.handler",
         "mind_the_data.ingest.reference.handler",
     ]

@@ -202,3 +202,40 @@ def load_config(config_dir: Path | None = None) -> tuple[list[Line], list[Statio
     stations = load_stations(directory / "stations.yaml")
     validate_stations(lines, stations)
     return lines, stations
+
+
+# ---- Live busyness stations (ADR-019) -------------------------------------------
+
+# Every Tube station is read once every 5 minutes, a fifth of the list each
+# minute: 270 stations is 54 calls a minute. The cap keeps a bad regeneration
+# of the list from quietly doubling the context collector's share of the
+# 500/min key limit.
+MAX_CROWDING_STATIONS = 300
+CROWDING_NAPTAN_PATTERN = r"^940GZZLU[A-Z0-9]{3,}$"
+
+
+class CrowdingStation(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    naptan_id: Annotated[str, StringConstraints(pattern=CROWDING_NAPTAN_PATTERN)]
+    name: NonEmpty
+
+
+def load_crowding_stations(path: Path | None = None) -> list[CrowdingStation]:
+    """``crowding_stations.yaml``: unique Tube station ids, within the request budget."""
+    path = path or default_config_dir() / "crowding_stations.yaml"
+    raw = _read_mapping(path, "stations")
+    if not isinstance(raw, list) or not raw:
+        raise ConfigError(f"{path}: 'stations' must be a non-empty list")
+    try:
+        stations = [CrowdingStation.model_validate(item) for item in raw]
+    except ValidationError as exc:
+        raise ConfigError(f"{path}: {exc}") from exc
+    duplicates = sorted(i for i, n in Counter(s.naptan_id for s in stations).items() if n > 1)
+    if duplicates:
+        raise ConfigError(f"{path}: duplicate naptan ids {duplicates}")
+    if len(stations) > MAX_CROWDING_STATIONS:
+        raise ConfigError(
+            f"{path}: {len(stations)} stations exceeds the budget of {MAX_CROWDING_STATIONS}"
+        )
+    return stations

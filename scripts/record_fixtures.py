@@ -14,6 +14,10 @@ ignores meaning (it could, say, shorten a timetable's stationIntervals while
 keeping journeys that point at them), so re-run the unit tests after any trim.
 Nothing needed trimming at the last recording.
 
+Some feeds are cut on purpose to keep fixtures small (``KEEP_FIRST``): the
+whole BikePoint list is over 2 MB, and tests need only a few entries of it.
+Those cuts are listed in ``trimmed`` too.
+
 Any non-200 response aborts the run before a single file is written.
 """
 
@@ -21,12 +25,13 @@ import argparse
 import json
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import httpx
 
+from mind_the_data.common.config import load_config
 from mind_the_data.common.urls import strip_app_key
 
 BASE_URL = "https://api.tfl.gov.uk"
@@ -47,6 +52,17 @@ ARRIVAL_STOPS = {
 # Elizabeth line for 910G ids, and Liberty, which is often empty at night.
 LINE_ARRIVALS = ("bakerloo", "elizabeth", "liberty")
 
+# Station context feeds (ADR-019). King's Cross St. Pancras reports live
+# busyness through the night. The planned-status window starts on the day of
+# recording and runs 14 days ahead, for every line in config/lines.yaml.
+CROWDING_STOP = "940GZZLUKSX"
+_TODAY = datetime.now(UTC).date()
+_LINE_IDS = ",".join(line.id for line in load_config()[0])
+_AHEAD = f"{_TODAY:%Y-%m-%d}/to/{_TODAY + timedelta(days=14):%Y-%m-%d}"
+
+# Payload lists cut to their first N items, whatever their size.
+KEEP_FIRST = {"lift_disruption": 5, "bike_point": 3, "line_status_ahead": 5}
+
 # (fixture name, request path)
 REQUESTS: list[tuple[str, str]] = [
     ("line_status", f"/Line/Mode/{MODES}/Status"),
@@ -66,6 +82,10 @@ REQUESTS: list[tuple[str, str]] = [
         for direction in ("inbound", "outbound")
     ],
     ("severity", "/Line/Meta/Severity"),
+    ("lift_disruption", "/Disruptions/Lifts/v2"),
+    ("bike_point", "/BikePoint"),
+    (f"crowding_live_{CROWDING_STOP}", f"/crowding/{CROWDING_STOP}/Live"),
+    ("line_status_ahead", f"/Line/{_LINE_IDS}/Status/{_AHEAD}"),
 ]
 
 
@@ -111,6 +131,11 @@ def fetch(client: httpx.Client, name: str, path: str) -> dict[str, Any]:
         "trimmed": [],
         "payload": response.json(),
     }
+    keep = KEEP_FIRST.get(name)
+    payload = document["payload"]
+    if keep is not None and isinstance(payload, list) and len(payload) > keep:
+        document["trimmed"].append(f"$.payload: kept first {keep} of {len(payload)}")
+        del payload[keep:]
     trim_to_size(document)
     return document
 
