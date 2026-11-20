@@ -102,6 +102,12 @@ unit_tests:
           - {pattern: '(^|[^a-z])taking longer than (expected|planned)', signal: overrun}
           - {pattern: '(^|[^a-z])later than (expected|planned)', signal: overrun}
           - {pattern: '(^|[^a-z])not (yet )?(been )?(completed|finished)([^a-z]|$)', signal: overrun}
+          - {pattern: '(^|[^a-z])no ([a-z]+ )?service([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])(part )?suspen(ded|sion)([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])delay(s|ed)?([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])closed([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])reduced service([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])part closure([^a-z]|$)', signal: disruption}
       - input: ref('stg_polls')
         rows:
           - {poll_id: p1, feed: line_status, is_ok: true, poll_minute: "2026-11-03 08:15:00", dt: "2026-11-03"}
@@ -301,6 +307,70 @@ unit_tests:
         - {line_id: northern, minute_utc: "2026-11-09 10:02:00", status_severity: 3, is_planned: true, planned_works_basis: reason_text, severity_weight: 0, has_closure_entry: true, is_engineering_works: true, is_scored: false}
         - {line_id: suffragette, minute_utc: "2026-11-09 10:02:00", status_severity: 2, is_planned: false, planned_works_basis: null, severity_weight: 8, has_closure_entry: false, is_engineering_works: false, is_scored: true}
         - {line_id: victoria, minute_utc: "2026-11-09 10:02:00", status_severity: 7, is_planned: false, planned_works_basis: null, severity_weight: 1.5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+
+  - name: int_line_minute_status_planned_works_mixed_messages
+    description: >
+      D69, sentence rule. Real W46 reasons, all Part Suspended (code 3)
+      filed real-time, Monday 2026-11-09 10:00 to 10:02 inter_peak. TfL puts
+      two events in one message; the reason is planned works only when every
+      sentence that reports a disruption says planned works. "GOOD SERVICE
+      on the rest of the line" and "Tickets will be accepted ..." report no
+      disruption.
+      Northern 10:00: a signal failure at Edgware, then planned works via
+      Bank. The first sentence is a disruption without works wording, so no
+      basis: weight 5, scored (before the sentence rule: reason_text, 0).
+      Northern 10:01 and 10:02: planned works only, then good service:
+      reason_text, weight 0, engineering works.
+      Windrush 10:00 and 10:02: a person taken ill, then planned works to
+      Crystal Palace and West Croydon; 10:01: a points failure at Denmark
+      Hill, then planned works. All three keep weight 5 and are scored.
+    model: int_line_minute_status
+    overrides:
+      vars:
+        raw_start_date: "2026-11-09"
+    given:
+      - input: ref('int_utc_minutes')
+        rows:
+          - {minute_utc: "2026-11-09 10:00:00", dt: "2026-11-09"}
+          - {minute_utc: "2026-11-09 10:01:00", dt: "2026-11-09"}
+          - {minute_utc: "2026-11-09 10:02:00", dt: "2026-11-09"}
+      - input: ref('dim_lines')
+        rows:
+          - {line_id: northern}
+          - {line_id: windrush}
+      - input: ref('day_types')
+        rows: *day_types
+      - input: ref('time_bands')
+        rows: *time_bands
+      - input: ref('line_operating_hours')
+        rows:
+          - {line_id: northern, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
+          - {line_id: windrush, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
+      - input: ref('severity_weights')
+        rows: *severity_weights
+      - input: ref('planned_works_reasons')
+        rows: *planned_works_reasons
+      - input: ref('stg_polls')
+        rows:
+          - {poll_id: q1, feed: line_status, is_ok: true, poll_minute: "2026-11-09 10:00:00", dt: "2026-11-09"}
+          - {poll_id: q2, feed: line_status, is_ok: true, poll_minute: "2026-11-09 10:01:00", dt: "2026-11-09"}
+          - {poll_id: q3, feed: line_status, is_ok: true, poll_minute: "2026-11-09 10:02:00", dt: "2026-11-09"}
+      - input: ref('stg_line_status')
+        rows:
+          - {poll_id: q1, request_path: /s, polled_at: "2026-11-09 10:00:01", poll_minute: "2026-11-09 10:00:00", line_id: northern, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Northern Line: No service between Colindale and Edgware while we fix a signal failure at Edgware. Tickets will be accepted on London Buses via any reasonable route. NO SERVICE between Battersea Power Station/Morden and Charing Cross/Euston via Bank due to planned engineering works. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q1, request_path: /s, polled_at: "2026-11-09 10:00:01", poll_minute: "2026-11-09 10:00:00", line_id: windrush, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Windrush Line: No service between Surrey Quays and New Cross Gate while we help a person taken ill on a train. NO SERVICE between New Cross Gate to Crystal Palace and West Croydon due to planned engineering works. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: northern, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Northern Line: No service between Battersea Power Station/Morden and Charing Cross/Euston via Bank due to planned engineering works. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: windrush, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Windrush Line: No service between Surrey Quays and Clapham Junction due to a points failure at Denmark Hill. No service between New Cross Gate and Crystal Palace / West Croydon due to planned engineering work. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: northern, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Northern Line: No service between Morden and Charing cross due to planned engineering works. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: windrush, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Windrush Line: No service between Surrey Quays and New Cross Gate while we help a person taken ill on a train. NO SERVICE between New Cross Gate and Crystal Palace / West Croydon due to planned engineering works. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+    expect:
+      rows:
+        - {line_id: northern, minute_utc: "2026-11-09 10:00:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: windrush, minute_utc: "2026-11-09 10:00:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: northern, minute_utc: "2026-11-09 10:01:00", status_severity: 3, is_planned: true, planned_works_basis: reason_text, severity_weight: 0, has_closure_entry: true, is_engineering_works: true, is_scored: false}
+        - {line_id: windrush, minute_utc: "2026-11-09 10:01:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: northern, minute_utc: "2026-11-09 10:02:00", status_severity: 3, is_planned: true, planned_works_basis: reason_text, severity_weight: 0, has_closure_entry: true, is_engineering_works: true, is_scored: false}
+        - {line_id: windrush, minute_utc: "2026-11-09 10:02:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
 
   - name: int_incidents_merge_bridge_and_midnight
     description: >

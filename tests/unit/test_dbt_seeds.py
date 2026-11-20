@@ -83,11 +83,29 @@ def _reason_signals(reason: str) -> set[str]:
     # anywhere, as re.search does, and these patterns use only groups,
     # alternation, optional items and character classes, on which Python re
     # and Trino agree. Avoid POSIX classes such as [[:space:]].
+    return _signals(reason.lower(), {"planned_works", "overrun"})
+
+
+def _signals(text: str, wanted: set[str]) -> set[str]:
     return {
         row["signal"]
         for row in read_seed("planned_works_reasons")
-        if re.search(row["pattern"], reason.lower())
+        if row["signal"] in wanted and re.search(row["pattern"], text)
     }
+
+
+def _reason_text_basis(reason: str) -> bool:
+    # Mirrors int_line_minute_status (D69): split the lower-cased reason on
+    # ". ", as Athena's split does. Planned works when some sentence says
+    # so and every disruption sentence says so; an overrun anywhere wins.
+    sentences = [
+        _signals(s, {"planned_works", "overrun", "disruption"}) for s in reason.lower().split(". ")
+    ]
+    if any("overrun" in sig for sig in sentences):
+        return False
+    return any("planned_works" in sig for sig in sentences) and all(
+        "planned_works" in sig for sig in sentences if "disruption" in sig
+    )
 
 
 @pytest.mark.parametrize(
@@ -144,10 +162,100 @@ def test_planned_works_reason_patterns(reason: str, signals: set[str]) -> None:
 
 def test_planned_works_reason_signals_are_known() -> None:
     rows = read_seed("planned_works_reasons")
-    assert {row["signal"] for row in rows} == {"planned_works", "overrun"}
+    assert {row["signal"] for row in rows} == {"planned_works", "overrun", "disruption"}
     for row in rows:
         assert row["pattern"] == row["pattern"].lower(), row
         re.compile(row["pattern"])
+
+
+@pytest.mark.parametrize(
+    ("sentence", "is_disruption"),
+    [
+        ("no service between a and b", True),
+        ("no northbound service between a and b", True),
+        ("part suspended between a and b", True),
+        ("the line is suspended", True),
+        ("severe delays due to a signal failure", True),
+        ("minor delays", True),
+        ("trains are delayed", True),
+        ("bank station is closed", True),
+        ("reduced service on the branch", True),
+        ("part closure between a and b", True),
+        ("good service on the rest of the line", False),
+        ("tickets will be accepted on london buses via any reasonable route", False),
+        # Word edges: neither "closedown" nor "delayering" is a disruption.
+        ("closedown notice", False),
+        ("delayering works", False),
+    ],
+)
+def test_disruption_sentence_patterns(sentence: str, is_disruption: bool) -> None:
+    assert (_signals(sentence, {"disruption"}) == {"disruption"}) is is_disruption
+
+
+@pytest.mark.parametrize(
+    ("reason", "basis"),
+    [
+        # Real W46 reasons (D69, sentence rule).
+        (
+            (
+                "Northern Line: No service between Battersea Power Station/Morden and Charing "
+                "Cross/Euston via Bank due to planned engineering works. GOOD SERVICE on the "
+                "rest of the line."
+            ),
+            True,
+        ),
+        (
+            (
+                "Northern Line: No service between Morden and Charing cross due to planned "
+                "engineering works. GOOD SERVICE on the rest of the line."
+            ),
+            True,
+        ),
+        (
+            (
+                "Northern Line: No service between Colindale and Edgware while we fix a signal "
+                "failure at Edgware. Tickets will be accepted on London Buses via any reasonable "
+                "route. NO SERVICE between Battersea Power Station/Morden and Charing Cross/Euston "
+                "via Bank due to planned engineering works. GOOD SERVICE on the rest of the line."
+            ),
+            False,
+        ),
+        (
+            (
+                "Windrush Line: No service between Surrey Quays and New Cross Gate while we help "
+                "a person taken ill on a train. NO SERVICE between New Cross Gate to Crystal "
+                "Palace and West Croydon due to planned engineering works. GOOD SERVICE on the "
+                "rest of the line."
+            ),
+            False,
+        ),
+        (
+            (
+                "Windrush Line: No service between Surrey Quays and Clapham Junction due to a "
+                "points failure at Denmark Hill. No service between New Cross Gate and Crystal "
+                "Palace / West Croydon due to planned engineering work. GOOD SERVICE on the rest "
+                "of the line."
+            ),
+            False,
+        ),
+        # One sentence, works wording.
+        ("Part suspended due to planned engineering work.", True),
+        # Works wording but no disruption sentence at all still counts.
+        ("Planned engineering works this weekend.", True),
+        # An overrun in another sentence wins.
+        (
+            (
+                "No service between A and B due to planned engineering works. "
+                "Engineering works are overrunning at C."
+            ),
+            False,
+        ),
+        # No works wording.
+        ("Severe delays due to an earlier signal failure.", False),
+    ],
+)
+def test_reason_text_basis_sentence_rule(reason: str, basis: bool) -> None:
+    assert _reason_text_basis(reason) is basis
 
 
 @pytest.mark.parametrize("path", sorted(SEEDS.glob("*.csv")), ids=lambda p: p.name)

@@ -11,3 +11,9 @@ pattern,signal,note
 (^|[^a-z])not (yet )?complete([^a-z]|$),overrun,works not complete or not yet complete
 (^|[^a-z])(will|would) not be (completed|finished)([^a-z]|$),overrun,works that will not be completed on time
 (^|[^a-z])taking longer to (complete|finish)([^a-z]|$),overrun,works taking longer to complete
+(^|[^a-z])no ([a-z]+ )?service([^a-z]|$),disruption,no service / no northbound service: a sentence that reports part of the line not running
+(^|[^a-z])(part )?suspen(ded|sion)([^a-z]|$),disruption,suspended / part suspended / suspension
+(^|[^a-z])delay(s|ed)?([^a-z]|$),disruption,delays of any severity
+(^|[^a-z])closed([^a-z]|$),disruption,a line section or station closed
+(^|[^a-z])reduced service([^a-z]|$),disruption,a reduced service
+(^|[^a-z])part closure([^a-z]|$),disruption,a part closure

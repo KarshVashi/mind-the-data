@@ -140,9 +140,10 @@ models:
         description: >
           Why the worst status counts as planned works although its code is a
           suspension or delay (D69): `planned_category` (TfL filed it as
-          planned work) or `reason_text` (its reason matches a
-          `planned_works_reasons` pattern). Null otherwise, and always null
-          when the reason says the works overran.
+          planned work) or `reason_text` (a sentence of its reason matches a
+          `planned_works_reasons` planned-works pattern and every sentence
+          that reports a disruption does too). Null otherwise, and always
+          null when the reason says the works overran.
         data_tests:
           - accepted_values:
               arguments:

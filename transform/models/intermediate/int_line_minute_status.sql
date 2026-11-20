@@ -204,26 +204,58 @@ current_entries as (
         entries.is_planned
 ),
 
--- What the reason text says about planned works (D69). Only entries whose
--- code can be planned works are read, so the pattern join stays small.
-reason_signals as (
-    select
-        current_entries.line_id,
-        current_entries.poll_minute,
-        current_entries.status_ordinal,
-        coalesce(bool_or(patterns.signal = 'planned_works'), false) as says_planned_works,
-        coalesce(bool_or(patterns.signal = 'overrun'), false) as says_overrun
+-- What the reason text says about planned works (D69). Only reasons of
+-- entries whose code can be planned works are read, once per distinct
+-- reason, so the pattern join stays small. TfL often reports two events in
+-- one message ("No service between A and B while we fix a signal failure.
+-- No service between C and D due to planned engineering works."), so the
+-- reason is read sentence by sentence: it is planned works only when some
+-- sentence says planned works and every sentence that reports a disruption
+-- says so too. An overrun anywhere still wins.
+works_reasons as (
+    select distinct current_entries.reason
     from current_entries
     inner join {{ ref('severity_weights') }} as weights
         on
             current_entries.status_severity = weights.severity_code
             and weights.is_works_when_planned
-    inner join {{ ref('planned_works_reasons') }} as patterns
-        on regexp_like(lower(current_entries.reason), patterns.pattern)
+    where current_entries.reason is not null
+),
+
+reason_sentences as (
+    select
+        works_reasons.reason,
+        sentences.sentence_number,
+        sentences.sentence_text
+    from works_reasons
+    cross join
+        unnest(split(lower(works_reasons.reason), '. '))
+        with ordinality as sentences (sentence_text, sentence_number)
+),
+
+sentence_signals as (
+    select
+        reason_sentences.reason,
+        reason_sentences.sentence_number,
+        coalesce(bool_or(patterns.signal = 'planned_works'), false) as says_planned_works,
+        coalesce(bool_or(patterns.signal = 'overrun'), false) as says_overrun,
+        coalesce(bool_or(patterns.signal = 'disruption'), false) as says_disruption
+    from reason_sentences
+    left join {{ ref('planned_works_reasons') }} as patterns
+        on regexp_like(reason_sentences.sentence_text, patterns.pattern)
     group by
-        current_entries.line_id,
-        current_entries.poll_minute,
-        current_entries.status_ordinal
+        reason_sentences.reason,
+        reason_sentences.sentence_number
+),
+
+reason_signals as (
+    select
+        reason,
+        bool_or(says_planned_works) as says_planned_works,
+        bool_or(says_overrun) as says_overrun,
+        bool_and(says_planned_works or not says_disruption) as every_disruption_is_works
+    from sentence_signals
+    group by reason
 ),
 
 classified as (
@@ -242,22 +274,23 @@ classified as (
         weights.weight_unplanned,
         -- TfL sometimes labels planned works with an unplanned-looking code
         -- (Part Suspended, Severe Delays). Filed as planned work, or said to
-        -- be planned works in the reason, it is engineering works, unless the
-        -- reason says the works overran: an overrun is a failure (D69).
+        -- be planned works in every disruption sentence of the reason, it is
+        -- engineering works, unless the reason says the works overran: an
+        -- overrun is a failure (D69).
         case
             when not coalesce(weights.is_works_when_planned, false) then null
             when coalesce(signals.says_overrun, false) then null
             when current_entries.is_planned then 'planned_category'
-            when coalesce(signals.says_planned_works, false) then 'reason_text'
+            when
+                coalesce(signals.says_planned_works, false)
+                and coalesce(signals.every_disruption_is_works, false)
+                then 'reason_text'
         end as planned_works_basis
     from current_entries
     left join {{ ref('severity_weights') }} as weights
         on current_entries.status_severity = weights.severity_code
     left join reason_signals as signals
-        on
-            current_entries.line_id = signals.line_id
-            and current_entries.poll_minute = signals.poll_minute
-            and current_entries.status_ordinal = signals.status_ordinal
+        on current_entries.reason = signals.reason
 ),
 
 weighted as (

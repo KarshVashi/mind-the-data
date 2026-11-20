@@ -16,7 +16,15 @@ with cases as (
         ('works finishes late', 'overrun', true),
         ('planned engineering work is not complete', 'overrun', true),
         ('engineering work will not be completed until 07:00', 'overrun', true),
-        ('engineering works taking longer to complete', 'overrun', true)
+        ('engineering works taking longer to complete', 'overrun', true),
+        ('no service between a and b', 'disruption', true),
+        ('severe delays due to a signal failure', 'disruption', true),
+        ('good service on the rest of the line', 'disruption', false),
+        (
+            'tickets will be accepted on london buses via any reasonable route',
+            'disruption',
+            false
+        )
     ) as t (reason_text, pattern_signal, expected_match)
 ),
 
