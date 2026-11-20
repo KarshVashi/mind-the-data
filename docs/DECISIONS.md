@@ -177,6 +177,26 @@ D1, D67, D68, D69 and D70 are open.
 - **Alternatives:** withhold only the share and keep the gap figures (the gaps are distorted by the same missing departures); derive the end from each day's destinations, as D65 does for turnbacks (it needs the whole line feed per week, and a short-turned train would withhold a through station).
 - **Effect:** no published value moves while `STATIONS_PUBLISH_ENABLED` is off. The league, lines and measured view are unchanged. Station files gain the reason `terminus` and the summary can list it in `status_reasons`.
 
+### D71. Countdown drift: how a prediction is matched and scored
+
+- **Entered:** 2026-11-20. **Deadline:** 2026-11-23 12:00 UTC (a reminder only). **Class:** `never-default` (a new metric's definition; nothing is published until it is settled). **Default:** none; recommended as implemented.
+- **Question:** does "2 min" on the board mean two minutes? New models `int_prediction_errors` and `rpt_prediction_accuracy` score TfL's countdown at 2, 5 and 10 minutes out, per line and London week. Methodology, section 3, "Countdown drift".
+- **The caveat, to be stated wherever a figure appears:** the "actual" arrival is inferred from the predictions themselves: TfL's last prediction before the train left the board, at about one-minute poll resolution (PLAN 7.2). This measures how far TfL's countdown drifts before the end. It is not checked against an independent clock. Countdowns under 2 minutes are too close to the prediction that sets the arrival time and are not scored.
+- **Definitions (as implemented):**
+  - Source: the measurement-station feed (`int_inferred_arrivals`, from 4 November), not the every-station feed (`int_station_inferred_arrivals`, from 17 November). One consistent series from the first week, and termini can be left out from `seed_measurement_stations.role` (D66). The every-station feed would need station roles (`dim_line_station_role`, PR #46) and would start a second series on 17 November.
+  - Lines: those `seed_vehicle_id_lines` links by vehicle id (D27). Out: District (unstable ids), DLR (no ids), and the lines not linked. Termini out (D66).
+  - Matching: for each inferred arrival with a vehicle id and a direction, and each horizon, the prediction for the same vehicle id on the same board (request, stop, line, platform, direction) whose countdown at the poll (D40) is nearest the horizon, within 30 s either side, lower edge in, upper edge out. Polled no earlier than the horizon plus 30 minutes before the arrival (`prediction_accuracy_lookback_minutes`), so a held train up to 30 minutes late is scored as late rather than dropped; after the same train's previous arrival on that board; and before the sighting that sets the arrival time. Ties to the earlier poll. A board with no platform name is one board.
+  - Signed error: actual seconds to arrival minus the countdown. Positive is later than the board said.
+  - Weekly: eligible arrivals, matched share, nearest-rank median and p90 of absolute error, median signed error, share within 60 s, and real seconds per countdown minute (60 × total actual ÷ total predicted).
+  - Minimum before a line-week-horizon is shown: 200 matched predictions (`prediction_accuracy_min_matched`). With 200, the p90 rests on 20 predictions above it. Every line clears it in every week so far, including the part weeks.
+- **Options:**
+  1. Accept as implemented (recommended).
+  2. Bucket by time actually elapsed before the arrival, not by the countdown shown. That answers "how wrong was the board 10 minutes before the train came" rather than "how wrong is '10 min'". The countdown is what a passenger reads, so option 1 is recommended. On 17 November both give the same sign of bias on every line.
+  3. Use the every-station feed from 17 November once station roles are merged: more stations, a shorter series.
+- **Known biases:** only trains with an inferred arrival are scored. A train withdrawn or lost from the board more than 2 minutes out has no arrival, so it is in neither the matched share nor the errors. A train more than 30 minutes later than its countdown counts as unmatched. A prediction filed under Circle never matches an arrival filed under Hammersmith & City, or the other way round (D52), so read those two together.
+- **Median:** nearest-rank, the lower middle value for an even count. `fct_station_weekly_measured` takes the mean of the middle two; if this is published, the project may want one definition.
+- **Not published, not built in prod.** Both models carry the tag `exploratory`, which the daily prod build excludes; they are built on demand. Publishing would need a contract change (a `prediction_accuracy` block or file, a new flag defaulting off, a `schema_version` bump), described in the pull request.
+
 ## Settled on 2026-11-18, with the detail
 
 ### D65. A prediction with no direction takes one where the boards show it
