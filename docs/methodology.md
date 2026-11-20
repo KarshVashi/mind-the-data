@@ -73,7 +73,18 @@ From `transform/seeds/severity_weights.csv`:
 
 An unknown status code fails a test and stops the build. It is never given a default weight.
 
-Planned statuses other than closures keep their weight: a planned Reduced Service scores 1.5.
+**Planned works under a suspension or delay code (D69, pending).** TfL sometimes labels planned engineering works Suspended, Part Suspended or Severe Delays instead of Planned Closure or Part Closure. Such an entry counts as a closure, with weight 0, when either:
+
+- TfL files its disruption as planned work (category `PlannedWork`); or
+- its reason text says so, by a pattern in `transform/seeds/planned_works_reasons.csv` such as "planned engineering work" or "planned closure". "Unplanned" does not match.
+
+The reason is read sentence by sentence, because TfL often reports two events in one message: "No service between Colindale and Edgware while we fix a signal failure at Edgware. … NO SERVICE between Battersea Power Station/Morden and Charing Cross/Euston via Bank due to planned engineering works. GOOD SERVICE on the rest of the line." The reason-text rule applies only when at least one sentence says planned works and every sentence that reports a disruption ("no service", "no Piccadilly line service", "no trains", "not stopping", "fewer trains", "suspended", "delays", "closed", "reduced service", "part closure", "rail replacement") says planned works too. "Good service on the rest of the line" and "Tickets will be accepted …" report no disruption. A message that mixes works with an incident therefore keeps its full weight: the incident is real, and one status entry cannot be split between the two. A sentence ends at every full stop not followed by a digit, since TfL also runs sentences together (".Tickets", a full stop then a line break) and writes times as "08.15". An abbreviation such as "St. " would break a sentence in two; that leaves a disruption sentence without its works wording, which keeps the weight rather than removing it.
+
+An **overrun** always counts, and an overrun match always wins over both planned-works signals: if the reason says the works overran, the entry keeps its full weight, whether TfL files it as planned or not. Works that run late are a reliability failure, and a missed overrun would hide one, so the list is generous. It matches "overrun", "overrunning", "over-running", "over running", "overran", "late finish", "finish/finishes/finished/finishing late", "taking longer than expected/planned", "later than expected/planned", "not (yet) (been) completed/finished", "not (yet) complete", "will/would not be completed/finished" and "taking longer to complete/finish". The patterns carry no backslashes (the seed loader drops them); word edges are written `(^|[^a-z])` and `([^a-z]|$)`.
+
+Because the works entry weighs 0, any unplanned delay alongside it still wins the minute (ADR-004).
+
+Other planned statuses keep their weight: a planned Reduced Service scores 1.5, and a planned Minor Delays 1.
 
 ### Time weights
 
@@ -89,7 +100,7 @@ Because the band follows the calendar day, Friday's service after midnight count
 
 ### Scored minutes
 
-A minute is **scored** when it is scheduled, observed, and not under a closure or Service Closed. Engineering works are left out of the reliability score and reported separately (PLAN 7.4).
+A minute is **scored** when it is scheduled, observed, and not under a closure or Service Closed. Engineering works are left out of the reliability score and reported separately (PLAN 7.4). A minute counts as engineering works when its winning status is a Planned Closure, a Part Closure, or planned works under a suspension or delay code (D69). Such a minute is in the Engineering Works table, not in the index or Good Service %.
 
 ### The index
 
@@ -182,6 +193,8 @@ TfL does not publish when trains actually arrived. Each Arrivals board shows pre
 
 Scheduled headways come from TfL's weekly timetables for each measurement station and direction, with platforms pooled because timetables have none (D29). Every listed departure counts, including two in the same minute (D31). Each day uses the latest timetable fetched by then (D32).
 
+A schedule TfL names for one weekday ("Tuesdays") applies on that weekday only. Where a timetable also has a generic schedule ("Monday - Thursday"), the weekday's own schedule is used on its day and the generic one on the others, so no day counts two schedules' trains (D67, pending).
+
 TfL returns no timetable for the Elizabeth line or the Overground, so those lines use estimated frequencies per station, hour band and day type (`seed_line_frequencies`, flagged `is_fallback`). Where two estimates disagreed, the lower frequency was used, so service is never judged against a busier timetable than the real one (D33).
 
 ### Headways and excess wait
@@ -249,11 +262,28 @@ Every westbound train at Baker Street, King's Cross and Liverpool Street is list
 
 ### The Honesty Gap
 
-An hour counts towards the Honesty Gap when the line's worst declared status was **Good Service for the whole hour** and at least one gated measurement in that hour recorded a **long gap**. It is reported as hours per week and as a share of the line's Good Service hours with at least one gated measurement (D42).
+An hour counts towards the Honesty Gap when all three hold (D68, pending):
 
-Only the hour in which the long gap ends is checked for Good Service. A gap that began during declared delays in the previous hour still counts if the hour it ends in was all Good Service, so the Honesty Gap reads slightly high; requiring Good Service over the gap's whole span is the alternative (D42).
+1. **Good Service for the whole hour.** The line's worst declared status was Good Service in every minute of the London hour, with no missing minute.
+2. **Long gaps at two or more stations, in the same direction.** At least two of the line's core and branch measurement stations (not termini), in the same direction, each had a gated hour (one that passed the quality gate) with a long gap ending in that hour.
+3. **Good Service over each gap.** For each of those gaps, the declared status was Good Service in every minute it spans, from the minute of the train before to the minute of the train that ends it, with no missing minute.
 
-**A known risk.** The boards list about 85% of timetabled trains, and whether the rest ran is not known (ADR-014). If they ran, the gaps around them exist only on the boards, so the Honesty Gap reads high. Long gaps are frequent on several Tube lines (about 70 to 125 per 100 measured hours on 9 to 13 November, Bakerloo 17), so the Honesty Gap is large there: the Piccadilly line had long gaps in 78 of its 86 measured Good Service hours. These are published as measured, with this caveat beside them, until the boards can be checked against an independent count.
+It is reported as hours per week and as a share of the line's Good Service hours with at least one gated measurement. That denominator is unchanged (D42).
+
+The terms are exact:
+
+- **Long gap:** over twice the longest scheduled gap of the hour it ends in (D34).
+- **Same hour:** both gaps end in the same London calendar hour. A gap belongs to the hour of the train that ends it (D30).
+- **Same direction:** the direction the boards give the trains, inbound or outbound, filled where missing (D65).
+- **Branches:** not told apart. The status covers the whole line, so a station on each branch can corroborate.
+- **Stations:** the line's core and branch measurement stations. Termini are left out of the two-station count, as they are from trains run (D66) and the gate (D51): at a terminus one train can be listed on two platforms, which would read as two boards agreeing, the artefact this rule filters out. Their gaps still count as long gaps and their hours stay in the denominator. This was decided on 19 November, before the 18 to 24 November data was examined. Station views (M8) are not used.
+- **Lines that cannot be corroborated:** Lioness and Windrush have one core measurement station each, and Liberty has none, so no hour of theirs can have two. Their Honesty Gap is published as null with the reason `honesty_gap_not_corroborable`, not as 0, which would read as TfL always being right. Their Good Service hours with a measurement are still shown. Missing evidence is never counted as Good Service.
+
+**Why two stations.** When one board drops a train, a long gap appears at that station only. When the service has a real gap, it shows at more than one station. Requiring two separate boards rules out the first case. On 9 to 15 November (W46), the main Tube lines read 26% (Bakerloo) to 72% (Piccadilly) under this rule, against 48% to 85% under the earlier one-station rule. Requiring Good Service over the whole gap changed almost nothing: a whole Good Service hour nearly always covers the gap too. The counts, built in dev on 20 November with termini left out, are in D68.
+
+**Fixed in advance.** This rule was fixed on 19 November 2026, before any Honesty Gap figure for 18 to 24 November had been computed, so that week's result could not shape it.
+
+**A known risk.** The boards list about 85% of timetabled trains, and whether the rest ran is not known (ADR-014). Two-station corroboration removes gaps caused by one board dropping a train, but not by a train missing from every board. The District is the case to watch. On 17 November, every-station data (M8) showed that 27 of its 45 long gaps contained a train dropped by one board. On other lines, 0 or 1 did. Its vehicle ids are also unstable (D27). The dropout check is repeated for 18 to 24 November. It is reported beside the Honesty Gap, but it is not part of the rule. The figures are published as measured, with this caveat beside them, until the boards can be checked against an independent count.
 
 ### Station views (M8)
 
@@ -268,6 +298,7 @@ From M8 the same method is applied at every station, not only the 50 measurement
 - **Observed hours.** An hour counts when the line's feed has at least 54 successful polls in it and no collection gap touches it.
 - **Gate.** Each hour is judged on the same 80% to 120% band as lines (ADR-014). A station-direction is published as measured only when at least 70% of its judged hours are in band and it was measured for at least half its hours of service. Otherwise it is not measured, with the reason: no observed hours, gate not judged, gate failed, or too few measured hours.
 - **Withheld lines.** Lines withheld at line level (Circle and Hammersmith & City, and lines not measured) are withheld at every station on them.
+- **Ends of the line.** A station that is the first or last stop of any of a line's routes (every terminus and the end of every branch) is withheld on that line, with the reason `terminus` (D70). At these stops TfL lists departing trains with no direction (Uxbridge, Amersham, Wimbledon) or lists an arriving train on two platforms (Stratford, Richmond), so trains seen, the share of the timetable, gaps and excess wait would be wrong. The scheduled trains and the observed hours are still shown. The same station on another line, where it is not an end, is measured on its own. A stop where only some trains turn back, and no route ends, is not withheld; its figures can read low because trains that end their trip there are not given a direction.
 - **No timetable.** TfL returns no timetable for Elizabeth line and Overground stations. They get observed figures only, and the timetable-based ones are left empty.
 - **Station disruption.** Closures, lift and step-free outages, and other disruptions come from the network-wide stop disruption feed, counted in 5-minute slots. Standing information notices are left out. A missing poll lowers the observed share and is never read as no disruption, so the hours are a lower bound.
 
@@ -357,6 +388,10 @@ On 15 November 2026 the owner accepted every recommended reading below, so each 
 | D64 | Iceberg maintenance scope (auto-apply) | operations (decided) |
 | D65 | A prediction with no direction takes one where the boards show it | measured (decided) |
 | D66 | Trains run measured at core and branch stations, not termini | measured, publishing (decided) |
+| D67 | A single-weekday timetable schedule applies on that weekday only | measured, stations (pending) |
+| D68 | The Honesty Gap counts an hour only when two stations agree | measured (pending) |
+| D69 | Planned works under a suspension or delay code are engineering works; overruns count | declared (pending) |
+| D70 | Station views withhold their measured figures at an end of the line | stations (pending) |
 | [ADR-015](adr/015-divisions-seed-from-two-weeks.md), D56 | Divisions seeded from two weeks, provisional | declared, publishing (decided) |
 | D57 | Division size, monthly measure, promotion and relegation | declared, publishing (decided) |
 | D58 | Season table, April to March | declared, publishing (decided) |

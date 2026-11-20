@@ -242,3 +242,13 @@ macros:
       - name: column
         type: string
         description: Date column of the target.
+  - name: timetable_weekday_coverage_gaps
+    description: >
+      Rows of timetabled line, station, direction, timetable version, day
+      type and ISO weekday where a day type the version has schedules for
+      leaves a weekday with neither a generic nor its own schedule (D67).
+      Shared by the two singular coverage tests.
+    arguments:
+      - name: measurement_stations
+        type: bool
+        description: True for stations in seed_measurement_stations, false for every other station.

@@ -41,7 +41,9 @@ measured_weekly as (
         sum(gate_judged_hours) as gate_judged_hours,
         sum(gate_in_band_hours) as gate_in_band_hours,
         sum(good_service_measured_hours) as good_service_measured_hours,
-        sum(honesty_gap_hours) as honesty_gap_hours
+        -- Null when any day's is: a line that cannot be corroborated
+        -- (D68) has no Honesty Gap, never a sum of zeros.
+        if(count(honesty_gap_hours) = count(*), sum(honesty_gap_hours)) as honesty_gap_hours
     from {{ ref('fct_line_measured_daily') }}
     group by line_id, week_start
 ),
@@ -88,9 +90,18 @@ scored as (
         if(measured_lines.is_measured, measured_weekly.good_service_measured_hours)
             as good_service_measured_hours,
         if(
-            measured_lines.is_measured and measured_weekly.good_service_measured_hours > 0,
+            measured_lines.is_measured
+            and measured_weekly.good_service_measured_hours > 0
+            and measured_weekly.honesty_gap_hours is not null,
             1e0 * measured_weekly.honesty_gap_hours / measured_weekly.good_service_measured_hours
         ) as honesty_gap_share,
+        -- D68: too few core and branch measurement stations to corroborate.
+        if(
+            measured_lines.is_measured
+            and measured_weekly.measured_hours is not null
+            and measured_weekly.honesty_gap_hours is null,
+            'honesty_gap_not_corroborable'
+        ) as honesty_gap_withheld_reason,
         measured_weekly.fallback_measured_hours,
         measured_weekly.gate_judged_hours,
         measured_weekly.gate_in_band_hours,
@@ -180,6 +191,7 @@ select
     honesty_gap_hours,
     good_service_measured_hours,
     honesty_gap_share,
+    honesty_gap_withheld_reason,
     experienced_rank,
     sum_excess_wait_seconds,
     fallback_measured_hours,

@@ -100,6 +100,7 @@ def measured_document(measured: MeasuredView | None) -> dict[str, Any] | None:
         "long_gaps_per_100_hours": _round(measured.long_gaps_per_100_hours, 2),
         "honesty_gap_hours": _round(measured.honesty_gap_hours, 1),
         "honesty_gap_share": _round(measured.honesty_gap_share, 4),
+        "honesty_gap_withheld_reason": measured.honesty_gap_withheld_reason,
         "experienced_rank": measured.experienced_rank,
         "trains_run_share": _round(measured.trains_run_share, 4),
         "trains_run_withheld_reason": measured.trains_run_withheld_reason,

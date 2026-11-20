@@ -19,6 +19,31 @@ models:
         description: Shown but flagged as low volume.
         data_tests: [not_null]
 
+  - name: dim_line_station_role
+    description: >
+      Whether a station is an end of a line (D70), one row per line and
+      station on the line's latest route sequences, plus each `terminus` of
+      seed_measurement_stations that those sequences do not list. A terminus is the first
+      or last stop of any ordered route of the line (branch ends and turned
+      back routes included) or a `terminus` of seed_measurement_stations
+      (D66). Read by fct_station_weekly_measured, which withholds a
+      terminus's measured figures.
+    columns:
+      - name: line_station_key
+        description: Row key, a hash of (line_id, naptan_id).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Station-level NaPTAN id (dim_station).
+        data_tests: [not_null]
+      - name: is_terminus
+        description: True when the station is an end of the line's routes or a seeded terminus.
+        data_tests: [not_null]
+      - name: terminus_source
+        description: "`route`, `seed` or `route_and_seed` for a terminus; null otherwise."
+
   - name: dim_station
     description: >
       Every station on every line in scope (M8), one row per station-level
@@ -111,6 +136,9 @@ models:
       measured_status is `withheld` when the line-level view withholds the
       whole line (line_not_measured: seed_measured_lines; or
       shared_section_misfiled: measured_view_withheld_lines),
+      `withheld` also at an end of the line (terminus, D70:
+      dim_line_station_role), whose departures TfL lists with no direction
+      and whose arrivals it lists on several platforms,
       `not_measured` when the station-direction-week fails (no_observed_hours,
       gate_not_judged, gate_failed, too_few_measured_hours, in that order),
       else `measured`. Gap measures are null unless measured; train counts
@@ -152,6 +180,7 @@ models:
                 values:
                   - line_not_measured
                   - shared_section_misfiled
+                  - terminus
                   - no_observed_hours
                   - gate_not_judged
                   - gate_failed
@@ -437,13 +466,28 @@ models:
         description: long_gaps per 100 measured station-direction-hours (D42).
       - name: honesty_gap_hours
         description: >
-          PLAN 7.3 Honesty Gap: London hours in which the line's declared
-          status was Good Service for the whole hour and at least one
-          measured station-direction-hour of the line recorded a long gap.
+          PLAN 7.3 Honesty Gap (D68): London hours in which the line's
+          declared status was Good Service for the whole hour and at least
+          two measurement stations in the same direction each had a measured
+          hour with a long gap ending in it whose whole span was Good
+          Service. Termini do not count toward the two. Null, with
+          honesty_gap_withheld_reason, on a line with too few core and
+          branch measurement stations to corroborate any hour.
       - name: good_service_measured_hours
         description: London hours of whole-hour Good Service with at least one measured station-direction-hour; the Honesty Gap's denominator.
       - name: honesty_gap_share
-        description: honesty_gap_hours / good_service_measured_hours.
+        description: honesty_gap_hours / good_service_measured_hours; null when honesty_gap_hours is.
+      - name: honesty_gap_withheld_reason
+        description: >
+          `honesty_gap_not_corroborable` when the line is measured but has
+          fewer than `honesty_gap_min_stations` core and branch measurement
+          stations (Lioness, Windrush and Liberty), so no hour can be
+          corroborated and the Honesty Gap is null rather than 0 (D68).
+          Null otherwise.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [honesty_gap_not_corroborable]
       - name: experienced_rank
         description: >
           PLAN 7.3 Experienced Reliability rank within the week: lowest excess
@@ -545,7 +589,13 @@ models:
       - name: good_service_measured_hours
         description: London hours of whole-hour Good Service with at least one measured hour of the line.
       - name: honesty_gap_hours
-        description: Of those, hours with at least one long gap (PLAN 7.3 Honesty Gap).
+        description: >
+          Of those, hours in which long gaps with a whole Good Service span
+          ended at at least `honesty_gap_min_stations` core and branch
+          measurement stations in the same direction (PLAN 7.3 Honesty Gap,
+          D68). Null, not 0, on a line seed_measurement_stations gives fewer
+          than that many core and branch stations: none of its hours can be
+          corroborated.
 
   - name: rpt_weekly_highlights
     description: >
@@ -1003,7 +1053,7 @@ models:
         description: The minute's worst status (ADR-004).
         data_tests: [not_null]
       - name: is_planned
-        description: The worst status was filed as planned work.
+        description: TfL filed the worst status as planned work, or the D69 rule classed it as planned works.
         data_tests: [not_null]
       - name: time_band
         description: The minute's time band (time_bands seed).
