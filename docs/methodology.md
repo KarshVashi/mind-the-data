@@ -273,6 +273,18 @@ From M8 the same method is applied at every station, not only the 50 measurement
 
 Station figures start provisional: one full week for a first snapshot, four for trends.
 
+### Should I Run (exploratory, D76)
+
+A journey planner on the same data (ADR-018), not yet published. For a journey from station A to B on one line, it describes each weekday 15-minute window from 06:00 to 10:00 and 16:00 to 19:00. The unit is the window, not a named departure: Tube timetables have no trip ids, and trains come every two minutes or so.
+
+- **Runs.** A train's run is its pass at A to its first pass at B, matched by vehicle id, where B comes after A on the line's route sequence in that direction. The run must take at most 90 minutes and end before the train passes A again. Only lines whose vehicle ids follow the train are used (not the District, DLR, tram or Waterloo & City). A pass is the expected arrival at the train's last sighting, so a run includes the dwell at A and is accurate to about a minute at each end.
+- **Days.** A weekday counts for a window only when A's hour was observed and passed the quality gate. Days with missing data are left out, never read as good days.
+- **Per window:** runs and run time (median and p90); trains seen per day at A, against the timetable; the typical wait (the median day's expected wait for someone arriving at random, from the gaps between trains that reached B); and the bad-day wait (the 90th percentile, over days, of the day's longest gap). A train whose id was lost at B widens a gap, so waits read long, never short.
+- **Threshold.** A window's figures are shown only with the gate passed and at least 20 runs over at least 4 weeks. Otherwise it is "not enough data".
+- **Leave-by.** The page takes the window that holds (arrive-by − buffer − p90 run time), then subtracts that window's bad-day wait and the walk to A. On the morning it reads TfL's boards in the browser and checks each train to B against arrive-by at the p90 run time.
+
+These are estimates, not guarantees. A p90 run time is exceeded on about 1 trip in 10.
+
 ---
 
 ## 4. What is published
@@ -363,6 +375,7 @@ On 15 November 2026 the owner accepted every recommended reading below, so each 
 | D59 | Recovery Time table (provisional on D18) | declared, publishing (decided) |
 | D60 | Industrial action seed and strikes-excluded table | declared, publishing (decided) |
 | D61 | Sensitivity weight sets | declared, publishing (decided) |
+| [ADR-018](adr/018-should-i-run.md), D76 | Should I Run windows, runs and threshold | measured, not published (pending) |
 
 The weights for the status codes the plan names, and the time-band weights, are the build plan's values. D16 adds Service Closed to the weights, and D21 decides how the bands map onto calendar days. Sensitivity under three alternative weight sets is reported each week in `meta/methodology.json` (see Sensitivity above, D61).
 

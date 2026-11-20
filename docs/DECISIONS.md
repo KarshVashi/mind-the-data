@@ -21,7 +21,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
-D1 and D67 are open.
+D1, D67 and D76 are open.
 
 ### D67. Single-weekday timetables are left out until a weekday can be modelled
 
@@ -32,6 +32,19 @@ D1 and D67 are open.
 - **What it does at those stops:** the 18 Nov versions hold only these schedules (Metropolitan: Tuesdays, Wednesdays, Thursdays; District: Wednesdays, Thursdays, Friday). A newer version still ends the previous one, so from 18 Nov those stop-directions have no timetable for Monday to Thursday, Saturday or Sunday, and the Metropolitan ones none for Friday either. The `seed_line_frequencies` fallback does not apply, because a timetable exists. `int_station_measured_hours` then uses its no-timetable rule: it counts hours in which a train was seen, an hour with no train never counts as a gap, and a suspension is not detected. Never Good Service.
 - **Scope:** none of these stops is a measurement station, so the league, the measured view and W46 do not change. Only the unpublished station views do, at these 7 stops.
 - **Follow-up:** model a schedule that runs on one weekday, for example a nullable `iso_day_of_week` in `timetable_schedule_day_types`, carried through `int_scheduled_headways` and matched by the measured-hours models. Before station publishing is switched on.
+
+### D76. Should I Run: a journey planner on 15-minute windows, behind a flag
+
+- **Entered:** 2026-11-20. **Deadline:** 2026-11-23 18:00 UTC (a reminder only). **Class:** `never-default` (metric semantics, publishing and a new public page). **Default:** none; the models build in dev only and nothing is published.
+- **Context:** the every-station feed follows trains by vehicle id, so the run time from any station A to B, the wait at A and the trains that really come can be measured per 15-minute window. ADR-018 has the product, phases and risks (exploratory work toward v2).
+- **Implemented** (`int_station_vehicle_runs`, `rpt_station_reach`, `rpt_journey_slots`, tagged `exploratory`; the daily prod build now excludes that tag):
+  - a run is a vehicle's first pass at B after its pass at A, B after A on the latest route sequence, within 90 minutes and before its next pass at A; linked lines only;
+  - per weekday slot (06:00 to 10:00 and 16:00 to 19:00): runs, run time p10/p50/p90 (nearest rank), trains seen per day against the timetable, typical wait (median day of sum(gap^2) / (2 sum(gap)) over matched trains) and bad-day wait (p90 over days of the longest gap);
+  - a day counts only when A's hour was observed and in band (ADR-014); the slot passes the gate when at most 30% of observed days were out of band;
+  - figures are published only with the gate passed and at least 20 runs over 4 ISO weeks (`journey_min_runs`, `journey_min_weeks`); otherwise `not_enough_data` with null figures;
+  - `journeys/` files behind `JOURNEYS_ENABLED` (off), and a static prototype page in `web/should-i-run/` meant for its own origin, calling TfL's public arrivals API from the browser with no key.
+- **To decide:** (1) the threshold (20 runs over 4 weeks); (2) the wording rules in ADR-018; (3) hosting the page on its own origin (for example `run.karshvashi.com`) and whether it stays in this repo; (4) whether waits should come from matched trains only (they read long, never short) or from every train at A with the reach rule; (5) whether Northern figures stay withheld until the Camden Town Bank-branch run times are explained.
+- **Alternatives:** named departures (not possible without Tube trip ids); timetable run times; a server-side live proxy with the project key (rejected: key and journeys on a server); push alerts (deferred: personal data under UK GDPR and a second platform).
 
 ## Settled on 2026-11-18, with the detail
 
