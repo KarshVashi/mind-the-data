@@ -1,9 +1,9 @@
 # Production stack. Deployed by the infra workflow when a pull request is
 # merged into main (ADR-005). CI role permissions live in infra/bootstrap.
 #
-# The collector: a poller Lambda every minute and a reference Lambda daily,
-# both writing gzipped NDJSON to the raw bucket (ADR-003), with alarms on
-# errors, throttles and missing writes.
+# The collector: a poller Lambda every minute, a context Lambda every minute
+# (ADR-019) and a reference Lambda daily, all writing gzipped NDJSON to the
+# raw bucket (ADR-003), with alarms on errors, throttles and missing writes.
 
 data "aws_caller_identity" "current" {}
 
@@ -28,6 +28,9 @@ locals {
 
   poller_feeds    = ["line_status", "line_disruption", "arrivals", "line_arrivals", "stop_disruption"]
   reference_feeds = ["ref_route_sequence", "ref_timetable", "ref_severity"]
+  # Station context feeds (ADR-019): lifts, live busyness, cycle hire docks
+  # and the line status announced ahead.
+  context_feeds = ["lift_disruption", "crowding", "bike_point", "line_status_ahead"]
 
   # Glue database names cannot contain hyphens.
   glue_prefix = replace(local.prefix, "-", "_")
@@ -98,6 +101,15 @@ data "aws_iam_policy_document" "reference" {
   }
 }
 
+data "aws_iam_policy_document" "context" {
+  source_policy_documents = [data.aws_iam_policy_document.tfl_key.json]
+  statement {
+    sid       = "WriteRaw"
+    actions   = ["s3:PutObject"]
+    resources = [for feed in local.context_feeds : "${local.raw_bucket_arn}/raw/${feed}/*"]
+  }
+}
+
 # ---- Functions ----------------------------------------------------------------
 
 module "poller" {
@@ -158,6 +170,35 @@ module "reference" {
   async_max_event_age_seconds = 3600
 }
 
+# A separate function from the poller (ADR-019), so these feeds can never use
+# up the league feeds' poll budget, concurrency or memory.
+module "context" {
+  source = "../../modules/lambda_function"
+
+  function_name            = "${local.prefix}-context"
+  description              = "Polls TfL lift disruptions, live station busyness, BikePoint and status ahead into raw."
+  handler                  = "mind_the_data.ingest.context.handler"
+  zip_path                 = var.lambda_zip_path
+  timeout_seconds          = 60
+  log_retention_days       = var.log_retention_days
+  policy_json              = data.aws_iam_policy_document.context.json
+  permissions_boundary_arn = data.aws_iam_policy.workload_boundary.arn
+
+  # 512 MB: the largest run holds about 63 small busyness answers or the
+  # 2 MB BikePoint list. At about 1 s a run that is about 22,000 GB-s a
+  # month, inside the free tier with the poller. Concurrency 10 finishes a
+  # 63-call minute well inside the budget at TfL's usual 0.1 to 0.3 s a call.
+  memory_mb = 512
+  environment = merge(local.common_env, {
+    POLL_BUDGET_SECONDS = "45"
+    MAX_CONCURRENCY     = "10"
+  })
+
+  # Like the poller: the next minute's run is the retry.
+  async_retry_attempts        = 0
+  async_max_event_age_seconds = 60
+}
+
 # ---- Schedules ----------------------------------------------------------------
 
 module "schedules" {
@@ -175,6 +216,16 @@ module "schedules" {
       max_event_age_seconds = 60
       # A late run keeps its scheduled minute's cadence (stop disruption every 5).
       input = jsonencode({ scheduled_time = "<aws.scheduler.scheduled-time>" })
+    }
+    # The scheduled minute picks each run's share (ADR-019): a fifth of the
+    # stations' busyness, BikePoint every fifth minute, status ahead 4 a day.
+    "${local.prefix}-context-every-minute" = {
+      description           = "Invoke the context collector every minute."
+      expression            = "rate(1 minute)"
+      function_arn          = module.context.function_arn
+      retry_attempts        = 0
+      max_event_age_seconds = 60
+      input                 = jsonencode({ scheduled_time = "<aws.scheduler.scheduled-time>" })
     }
     # Daily since M8 (ADR-016): each run fetches one day's share of timetables.
     "${local.prefix}-reference-daily" = {
@@ -199,8 +250,11 @@ module "alarms" {
   metric_namespace        = var.metric_namespace
   poller_function_name    = module.poller.function_name
   reference_function_name = module.reference.function_name
-  no_write_feeds          = ["line_status", "line_disruption", "arrivals", "line_arrivals"]
-  request_failure_feed    = "line_status"
+  context_function_name   = module.context.function_name
+  # lift_disruption is written on every context run, so its alarm also says
+  # the context collector has stopped.
+  no_write_feeds       = ["line_status", "line_disruption", "arrivals", "line_arrivals", "lift_disruption"]
+  request_failure_feed = "line_status"
 }
 
 # ---- Catalog and query engine (M2) --------------------------------------------
@@ -216,7 +270,7 @@ module "catalog" {
 
   database_name = "${local.glue_prefix}_raw"
   bucket_name   = local.raw_bucket_name
-  feeds         = concat(local.poller_feeds, local.reference_feeds)
+  feeds         = concat(local.poller_feeds, local.reference_feeds, local.context_feeds)
 }
 
 module "athena_results_bucket" {
