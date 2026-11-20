@@ -1137,3 +1137,92 @@ models:
       - name: london_date
         description: London date of the first pass.
         data_tests: [not_null]
+
+  - name: int_board_dropouts
+    description: >
+      Whether a station's boards showed a train that demonstrably passed it
+      (D75, pending): one row per train judged at a station X, from
+      consecutive vehicle-id passes (int_station_vehicle_passes) at the
+      stations either side of X along one of the line's latest routes.
+      Passes A, X, C are `shown`. Passes A then C, with X the only station
+      between them, are `shown` when X's own listings
+      (int_station_arrivals_directed, in the trip's direction from A and C
+      or with none; any direction when A and C disagree) had the train within
+      `vehicle_pass_threshold_seconds` between the two passes, and
+      `dropped` otherwise. `exclusion_reason` leaves out lines not measured
+      (seed_board_dropout_lines), trains whose run from A to C overlaps a
+      collection gap in the line feed (D28), termini, stations a timetabled pattern
+      runs through, stations where a dropout cannot be seen (a branch joins
+      either side), and passes more than `board_dropout_max_span_minutes`
+      apart. A floor on what boards drop: trains missing from two boards in
+      a row, or from every board, are not judged. Rebuilt by window, keyed
+      on the London date of the estimated pass. Not published.
+    columns:
+      - name: board_dropout_key
+        description: Row key, a hash of (line_id, the vehicle_pass_key of the pass at A).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: naptan_id
+        description: Station X whose boards are judged.
+        data_tests: [not_null]
+      - name: previous_naptan_id
+        description: Station A, the train's pass before X.
+        data_tests: [not_null]
+      - name: next_naptan_id
+        description: Station C, the train's pass after X.
+        data_tests: [not_null]
+      - name: vehicle_id
+        description: TfL vehicle id.
+        data_tests: [not_null]
+      - name: direction
+        description: The direction the boards at A and C give; null when they disagree, and then the row matches no long gap.
+      - name: previous_pass_time
+        description: Pass time at A, UTC.
+        data_tests: [not_null]
+      - name: pass_time
+        description: Pass time at X, UTC; null when dropped.
+      - name: next_pass_time
+        description: Pass time at C, UTC.
+        data_tests: [not_null]
+      - name: estimated_pass_time
+        description: Pass time at X, or halfway between A and C when dropped. UTC.
+        data_tests: [not_null]
+      - name: span_seconds
+        description: Seconds from the pass at A to the pass at C.
+        data_tests: [not_null]
+      - name: board_outcome
+        description: "`shown` or `dropped`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [shown, dropped]
+      - name: dropout_kind
+        description: "Null when shown; `never_listed` when X never listed the train between the passes at A and C, `listed_not_arriving` when it listed it but never within the threshold."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [never_listed, listed_not_arriving]
+      - name: exclusion_reason
+        description: Null when judged; otherwise why not, in this order.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [line_not_measured, collection_gap, terminus, dropout_undetectable, timetabled_run_through, span_too_long]
+      - name: is_judged
+        description: True when exclusion_reason is null; only these rows count.
+        data_tests: [not_null]
+      - name: is_dropped
+        description: board_outcome = dropped.
+        data_tests: [not_null]
+      - name: london_date
+        description: London date of estimated_pass_time.
+        data_tests: [not_null]
+      - name: london_hour
+        description: London hour of estimated_pass_time.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London ISO week of estimated_pass_time.
+        data_tests: [not_null]
