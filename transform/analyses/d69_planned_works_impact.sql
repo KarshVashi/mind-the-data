@@ -5,7 +5,10 @@
 -- then run the compiled SQL with scripts/athena_query.py --file.
 -- It reclassifies only each minute's winning entry, so a minute where planned
 -- works beat a smaller unplanned delay is counted as moved in full: an upper
--- bound. A dev rebuild from the branch gives the exact figures.
+-- bound. A dev rebuild from the branch gives the exact figures. The reason
+-- is read sentence by sentence, as int_line_minute_status does: it is
+-- planned works only when some sentence says so and every sentence that
+-- reports a disruption says so too.
 
 with patterns as (
     select
@@ -32,6 +35,39 @@ minutes as (
         and minutes.is_scheduled
 ),
 
+reasons as (
+    select distinct reason_lower
+    from minutes
+    where is_works_code
+),
+
+sentence_signals as (
+    select
+        reasons.reason_lower,
+        sentences.sentence_number,
+        coalesce(bool_or(patterns.signal = 'planned_works'), false) as says_planned_works,
+        coalesce(bool_or(patterns.signal = 'overrun'), false) as says_overrun,
+        coalesce(bool_or(patterns.signal = 'disruption'), false) as says_disruption
+    from reasons
+    -- The same split as int_line_minute_status.
+    cross join
+        unnest(regexp_split(reasons.reason_lower, '[.](?![0-9])'))
+        with ordinality as sentences (sentence_text, sentence_number)
+    left join patterns
+        on regexp_like(sentences.sentence_text, patterns.pattern)
+    group by reasons.reason_lower, sentences.sentence_number
+),
+
+reason_signals as (
+    select
+        reason_lower,
+        bool_or(says_overrun) as says_overrun,
+        bool_or(says_planned_works)
+        and bool_and(says_planned_works or not says_disruption) as says_planned_works
+    from sentence_signals
+    group by reason_lower
+),
+
 signals as (
     select
         minutes.line_minute_key,
@@ -42,22 +78,11 @@ signals as (
         minutes.time_weight,
         minutes.is_works_code,
         minutes.is_planned,
-        minutes.reason_lower,
-        coalesce(bool_or(patterns.signal = 'planned_works'), false) as says_planned_works,
-        coalesce(bool_or(patterns.signal = 'overrun'), false) as says_overrun
+        coalesce(reason_signals.says_planned_works, false) as says_planned_works,
+        coalesce(reason_signals.says_overrun, false) as says_overrun
     from minutes
-    left join patterns
-        on regexp_like(minutes.reason_lower, patterns.pattern)
-    group by
-        minutes.line_minute_key,
-        minutes.line_id,
-        minutes.is_scored,
-        minutes.status_severity,
-        minutes.severity_weight,
-        minutes.time_weight,
-        minutes.is_works_code,
-        minutes.is_planned,
-        minutes.reason_lower
+    left join reason_signals
+        on minutes.reason_lower = reason_signals.reason_lower
 ),
 
 classified as (
