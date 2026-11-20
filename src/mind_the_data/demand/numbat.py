@@ -112,6 +112,8 @@ def _text(cell: Cell) -> str:
 
 
 def _number(cell: Cell) -> float:
+    # NUMBAT leaves a quarter hour with no passengers blank: blank is zero
+    # here. The annual counts mark a station not counted with "---" (_count).
     if cell is None or cell == "":
         return 0.0
     if isinstance(cell, float):
@@ -238,9 +240,20 @@ def hourly(quarter_hours: Sequence[float], hours: Sequence[int]) -> dict[int, fl
 
 
 def _mix(by_file: Mapping[str, Mapping[str, float]], mix: Mapping[str, float]) -> dict[str, float]:
+    """Weighted sum of the files in `mix`, key by key.
+
+    A key (line or link) present in one mixed file but not another would be
+    read as zero there, so that is an error, not a quiet average.
+    """
     keys: set[str] = set()
     for file_type in mix:
         keys |= set(by_file.get(file_type, {}))
+    for file_type in mix:
+        missing = keys - set(by_file.get(file_type, {}))
+        if missing and len(mix) > 1:
+            raise DemandFileError(
+                f"{file_type} lacks {sorted(missing)[:3]}, which other files have"
+            )
     return {
         key: sum(
             weight * by_file.get(file_type, {}).get(key, 0.0) for file_type, weight in mix.items()
@@ -279,6 +292,8 @@ def line_demand_rows(inputs: Mapping[str, DayTypeInput]) -> list[dict[str, str]]
     for file_type, item in inputs.items():
         per_line_hour: dict[str, float] = {}
         for boarded in item.boarders:
+            if any(key.startswith(f"{boarded.numbat_line}|") for key in per_line_hour):
+                raise DemandFileError(f"{file_type}: {boarded.numbat_line} is listed twice")
             for hour, value in hourly(boarded.quarter_hours, item.hours).items():
                 per_line_hour[f"{boarded.numbat_line}|{hour}"] = value
         boarders[file_type] = per_line_hour
@@ -387,6 +402,8 @@ def parse_station_counts(rows: Sequence[Sequence[Cell]]) -> list[StationCount]:
         "saturday": (column("Saturday", "Entry"), column("Saturday", "Exit")),
         "sunday": (column("Sunday", "Entry"), column("Sunday", "Exit")),
     }
+    if "Annualised" not in days:
+        raise DemandFileError("annual counts have no Annualised column")
     annual = days.index("Annualised")
     counts = []
     for row in rows[start + 2 :]:
@@ -415,6 +432,37 @@ def parse_station_counts(rows: Sequence[Sequence[Cell]]) -> list[StationCount]:
     return counts
 
 
+def _add(first: float | None, second: float | None) -> float | None:
+    return None if first is None or second is None else first + second
+
+
+def merge_split_stations(counts: Iterable[StationCount]) -> list[StationCount]:
+    """One row per (mode, MNLC): rows TfL splits for one station are added.
+
+    AC2025 lists Shenfield (EZL) twice, each row carrying most of the
+    passengers on different days, so the station is their sum. A null in
+    either row stays null.
+    """
+    merged: dict[tuple[str, str], StationCount] = {}
+    for count in counts:
+        key = (count.mode, count.mnlc)
+        seen = merged.get(key)
+        if seen is None:
+            merged[key] = count
+            continue
+        merged[key] = StationCount(
+            mode=seen.mode,
+            mnlc=seen.mnlc,
+            masc=seen.masc,
+            station=seen.station,
+            weekday_entries_exits=_add(seen.weekday_entries_exits, count.weekday_entries_exits),
+            saturday_entries_exits=_add(seen.saturday_entries_exits, count.saturday_entries_exits),
+            sunday_entries_exits=_add(seen.sunday_entries_exits, count.sunday_entries_exits),
+            annual_entries_exits=_add(seen.annual_entries_exits, count.annual_entries_exits),
+        )
+    return list(merged.values())
+
+
 def station_demand_rows(counts: Iterable[StationCount]) -> list[dict[str, str]]:
     """seed_station_demand: typical daily entries plus exits per station."""
     return [
@@ -428,5 +476,5 @@ def station_demand_rows(counts: Iterable[StationCount]) -> list[dict[str, str]]:
             "sunday_entries_exits": _whole(count.sunday_entries_exits),
             "annual_entries_exits": _whole(count.annual_entries_exits),
         }
-        for count in sorted(counts, key=lambda c: (c.mode, c.station, c.mnlc))
+        for count in sorted(merge_split_stations(counts), key=lambda c: (c.mode, c.station, c.mnlc))
     ]

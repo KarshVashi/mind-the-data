@@ -4,7 +4,7 @@
     uv run python scripts/analysis/critical_links.py --status-csv w46_spells.csv
 
 Typical load per link comes from seed_link_demand (NUMBAT 2025). The week's
-disrupted minutes come from int_line_minute_status in the dev database
+disrupted minutes come from rpt_line_disrupted_spells in the dev database
 (read-only), or from a CSV of the same columns (`--status-csv`), and are
 matched to links through TfL's reason text. The method and its limits are
 in src/mind_the_data/demand/network.py and docs/methodology.md. Prints
@@ -34,26 +34,14 @@ from mind_the_data.demand.network import (
 ROOT = Path(__file__).resolve().parents[2]
 SEEDS = ROOT / "transform" / "seeds"
 
+# The service day (NUMBAT's 05:00 to 04:59 traffic day) is worked out in
+# dbt, in rpt_line_disrupted_spells, so no London-time logic lives here.
 SPELLS_SQL = """
-select
-    minutes.line_id,
-    minutes.status_severity_description as status,
-    minutes.reason,
-    minutes.severity_weight,
-    day_types.day_type as service_day_type,
-    hour(minutes.london_ts) as hour_of_day,
-    count(*) as minutes
-from int_line_minute_status as minutes
-inner join day_types
-    on day_of_week(
-        if(hour(minutes.london_ts) < 5, date_add('day', -1, minutes.london_date), minutes.london_date)
-    ) = day_types.iso_day_of_week
-where
-    minutes.week_start = date '{week}'
-    and minutes.is_scored
-    and minutes.severity_weight > 0
-group by 1, 2, 3, 4, 5, 6
+select line_id, status, reason, severity_weight, service_day_type, hour_of_day, minutes
+from rpt_line_disrupted_spells
+where week_start = date '{week}'
 """
+MAX_ROWS = 50_000
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -86,8 +74,10 @@ def spells_from_athena(week: date) -> list[StatusSpell]:
         SPELLS_SQL.format(week=week.isoformat()),
         workgroup=os.environ.get("DBT_ATHENA_WORKGROUP_DEV", "mind-the-data-dev"),
         database=os.environ.get("DBT_ATHENA_SCHEMA_DEV", "mind_the_data_dev"),
-        max_rows=50_000,
+        max_rows=MAX_ROWS,
     )
+    if len(result.rows) >= MAX_ROWS:
+        raise SystemExit(f"{MAX_ROWS} rows returned: the spells may be cut short")
     rows = [dict(zip(result.columns, row, strict=True)) for row in result.rows]
     return spells_from_rows(rows)
 
@@ -139,8 +129,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"## {title}\n")
         print(
             "| # | Line | Link | Weekday load | AM peak | Without it | "
-            f"Disrupted min, week of {args.week} | of which suspended | "
-            "Severity x passengers (k) | Unplaced min |"
+            f"Disrupted min, week of {args.week} | of which weight 5+ | "
+            "Severity x passengers (k) | Line min unplaced |"
         )
         print("|---|---|---|---:|---:|---|---:|---:|---:|---:|")
         for position, link in enumerate(chosen, start=1):

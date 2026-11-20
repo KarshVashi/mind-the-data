@@ -7,8 +7,10 @@ from mind_the_data.demand.numbat import (
     DemandFileError,
     LineBoarders,
     LinkLoad,
+    StationCount,
     line_demand_rows,
     link_demand_rows,
+    merge_split_stations,
     parse_line_boarders,
     parse_link_loads,
     parse_station_counts,
@@ -162,3 +164,28 @@ def test_station_counts_keep_an_uncounted_station_null() -> None:
     assert counted["weekday_entries_exits"] == "210"
     assert counted["saturday_entries_exits"] == "61"
     assert counted["annual_entries_exits"] == "50000"
+
+
+def test_a_line_listed_twice_is_an_error() -> None:
+    twice = day_input(boarders=8, link_load=4)
+    doubled = DayTypeInput(links=twice.links, boarders=twice.boarders * 2, hours=HOURS)
+    inputs = {day: day_input(boarders=8, link_load=4) for day in ("MON", "FRI", "SAT", "SUN")}
+    with pytest.raises(DemandFileError, match="listed twice"):
+        line_demand_rows({**inputs, "TWT": doubled})
+
+
+def test_a_line_missing_from_one_mixed_file_is_an_error() -> None:
+    inputs = {day: day_input(boarders=8, link_load=4) for day in ("TWT", "FRI", "SAT", "SUN")}
+    inputs["MON"] = day_input(boarders=8, link_load=4, line="Central")
+    with pytest.raises(DemandFileError, match="which other files have"):
+        line_demand_rows(inputs)
+
+
+def test_a_station_split_over_two_rows_is_added() -> None:
+    first = StationCount("EZL", "6888", "SNFr", "Shenfield", 32353.0, 20397.0, 51.0, 7084754.0)
+    second = StationCount("EZL", "6888", "SNFr", "Shenfield", 97.0, 210.0, None, 1944713.0)
+    (merged,) = merge_split_stations([first, second])
+    assert merged.weekday_entries_exits == 32450
+    assert merged.saturday_entries_exits == 20607
+    assert merged.sunday_entries_exits is None
+    assert merged.annual_entries_exits == 9029467

@@ -1087,7 +1087,8 @@ models:
       - name: unranked_reason
         description: >
           Null when ranked; otherwise the declared league's reason (D22),
-          `not_in_declared_league`, `no_demand_data` or `no_scored_demand`.
+          `not_in_declared_league`, `no_demand_data`, `incomplete_demand` (some
+          scheduled minutes have no demand row) or `no_scored_demand`.
       - name: passenger_index_rank
         description: Rank by passenger_disruption_index, lowest first; ties share a rank.
       - name: passenger_impact_rank
@@ -1095,6 +1096,44 @@ models:
       - name: link_load_impact_rank
         description: Rank by link_load_disruption_minutes, fewest first.
       - name: index_rank_shift
-        description: passenger_index_rank minus disruption_rank; positive means the line falls.
+        description: passenger_index_rank minus declared_rank_among_ranked; positive means the line falls.
       - name: impact_rank_shift
-        description: passenger_impact_rank minus disruption_rank; positive means the line falls.
+        description: passenger_impact_rank minus declared_rank_among_ranked; positive means the line falls.
+      - name: declared_rank_among_ranked
+        description: >
+          The declared rank re-taken among the lines this model ranks (lowest
+          Disruption Index, then highest Good Service %), so the shifts
+          compare like with like when the tram or another line is left out.
+      - name: good_service_pct
+        description: The declared Good Service %, the rank's tie-break.
+
+  - name: rpt_line_disrupted_spells
+    description: >
+      Exploratory (D78, ADR-020; not built in prod, not published).
+      Disrupted scored minutes counted per line, London week, status,
+      reason, NUMBAT service day type (a minute before 05:00 London time
+      takes the previous day's) and London hour. Read by
+      scripts/analysis/critical_links.py.
+    columns:
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: status
+        description: TfL's status description for the minute's worst status.
+      - name: reason
+        description: TfL's reason text, null when TfL gives none.
+      - name: severity_weight
+        description: The minute's severity weight, above 0.
+        data_tests: [not_null]
+      - name: service_day_type
+        description: Day type of the NUMBAT traffic day the minute belongs to.
+        data_tests: [not_null]
+      - name: hour_of_day
+        description: London clock hour, 0 to 23.
+        data_tests: [not_null]
+      - name: minutes
+        description: Disrupted minutes in the group.
+        data_tests: [not_null]

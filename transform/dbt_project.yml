@@ -229,8 +229,10 @@ seeds:
         weight: double
     # Typical demand from TfL's NUMBAT and annual counts (ADR-020), written
     # by scripts/fetch_demand_data.py. Exploratory (D78): nothing published
-    # reads them.
+    # reads them, and they are not loaded in prod until D78 is answered.
     seed_line_demand:
+      +enabled: "{{ target.name != 'prod' }}"
+      +tags: [exploratory]
       +column_types:
         numbat_line: varchar
         service_day_type: varchar
@@ -238,12 +240,16 @@ seeds:
         boarders: double
         link_load_sum: double
     seed_demand_line_map:
+      +enabled: "{{ target.name != 'prod' }}"
+      +tags: [exploratory]
       +column_types:
         numbat_line: varchar
         line_id: varchar
         demand_share: double
         note: varchar
     seed_link_demand:
+      +enabled: "{{ target.name != 'prod' }}"
+      +tags: [exploratory]
       +column_types:
         link_id: varchar
         numbat_line: varchar
@@ -259,6 +265,8 @@ seeds:
         sun_load: double
         am_peak_load: double
     seed_station_demand:
+      +enabled: "{{ target.name != 'prod' }}"
+      +tags: [exploratory]
       +column_types:
         mode: varchar
         mnlc: varchar

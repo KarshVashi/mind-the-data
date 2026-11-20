@@ -42,7 +42,7 @@ The workbooks carry "(C) Copyright Transport for London 2026". TfL's open data p
 
    A hand-written `seed_demand_line_map` maps NUMBAT's line names to TfL ids. `scripts/fetch_demand_data.py --check` shows whether the seeds match the pinned files.
 3. **Day types.** NUMBAT's traffic day runs 05:00 to 04:59, so hours 0 to 4 belong to the previous calendar day (`service_day_type`). The project's `mon_thu` is NUMBAT's Monday and Tuesday-to-Thursday days mixed 1:3.
-4. **No new live collection** and no new infrastructure: the seeds load with the rest in `dbt build`. The exploratory model that reads them (`rpt_line_weekly_passenger_weighted`, D78) is disabled in the prod target and tagged `exploratory`. The critical-links analysis is a script that reads dev (`scripts/analysis/critical_links.py`).
+4. **No new live collection** and no new infrastructure. The seeds, their consistency test and the exploratory models that read them (`rpt_line_weekly_passenger_weighted`, `rpt_line_disrupted_spells`, D78) are disabled in the prod target and tagged `exploratory`, so nothing lands in prod and a failing exploratory check cannot turn the daily build red until D78 is answered. The critical-links analysis is a script that reads dev (`scripts/analysis/critical_links.py`).
 5. **Refresh yearly.** TfL publishes each autumn's NUMBAT and annual counts in the following August to November (2025's in August 2026, 2024's NUMBAT in November 2025). Then move the pins, rerun the script and review the seed diff (runbook, "Demand data").
 
 ## Consequences

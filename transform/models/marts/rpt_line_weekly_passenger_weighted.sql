@@ -94,6 +94,7 @@ declared as (
         line_id,
         week_start,
         disruption_index,
+        good_service_pct,
         disruption_rank,
         is_ranked,
         unranked_reason,
@@ -107,6 +108,7 @@ scored as (
     select
         weekly.*,
         declared.disruption_index,
+        declared.good_service_pct,
         declared.disruption_rank,
         declared.is_provisional,
         declared.is_week_complete,
@@ -131,6 +133,9 @@ scored as (
             when declared.line_id is null then 'not_in_declared_league'
             when not declared.is_ranked then declared.unranked_reason
             when coalesce(weekly.scheduled_boarders, 0) = 0 then 'no_demand_data'
+            -- Some scheduled minutes have no demand row (a day type NUMBAT
+            -- does not cover): they would drop out of both halves unseen.
+            when weekly.minutes_without_demand > 0 then 'incomplete_demand'
             when coalesce(weekly.scored_boarders, 0) = 0 then 'no_scored_demand'
         end as unranked_reason
     from weekly
@@ -144,6 +149,16 @@ ranked as (
     select
         *,
         unranked_reason is null as is_ranked,
+        -- The declared rank re-taken among the lines ranked here (same
+        -- order and tie-break as fct_line_weekly), so a line left out here,
+        -- such as the tram, does not shift every line below it.
+        if(
+            unranked_reason is null,
+            rank() over (
+                partition by week_start, unranked_reason is null
+                order by disruption_index asc nulls last, good_service_pct desc nulls last
+            )
+        ) as declared_rank_among_ranked,
         -- Each line as its typical passenger saw it: lowest index first.
         if(
             unranked_reason is null,
@@ -189,6 +204,7 @@ select
     is_week_complete,
     disruption_index,
     disruption_rank,
+    declared_rank_among_ranked,
     passenger_disruption_index,
     link_load_disruption_index,
     is_ranked,
@@ -197,7 +213,7 @@ select
     passenger_impact_rank,
     link_load_impact_rank,
     date_add('day', 6, week_start) as week_end,
-    passenger_index_rank - disruption_rank as index_rank_shift,
-    passenger_impact_rank - disruption_rank as impact_rank_shift,
+    passenger_index_rank - declared_rank_among_ranked as index_rank_shift,
+    passenger_impact_rank - declared_rank_among_ranked as impact_rank_shift,
     {{ row_key(['line_id', 'week_start']) }} as line_weekly_key
 from ranked
