@@ -1,0 +1,66 @@
+version: 2
+
+unit_tests:
+  - name: int_status_causes_names_the_cause_tfl_gives_first
+    description: >
+      D74, with TfL's own wordings (W46). A scored minute that is not Good
+      Service gets the cause whose words start earliest in the text, lower
+      case and whitespace folded; the priority number matters only for a tie
+      and never beats an earlier match. Train cancellations has priority 1,
+      yet loses to "a signal failure" (2) and to "an earlier faulty train"
+      (4) when TfL names those first, and wins when named first itself.
+      Points failures on a Part Suspended minute count as suspended, and a
+      fire on a Suspended one too. A reduced-service notice and faulty
+      platform screen doors get their own causes. Texts with no cause words
+      fall to "No cause given": an "earlier fault" names no cause, a station
+      called Battersea Power Station is not a power fault, "bonfire" is not
+      "fire", and a missing reason names none. Upper case and doubled spaces
+      do not matter. Left out: Good Service, a missing minute, and a minute
+      under engineering works (not scored). The patterns are copied from the
+      seed; a pytest compares them, and the singular test checks the loaded
+      seed.
+    model: int_status_causes
+    given:
+      - input: ref('disruption_cause_patterns')
+        rows:
+          - {cause: Train cancellations, pattern: '(^|[^a-z])(train cancell?ations?|cancell?ations?)([^a-z]|$)', priority: 1}
+          - {cause: Signal failures, pattern: '(^|[^a-z])signal(l?ing)? (system )?(failure|fault|problem)s?([^a-z]|$)', priority: 2}
+          - {cause: Points failures, pattern: '(^|[^a-z])points? (failure|fault)s?([^a-z]|$)', priority: 3}
+          - {cause: Faulty trains, pattern: '(^|[^a-z])(faulty train|defective train|train fault|broken.down train)s?([^a-z]|$)', priority: 4}
+          - {cause: Fire alerts and fires, pattern: '(^|[^a-z])fire', priority: 9}
+          - {cause: Power and electrical faults, pattern: '(^|[^a-z])(electrical|power supply|power lines?|overhead (line|wire)|traction current)', priority: 10}
+          - {cause: Planned service changes, pattern: '(^|[^a-z])(service (will operate|operates)|will not run|will terminate)', priority: 15}
+          - {cause: Platform screen door faults, pattern: '(^|[^a-z])platform screen doors?', priority: 16}
+      - input: ref('int_line_minute_status')
+        rows:
+          - {line_id: central, minute_utc: "2026-11-10 08:00:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k01, is_scored: true, status_severity: 9, status_severity_description: Minor Delays, is_planned: false, severity_weight: 1, reason: "Central Line: Minor delays due to train cancellations."}
+          - {line_id: suffragette, minute_utc: "2026-11-10 08:01:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k02, is_scored: true, status_severity: 3, status_severity_description: Part Suspended, is_planned: false, severity_weight: 5, reason: "Suffragette Line: No service between Barking and Barking Riverside while we fix a points failure at Barking. GOOD SERVICE on the rest of the line."}
+          - {line_id: district, minute_utc: "2026-11-10 08:02:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k03, is_scored: true, status_severity: 6, status_severity_description: Severe Delays, is_planned: false, severity_weight: 3, reason: "District Line: Severe delays while we fix a signal failure at Stamford Brook and due to train cancellations. Tickets are being accepted London Buses."}
+          - {line_id: district, minute_utc: "2026-11-10 08:03:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k04, is_scored: true, status_severity: 9, status_severity_description: Minor Delays, is_planned: false, severity_weight: 1, reason: "District Line: Minor delays due to an earlier faulty train at Richmond and train cancellations."}
+          - {line_id: metropolitan, minute_utc: "2026-11-10 08:04:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k05, is_scored: true, status_severity: 9, status_severity_description: Minor Delays, is_planned: false, severity_weight: 1, reason: "Metropolitan Line: Minor delays between Moor Park and Chesham due to train cancellations. The next southbound train will be at 06:56. Minor Delays Moor park to Watford while we fix a signal failure at Watford."}
+          - {line_id: suffragette, minute_utc: "2026-11-15 13:30:00", london_date: "2026-11-15", week_start: "2026-11-09", dt: "2026-11-15", line_minute_key: k06, is_scored: true, status_severity: 7, status_severity_description: Reduced Service, is_planned: true, severity_weight: 1.5, reason: "SUFFRAGETTE LINE: Sunday 15 November, between 1315 and 1445, a reduced service will operate between Gospel Oak and Woodgrange Park."}
+          - {line_id: elizabeth, minute_utc: "2026-11-10 08:06:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k07, is_scored: true, status_severity: 9, status_severity_description: Minor Delays, is_planned: false, severity_weight: 1, reason: "Minor delays between Paddington and Abbey Wood while we fix faulty platform screen doors. GOOD SERVICE on the rest of the line."}
+          - {line_id: bakerloo, minute_utc: "2026-11-10 08:07:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k08, is_scored: true, status_severity: 9, status_severity_description: Minor Delays, is_planned: false, severity_weight: 1, reason: "Bakerloo Line: Minor delays between Queen's park and Harrow & Wealdstone due to an earlier fault at South Kenton."}
+          - {line_id: northern, minute_utc: "2026-11-10 08:08:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k09, is_scored: true, status_severity: 9, status_severity_description: Minor Delays, is_planned: false, severity_weight: 1, reason: "Northern Line: Minor delays between Battersea Power Station and Kennington."}
+          - {line_id: victoria, minute_utc: "2026-11-10 08:09:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k10, is_scored: true, status_severity: 6, status_severity_description: Severe Delays, is_planned: false, severity_weight: 3, reason: "VICTORIA  LINE:  SEVERE DELAYS due to a   POINTS  FAILURE at Brixton."}
+          - {line_id: jubilee, minute_utc: "2026-11-10 08:10:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k11, is_scored: true, status_severity: 9, status_severity_description: Minor Delays, is_planned: false, severity_weight: 1, reason: "Jubilee Line: Minor delays due to smoke from a bonfire."}
+          - {line_id: waterloo-city, minute_utc: "2026-11-10 08:11:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k12, is_scored: true, status_severity: 9, status_severity_description: Minor Delays, is_planned: false, severity_weight: 1, reason: null}
+          - {line_id: central, minute_utc: "2026-11-10 08:12:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k13, is_scored: true, status_severity: 2, status_severity_description: Suspended, is_planned: false, severity_weight: 8, reason: "Central Line: No service while emergency services deal with a fire near the track at Hanger Lane."}
+          - {line_id: central, minute_utc: "2026-11-10 08:13:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k14, is_scored: true, status_severity: 10, status_severity_description: Good Service, is_planned: false, severity_weight: 0, reason: "Central Line: Good service due to train cancellations earlier."}
+          - {line_id: central, minute_utc: "2026-11-10 08:14:00", london_date: "2026-11-10", week_start: "2026-11-09", dt: "2026-11-10", line_minute_key: k15, is_scored: false, status_severity: null, status_severity_description: null, is_planned: null, severity_weight: null, reason: null}
+          - {line_id: northern, minute_utc: "2026-11-14 02:00:00", london_date: "2026-11-14", week_start: "2026-11-09", dt: "2026-11-14", line_minute_key: k16, is_scored: false, status_severity: 3, status_severity_description: Part Suspended, is_planned: true, severity_weight: 5, reason: "Northern Line: No service between Morden and Charing cross due to planned engineering works."}
+    expect:
+      rows:
+        - {line_minute_key: k01, cause: Train cancellations, is_cause_named: true, is_suspended: false, severity_weight: 1}
+        - {line_minute_key: k02, cause: Points failures, is_cause_named: true, is_suspended: true, severity_weight: 5}
+        - {line_minute_key: k03, cause: Signal failures, is_cause_named: true, is_suspended: false, severity_weight: 3}
+        - {line_minute_key: k04, cause: Faulty trains, is_cause_named: true, is_suspended: false, severity_weight: 1}
+        - {line_minute_key: k05, cause: Train cancellations, is_cause_named: true, is_suspended: false, severity_weight: 1}
+        - {line_minute_key: k06, cause: Planned service changes, is_cause_named: true, is_suspended: false, severity_weight: 1.5}
+        - {line_minute_key: k07, cause: Platform screen door faults, is_cause_named: true, is_suspended: false, severity_weight: 1}
+        - {line_minute_key: k08, cause: No cause given, is_cause_named: false, is_suspended: false, severity_weight: 1}
+        - {line_minute_key: k09, cause: No cause given, is_cause_named: false, is_suspended: false, severity_weight: 1}
+        - {line_minute_key: k10, cause: Points failures, is_cause_named: true, is_suspended: false, severity_weight: 3}
+        - {line_minute_key: k11, cause: No cause given, is_cause_named: false, is_suspended: false, severity_weight: 1}
+        - {line_minute_key: k12, cause: No cause given, is_cause_named: false, is_suspended: false, severity_weight: 1}
+        - {line_minute_key: k13, cause: Fire alerts and fires, is_cause_named: true, is_suspended: true, severity_weight: 8}

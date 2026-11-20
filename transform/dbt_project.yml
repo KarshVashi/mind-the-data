@@ -178,6 +178,11 @@ seeds:
       +column_types:
         schedule_name: varchar
         reason: varchar
+    disruption_cause_patterns:
+      +column_types:
+        cause: varchar
+        pattern: varchar
+        priority: integer
     seed_measurement_stations:
       +column_types:
         line_id: varchar

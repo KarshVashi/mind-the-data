@@ -1,0 +1,57 @@
+version: 2
+
+models:
+  - name: int_status_causes
+    description: >
+      The cause TfL names in the status text of each disrupted minute (D74):
+      one row per line-minute that is scored and not Good Service, with the
+      status int_line_minute_status chose (ADR-004). The cause is the one
+      whose words start earliest in the lower-cased reason (seed
+      disruption_cause_patterns; priority breaks a tie), or "No cause given".
+      It is the cause as TfL names it, not the root cause. Missing,
+      engineering-works and Service Closed minutes are not here.
+    columns:
+      - name: line_minute_key
+        description: Row key of the line-minute, as in int_line_minute_status.
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_lines')
+                field: line_id
+      - name: minute_utc
+        description: Start of the minute, UTC.
+        data_tests: [not_null]
+      - name: london_date
+        description: London calendar date of the minute.
+      - name: week_start
+        description: Monday of the minute's ISO week, London time.
+        data_tests: [not_null]
+      - name: status_severity
+        description: TfL severity code of the chosen status; never 10 (Good Service).
+        data_tests: [not_null]
+      - name: status_severity_description
+        description: TfL's description of the status.
+      - name: is_planned
+        description: Whether TfL marked the status planned.
+      - name: severity_weight
+        description: Weight of the status (PLAN 7.1).
+        data_tests: [not_null]
+      - name: is_suspended
+        description: Status is Suspended (2) or Part Suspended (3).
+        data_tests: [not_null]
+      - name: reason
+        description: TfL's status text as sent.
+      - name: cause
+        description: >
+          Cause named first in the text, or "No cause given" (also for an
+          empty or missing text).
+        data_tests: [not_null]
+      - name: is_cause_named
+        description: False for "No cause given".
+        data_tests: [not_null]
+      - name: dt
+        description: UTC date of the minute.
