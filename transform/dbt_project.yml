@@ -111,7 +111,8 @@ vars:
   # Countdown accuracy (D71, pending): the countdowns scored, in minutes. A
   # prediction is in a horizon's bucket when its countdown at the poll is
   # within the half-width of it, lower edge in, upper edge out. Predictions
-  # are matched to an arrival only within the lookback before it, and a
+  # are matched to an arrival only if polled at most the horizon plus the
+  # lookback before it (so up to that lookback late), and a
   # line-week-horizon is shown only with at least the minimum of matched
   # predictions.
   prediction_accuracy_horizons: [2, 5, 10]

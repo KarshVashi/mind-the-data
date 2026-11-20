@@ -1,5 +1,6 @@
 {{
     config(
+        tags=['exploratory'],
         materialized='table',
     )
 }}

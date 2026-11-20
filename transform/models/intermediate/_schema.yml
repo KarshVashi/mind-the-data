@@ -924,8 +924,9 @@ models:
       left out (D66). Matched to the same vehicle id's prediction on the same
       board (request, stop, line, platform and direction) whose countdown at
       the poll was nearest the horizon, within half a minute either side
-      (lower edge in, upper edge out), polled within
-      `prediction_accuracy_lookback_minutes` of the arrival and before the
+      (lower edge in, upper edge out), polled no earlier than the horizon
+      plus `prediction_accuracy_lookback_minutes` before the arrival, after
+      the same train's previous arrival on the board, and before the
       sighting that sets the arrival time. The arrival time is TfL's own last
       prediction (PLAN 7.2), so the error is how far the countdown drifts
       before the end, not accuracy against an independent clock. Arrivals

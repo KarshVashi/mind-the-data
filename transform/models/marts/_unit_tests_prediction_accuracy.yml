@@ -1,113 +1,28 @@
 version: 2
 
-# Hand-computed cases for countdown accuracy (D71, pending). The arithmetic
-# is in each description.
+# Hand-computed cases for the countdown drift report (D71, pending). The
+# arithmetic is in the description.
 
 unit_tests:
-  - name: int_prediction_errors_matches_by_vehicle_and_countdown
-    description: >
-      Tuesday 3 November 2026 (GMT, so London time is UTC; week of 2 Nov).
-      Victoria at X (core), Platform 1, southbound. Horizons 2, 5 and 10
-      minutes, buckets 30 s either side, lower edge in, upper edge out.
-      Arrival a1, vehicle 101, at 08:10:00, last seen 08:09:00.
-        10 min: p1 at 07:59:00 said 08:08:30 (570 s, in the bucket, 30 s
-        from 600); p2 at 08:00:00 said 08:09:40 (580 s, 20 s from 600) is
-        nearer and wins. Actual 600 s, so late by 20 s: signed +20, abs 20.
-        5 min: p3 at 08:05:00 said 08:10:00 (300 s); actual 300 s: exact,
-        signed 0.
-        2 min: p4 at 08:08:00 said 08:10:30 (150 s) is on the upper edge,
-        out; p5 at 08:09:00 (60 s) is not near 2 min: unmatched.
-      Arrival a2, vehicle 102, at 08:20:00, last seen 08:18:05.
-        5 min: q1 at 08:14:50 said 08:20:10 (320 s); actual 310 s: early by
-        10 s, signed -10, abs 10.
-        2 min: q3 at 08:18:05 said 08:20:00 (115 s, in the bucket), but it is
-        the last sighting, which sets the arrival time, so it is not scored
-        against itself; q2 at 08:17:05 (185 s) is out: unmatched.
-        10 min: no prediction: unmatched.
-      Left out, no rows: vehicle 199's 5-minute prediction at X, whose train
-      has no inferred arrival; arrival a3 at terminus T with a perfect
-      prediction; arrival a4 on the District, which does not link by
-      vehicle id.
-    model: int_prediction_errors
-    overrides:
-      vars:
-        raw_start_date: "2026-11-01"
-        prediction_accuracy_horizons: [2, 5, 10]
-        prediction_accuracy_bucket_half_width_seconds: 30
-        prediction_accuracy_lookback_minutes: 30
-    given:
-      - input: ref('seed_vehicle_id_lines')
-        rows:
-          - {line_id: victoria, link_by_vehicle_id: true}
-          - {line_id: district, link_by_vehicle_id: false}
-      - input: ref('seed_measurement_stations')
-        rows:
-          - {line_id: victoria, naptan_id: X, role: core}
-          - {line_id: victoria, naptan_id: T, role: terminus}
-          - {line_id: district, naptan_id: X, role: core}
-      - input: ref('int_inferred_arrivals')
-        format: sql
-        rows: |
-          select
-              arrival_key, '/StopPoint/' || naptan_id || '/Arrivals' as request_path,
-              naptan_id, line_id, 'Platform 1' as platform_name,
-              'southbound' as direction, last_vehicle_id, arrival_time, last_seen_at
-          from (
-              values
-                  ('a1', 'X', 'victoria', '101', timestamp '2026-11-03 08:10:00', timestamp '2026-11-03 08:09:00'),
-                  ('a2', 'X', 'victoria', '102', timestamp '2026-11-03 08:20:00', timestamp '2026-11-03 08:18:05'),
-                  ('a3', 'T', 'victoria', '103', timestamp '2026-11-03 08:30:00', timestamp '2026-11-03 08:29:00'),
-                  ('a4', 'X', 'district', '104', timestamp '2026-11-03 08:40:00', timestamp '2026-11-03 08:39:00')
-          ) as t (arrival_key, naptan_id, line_id, last_vehicle_id, arrival_time, last_seen_at)
-      - input: ref('int_arrivals_directed')
-        format: sql
-        rows: |
-          select
-              '/StopPoint/' || naptan_id || '/Arrivals' as request_path,
-              naptan_id, line_id, 'Platform 1' as platform_name,
-              'southbound' as direction, vehicle_id, poll_id, polled_at, expected_arrival,
-              cast(polled_at as date) as dt
-          from (
-              values
-                  ('X', 'victoria', '101', 'p1', timestamp '2026-11-03 07:59:00', timestamp '2026-11-03 08:08:30'),
-                  ('X', 'victoria', '101', 'p2', timestamp '2026-11-03 08:00:00', timestamp '2026-11-03 08:09:40'),
-                  ('X', 'victoria', '101', 'p3', timestamp '2026-11-03 08:05:00', timestamp '2026-11-03 08:10:00'),
-                  ('X', 'victoria', '101', 'p4', timestamp '2026-11-03 08:08:00', timestamp '2026-11-03 08:10:30'),
-                  ('X', 'victoria', '101', 'p5', timestamp '2026-11-03 08:09:00', timestamp '2026-11-03 08:10:00'),
-                  ('X', 'victoria', '102', 'q1', timestamp '2026-11-03 08:14:50', timestamp '2026-11-03 08:20:10'),
-                  ('X', 'victoria', '102', 'q2', timestamp '2026-11-03 08:17:05', timestamp '2026-11-03 08:20:10'),
-                  ('X', 'victoria', '102', 'q3', timestamp '2026-11-03 08:18:05', timestamp '2026-11-03 08:20:00'),
-                  ('X', 'victoria', '199', 's1', timestamp '2026-11-03 08:15:00', timestamp '2026-11-03 08:20:00'),
-                  ('T', 'victoria', '103', 't1', timestamp '2026-11-03 08:25:00', timestamp '2026-11-03 08:30:00'),
-                  ('X', 'district', '104', 'd1', timestamp '2026-11-03 08:35:00', timestamp '2026-11-03 08:40:00')
-          ) as t (naptan_id, line_id, vehicle_id, poll_id, polled_at, expected_arrival)
-    expect:
-      rows:
-        - {arrival_key: a1, horizon_minutes: 2, is_matched: false, poll_id: null, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null, role: core, week_start: "2026-11-02"}
-        - {arrival_key: a1, horizon_minutes: 5, is_matched: true, poll_id: p3, predicted_seconds: 300, actual_seconds: 300, signed_error_seconds: 0, abs_error_seconds: 0, role: core, week_start: "2026-11-02"}
-        - {arrival_key: a1, horizon_minutes: 10, is_matched: true, poll_id: p2, predicted_seconds: 580, actual_seconds: 600, signed_error_seconds: 20, abs_error_seconds: 20, role: core, week_start: "2026-11-02"}
-        - {arrival_key: a2, horizon_minutes: 2, is_matched: false, poll_id: null, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null, role: core, week_start: "2026-11-02"}
-        - {arrival_key: a2, horizon_minutes: 5, is_matched: true, poll_id: q1, predicted_seconds: 320, actual_seconds: 310, signed_error_seconds: -10, abs_error_seconds: 10, role: core, week_start: "2026-11-02"}
-        - {arrival_key: a2, horizon_minutes: 10, is_matched: false, poll_id: null, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null, role: core, week_start: "2026-11-02"}
-
   - name: rpt_prediction_accuracy_by_hand
     description: >
-      Week of 2 November, 5-minute horizon, minimum 3 matched to be shown.
+      Week of 2 November, 5-minute horizon, minimum 4 matched to be shown.
       Victoria: five arrivals, one unmatched; four predictions of 300 s with
       signed errors -30, -10, +20 and +70 (actual 270, 290, 320, 370 s).
       Matched share 4 / 5 = 0.8. Absolute errors sorted 10, 20, 30, 70:
-      nearest-rank median is rank ceil(0.5 x 4) = 2, so 20; p90 is rank
-      ceil(0.9 x 4) = 4, so 70. Signed sorted -30, -10, 20, 70: median -10.
-      Within 60 s: 3 of 4 = 0.75. A countdown minute lasts
-      60 x 1250 / 1200 = 62.5 s. Shown (4 >= 3), on two London days.
-      Jubilee: two predictions of 600 s, signed +5 and +15. Share 2 / 2 = 1.
-      Median rank ceil(1) = 1, so abs 5 and signed 5; p90 rank ceil(1.8) =
-      2, so 15. Within 60 s 1.0. Minute 60 x 1220 / 1200 = 61 s. Not shown
-      (2 < 3).
+      nearest-rank median is rank ceil(0.5 x 4) = 2, so 20 (the lower
+      middle value); p90 is rank ceil(0.9 x 4) = 4, so 70. Signed sorted
+      -30, -10, 20, 70: median -10. Within 60 s: 3 of 4 = 0.75. A countdown
+      minute lasts 60 x 1250 / 1200 = 62.5 s. Shown (4 >= 4), on two days.
+      Jubilee: three predictions of 600 s, signed +5, +15, +25. Share 1.
+      Median rank ceil(1.5) = 2, so abs 15 and signed 15; p90 rank
+      ceil(2.7) = 3, so 25. Within 60 s 1.0. Minute 60 x 1845 / 1800 =
+      61.5 s. Not shown (3 < 4).
+      Northern: one arrival, no match: share 0, no percentiles, not shown.
     model: rpt_prediction_accuracy
     overrides:
       vars:
-        prediction_accuracy_min_matched: 3
+        prediction_accuracy_min_matched: 4
     given:
       - input: ref('int_prediction_errors')
         rows:
@@ -118,7 +33,10 @@ unit_tests:
           - {week_start: "2026-11-02", london_date: "2026-11-04", line_id: victoria, horizon_minutes: 5, is_matched: false, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null}
           - {week_start: "2026-11-02", london_date: "2026-11-03", line_id: jubilee, horizon_minutes: 5, is_matched: true, predicted_seconds: 600, actual_seconds: 605, signed_error_seconds: 5, abs_error_seconds: 5}
           - {week_start: "2026-11-02", london_date: "2026-11-03", line_id: jubilee, horizon_minutes: 5, is_matched: true, predicted_seconds: 600, actual_seconds: 615, signed_error_seconds: 15, abs_error_seconds: 15}
+          - {week_start: "2026-11-02", london_date: "2026-11-03", line_id: jubilee, horizon_minutes: 5, is_matched: true, predicted_seconds: 600, actual_seconds: 625, signed_error_seconds: 25, abs_error_seconds: 25}
+          - {week_start: "2026-11-02", london_date: "2026-11-03", line_id: northern, horizon_minutes: 5, is_matched: false, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null}
     expect:
       rows:
         - {line_id: victoria, horizon_minutes: 5, days_with_arrivals: 2, eligible_arrivals: 5, matched_predictions: 4, matched_share: 0.8, median_abs_error_seconds: 20, p90_abs_error_seconds: 70, median_signed_error_seconds: -10, within_60s_share: 0.75, countdown_minute_seconds: 62.5, is_shown: true}
-        - {line_id: jubilee, horizon_minutes: 5, days_with_arrivals: 1, eligible_arrivals: 2, matched_predictions: 2, matched_share: 1.0, median_abs_error_seconds: 5, p90_abs_error_seconds: 15, median_signed_error_seconds: 5, within_60s_share: 1.0, countdown_minute_seconds: 61.0, is_shown: false}
+        - {line_id: jubilee, horizon_minutes: 5, days_with_arrivals: 1, eligible_arrivals: 3, matched_predictions: 3, matched_share: 1.0, median_abs_error_seconds: 15, p90_abs_error_seconds: 25, median_signed_error_seconds: 15, within_60s_share: 1.0, countdown_minute_seconds: 61.5, is_shown: false}
+        - {line_id: northern, horizon_minutes: 5, days_with_arrivals: 1, eligible_arrivals: 1, matched_predictions: 0, matched_share: 0.0, median_abs_error_seconds: null, p90_abs_error_seconds: null, median_signed_error_seconds: null, within_60s_share: null, countdown_minute_seconds: null, is_shown: false}

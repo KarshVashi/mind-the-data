@@ -1,5 +1,6 @@
 {{
     config(
+        tags=['exploratory'],
         materialized='table',
     )
 }}
@@ -59,7 +60,19 @@ arrivals as (
         arrivals.last_vehicle_id as vehicle_id,
         arrivals.arrival_time,
         arrivals.last_seen_at,
-        stations.role
+        stations.role,
+        -- The same train's previous arrival on this board: a prediction
+        -- polled before it belongs to that earlier visit.
+        lag(arrivals.last_seen_at) over (
+            partition by
+                arrivals.request_path,
+                arrivals.naptan_id,
+                arrivals.line_id,
+                arrivals.platform_name,
+                arrivals.direction,
+                arrivals.last_vehicle_id
+            order by arrivals.arrival_time, arrivals.arrival_key
+        ) as previous_visit_last_seen_at
     from {{ ref('int_inferred_arrivals') }} as arrivals
     inner join vehicle_id_lines
         on arrivals.line_id = vehicle_id_lines.line_id
@@ -117,14 +130,25 @@ candidates as (
             arrivals.request_path = predictions.request_path
             and arrivals.naptan_id = predictions.naptan_id
             and arrivals.line_id = predictions.line_id
-            and arrivals.platform_name = predictions.platform_name
+            -- A board with no platform name is still one board (D28).
+            and coalesce(arrivals.platform_name, '') = coalesce(predictions.platform_name, '')
             and arrivals.direction = predictions.direction
             and arrivals.vehicle_id = predictions.vehicle_id
             -- Before the last sighting, which defines the arrival time.
             and arrivals.last_seen_at > predictions.polled_at
+            and (
+                arrivals.previous_visit_last_seen_at is null
+                or arrivals.previous_visit_last_seen_at < predictions.polled_at
+            )
+            -- The lookback counts from the horizon, so a train held for a
+            -- long time after a 10-minute countdown is still matched as
+            -- late, not dropped as unmatched.
             and predictions.polled_at
-            >= arrivals.arrival_time
-            - interval '{{ var("prediction_accuracy_lookback_minutes") }}' minute
+            >= date_add(
+                'minute',
+                -(horizons.horizon_minutes + {{ var('prediction_accuracy_lookback_minutes') }}),
+                arrivals.arrival_time
+            )
             and predictions.predicted_seconds
             >= horizons.horizon_minutes * 60
             - {{ var('prediction_accuracy_bucket_half_width_seconds') }}
