@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: rpt_disruption_causes_weekly
+    description: >
+      What TfL says goes wrong (D74): per ISO week and cause, the scored
+      non-Good-Service minutes whose status text names that cause first. One
+      row per line and cause, plus one per cause for the network (line_id
+      "network", all lines together). Only causes with minutes have a row.
+      Shares are of the scope's disrupted minutes, and of its suspended
+      (Suspended and Part Suspended) minutes, that week; the suspended share
+      is null when the scope had none. Shares are of observed minutes only;
+      the table does not say how many minutes were missing that week (see
+      fct_line_weekly completeness). Counts the cause as TfL names it, not
+      the root cause. Not published (D74).
+    columns:
+      - name: disruption_cause_key
+        description: Row key, a hash of (week_start, line_id, cause).
+        data_tests: [unique, not_null]
+      - name: week_start
+        description: Monday of the London week.
+        data_tests: [not_null]
+      - name: week_end
+        description: Sunday of the London week.
+      - name: line_id
+        description: TfL line id, or "network" for all lines together.
+        data_tests: [not_null]
+      - name: is_network
+        description: True for the network rows.
+        data_tests: [not_null]
+      - name: cause
+        description: Cause named first in the status text, or "No cause given".
+        data_tests: [not_null]
+      - name: is_no_cause
+        description: True for "No cause given".
+      - name: minutes
+        description: Disrupted scored minutes with this cause.
+        data_tests: [not_null]
+      - name: disrupted_minutes
+        description: All disrupted scored minutes of the scope that week.
+      - name: share_of_disrupted
+        description: minutes / disrupted_minutes.
+        data_tests: [not_null]
+      - name: suspended_minutes
+        description: Of those, minutes Suspended or Part Suspended.
+      - name: scope_suspended_minutes
+        description: Suspended and Part Suspended minutes of the scope that week.
+      - name: share_of_suspended
+        description: suspended_minutes / scope_suspended_minutes; null when the scope had none.
+      - name: weighted_minutes
+        description: Sum of severity weight over the minutes (time weights not applied).
+      - name: is_week_complete
+        description: The week has ended.

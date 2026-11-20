@@ -426,3 +426,23 @@ seeds:
       - name: weight
         description: The replacement weight.
         data_tests: [not_null]
+
+  - name: disruption_cause_patterns
+    description: >
+      Words in TfL's status text that name a cause (D74). One row per cause:
+      a regular expression run against the lower-cased reason with a space
+      added at each end, and a priority. int_status_causes gives a reason the
+      cause whose match starts first; priority only breaks a tie. No row may
+      contain a backslash: the seed loads through OpenCSVSerde, which drops
+      it (tests/unit/test_dbt_seeds.py). Write a word boundary as
+      `(^|[^a-z])` before and `([^a-z]|$)` after.
+    columns:
+      - name: cause
+        description: Name of the cause, as shown in the report.
+        data_tests: [unique, not_null]
+      - name: pattern
+        description: Regular expression, no backslash.
+        data_tests: [not_null]
+      - name: priority
+        description: Tie-break when two causes start at the same character; lower wins.
+        data_tests: [unique, not_null]

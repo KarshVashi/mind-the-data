@@ -167,6 +167,16 @@ The weights are a judgment, so each published week is re-ranked under three alte
 
 On the first published week (4 to 8 November, collected from a Wednesday, so about 70% observed) the correlations were 0.98 to 0.99. No line moved more than two places, and the top three did not change.
 
+### What TfL says goes wrong (D74, not published)
+
+For every disrupted minute, the cause named in TfL's own status text. It is **the cause as named by TfL, not the root cause**: the text is written for passengers, it names one cause at a time, and a station or line name in it is not a cause.
+
+- **Which minutes.** Scored minutes whose worst status is not Good Service, as in the index. Missing minutes, engineering-works minutes and Service Closed minutes are left out, so a minute with no data is never counted as anything.
+- **The rule: the cause named first.** The reason is lower-cased with its whitespace folded. Each cause has a pattern in the seed `disruption_cause_patterns`. Of the causes whose pattern matches, the one whose match starts earliest in the text wins; a tie goes to the lower priority number. So "a signal failure at Stamford Brook and train cancellations" is a signal failure, and "faulty train at Richmond and train cancellations" a faulty train, whatever the order of the list. A text that matches nothing is **No cause given**, as is a missing one.
+- **Causes.** 19: train cancellations, signal failures, points failures, faulty trains, track faults, customer incidents and illness, people, animals or objects on the track, staff unavailable, fire alerts and fires, power and electrical faults, road and bridge incidents, engineering works and overruns, flooding and weather, emergency services and security alerts, planned service changes (a reduced service "will operate", a train "will not run"), platform screen door faults, track inspections, late running, and congestion from other lines. A word stem such as "fire" matches after a word boundary, so "firefighters" counts as fire.
+- **The table.** `rpt_disruption_causes_weekly` has, per ISO week, a row per line and cause, and one per cause for the network (`line_id` = `network`): minutes, the share of the scope's disrupted minutes, the share of its suspended minutes (Suspended and Part Suspended; null when there were none) and severity-weighted minutes. Time weights are not applied.
+- **Reading it.** Shares of minutes are not shares of incidents: a long suspension outweighs many short delays. Several causes in one text count once, for the first. TfL can name a cause late or not at all, so a share is a share of what TfL says.
+
 ---
 
 ## 3. Measured view: Experienced Reliability
@@ -410,6 +420,7 @@ On 15 November 2026 the owner accepted every recommended reading below, so each 
 | D59 | Recovery Time table (provisional on D18) | declared, publishing (decided) |
 | D60 | Industrial action seed and strikes-excluded table | declared, publishing (decided) |
 | D61 | Sensitivity weight sets | declared, publishing (decided) |
+| D74 | Disruption causes as TfL names them, not root causes (not published) | declared (pending) |
 
 The weights for the status codes the plan names, and the time-band weights, are the build plan's values. D16 adds Service Closed to the weights, and D21 decides how the bands map onto calendar days. Sensitivity under three alternative weight sets is reported each week in `meta/methodology.json` (see Sensitivity above, D61).
 
