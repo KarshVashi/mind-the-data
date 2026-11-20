@@ -204,10 +204,6 @@ seeds:
         schedule_name: varchar
         day_type: varchar
         iso_day_of_week: integer
-    timetable_schedules_unmodelled:
-      +column_types:
-        schedule_name: varchar
-        reason: varchar
     disruption_cause_patterns:
       +column_types:
         cause: varchar
