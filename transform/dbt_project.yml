@@ -64,6 +64,15 @@ vars:
   # a pass when it came within this many seconds of the station.
   vehicle_pass_visit_gap_seconds: 600
   vehicle_pass_threshold_seconds: 120
+  # Board dropouts (D75, pending): a train seen at the stations either side
+  # of X, but not at X, judged only when the two passes are at most this far
+  # apart. Longer, and the train may have been held, stabled or reversed.
+  board_dropout_max_span_minutes: 20
+  # rpt_board_reliability_weekly: a station-week's dropout share needs at
+  # least this many judged trains, and a line-week's share of long gaps
+  # with a dropout at least this many long gaps.
+  board_dropout_min_trains: 100
+  board_dropout_min_long_gaps: 20
   # Lines whose trains-run share fct_line_weekly withholds: the Circle and
   # Hammersmith & City boards file one line's trains under the other on the
   # shared section (ADR-014).
@@ -196,6 +205,12 @@ seeds:
         link_by_vehicle_id: boolean
         decision_status: varchar
         review_recommendation: varchar
+    seed_board_dropout_lines:
+      +column_types:
+        line_id: varchar
+        is_measured: boolean
+        caveat: varchar
+        reason: varchar
     seed_line_frequencies:
       +column_types:
         line_id: varchar

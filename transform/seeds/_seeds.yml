@@ -401,3 +401,36 @@ seeds:
       - name: weight
         description: The replacement weight.
         data_tests: [not_null]
+
+  - name: seed_board_dropout_lines
+    description: >
+      Which lines int_board_dropouts measures (D75, pending), and the caveat
+      each measured line's figure carries. A line is left out when its
+      boards send no vehicle id (DLR), when trains run through stations and
+      no timetable says which (Elizabeth line), or when no station has a
+      station either side (Waterloo & City). `caveat` names a known way the
+      figure is distorted: unstable vehicle ids (District, D27), trains
+      filed under the other line on a shared section (Circle, Hammersmith &
+      City, D52), or no stopping patterns, so every train is taken to call
+      everywhere (Overground).
+    columns:
+      - name: line_id
+        description: TfL line id.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('lines')
+                field: line_id
+      - name: is_measured
+        description: True when int_board_dropouts counts the line's trains.
+        data_tests: [not_null]
+      - name: caveat
+        description: "Null, `unstable_vehicle_ids`, `shared_section_misfiled` or `no_stopping_patterns`."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [unstable_vehicle_ids, shared_section_misfiled, no_stopping_patterns]
+      - name: reason
+        description: Why the line is left out, or what the caveat means.
