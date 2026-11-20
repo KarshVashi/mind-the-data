@@ -16,6 +16,9 @@ before it, league/latest.json, lines/{line_id}.json, meta/methodology.json,
 meta/index.json and cards/{iso_week}.png plus the 1080x1350 variant. With
 STATIONS_PUBLISH_ENABLED=true it also writes stations/index.json and
 stations/{naptan_id}.json, and meta/index.json lists them; otherwise neither.
+With JOURNEYS_ENABLED=true it also writes journeys/index.json and
+journeys/{line_id}/{direction}/{naptan_id}.json (Should I Run, ADR-018);
+meta/index.json does not list them yet.
 Each league file carries the week's highlights (Wooden Spoon, Line of the
 Week, worst incident), Monday Morning Index, Engineering Works and Recovery
 Time tables, the industrial action in the week and the strikes-excluded
@@ -48,6 +51,13 @@ from mind_the_data.publish.documents import (
     season_document,
 )
 from mind_the_data.publish.insight import pick_insight
+from mind_the_data.publish.journeys import (
+    JOURNEYS_ENABLED_VAR,
+    JourneyRows,
+    fetch_journey_rows,
+    journey_documents,
+    load_recorded_journeys,
+)
 from mind_the_data.publish.league import (
     PROVISIONAL_COMPLETENESS,
     League,
@@ -141,6 +151,7 @@ def build_outputs(
     transform_dir: Path = REPO_ROOT / "transform",
     allow_incomplete: bool = False,
     stations_enabled: bool = True,
+    journeys: JourneyRows | None = None,
 ) -> tuple[League, list[Output]]:
     """Every JSON document for the week, validated against its schema.
 
@@ -152,6 +163,8 @@ def build_outputs(
     marts and code, so the archive, the line histories and meta/index.json
     always agree (D39). league/latest.json is the newest complete week,
     whichever week was asked for.
+
+    journeys, when given (JOURNEYS_ENABLED), adds the Should I Run files.
     """
     window = Window.for_iso_week(iso_week_of(week_start))
     lines = marts.lines()
@@ -328,6 +341,11 @@ def build_outputs(
             "index",
         )
     )
+    if journeys is not None:
+        outputs.extend(
+            Output(path, document, schema, compact=True)
+            for path, document, schema in journey_documents(journeys, stamp)
+        )
     for output in outputs:
         validate(output.document, output.schema)
     return league, outputs
@@ -367,6 +385,22 @@ def marts_from_args(args: argparse.Namespace) -> Marts:
         workgroup=args.workgroup,
         database=args.database,
         record_to=args.record,
+    )
+
+
+def journeys_from_args(args: argparse.Namespace) -> JourneyRows:
+    """The journey marts, from a recording or Athena; a missing recording is an error."""
+    if args.recorded is not None:
+        rows = load_recorded_journeys(args.recorded)
+        if rows is None:
+            raise SystemExit(
+                f"{JOURNEYS_ENABLED_VAR}=true but {args.recorded} has no journey recordings"
+            )
+        return rows
+    import boto3
+
+    return fetch_journey_rows(
+        boto3.client("athena"), workgroup=args.workgroup, database=args.database
     )
 
 
@@ -410,6 +444,9 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit("no complete week with data in fct_line_weekly yet; pass --week")
         week_start = latest
     stamp = Stamp(generated_at=datetime.now(UTC), git_sha=git_sha())
+    journeys = None
+    if os.environ.get(JOURNEYS_ENABLED_VAR) == "true":
+        journeys = journeys_from_args(args)
     try:
         league, outputs = build_outputs(
             marts,
@@ -418,6 +455,7 @@ def main(argv: list[str] | None = None) -> int:
             weekly=weekly,
             allow_incomplete=args.allow_incomplete,
             stations_enabled=os.environ.get(STATIONS_ENABLED_VAR) == "true",
+            journeys=journeys,
         )
     except IncompleteWeek as exc:
         raise SystemExit(str(exc)) from exc

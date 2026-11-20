@@ -1,0 +1,335 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Journey origin",
+  "description": "journeys/{line_id}/{direction}/{naptan_id}.json (Should I Run, ADR-018, D76; written only with JOURNEYS_ENABLED=true): every destination a train from this origin reaches, the board destinations that call there, and weekday 15-minute planning slots. Estimates, not guarantees; a slot without enough gated history carries no figures.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "git_sha",
+    "data_window",
+    "attribution",
+    "disclaimer",
+    "line_id",
+    "direction",
+    "origin",
+    "destinations"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "league.schema.json#/$defs/schema_version"
+    },
+    "generated_at": {
+      "$ref": "league.schema.json#/$defs/utc_timestamp"
+    },
+    "git_sha": {
+      "$ref": "league.schema.json#/$defs/git_sha"
+    },
+    "data_window": {
+      "$ref": "#/$defs/data_window"
+    },
+    "attribution": {
+      "const": "Powered by TfL Open Data"
+    },
+    "disclaimer": {
+      "const": "Estimates, not guarantees."
+    },
+    "line_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "direction": {
+      "enum": [
+        "inbound",
+        "outbound"
+      ]
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "naptan_id",
+        "name"
+      ],
+      "properties": {
+        "naptan_id": {
+          "$ref": "station.schema.json#/$defs/naptan_id"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    },
+    "destinations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "naptan_id",
+          "name",
+          "stops",
+          "train_destinations",
+          "slots"
+        ],
+        "properties": {
+          "naptan_id": {
+            "$ref": "station.schema.json#/$defs/naptan_id"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "stops": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "train_destinations": {
+            "description": "Board destinations (destinationNaptanId) of trains that call at this destination on at least one route. is_ambiguous: another route from the origin also reaches that board destination without calling here, so such a train may not call here.",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "naptan_id",
+                "name",
+                "is_ambiguous"
+              ],
+              "properties": {
+                "naptan_id": {
+                  "$ref": "station.schema.json#/$defs/naptan_id"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
+                },
+                "is_ambiguous": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/slot"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "data_window": {
+      "description": "First and last London weekday with any measured hour behind the slots; null when there is none.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end",
+        "timezone"
+      ],
+      "properties": {
+        "start": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "end": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "timezone": {
+          "const": "Europe/London"
+        }
+      }
+    },
+    "slot": {
+      "type": "object",
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "ok"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "run_seconds": {
+                "type": "object"
+              },
+              "wait_seconds": {
+                "type": "object"
+              },
+              "trains_seen_per_day": {
+                "type": "number"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "run_seconds": {
+                "type": "null"
+              },
+              "wait_seconds": {
+                "type": "null"
+              },
+              "trains_seen_per_day": {
+                "type": "null"
+              },
+              "scheduled_per_day": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false,
+      "required": [
+        "day_class",
+        "start",
+        "end",
+        "status",
+        "days_counted",
+        "passes_gate",
+        "runs",
+        "weeks_with_runs",
+        "run_seconds",
+        "wait_seconds",
+        "trains_seen_per_day",
+        "scheduled_per_day"
+      ],
+      "properties": {
+        "day_class": {
+          "enum": [
+            "weekday"
+          ]
+        },
+        "start": {
+          "type": "string",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+          "description": "London wall-clock start of the 15-minute window."
+        },
+        "end": {
+          "type": "string",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+          "description": "London wall-clock end (exclusive)."
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "not_enough_data",
+            "withheld"
+          ],
+          "description": "ok: the gate passed and at least journey_min_runs runs over journey_min_weeks ISO weeks. not_enough_data or withheld (a line whose figures are held back, ADR-018): every figure below is null and must never be read as a good slot."
+        },
+        "days_counted": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Weekdays whose origin hour was observed and passed the quality gate."
+        },
+        "passes_gate": {
+          "type": "boolean"
+        },
+        "runs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Trains matched from origin to destination by vehicle id on counted days."
+        },
+        "weeks_with_runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "run_seconds": {
+          "description": "Arrival at the origin to arrival at the destination, dwell at the origin included; nearest-rank percentiles. Null unless status is ok.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "p50",
+                "p90"
+              ],
+              "properties": {
+                "p50": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "p90": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          ]
+        },
+        "wait_seconds": {
+          "description": "Wait at the origin for a train that reaches the destination: typical is the median day's expected wait for someone arriving at random; worst_p90 is the 90th percentile over days of the day's longest gap. Null unless status is ok.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "typical",
+                "worst_p90"
+              ],
+              "properties": {
+                "typical": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "worst_p90": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          ]
+        },
+        "trains_seen_per_day": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Trains seen at the origin in the direction and window per counted day. Null unless status is ok."
+        },
+        "scheduled_per_day": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Timetabled departures in the window per counted day; null unless status is ok, or where TfL serves no timetable."
+        }
+      }
+    }
+  }
+}

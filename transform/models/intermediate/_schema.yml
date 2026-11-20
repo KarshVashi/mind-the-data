@@ -915,3 +915,62 @@ models:
         data_tests: [not_null]
       - name: is_long_gap
         description: More than twice the ending hour's longest scheduled gap (D34); null without a timetable (no scheduled gap to judge it by).
+
+  - name: int_station_vehicle_runs
+    description: >
+      Should I Run (ADR-018, D76; exploratory, not in the prod build). One
+      row per train that passed station A and then station B on a line that
+      links by vehicle id, where B follows A on a route of the line's latest
+      route sequence in that direction. The run is the vehicle's first pass
+      at B within `journey_max_run_minutes` of its pass at A and before its
+      next pass at A, so an id seen twice at A with no B between gives no
+      run for the earlier pass. Passes at A on weekdays inside the slot
+      windows (widened by `journey_wait_lookahead_minutes` at the end) only. Reads
+      int_station_vehicle_passes, or int_vehicle_passes with
+      `journey_source: measurement`.
+    columns:
+      - name: vehicle_run_key
+        description: Row key, a hash of (line_id, direction, vehicle_id, origin_naptan_id, destination_naptan_id, origin_pass_time).
+        data_tests: [unique, not_null]
+      - name: line_id
+        description: TfL line id.
+        data_tests: [not_null]
+      - name: direction
+        description: inbound or outbound, as on the boards.
+        data_tests: [not_null]
+      - name: vehicle_id
+        description: The vehicle id both passes share.
+        data_tests: [not_null]
+      - name: origin_naptan_id
+        description: Station A.
+        data_tests: [not_null]
+      - name: destination_naptan_id
+        description: Station B.
+        data_tests: [not_null]
+      - name: origin_pass_time
+        description: The pass at A (UTC), the expected arrival at its last sighting.
+        data_tests: [not_null]
+      - name: destination_pass_time
+        description: The first pass at B after it (UTC).
+        data_tests: [not_null]
+      - name: run_seconds
+        description: Arrival at A to arrival at B, dwell at A included. Positive and at most journey_max_run_minutes.
+        data_tests: [not_null]
+      - name: london_date
+        description: London date of the pass at A.
+        data_tests: [not_null]
+      - name: origin_london_ts
+        description: The pass at A as London wall-clock time, to place it within a slot.
+        data_tests: [not_null]
+      - name: origin_london_minute
+        description: London minute of the day of the pass at A (0 to 1439).
+        data_tests: [not_null]
+      - name: origin_london_hour
+        description: London hour of the pass at A, to join the origin's measured hour.
+        data_tests: [not_null]
+      - name: destination_london_date
+        description: London date of the pass at B.
+        data_tests: [not_null]
+      - name: destination_london_hour
+        description: London hour of the pass at B, to join the destination's measured hour.
+        data_tests: [not_null]

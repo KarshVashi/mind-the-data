@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      Its own origin (ADR-018): the only network calls are TfL's public
+      arrivals API, with no key, and the published planning files.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://api.tfl.gov.uk https://data.karshvashi.com; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <title>Should I Run</title>
+    <meta name="description" content="When to leave for a Tube journey: history for your 15-minute window, and the trains on the boards now." />
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="app.mjs"></script>
+  </head>
+  <body>
+    <header class="masthead">
+      <p class="kicker">Prototype</p>
+      <h1>Should I Run</h1>
+      <p class="lede">When to leave for a Tube journey you make often: what your 15-minute window is usually like, and the trains on the boards now.</p>
+    </header>
+
+    <main>
+      <section class="card" aria-labelledby="journey-title">
+        <h2 id="journey-title">Your journey</h2>
+        <form id="journey-form" novalidate>
+          <div class="grid">
+            <label>Line
+              <select id="line" name="line" required></select>
+            </label>
+            <label>From
+              <select id="origin" name="origin" required></select>
+            </label>
+            <label>To
+              <select id="destination" name="destination" required></select>
+            </label>
+            <label>Arrive by
+              <input id="arrive-by" name="arriveBy" type="time" value="09:00" required />
+            </label>
+            <label>Walk to the platform (min)
+              <input id="walk" name="walk" type="number" min="0" max="120" step="1" value="6" required />
+            </label>
+            <label>Buffer at the end (min)
+              <input id="buffer" name="buffer" type="number" min="0" max="60" step="1" value="2" required />
+            </label>
+          </div>
+          <div class="actions">
+            <button type="submit">Save journey</button>
+            <p class="hint">Saved in this browser and in the page address, nowhere else.</p>
+          </div>
+          <p id="form-error" class="error" role="alert" hidden></p>
+        </form>
+      </section>
+
+      <section class="card" aria-labelledby="live-title">
+        <h2 id="live-title">Now</h2>
+        <div id="verdict" class="verdict" aria-live="polite">
+          <p class="headline">Save a journey to see the trains on the boards.</p>
+        </div>
+        <ol id="trains" class="trains"></ol>
+        <p id="live-stamp" class="stamp"></p>
+      </section>
+
+      <section class="card" aria-labelledby="plan-title">
+        <h2 id="plan-title">Planning, from history</h2>
+        <div id="plan">
+          <p class="muted">Save a journey to see its window.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p><strong>Estimates, not guarantees.</strong> Times at p90 mean about 1 trip in 10 takes longer. The boards do not list every train; a train missing from them may still run.</p>
+      <p>Powered by TfL Open Data. Not affiliated with or endorsed by TfL. Live times come straight from TfL's public API to your browser; nothing about your journey is sent anywhere else.</p>
+    </footer>
+  </body>
+</html>
