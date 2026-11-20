@@ -1025,6 +1025,8 @@ models:
         data_tests: [not_null]
       - name: open_at_feed_end
         description: The outage is listed at the feed's latest observed slot, so it may still be going.
+        data_tests: [not_null]
+
   - name: int_prediction_errors
     description: >
       Countdown drift (D71, pending). One row per inferred arrival and
@@ -1097,6 +1099,8 @@ models:
         data_tests: [not_null]
       - name: week_start
         description: Monday of the arrival's London week.
+        data_tests: [not_null]
+
   - name: int_segment_run_times
     description: >
       Station-to-station run times (D72, exploratory): consecutive passes of
