@@ -181,6 +181,7 @@
         "long_gaps_per_100_hours",
         "honesty_gap_hours",
         "honesty_gap_share",
+        "honesty_gap_withheld_reason",
         "experienced_rank",
         "trains_run_share",
         "trains_run_withheld_reason",
@@ -200,12 +201,16 @@
           "$ref": "#/$defs/nullable_non_negative"
         },
         "honesty_gap_hours": {
-          "description": "Hours of whole-hour declared Good Service in which a measurement station recorded a long gap (PLAN 7.3).",
+          "description": "Hours of whole-hour declared Good Service in which at least two core and branch measurement stations in the same direction recorded a long gap whose whole span was Good Service (PLAN 7.3, D68). Null when honesty_gap_withheld_reason is set.",
           "$ref": "#/$defs/nullable_non_negative"
         },
         "honesty_gap_share": {
           "description": "honesty_gap_hours over good_service_measured_hours.",
           "$ref": "#/$defs/nullable_share"
+        },
+        "honesty_gap_withheld_reason": {
+          "description": "Why honesty_gap_hours and honesty_gap_share are null although the line is measured: honesty_gap_not_corroborable when the line has fewer than two core and branch measurement stations, so no hour can be corroborated and 0 would wrongly read as no gap (D68).",
+          "enum": [null, "honesty_gap_not_corroborable"]
         },
         "experienced_rank": {
           "description": "1 = lowest excess wait among published lines that are not weak evidence (D53); null otherwise.",

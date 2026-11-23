@@ -27,7 +27,8 @@ seeds:
       higher weight wins a minute. `weight_planned` applies when the entry's
       disruption is filed as planned work; only Bus Service differs.
       Codes 4 and 5 are closures: a minute whose worst status is a closure is
-      engineering works and leaves the score. Code 20 (Service Closed) is not
+      engineering works and leaves the score; so is planned works under a
+      code with `is_works_when_planned` (D69). Code 20 (Service Closed) is not
       in the plan; it is TfL's overnight status and is weighted 0 and left out
       of the score (DECISIONS.md D16). A code missing here fails
       assert_line_status_codes_are_weighted rather than defaulting.
@@ -50,9 +51,43 @@ seeds:
       - name: is_service_closed
         description: TfL's Service Closed status.
         data_tests: [not_null]
+      - name: is_works_when_planned
+        description: >
+          Suspended, Part Suspended and Severe Delays. An entry with one of
+          these codes is engineering works, like a closure, when TfL files it
+          as planned work or its reason matches a `planned_works_reasons`
+          planned-works pattern, unless the reason matches an overrun pattern
+          (D69).
+        data_tests: [not_null]
       - name: source
         description: "`plan` (PLAN 7.1) or the DECISIONS.md item that set it."
         data_tests: [not_null]
+
+  - name: planned_works_reasons
+    description: >
+      Reason-text patterns that classify a suspension or delay entry (codes
+      with `is_works_when_planned`) as planned works or as an overrun (D69).
+      Patterns are regular expressions matched against the lower-cased
+      reason. An `overrun` match always wins: works that ran late are a
+      reliability failure and keep their weight. The reason is split into
+      sentences; it makes the entry engineering works, even when TfL files it
+      as real-time, when some sentence matches `planned_works` and every
+      sentence that matches `disruption` also matches `planned_works`.
+    columns:
+      - name: pattern
+        description: >
+          Regular expression, lower case. No backslashes, which the seed
+          loader drops; use (^|[^a-z]) and ([^a-z]|$) for word edges.
+        data_tests: [unique, not_null]
+      - name: signal
+        description: "`planned_works`, `overrun` or `disruption`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [planned_works, overrun, disruption]
+      - name: note
+        description: What the pattern is for.
 
   - name: time_bands
     description: >
@@ -142,10 +177,13 @@ seeds:
     description: >
       TfL timetable schedule names (`stg_timetable.schedule_name`) to the
       day types of line_operating_hours. A name covering several day types
-      has a row for each. Holidays named in a schedule ("also Good Friday",
-      "and Public Holidays") are not modelled (day_types has no holidays). A
-      name missing here drops its departures from int_scheduled_headways, so
-      assert_timetable_schedules_are_mapped fails the build instead.
+      has a row for each. A name for one weekday ("Tuesdays") has
+      `iso_day_of_week` set and applies only on that weekday (D67); a blank
+      `iso_day_of_week` means every day of the day type. Holidays named in a
+      schedule ("also Good Friday", "and Public Holidays") are not modelled
+      (day_types has no holidays). A name missing here drops its departures
+      from int_scheduled_headways, so assert_timetable_schedules_are_mapped
+      fails the build instead.
     columns:
       - name: schedule_name
         description: TfL's schedule name, exactly as sent.
@@ -157,29 +195,16 @@ seeds:
           - accepted_values:
               arguments:
                 values: [mon_thu, fri, sat, sun]
-
-  - name: timetable_schedules_unmodelled
-    description: >
-      TfL schedule names known and left out on purpose (D67): their
-      departures are dropped from int_scheduled_headways, as for any name not
-      in timetable_schedule_day_types, but assert_timetable_schedules_are_mapped
-      accepts them. From 18 November 2026 TfL sends single-weekday schedules
-      ("Tuesdays", "Wednesdays", "Thursdays") for some District and
-      Metropolitan stops. int_scheduled_headways sums every schedule of a day
-      type, so mapping each to mon_thu would count it once per listed
-      weekday. Until a weekday can be modelled on its own, a stop-direction
-      whose timetable version holds only such schedules has no timetable
-      for the day types they would cover; int_station_measured_hours then
-      uses its no-timetable rule (hours in which a train was seen, never a
-      gap, so a suspension is not detected there). Never Good Service. At a
-      measurement station the mapping test still fails.
-    columns:
-      - name: schedule_name
-        description: TfL's schedule name, exactly as sent.
-        data_tests: [unique, not_null]
-      - name: reason
-        description: Why it is left out.
-        data_tests: [not_null]
+      - name: iso_day_of_week
+        description: >
+          ISO weekday (1 Monday to 7 Sunday) a single-weekday schedule runs
+          on, which must fall in `day_type` (day_types); null for a schedule
+          that runs on every day of its day type.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5, 6, 7]
+                quote: false
 
   - name: seed_line_frequencies
     description: >

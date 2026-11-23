@@ -9,6 +9,7 @@
 -- polls (smoke-test polls, retries): the latest successful poll that lists
 -- the line is read (ADR-013). A minute with no such poll, or whose poll has
 -- no current entry for the line, is missing and never Good Service.
+-- Planned works under a suspension or delay code count as closures (D69).
 --
 -- Rebuilt in full from raw_start_date on every run (ADR-012), so an edit to
 -- the weight, band or hours seeds reaches every past minute and a rerun
@@ -203,7 +204,63 @@ current_entries as (
         entries.is_planned
 ),
 
-weighted as (
+-- What the reason text says about planned works (D69). Only reasons of
+-- entries whose code can be planned works are read, once per distinct
+-- reason, so the pattern join stays small. TfL often reports two events in
+-- one message ("No service between A and B while we fix a signal failure.
+-- No service between C and D due to planned engineering works."), so the
+-- reason is read sentence by sentence: it is planned works only when some
+-- sentence says planned works and every sentence that reports a disruption
+-- says so too. An overrun anywhere still wins.
+works_reasons as (
+    select distinct current_entries.reason
+    from current_entries
+    inner join {{ ref('severity_weights') }} as weights
+        on
+            current_entries.status_severity = weights.severity_code
+            and weights.is_works_when_planned
+    where current_entries.reason is not null
+),
+
+reason_sentences as (
+    select
+        works_reasons.reason,
+        sentences.sentence_number,
+        sentences.sentence_text
+    from works_reasons
+    -- A sentence ends at any full stop not followed by a digit: TfL also
+    -- writes ".\r\n", ".  " and ".Tickets", and times as "08.15".
+    cross join
+        unnest(regexp_split(lower(works_reasons.reason), '[.](?![0-9])'))
+        with ordinality as sentences (sentence_text, sentence_number)
+),
+
+sentence_signals as (
+    select
+        reason_sentences.reason,
+        reason_sentences.sentence_number,
+        coalesce(bool_or(patterns.signal = 'planned_works'), false) as says_planned_works,
+        coalesce(bool_or(patterns.signal = 'overrun'), false) as says_overrun,
+        coalesce(bool_or(patterns.signal = 'disruption'), false) as says_disruption
+    from reason_sentences
+    left join {{ ref('planned_works_reasons') }} as patterns
+        on regexp_like(reason_sentences.sentence_text, patterns.pattern)
+    group by
+        reason_sentences.reason,
+        reason_sentences.sentence_number
+),
+
+reason_signals as (
+    select
+        reason,
+        bool_or(says_planned_works) as says_planned_works,
+        bool_or(says_overrun) as says_overrun,
+        bool_and(says_planned_works or not says_disruption) as every_disruption_is_works
+    from sentence_signals
+    group by reason
+),
+
+classified as (
     select
         current_entries.line_id,
         current_entries.poll_minute,
@@ -215,13 +272,52 @@ weighted as (
         current_entries.is_planned,
         weights.is_closure,
         weights.is_service_closed,
-        -- Null for a code missing from the seed; it then wins the minute
-        -- below and fails the not_null test instead of passing as 0.
-        if(current_entries.is_planned, weights.weight_planned, weights.weight_unplanned)
-            as severity_weight
+        weights.weight_planned,
+        weights.weight_unplanned,
+        -- TfL sometimes labels planned works with an unplanned-looking code
+        -- (Part Suspended, Severe Delays). Filed as planned work, or said to
+        -- be planned works in every disruption sentence of the reason, it is
+        -- engineering works, unless the reason says the works overran: an
+        -- overrun is a failure (D69).
+        case
+            when not coalesce(weights.is_works_when_planned, false) then null
+            when coalesce(signals.says_overrun, false) then null
+            when current_entries.is_planned then 'planned_category'
+            when
+                coalesce(signals.says_planned_works, false)
+                and coalesce(signals.every_disruption_is_works, false)
+                then 'reason_text'
+        end as planned_works_basis
     from current_entries
     left join {{ ref('severity_weights') }} as weights
         on current_entries.status_severity = weights.severity_code
+    left join reason_signals as signals
+        on current_entries.reason = signals.reason
+),
+
+weighted as (
+    select
+        line_id,
+        poll_minute,
+        poll_id,
+        status_ordinal,
+        status_severity,
+        status_severity_description,
+        reason,
+        is_service_closed,
+        planned_works_basis,
+        is_planned or planned_works_basis is not null as is_planned,
+        is_closure or planned_works_basis is not null as is_closure,
+        -- Weight 0 as for a closure, so any unplanned delay alongside still
+        -- wins the minute (ADR-004). Null for a code missing from the seed;
+        -- it then wins the minute below and fails the not_null test instead
+        -- of passing as 0.
+        case
+            when planned_works_basis is not null then 0e0
+            when is_planned then weight_planned
+            else weight_unplanned
+        end as severity_weight
+    from classified
 ),
 
 ranked as (
@@ -265,6 +361,7 @@ joined as (
         worst_status.status_severity_description,
         worst_status.reason,
         worst_status.is_planned,
+        worst_status.planned_works_basis,
         worst_status.severity_weight,
         line_minutes.dt,
         coalesce(successful_polls.successful_polls, 0) as successful_polls,
@@ -316,6 +413,7 @@ select
     is_missing,
     missing_reason,
     is_engineering_works,
+    planned_works_basis,
     is_service_closed,
     -- Counts toward the Disruption Index and Good Service %: in service,
     -- observed, and neither engineering works nor TfL's Service Closed.

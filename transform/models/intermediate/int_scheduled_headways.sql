@@ -15,6 +15,15 @@
 -- choosing one. A gap belongs to the hour of the departure that ends it
 -- (DECISIONS.md D30), and gaps are not formed across two schedules.
 --
+-- A schedule named for one weekday ("Tuesdays") carries that weekday in
+-- iso_day_of_week and applies on it only; a schedule for the whole day type
+-- leaves it null (D67). Summing the single-weekday schedules of one day
+-- type would give each of its days several days of trains, so the rows keep
+-- the weekday apart. Where a timetable version has both kinds for a day
+-- type, the single-weekday schedule wins on its own weekday and the generic
+-- one covers the day type's other weekdays, as one row for each: a day then
+-- matches exactly one schedule and no train is counted twice.
+--
 -- Rebuilt in full each run (ADR-012, extended to this model in D24): the
 -- timetables are a few hundred thousand rows a year, and a seed edit then
 -- reaches every version.
@@ -66,6 +75,7 @@ departures as (
         versions.fetched_at,
         timetable.schedule_name,
         day_types.day_type,
+        day_types.iso_day_of_week,
         timetable.departure_minute_of_service_day
     from versions
     inner join {{ ref('stg_timetable') }} as timetable
@@ -92,6 +102,7 @@ gaps as (
         fetched_at,
         schedule_name,
         day_type,
+        iso_day_of_week,
         departure_minute_of_service_day / 60 as service_hour,
         departure_minute_of_service_day - lag(departure_minute_of_service_day) over (
             partition by
@@ -101,15 +112,17 @@ gaps as (
     from departures
 ),
 
-timetabled as (
+pooled as (
     select
         line_id,
         departure_stop_id as naptan_id,
         direction,
         day_type,
+        iso_day_of_week,
         service_hour,
         valid_from,
         valid_to,
+        'timetable' as schedule_source,
         count(*) as scheduled_departures,
         count(headway_minutes) as headway_count,
         coalesce(sum(60e0 * headway_minutes), 0e0) as sum_headway_seconds,
@@ -118,12 +131,111 @@ timetabled as (
         -- An hour whose only gaps are same-minute pairs has no usable
         -- scheduled headway: 0 would make every observed gap "long".
         nullif(60e0 * max(headway_minutes), 0e0) as max_headway_seconds,
-        'timetable' as schedule_source,
         max(schedule_name) as source_detail,
         max(fetched_at) as timetable_fetched_at
     from gaps
     group by
-        line_id, departure_stop_id, direction, day_type, service_hour, valid_from, valid_to
+        line_id,
+        departure_stop_id,
+        direction,
+        day_type,
+        iso_day_of_week,
+        service_hour,
+        valid_from,
+        valid_to
+),
+
+-- The weekdays each version has a schedule of their own for, per day type.
+specific_flags as (
+    select
+        line_id,
+        naptan_id,
+        direction,
+        day_type,
+        valid_from,
+        array_agg(distinct iso_day_of_week) as specific_weekdays
+    from pooled
+    where iso_day_of_week is not null
+    group by
+        line_id,
+        naptan_id,
+        direction,
+        day_type,
+        valid_from
+),
+
+flagged as (
+    -- valid_from is null for a timetable's first version; the sentinel lets
+    -- that version meet its own flags in an equality join.
+    select
+        pooled.*,
+        specific_flags.specific_weekdays,
+        coalesce(cardinality(specific_flags.specific_weekdays), 0)
+            as specific_weekday_count
+    from pooled
+    left join specific_flags
+        on
+            pooled.line_id = specific_flags.line_id
+            and pooled.naptan_id = specific_flags.naptan_id
+            and pooled.direction = specific_flags.direction
+            and pooled.day_type = specific_flags.day_type
+            and coalesce(pooled.valid_from, date '1900-01-01')
+            = coalesce(specific_flags.valid_from, date '1900-01-01')
+),
+
+timetabled as (
+    -- Single-weekday rows, and generic rows of a day type with no
+    -- single-weekday schedule in the version, as they are.
+    select
+        line_id,
+        naptan_id,
+        direction,
+        day_type,
+        iso_day_of_week,
+        service_hour,
+        valid_from,
+        valid_to,
+        scheduled_departures,
+        headway_count,
+        sum_headway_seconds,
+        sum_headway_squared_seconds,
+        max_headway_seconds,
+        schedule_source,
+        source_detail,
+        timetable_fetched_at
+    from flagged
+    where
+        iso_day_of_week is not null
+        or specific_weekday_count = 0
+
+    union all
+
+    -- A generic row of a day type that has single-weekday schedules: one
+    -- copy for each weekday of the day type that has none of its own.
+    select
+        flagged.line_id,
+        flagged.naptan_id,
+        flagged.direction,
+        flagged.day_type,
+        weekdays.iso_day_of_week,
+        flagged.service_hour,
+        flagged.valid_from,
+        flagged.valid_to,
+        flagged.scheduled_departures,
+        flagged.headway_count,
+        flagged.sum_headway_seconds,
+        flagged.sum_headway_squared_seconds,
+        flagged.max_headway_seconds,
+        flagged.schedule_source,
+        flagged.source_detail,
+        flagged.timetable_fetched_at
+    from flagged
+    inner join {{ ref('day_types') }} as weekdays
+        on flagged.day_type = weekdays.day_type
+    where
+        flagged.iso_day_of_week is null
+        and flagged.specific_weekday_count > 0
+        and not contains(flagged.specific_weekdays, weekdays.iso_day_of_week)
 ),
 
 timetabled_directions as (
@@ -142,6 +254,7 @@ fallback as (
         frequencies.naptan_id,
         directions.direction,
         frequencies.day_type,
+        cast(null as integer) as iso_day_of_week,
         hours.service_hour,
         cast(null as date) as valid_from,
         cast(null as date) as valid_to,
@@ -180,6 +293,7 @@ select
     naptan_id,
     direction,
     day_type,
+    iso_day_of_week,
     service_hour,
     service_hour % 24 as london_hour,
     service_hour >= 24 as is_next_calendar_day,
@@ -198,6 +312,14 @@ select
     schedule_source = 'seed_line_frequencies' as is_fallback,
     source_detail,
     timetable_fetched_at,
-    {{ row_key(['line_id', 'naptan_id', 'direction', 'day_type', 'service_hour', 'valid_from']) }}
+    {{ row_key([
+        'line_id',
+        'naptan_id',
+        'direction',
+        'day_type',
+        'iso_day_of_week',
+        'service_hour',
+        'valid_from',
+    ]) }}
         as scheduled_headway_key
 from combined

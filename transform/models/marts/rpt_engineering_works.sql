@@ -1,8 +1,9 @@
 {{ config(materialized='table') }}
 
 -- PLAN 7.4 Engineering Works table, per line and ISO week (M6, D50).
--- Minutes whose worst declared status is a closure leave the Disruption
--- Index and are reported here instead. A Part Closure takes the whole line's
+-- Minutes whose worst declared status is a closure, or planned works under
+-- a suspension or delay code (D69), leave the Disruption Index and are
+-- reported here instead. A Part Closure takes the whole line's
 -- minute (ADR-004), so a branch closure counts in full. Lines without works
 -- are kept with 0 hours, so every line-week has a row.
 

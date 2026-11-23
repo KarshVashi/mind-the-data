@@ -11,7 +11,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from mind_the_data.ops.athena import run_query
 
@@ -48,15 +48,17 @@ class MeasuredSums:
     gate_judged_hours: int = 0
     gate_in_band_hours: int = 0
     good_service_measured_hours: int = 0
-    honesty_gap_hours: int = 0
+    # None on a line with too few core and branch measurement stations to
+    # corroborate any hour (D68): unknown, never 0.
+    honesty_gap_hours: int | None = 0
 
     def __add__(self, other: "MeasuredSums") -> "MeasuredSums":
-        return MeasuredSums(
-            **{
-                name: getattr(self, name) + getattr(other, name)
-                for name in self.__dataclass_fields__
-            }
-        )
+        values: dict[str, Any] = {}
+        for name in self.__dataclass_fields__:
+            mine, theirs = getattr(self, name), getattr(other, name)
+            # An unknown day makes the window unknown, as the weekly mart does.
+            values[name] = None if mine is None or theirs is None else mine + theirs
+        return MeasuredSums(**values)
 
 
 MEASURED_SUM_FIELDS = tuple(MeasuredSums.__dataclass_fields__)
@@ -424,10 +426,12 @@ def parse_line(cells: Cells) -> LineInfo:
 
 
 def _measured_sums(cells: Cells) -> MeasuredSums:
-    values: dict[str, int | float] = {}
+    values: dict[str, int | float | None] = {}
     for name in MEASURED_SUM_FIELDS:
         if name == "sum_excess_wait_seconds":
             values[name] = _float(cells, name)
+        elif name == "honesty_gap_hours":
+            values[name] = _opt_int(cells, name)
         else:
             values[name] = _int(cells, name)
     return MeasuredSums(**values)  # type: ignore[arg-type]

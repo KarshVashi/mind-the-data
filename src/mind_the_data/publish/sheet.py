@@ -135,6 +135,9 @@ def numbers_sheet(
                 f"trains run withheld: {mv.trains_run_withheld_reason}"
                 if mv.trains_run_withheld_reason
                 else "",
+                f"Honesty Gap withheld: {mv.honesty_gap_withheld_reason}"
+                if mv.honesty_gap_withheld_reason
+                else "",
             )
             if n
         )

@@ -25,6 +25,7 @@ from mind_the_data.publish.league import (
     worst_incident,
 )
 from mind_the_data.publish.marts import (
+    MEASURED_SUM_FIELDS,
     BuildTimes,
     DailyRow,
     IncidentRow,
@@ -35,6 +36,7 @@ from mind_the_data.publish.marts import (
     RecordedMarts,
     WeeklyRow,
     parse_build_times,
+    parse_measured_daily,
 )
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "marts"
@@ -497,8 +499,8 @@ def measured_line(line_id: str, *, is_measured: bool = True) -> LineInfo:
     return LineInfo(line_id, line_id.title(), "tube", "#000000", False, is_measured)
 
 
-def sums(**values: float) -> MeasuredSums:
-    base: dict[str, float] = {
+def sums(**values: float | None) -> MeasuredSums:
+    base: dict[str, float | None] = {
         "scheduled_measurement_hours": 10,
         "observed_measurement_hours": 10,
         "observed_trains": 80,
@@ -555,6 +557,31 @@ def test_measured_view_numbers_by_hand() -> None:
     assert circle.trains_run_withheld_reason == "shared_section_misfiled"
     weak = measured_view(measured_line("a"), sums(fallback_measured_hours=1), None)
     assert weak.is_weak_evidence
+    assert view.honesty_gap_withheld_reason is None
+
+
+def test_honesty_gap_is_null_not_zero_when_it_cannot_be_corroborated() -> None:
+    # D68: a line with too few core and branch measurement stations (Lioness,
+    # Windrush, Liberty) gets a null Honesty Gap from dbt; it is never shown
+    # as 0, which would read as TfL always being right.
+    view = measured_view(measured_line("lioness"), sums(honesty_gap_hours=None), None)
+    assert (view.honesty_gap_hours, view.honesty_gap_share) == (None, None)
+    assert view.honesty_gap_withheld_reason == "honesty_gap_not_corroborable"
+    # Its denominator is still published.
+    assert view.good_service_measured_hours == 4
+    # One unknown day makes a window unknown, as fct_line_weekly_measured does.
+    total = sums() + sums(honesty_gap_hours=None) + sums()
+    assert total.honesty_gap_hours is None
+    assert total.good_service_measured_hours == 12
+    assert (sums() + sums(honesty_gap_hours=2)).honesty_gap_hours == 3
+
+
+def test_a_null_honesty_gap_cell_parses_as_unknown() -> None:
+    cells: dict[str, str | None] = {name: "1" for name in MEASURED_SUM_FIELDS}
+    cells |= {"line_id": "lioness", "london_date": "2026-11-11", "honesty_gap_hours": None}
+    assert parse_measured_daily(cells).sums.honesty_gap_hours is None
+    cells["honesty_gap_hours"] = "0"
+    assert parse_measured_daily(cells).sums.honesty_gap_hours == 0
 
 
 def test_custom_window_measured_view_and_rank() -> None:

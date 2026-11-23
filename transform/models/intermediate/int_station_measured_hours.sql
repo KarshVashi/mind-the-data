@@ -98,7 +98,9 @@ days as (
         collected_days.request_path,
         collected_days.london_date,
         today.day_type,
-        previous_day.day_type as previous_day_type
+        today.iso_day_of_week,
+        previous_day.day_type as previous_day_type,
+        previous_day.iso_day_of_week as previous_iso_day_of_week
     from collected_days
     inner join {{ ref('day_types') }} as today
         on day_of_week(collected_days.london_date) = today.iso_day_of_week
@@ -133,12 +135,20 @@ scheduled_rows as (
                 (
                     not schedule.is_next_calendar_day
                     and schedule.day_type = days.day_type
+                    and (
+                        schedule.iso_day_of_week is null
+                        or schedule.iso_day_of_week = days.iso_day_of_week
+                    )
                     and (schedule.valid_from is null or schedule.valid_from <= days.london_date)
                     and (schedule.valid_to is null or schedule.valid_to > days.london_date)
                 )
                 or (
                     schedule.is_next_calendar_day
                     and schedule.day_type = days.previous_day_type
+                    and (
+                        schedule.iso_day_of_week is null
+                        or schedule.iso_day_of_week = days.previous_iso_day_of_week
+                    )
                     and (
                         schedule.valid_from is null
                         or schedule.valid_from <= date_add('day', -1, days.london_date)
