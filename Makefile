@@ -71,9 +71,11 @@ test-all: ## Unit and integration tests
 
 # The Should I Run prototype (web/should-i-run, ADR-018) is plain ES modules
 # with no build step; its pure logic is tested with Node's own runner.
+# Test files are passed explicitly: newer Node treats a directory argument as a
+# module path rather than a directory to scan.
 .PHONY: web-test
 web-test: ## JS unit tests for web/ (node --test)
-	node --test web/
+	node --test web/should-i-run/*.test.mjs
 
 .PHONY: action-pins
 action-pins: ## Every GitHub Action pinned to a commit SHA with a version comment
