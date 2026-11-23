@@ -43,3 +43,4 @@ What gets easier, what gets harder, what to revisit and when.
 | [014](014-gate-tests-inference-fidelity.md) | The quality gate tests inference fidelity (inferred against trains on the boards); trains run is its own measure (amends PLAN 7.2) | accepted |
 | [015](015-divisions-seed-from-two-weeks.md) | Seed the divisions from two complete weeks, provisional until four exist (amends PLAN M6) | accepted |
 | [016](016-network-wide-arrivals.md) | Collect arrivals for every station through the per-line endpoint | proposed |
+| [020](020-passenger-demand-data.md) | Typical passenger demand from TfL's NUMBAT and annual counts, as small pinned seeds (exploratory) | proposed |

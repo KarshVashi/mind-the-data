@@ -833,6 +833,28 @@ The staging models merge those days, the two windowed models replace them, and t
 
 ---
 
+## Demand data
+
+Typical passenger demand (ADR-020) lives in four seeds: `seed_line_demand`, `seed_link_demand`, `seed_station_demand` and the hand-written `seed_demand_line_map`. The first three are written by a script from pinned TfL files; never edit them by hand.
+
+```sh
+uv run python scripts/fetch_demand_data.py --check   # are the seeds what the pins give?
+uv run python scripts/fetch_demand_data.py           # download (about 61 MB, cached outside the repo) and rewrite
+```
+
+**Yearly refresh.** TfL publishes the next autumn's NUMBAT and annual counts between August and November. List the store with `curl -s "https://s3-eu-west-1.amazonaws.com/crowding.data.tfl.gov.uk/?list-type=2&prefix=NUMBAT/"` (the web page at crowding.data.tfl.gov.uk renders empty without JavaScript). Then:
+
+1. Point `NUMBAT` and `ANNUAL_COUNTS` in `scripts/fetch_demand_data.py` at the new files and update `ANNUAL_COUNTS_SHEET` to the new sheet name.
+2. Run the script once with each new sha256 set to the old value. It stops and prints the new hash. Check the file, then pin the printed hash.
+3. Rerun the script, review the seed diff (a line's total should move by a few per cent, not double), and run `make check`.
+4. If the script stops on an unknown NUMBAT line, a line was renamed or added: add it to `NUMBAT_LINES` and `seed_demand_line_map`.
+
+**A pinned file changed in place.** The script stops with "has sha256 ..., pinned ...". Do not move the pin blindly: download the file, compare it with the previous one, and record what changed in the PR.
+
+**Critical links.** `AWS_PROFILE=mtd-dev uv run python scripts/analysis/critical_links.py --week 2026-11-09` reads the week's disrupted minutes from dev (read-only) and prints Markdown tables.
+
+---
+
 ## Ops workflows
 
 Scheduled checks that answer "is the collector healthy?" without anyone asking. Both run read-only as the `mtd-ci-observer` role, created by the bootstrap. The role trusts these two workflow files by name, so don't rename them.

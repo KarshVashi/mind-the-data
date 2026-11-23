@@ -21,7 +21,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
-D1 and D67 are open.
+D1, D67 and D78 are open.
 
 ### D67. Single-weekday timetables are left out until a weekday can be modelled
 
@@ -33,6 +33,26 @@ D1 and D67 are open.
 - **Scope:** none of these stops is a measurement station, so the league, the measured view and W46 do not change. Only the unpublished station views do, at these 7 stops.
 - **"Daily" (added 2026-11-22):** from 20 November TfL sends five Bakerloo stops (Charing Cross, Maida Vale, Harlesden, Kenton, Wembley Central) one schedule named "Daily", and the daily build failed on the unmapped name. Its journeys match those stops' Monday - Friday schedule exactly (305, 162 and 83 a direction, against 284 and 245 on Saturday and Sunday at Bakerloo stops on the 305 level), so it maps to `mon_thu` and `fri` only. Weekends at those stops then have no schedule and read as not measured, never as good; mapping it to every day would overstate the weekend timetable. None of the five is a measurement station.
 - **Follow-up:** model a schedule that runs on one weekday, for example a nullable `iso_day_of_week` in `timetable_schedule_day_types`, carried through `int_scheduled_headways` and matched by the measured-hours models. Before station publishing is switched on.
+
+### D78. How a disrupted minute is weighted by passengers (exploratory)
+
+- **Entered:** 2026-11-20. **Reminder:** 2026-11-23 18:00 UTC. **Class:** `never-default` (metric semantics; publishing). Nothing happens until the owner answers.
+- **Context:** the league weighs a minute by the clock only. ADR-020 brings in TfL's typical demand (NUMBAT 2025) as seeds. `rpt_line_weekly_passenger_weighted` is exploratory: it is disabled in prod, tagged `exploratory`, and nothing published reads it.
+- **Implemented:** each scored minute's severity weight is multiplied by the typical number of passengers boarding the line in that minute: NUMBAT boarders for the line, service day type and London hour, divided by 60. This replaces the time weight. Missing minutes leave both halves (as D19), and minutes without demand data are never read as zero. Two figures per line-week:
+  - `passenger_disruption_index`: sum of (severity x passengers) / sum of passengers over scored minutes, x 100, from 0 to 800. This is how the line's typical passenger saw the week, and is comparable with the Disruption Index.
+  - `passenger_disruption_minutes`: the sum itself, the disruption the line put on passengers. For the same trouble, big lines score more.
+
+  The same two figures with NUMBAT link loads (`link_load_*`) are alongside. Link loads count a passenger once per stop ridden, so long-ride lines weigh more.
+- **Week of 9 Nov 2026 (W46), dev**, against the declared ranks among the 19 lines with demand (trams have none):
+  - **The index barely moves.** Most lines move one place or none. Weaver falls three places (5th to 8th): its Seven Sisters to Enfield Town and Cheshunt suspension fell on Saturday, which the declared view weights 0.75 and which NUMBAT shows to be busy on that line. The time weights already follow demand closely.
+  - **The impact total reorders the table.** Suffragette rises from 19th to 8th, Windrush from 18th to 13th and Mildmay from 16th to 12th: heavy disruption on lightly used lines. Victoria and Elizabeth fall from 10th and 11th to 14th and 15th; Jubilee, Central and Northern fall three places each. District is last on both. Its minor delays all week covered about 3.5 million of its 4.5 million typical boardings.
+- **Questions for the owner:**
+  1. Which figure, if any, should be published: the index (close to today's ranks), the impact total (a different question: "which line hurt most people") or neither?
+  2. Boarders or link loads as the demand measure?
+  3. The Circle and Hammersmith & City split: half each (as built), or by trains per hour or stations served?
+  4. ADR-020's licence reading: TfL's transport data terms (OGL v2.0-based) cover the bulk demand files, with "Powered by TfL Open Data".
+- **Alternatives:** keep the time weight and multiply by demand, which counts the peak twice; weight by station entries and exits (the plan's wording), which gives interchange stations' demand to every line there; rank by passengers per scheduled hour.
+- **Recommendation:** none yet. Run four weeks before choosing. If one figure is published, the index is the safer choice: it keeps the league's scale and meaning.
 
 ## Settled on 2026-11-18, with the detail
 
