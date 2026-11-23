@@ -209,3 +209,11 @@ def test_measured_lines_cover_every_line_and_give_a_reason_when_off() -> None:
     for row in rows:
         assert row["is_measured"] in {"true", "false"}
         assert (row["is_measured"] == "false") == bool(row["reason"]), row
+
+
+def test_daily_schedule_maps_to_weekdays_only() -> None:
+    # TfL's "Daily" carries the Monday - Friday journeys (D67), so a weekend
+    # row would lend the weekend a weekday timetable.
+    with (SEEDS / "timetable_schedule_day_types.csv").open(newline="") as f:
+        day_types = {r["day_type"] for r in csv.DictReader(f) if r["schedule_name"] == "Daily"}
+    assert day_types == {"mon_thu", "fri"}
