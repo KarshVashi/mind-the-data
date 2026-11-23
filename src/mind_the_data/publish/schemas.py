@@ -20,6 +20,9 @@ SCHEMA_NAMES = (
     "open_data_manifest",
     "station",
     "station_index",
+    # Should I Run (ADR-018): written only with JOURNEYS_ENABLED=true.
+    "journey_origin",
+    "journey_index",
 )
 
 

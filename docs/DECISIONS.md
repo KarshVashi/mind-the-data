@@ -21,7 +21,7 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
-D1 and D67 are open.
+D1, D67 and D76 are open.
 
 ### D67. Single-weekday timetables are left out until a weekday can be modelled
 
@@ -33,6 +33,20 @@ D1 and D67 are open.
 - **Scope:** none of these stops is a measurement station, so the league, the measured view and W46 do not change. Only the unpublished station views do, at these 7 stops.
 - **"Daily" (added 2026-11-22):** from 20 November TfL sends five Bakerloo stops (Charing Cross, Maida Vale, Harlesden, Kenton, Wembley Central) one schedule named "Daily", and the daily build failed on the unmapped name. Its journeys match those stops' Monday - Friday schedule exactly (305, 162 and 83 a direction, against 284 and 245 on Saturday and Sunday at Bakerloo stops on the 305 level), so it maps to `mon_thu` and `fri` only. Weekends at those stops then have no schedule and read as not measured, never as good; mapping it to every day would overstate the weekend timetable. None of the five is a measurement station.
 - **Follow-up:** model a schedule that runs on one weekday, for example a nullable `iso_day_of_week` in `timetable_schedule_day_types`, carried through `int_scheduled_headways` and matched by the measured-hours models. Before station publishing is switched on.
+
+### D76. Should I Run: a journey planner on 15-minute windows, behind a flag
+
+- **Entered:** 2026-11-20. **Deadline:** 2026-11-23 18:00 UTC (a reminder only). **Class:** `never-default` (metric semantics, publishing and a new public page). **Default:** none; the models build in dev only and nothing is published.
+- **Context:** the every-station feed follows trains by vehicle id, so the run time from any station A to B, the wait at A and the trains that really come can be measured per 15-minute window. ADR-018 has the product, phases and risks (exploratory work toward v2).
+- **Implemented** (`int_station_vehicle_runs`, `rpt_station_reach`, `rpt_journey_slots`, tagged `exploratory`; the daily prod build now excludes that tag):
+  - a run is a vehicle's first pass at B after its pass at A, B after A on the latest route sequence, within 90 minutes and before its next pass at A; linked lines only;
+  - per weekday slot (06:00 to 10:00 and 16:00 to 19:00): runs, run time p10/p50/p90 (nearest rank), trains seen per day against the timetable, typical wait (the median day's mean time to the next matched train over the slot) and bad-day wait (p90 over days of the longest wait in the slot); a gap spanning slots counts in each, and with no matched train by 30 minutes after the slot the wait is censored there (`journey_wait_lookahead_minutes`);
+  - a day counts when A's hour was observed and either in band (ADR-014) or a suspension (scheduled, no train seen or inferred: bad service, not missing data), and B's hour was observed; the slot passes the gate when at most 30% of the days with A observed were out of band, counted over days, not over gate-judged hours as D51 does;
+  - Northern, Circle and Hammersmith & City slots are `withheld` (`journey_withheld_lines`): the Northern Bank-branch run times from Camden Town are unexplained, and Circle and H&C trains are misfiled (D52);
+  - figures are published only with the gate passed and at least 20 runs over 4 ISO weeks (`journey_min_runs`, `journey_min_weeks`); otherwise `not_enough_data` with null figures;
+  - `journeys/` files behind `JOURNEYS_ENABLED` (off), and a static prototype page in `web/should-i-run/` meant for its own origin, calling TfL's public arrivals API from the browser with no key.
+- **To decide:** (1) the threshold (20 runs over 4 weeks); (2) the wording rules in ADR-018; (3) hosting the page on its own origin (for example `run.karshvashi.com`) and whether it stays in this repo; (4) whether waits should come from matched trains only (they read long, never short) or from every train at A with the reach rule; (5) the withheld lines; (6) the gate's denominator (days, as implemented, or gate-judged hours as D51); (7) whether bank holidays and announced strike days should be left out of the history, as the strikes-excluded table does; (8) censoring waits at 30 minutes after the slot.
+- **Alternatives:** named departures (not possible without Tube trip ids); timetable run times; a server-side live proxy with the project key (rejected: key and journeys on a server); push alerts (deferred: personal data under UK GDPR and a second platform).
 
 ## Settled on 2026-11-18, with the detail
 

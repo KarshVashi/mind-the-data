@@ -255,6 +255,19 @@ How the map should consume them: colour by `summary.measured_status`, and show `
 - The owner settled D65 and D66 on 18 November 2026, so `open_decisions` stays empty and both are in `settled_decisions`.
 - Station files are unchanged in meaning: `trains_on_boards_share` per station still includes termini (see D66).
 
+### Not yet published: Should I Run (D76, ADR-018)
+
+Written only when `JOURNEYS_ENABLED=true`, which is off. The main site does not read these files; they are for the Should I Run page on its own origin (`web/should-i-run/`). `meta/index.json` does not list them, and `SCHEMA_VERSION` does not move until the flag is switched on. Both are written compact, with `public, max-age=300`.
+
+- **`journeys/index.json`** (`contract/journey_index.schema.json`): `stations` (names by NaPTAN id) and `origins[]`, one per line, direction and origin, each with `path`, `destination_naptan_ids[]` and `slots_published` (slots with status `ok`).
+- **`journeys/{line_id}/{direction}/{naptan_id}.json`** (`contract/journey_origin.schema.json`): `origin`, and `destinations[]` in route order, each with:
+  - `stops` from the origin;
+  - `train_destinations[]`: the board destinations (`destinationNaptanId`) of trains that call there, each with `is_ambiguous` when another route from the origin reaches the same board destination without calling there (show such trains as "may not call", never as a train to take);
+  - `slots[]`: `day_class` (`weekday`), `start` and `end` (London `HH:MM`), `status` (`ok`, `not_enough_data`, or `withheld` for a line held back), `days_counted`, `passes_gate`, `runs`, `weeks_with_runs`, and, only when `ok`, `run_seconds` (`p50`, `p90`), `wait_seconds` (`typical`, `worst_p90`), `trains_seen_per_day` and `scheduled_per_day`. Every figure is `null` unless `ok`, and the schema enforces it: show "not enough data" or "held back", never a blank that reads as fine.
+- Both carry `schema_version`, `generated_at`, `git_sha`, `data_window` (`start`, `end` London dates, or null), `attribution` ("Powered by TfL Open Data") and `disclaimer` ("Estimates, not guarantees.").
+
+The page's CSP allows `connect-src https://api.tfl.gov.uk https://data.karshvashi.com` only; the bucket's existing read-only CORS rule (any origin, `GET`) covers it.
+
 ### Still needed
 
 | Gap | Needed for | Where |

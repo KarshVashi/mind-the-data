@@ -1,0 +1,199 @@
+version: 2
+
+# Hand-computed cases for Should I Run (ADR-018, D76).
+
+unit_tests:
+  - name: rpt_station_reach_flags_destinations_a_branch_also_serves
+    description: >
+      Northern inbound, one fetch. Route 1 calls at A, B, C; route 2 at A, D;
+      route 3 at A, E, C. A train for C from A may run via B (route 1) or
+      via E (route 3), so (A to B, train for C) and (A to E, train for C)
+      are ambiguous. (A to C, train for C) is served by routes 1 and 3, two
+      stops either way, and is not: every route from A to C calls at C.
+      A train for B, D or E is unambiguous. B to C comes from route 1 only,
+      E to C from route 3 only.
+    model: rpt_station_reach
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_route_sequence')
+        format: sql
+        rows: |
+          select
+              'r1' as poll_id, '/Line/northern/Route/Sequence/inbound' as request_path,
+              timestamp '2026-11-17 04:00:00' as polled_at, 'northern' as line_id,
+              'inbound' as direction, route_ordinal, 'route' as route_name, stop_sequence,
+              naptan_id, date '2026-11-17' as dt
+          from (
+              values
+                  (1, 1, 'A'), (1, 2, 'B'), (1, 3, 'C'),
+                  (2, 1, 'A'), (2, 2, 'D'),
+                  (3, 1, 'A'), (3, 2, 'E'), (3, 3, 'C')
+          ) as t (route_ordinal, stop_sequence, naptan_id)
+      - input: ref('seed_vehicle_id_lines')
+        rows:
+          - {line_id: northern, link_by_vehicle_id: true}
+      - input: ref('dim_station')
+        rows:
+          - {naptan_id: A, station_name: Alpha}
+          - {naptan_id: B, station_name: Bravo}
+          - {naptan_id: C, station_name: Charlie}
+    expect:
+      rows:
+        - {origin_naptan_id: A, destination_naptan_id: B, train_destination_naptan_id: B, origin_name: Alpha, destination_name: Bravo, routes: 1, stops_to_destination: 1, is_ambiguous: false}
+        - {origin_naptan_id: A, destination_naptan_id: B, train_destination_naptan_id: C, origin_name: Alpha, destination_name: Bravo, routes: 1, stops_to_destination: 1, is_ambiguous: true}
+        - {origin_naptan_id: A, destination_naptan_id: C, train_destination_naptan_id: C, origin_name: Alpha, destination_name: Charlie, routes: 2, stops_to_destination: 2, is_ambiguous: false}
+        - {origin_naptan_id: B, destination_naptan_id: C, train_destination_naptan_id: C, origin_name: Bravo, destination_name: Charlie, routes: 1, stops_to_destination: 1, is_ambiguous: false}
+        - {origin_naptan_id: A, destination_naptan_id: D, train_destination_naptan_id: D, origin_name: Alpha, destination_name: null, routes: 1, stops_to_destination: 1, is_ambiguous: false}
+        - {origin_naptan_id: A, destination_naptan_id: E, train_destination_naptan_id: E, origin_name: Alpha, destination_name: null, routes: 1, stops_to_destination: 1, is_ambiguous: false}
+        - {origin_naptan_id: A, destination_naptan_id: E, train_destination_naptan_id: C, origin_name: Alpha, destination_name: null, routes: 1, stops_to_destination: 1, is_ambiguous: true}
+        - {origin_naptan_id: E, destination_naptan_id: C, train_destination_naptan_id: C, origin_name: null, destination_name: Charlie, routes: 1, stops_to_destination: 1, is_ambiguous: false}
+
+  - name: rpt_journey_slots_counts_gated_days_and_waits
+    description: >
+      Victoria inbound, A to B, one window 08:00-08:30 (slots 480 and 495),
+      GMT, 30 minutes looked at past each slot. A's hour 8: Wed 11 and
+      Wed 18 November observed and in band; Tue 17 observed and suspended
+      (9 timetabled, no train seen or inferred), which counts; Thu 12
+      observed but out of band, not counted; Fri 13 not observed. 4 days
+      observed, 3 gate-ok, so the gate passes (at most 30% out); B's hour 8
+      is observed on all three counted days.
+      Runs (origin time, seconds). 11th: 08:00 540, 08:02 560, 08:06 600,
+      08:16 520 (slot 495), 08:33 500 (after the window). 12th: 08:01 900,
+      not counted. 18th: 08:01 550, 08:05 580, 08:12 3000 (B's hour 9 not
+      observed, so no run time, but a train for the wait), 08:40 500.
+      Slot 480 run times 540, 550, 560, 580, 600: p10 = rank 1 = 540,
+      p50 = rank 3 = 560, p90 = rank 5 = 600, over 2 ISO weeks: ok with at
+      least 3 runs over 2 weeks. Slot 495: one run, 520: not_enough_data.
+      Waits, slot 480 [08:00, 08:15), censored at 08:45. The 11th: next
+      trains 08:02, 08:06, 08:16, so waits fall 120 to 0, 240 to 0, 600 to
+      60: (14400 + 57600 + 356400) / 2 / 900 = 238 s, longest 600. The
+      18th: 08:01, 08:05, 08:12, 08:40: 60 to 0, 240 to 0, 420 to 0, 1680
+      to 1500: (3600 + 57600 + 176400 + 572400) / 2 / 900 = 450, longest
+      1680. The 17th: no train, censored at 08:45: 2700 to 1800 =
+      4050000 / 2 / 900 = 2250, longest 2700. Typical = median of 238, 450,
+      2250 = 450; worst = p90 = rank 3 of 600, 1680, 2700 = 2700; 1
+      censored day.
+      Slot 495 [08:15, 08:30), censored at 09:00. The 11th: 08:16, 08:33:
+      60 to 0, 1020 to 180: (3600 + 1008000) / 2 / 900 = 562, longest
+      1020. The 18th: 08:40: 1500 to 600: 1890000 / 2 / 900 = 1050. The
+      17th: 2700 to 1800: 2250. Typical 1050, worst 2700, 1 censored day.
+      Trains seen at A (counted days): slot 480, 5 on the 11th and 4 on the
+      18th, 9 / 3 = 3.0; slot 495, 3 / 3 = 1.0. Timetable (latest fetch
+      t1; the older t0 is ignored), Monday - Thursday: 4 and 2 a day.
+    model: rpt_journey_slots
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+        journey_source: station
+        journey_slot_minutes: 15
+        journey_slot_windows: [[480, 510]]
+        journey_wait_lookahead_minutes: 30
+        journey_history_days: null
+        journey_withheld_lines: ["northern"]
+        journey_min_runs: 3
+        journey_min_weeks: 2
+        gate_max_out_of_band_share: 0.3
+    given:
+      - input: ref('int_station_vehicle_runs')
+        format: sql
+        rows: |
+          select
+              'victoria' as line_id, 'inbound' as direction, vehicle_id,
+              'A' as origin_naptan_id, 'B' as destination_naptan_id,
+              origin_pass_time, origin_pass_time as origin_london_ts, run_seconds,
+              cast(origin_pass_time as date) as london_date,
+              hour(origin_pass_time) * 60 + minute(origin_pass_time) as origin_london_minute,
+              hour(origin_pass_time) as origin_london_hour,
+              cast(origin_pass_time + run_seconds * interval '1' second as date)
+                  as destination_london_date,
+              hour(origin_pass_time + run_seconds * interval '1' second)
+                  as destination_london_hour
+          from (
+              values
+                  ('12', timestamp '2026-11-11 08:00:00', 540),
+                  ('13', timestamp '2026-11-11 08:02:00', 560),
+                  ('14', timestamp '2026-11-11 08:06:00', 600),
+                  ('15', timestamp '2026-11-11 08:16:00', 520),
+                  ('16', timestamp '2026-11-11 08:33:00', 500),
+                  ('21', timestamp '2026-11-12 08:01:00', 900),
+                  ('31', timestamp '2026-11-18 08:01:00', 550),
+                  ('32', timestamp '2026-11-18 08:05:00', 580),
+                  ('33', timestamp '2026-11-18 08:12:00', 3000),
+                  ('34', timestamp '2026-11-18 08:40:00', 500)
+          ) as t (vehicle_id, origin_pass_time, run_seconds)
+      - input: ref('int_station_measured_hours')
+        format: sql
+        rows: |
+          select
+              'victoria' as line_id, naptan_id, 'inbound' as direction, london_date,
+              london_hour, is_observed, is_in_band, scheduled_departures, observed_trains,
+              inferred_arrivals
+          from (
+              values
+                  ('A', date '2026-11-11', 8, true, true, 9, 9, 9),
+                  ('A', date '2026-11-12', 8, true, false, 9, 9, 5),
+                  ('A', date '2026-11-13', 8, false, false, 9, 0, 0),
+                  ('A', date '2026-11-17', 8, true, false, 9, 0, 0),
+                  ('A', date '2026-11-18', 8, true, true, 9, 9, 9),
+                  ('B', date '2026-11-11', 8, true, true, 9, 9, 9),
+                  ('B', date '2026-11-12', 8, true, true, 9, 9, 9),
+                  ('B', date '2026-11-17', 8, true, false, 9, 0, 0),
+                  ('B', date '2026-11-18', 8, true, true, 9, 9, 9)
+          ) as t (
+              naptan_id, london_date, london_hour, is_observed, is_in_band,
+              scheduled_departures, observed_trains, inferred_arrivals
+          )
+      - input: ref('int_station_vehicle_passes')
+        format: sql
+        rows: |
+          select
+              'victoria' as line_id, 'A' as naptan_id, 'inbound' as direction,
+              cast(pass_time as date) as london_date, pass_time
+          from (
+              values
+                  (timestamp '2026-11-11 08:00:00'),
+                  (timestamp '2026-11-11 08:02:00'),
+                  (timestamp '2026-11-11 08:06:00'),
+                  (timestamp '2026-11-11 08:09:00'),
+                  (timestamp '2026-11-11 08:11:00'),
+                  (timestamp '2026-11-11 08:16:00'),
+                  (timestamp '2026-11-11 08:25:00'),
+                  (timestamp '2026-11-12 08:01:00'),
+                  (timestamp '2026-11-18 08:01:00'),
+                  (timestamp '2026-11-18 08:05:00'),
+                  (timestamp '2026-11-18 08:12:00'),
+                  (timestamp '2026-11-18 08:14:00'),
+                  (timestamp '2026-11-18 08:20:00')
+          ) as t (pass_time)
+      - input: ref('stg_timetable')
+        format: sql
+        rows: |
+          select
+              poll_id, polled_at, 'victoria' as line_id, 'A' as departure_stop_id,
+              'inbound' as direction, 'Monday - Thursday' as schedule_name,
+              departure_minute_of_service_day, cast(polled_at as date) as dt
+          from (
+              values
+                  ('t0', timestamp '2026-11-09 05:00:00', 480),
+                  ('t1', timestamp '2026-11-16 05:00:00', 480),
+                  ('t1', timestamp '2026-11-16 05:00:00', 484),
+                  ('t1', timestamp '2026-11-16 05:00:00', 488),
+                  ('t1', timestamp '2026-11-16 05:00:00', 492),
+                  ('t1', timestamp '2026-11-16 05:00:00', 496),
+                  ('t1', timestamp '2026-11-16 05:00:00', 500)
+          ) as t (poll_id, polled_at, departure_minute_of_service_day)
+      - input: ref('timetable_schedule_day_types')
+        rows:
+          - {schedule_name: Monday - Thursday, day_type: mon_thu}
+      - input: ref('day_types')
+        rows:
+          - {iso_day_of_week: 2, day_name: Tuesday, day_type: mon_thu, day_class: weekday}
+          - {iso_day_of_week: 3, day_name: Wednesday, day_type: mon_thu, day_class: weekday}
+          - {iso_day_of_week: 4, day_name: Thursday, day_type: mon_thu, day_class: weekday}
+          - {iso_day_of_week: 5, day_name: Friday, day_type: fri, day_class: weekday}
+    expect:
+      rows:
+        - {slot_start_minute: 480, slot_end_minute: 495, days_observed: 4, days_counted: 3, passes_gate: true, runs: 5, weeks_with_runs: 2, run_p10_seconds: 540, run_p50_seconds: 560, run_p90_seconds: 600, trains_seen_per_day: 3.0, scheduled_per_day: 4.0, wait_censored_days: 1, typical_wait_seconds: 450.0, worst_wait_p90_seconds: 2700.0, enough_data: true, status: ok}
+        - {slot_start_minute: 495, slot_end_minute: 510, days_observed: 4, days_counted: 3, passes_gate: true, runs: 1, weeks_with_runs: 1, run_p10_seconds: 520, run_p50_seconds: 520, run_p90_seconds: 520, trains_seen_per_day: 1.0, scheduled_per_day: 2.0, wait_censored_days: 1, typical_wait_seconds: 1050.0, worst_wait_p90_seconds: 2700.0, enough_data: false, status: not_enough_data}

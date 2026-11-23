@@ -47,7 +47,7 @@ install: ## Install the locked Python environment and git pre-commit hook
 # ---- Full gate ---------------------------------------------------------------
 
 .PHONY: check
-check: lint typecheck test-all action-pins handlers sql-lint dbt-parse tf-fmt-check tf-validate tf-lint ## Everything CI runs
+check: lint typecheck test-all web-test action-pins handlers sql-lint dbt-parse tf-fmt-check tf-validate tf-lint ## Everything CI runs
 
 .PHONY: check-fast
 check-fast: lint typecheck test ## ruff, mypy, unit tests
@@ -68,6 +68,14 @@ test: ## Unit tests
 .PHONY: test-all
 test-all: ## Unit and integration tests
 	$(UV_RUN) pytest tests -q
+
+# The Should I Run prototype (web/should-i-run, ADR-018) is plain ES modules
+# with no build step; its pure logic is tested with Node's own runner.
+# Test files are passed explicitly: newer Node treats a directory argument as a
+# module path rather than a directory to scan.
+.PHONY: web-test
+web-test: ## JS unit tests for web/ (node --test)
+	node --test web/should-i-run/*.test.mjs
 
 .PHONY: action-pins
 action-pins: ## Every GitHub Action pinned to a commit SHA with a version comment

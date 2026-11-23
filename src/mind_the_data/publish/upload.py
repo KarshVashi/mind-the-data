@@ -75,6 +75,13 @@ RULES: tuple[tuple[re.Pattern[str], str, str], ...] = (
     (re.compile(r"meta/(index|methodology)\.json"), JSON, SHORT_CACHE),
     # Rewritten every run like the line files. The pattern also matches stations/index.json.
     (re.compile(r"stations/[0-9A-Za-z]+\.json"), JSON, SHORT_CACHE),
+    # Should I Run (ADR-018), written only with JOURNEYS_ENABLED=true.
+    (re.compile(r"journeys/index\.json"), JSON, SHORT_CACHE),
+    (
+        re.compile(r"journeys/[a-z0-9-]+/(inbound|outbound)/[0-9A-Za-z]+\.json"),
+        JSON,
+        SHORT_CACHE,
+    ),
     # Rewritten each run while the month or season is still open (D57, D58).
     (re.compile(rf"divisions/{_MONTH}\.json"), JSON, SHORT_CACHE),
     (re.compile(r"season/\d{4}-\d{2}\.json"), JSON, SHORT_CACHE),
