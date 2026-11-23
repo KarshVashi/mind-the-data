@@ -21,7 +21,25 @@ The deadline is 72 hours after the item enters this inbox. Unless a section says
 
 ## Pending
 
-D1 and D67 are open.
+D1, D67 and D77 are open.
+
+### D77. Collect lifts, live busyness, BikePoint and status ahead now (ADR-019)
+
+- **Entered:** 2026-11-20. **Deadline:** 2026-11-23 12:00 UTC (reminder only). **Class:** `never-default`: it adds a Lambda, an IAM policy and a schedule, and money (about $1.55 a month at first, plus about $0.025 for each month of data kept, so the bill goes from about $2 to about $3.55 against the £5 budget). **Recommended:** accept as implemented.
+- **Context:** TfL keeps no history of these feeds, so each day not collected is lost. Step-free reliability (draft #47), station busyness, "should I cycle instead?" and planned-closure foresight all need months of them.
+- **Implemented:** a new `mind-the-data-context` Lambda every minute, separate from the poller. It reads:
+  - lift disruptions every minute;
+  - live busyness (`crowding/{naptan}/Live`) for all 270 Tube stations, each every 5 minutes, a fifth of them each minute;
+  - BikePoint every 5 minutes;
+  - every line's status for today to 14 days ahead, 4 times a day.
+
+  The raw feeds get Glue tables and four `stg_` models with tests. The models are off until dbt var `context_feeds_enabled` is set. Nothing is published.
+- **Rate:** about 55 calls a minute on average and 64 at most, so the project peaks at about 187 of 500 a minute (37%).
+- **Differs from the request:** status ahead runs 4 times a day rather than once, so one lost run costs 6 hours, not a day. It names the lines, because `Line/Mode/{modes}/Status/{from}/to/{to}` answers 404. Busyness uses `crowding/{naptan}/Live`; `StopPoint/{id}/Crowding/{line}` does not exist.
+- **Owner questions:**
+  - Lifts every minute ($0.23 a month) or every 5 minutes?
+  - Add Elizabeth line busyness later? It answers for 910G ids.
+- **Verification left:** the busyness endpoint was checked without a key and at night only. Check daytime coverage in the first week (runbook, Station context feeds).
 
 ### D67. Single-weekday timetables are left out until a weekday can be modelled
 

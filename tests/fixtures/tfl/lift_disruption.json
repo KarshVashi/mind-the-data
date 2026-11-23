@@ -1,0 +1,47 @@
+{
+  "request": {
+    "path": "/Disruptions/Lifts/v2"
+  },
+  "http_status": 200,
+  "recorded_at": "2026-11-20T03:30:29Z",
+  "trimmed": [
+    "$.payload: kept first 5 of 20"
+  ],
+  "payload": [
+    {
+      "stationUniqueId": "HUBWMB",
+      "disruptedLiftUniqueIds": [
+        "HUBWMB-Lift-3"
+      ],
+      "message": "Wembley Central: No Step Free Access - Step free access is not available to the northbound Southern / London Northwestern platform due to a faulty lift. Call us on 0343 222 1234 if you need help planning your journey."
+    },
+    {
+      "stationUniqueId": "940GZZLUFBY",
+      "disruptedLiftUniqueIds": [
+        "940GZZLUFBY-Lift-2"
+      ],
+      "message": "Fulham Broadway: No Step Free Access- Step free access is not available to the westbound platform due to a faulty lift. Call us on 0343 222 1234 if you need help planning your journey."
+    },
+    {
+      "stationUniqueId": "910GHRLDWOD",
+      "disruptedLiftUniqueIds": [
+        "910GHRLDWOD-Lift-2"
+      ],
+      "message": "Harold Wood Station: No Step Free Access - Step free access is not available to platform 3 (towards Liverpool Street) due to a faulty lift. Call us on 0343 222 1234 if you need help planning your journey."
+    },
+    {
+      "stationUniqueId": "HUBLST",
+      "disruptedLiftUniqueIds": [
+        "HUBLST-Lift-1"
+      ],
+      "message": "Liverpool Street Station: No Step Free Access - No step free access between the National Rail concourse and the eastbound Circle, Hamm & City and Metropolitan lines due to a faulty lift. Use the Elizabeth line entrance on Broadgate for step free access."
+    },
+    {
+      "stationUniqueId": "HUBHRW",
+      "disruptedLiftUniqueIds": [
+        "HUBHRW-Lift-3"
+      ],
+      "message": "Harrow & Wealdstone: No Step Free Access - Step free access is not available to the northbound London Northwestern / Southern (platforms 4 and 5) due to a faulty lift. Call 0343 222 1234 for help planning your journey."
+    }
+  ]
+}

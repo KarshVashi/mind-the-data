@@ -314,6 +314,64 @@ class Severity(TflModel):
     description: str
 
 
+# ---- Station context feeds (ADR-019) ------------------------------------------
+
+
+class LiftDisruption(TflModel):
+    """One station of ``Disruptions/Lifts/v2``: lifts out of service there now.
+
+    ``station_unique_id`` is a 940GZZ, 910G or HUB id; the lift ids are that
+    id plus ``-Lift-<n>``.
+    """
+
+    station_unique_id: str = Field(min_length=1)
+    disrupted_lift_unique_ids: list[str] = Field(default_factory=list)
+    message: str | None = None
+
+
+class CrowdingLive(TflModel):
+    """``crowding/{naptan}/Live``: busyness now as a share of a typical baseline.
+
+    With ``data_available`` false TfL sends a zero share and no time: that is
+    missing data, never an empty station, so the share is read only when data
+    is available.
+    """
+
+    data_available: bool
+    percentage_of_baseline: float | None = None
+    time_utc: OptionalUtcDatetime = None
+
+    @property
+    def share_of_baseline(self) -> float | None:
+        return self.percentage_of_baseline if self.data_available else None
+
+
+class PlaceProperty(TflModel):
+    key: str
+    value: str | None = None
+    modified: OptionalUtcDatetime = None
+
+
+class BikePoint(TflModel):
+    """One docking station from ``BikePoint``. Counts are text properties."""
+
+    id: str = Field(min_length=1)
+    common_name: str | None = None
+    lat: float | None = None
+    lon: float | None = None
+    additional_properties: list[PlaceProperty]
+
+    def count(self, key: str) -> int | None:
+        """An ``Nb...`` property as an int; None when absent or not a number."""
+        for prop in self.additional_properties:
+            if prop.key == key:
+                try:
+                    return int(prop.value or "")
+                except ValueError:
+                    return None
+        return None
+
+
 # ---- Parse helpers ------------------------------------------------------------
 
 _LINE_STATUSES = TypeAdapter(list[LineStatus])
@@ -321,6 +379,8 @@ _DISRUPTIONS = TypeAdapter(list[Disruption])
 _STOP_DISRUPTIONS = TypeAdapter(list[StopDisruption])
 _ARRIVALS = TypeAdapter(list[Arrival])
 _SEVERITIES = TypeAdapter(list[Severity])
+_LIFT_DISRUPTIONS = TypeAdapter(list[LiftDisruption])
+_BIKE_POINTS = TypeAdapter(list[BikePoint])
 
 
 def parse_line_statuses(payload: Any) -> list[LineStatus]:
@@ -349,6 +409,18 @@ def parse_timetable(payload: Any) -> Timetable:
 
 def parse_severities(payload: Any) -> list[Severity]:
     return _SEVERITIES.validate_python(payload)
+
+
+def parse_lift_disruptions(payload: Any) -> list[LiftDisruption]:
+    return _LIFT_DISRUPTIONS.validate_python(payload)
+
+
+def parse_crowding_live(payload: Any) -> CrowdingLive:
+    return CrowdingLive.model_validate(payload)
+
+
+def parse_bike_points(payload: Any) -> list[BikePoint]:
+    return _BIKE_POINTS.validate_python(payload)
 
 
 def severity_lookup(severities: Sequence[Severity]) -> dict[tuple[str, int], str]:

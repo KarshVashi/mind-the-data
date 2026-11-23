@@ -27,6 +27,11 @@ class Feed(StrEnum):
     REF_ROUTE_SEQUENCE = "ref_route_sequence"
     REF_TIMETABLE = "ref_timetable"
     REF_SEVERITY = "ref_severity"
+    # Station context feeds (ADR-019), collected by ingest/context.py.
+    LIFT_DISRUPTION = "lift_disruption"
+    CROWDING = "crowding"
+    BIKE_POINT = "bike_point"
+    LINE_STATUS_AHEAD = "line_status_ahead"
 
 
 class RequestInfo(BaseModel):

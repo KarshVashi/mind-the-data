@@ -108,6 +108,11 @@ vars:
   # rewrites only partitions this many days back, which covers a week of
   # daily merges plus their lookback_days.
   maintenance_lookback_days: 9
+  # Station context feeds (ADR-019): their raw sources and staging models.
+  # Off until the infra change has created the Glue tables in prod, or every
+  # transform run would fail on the missing tables (docs/runbook.md, Station
+  # context feeds).
+  context_feeds_enabled: false
   # analyses/league_preview.sql: a week to show instead of the latest
   # complete one ('YYYY-MM-DD', a Monday).
   preview_week_start: null

@@ -8,6 +8,11 @@ output "poller_function_name" {
   value       = module.poller.function_name
 }
 
+output "context_function_name" {
+  description = "Name of the per-minute context Lambda (ADR-019)."
+  value       = module.context.function_name
+}
+
 output "reference_function_name" {
   description = "Name of the daily reference Lambda."
   value       = module.reference.function_name

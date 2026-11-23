@@ -65,6 +65,22 @@ From the M8 deploy, the collector also reads `Line/{id}/Arrivals` for every line
 
 That is about $0.80 a month more at first, rising by about $0.25 for each month of data kept, before Intelligent-Tiering lowers older objects. The first full month after the deploy is checked against Cost Explorer and recorded here.
 
+## Station context feeds (ADR-019)
+
+From the context collector's deploy: lift disruptions every minute, live busyness for 270 Tube stations every 5 minutes, BikePoint every 5 minutes and status ahead 4 times a day. Estimated from payloads probed on 20 November 2026:
+
+| Item | Added per 30 days | USD per 30 days |
+| --- | --- | --- |
+| S3 PUT (Tier 1): 2 objects a minute plus BikePoint | ~95,000 requests | ~0.50 |
+| S3 storage: BikePoint 89 KB gzipped a fetch is most of it | ~1 GB more each month | ~0.025 for each month kept |
+| S3 GET (Tier 2): staging reads 3 days of small objects a run | ~285,000 requests | ~0.12 |
+| Athena: four staging models over ~100 MB of raw a run | ~3 GB scanned | ~0.02 |
+| CloudWatch alarms: context error rate (2 metrics) and a no-objects alarm | 3 alarm metrics | up to ~0.30 |
+| CloudWatch custom metrics: `lift_disruption` only (the other context feeds emit none) | 2 metrics | ~0.60 |
+| Lambda (512 MB, ~22,000 GB-s), Glue, EventBridge | inside the free tier | 0 |
+
+That is about $1.55 a month at first. Each custom metric past the first 10 costs $0.30 a month, so every feed that emits `ObjectsWritten` and `RequestFailures` costs $0.60; the context collector emits them for the alarmed lift feed only. Lifts every 5 minutes instead of every minute would save about $0.18.
+
 ## Dev Athena scans inflate the partial month
 
 The first two weeks included the week-one review, the M4 gate rechecks and dbt runs against the dev database, all through the dev workgroup. Athena's per-workgroup metrics for 1 to 13 November (CloudWatch `AWS/Athena ProcessedBytes`, successful queries):

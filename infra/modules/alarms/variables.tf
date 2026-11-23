@@ -27,9 +27,15 @@ variable "reference_function_name" {
   description = "Name of the daily reference Lambda."
 }
 
+variable "context_function_name" {
+  type        = string
+  description = "Name of the per-minute context Lambda (ADR-019); empty creates no alarm for it."
+  default     = ""
+}
+
 variable "error_rate_threshold_percent" {
   type        = number
-  description = "Poller error rate, in percent of invocations per minute, at or above which a minute counts as failing."
+  description = "Error rate of the poller and the context collector, in percent of invocations per minute, at or above which a minute counts as failing."
   default     = 50
 }
 
