@@ -10,6 +10,11 @@
 -- (ADR-014). The line-week gate (D51) is judged on hours at core and branch
 -- stations: termini over-count (D33), and they are already left out of the
 -- M4 acceptance.
+--
+-- The Honesty Gap is null, not 0, on a line with fewer than
+-- `honesty_gap_min_stations` core and branch measurement stations (D68):
+-- no hour of it can be corroborated, and 0 would read as TfL always being
+-- right. Its Good Service hours still count.
 
 with hours as (
     select *
@@ -19,15 +24,53 @@ with hours as (
 
 measured_line_hours as (
     -- One row per line and London hour with a measured station-direction-
-    -- hour, for the Honesty Gap.
+    -- hour: the Honesty Gap's denominator, once joined to Good Service.
+    select distinct
+        line_id,
+        london_date,
+        london_hour
+    from hours
+    where counts_for_reliability
+),
+
+corroborated_directions as (
+    -- D68: the hour counts toward the Honesty Gap only when at least
+    -- `honesty_gap_min_stations` measurement stations, in the same
+    -- direction, each had a measured hour with a long gap ending in it whose
+    -- whole span was Good Service. One board dropping a train makes a gap
+    -- at that station only. Directions are the line's own (inbound,
+    -- outbound), so stations on different branches corroborate each other.
+    -- Termini are left out of the count: one train listed on two platforms
+    -- there reads as two boards agreeing, the artefact this rule filters
+    -- out (D33, D51, D66, D68). Their gaps still count as long gaps.
     select
         line_id,
         london_date,
         london_hour,
-        sum(long_gaps) as long_gaps
+        direction
     from hours
-    where counts_for_reliability
-    group by line_id, london_date, london_hour
+    where counts_for_reliability and good_service_long_gaps > 0 and role <> 'terminus'
+    group by line_id, london_date, london_hour, direction
+    having count(distinct naptan_id) >= {{ var('honesty_gap_min_stations') }}
+),
+
+corroborable_lines as (
+    -- D68: lines with enough core and branch measurement stations for an
+    -- hour to be corroborated at all, from the seed rather than the day's
+    -- rows, so a station closed for a day does not change the rule.
+    select line_id
+    from {{ ref('seed_measurement_stations') }}
+    where role <> 'terminus'
+    group by line_id
+    having count(distinct naptan_id) >= {{ var('honesty_gap_min_stations') }}
+),
+
+corroborated_line_hours as (
+    select distinct
+        line_id,
+        london_date,
+        london_hour
+    from corroborated_directions
 ),
 
 good_service_hours as (
@@ -47,13 +90,18 @@ honesty as (
         measured_line_hours.line_id,
         measured_line_hours.london_date,
         count(*) as good_service_measured_hours,
-        count_if(measured_line_hours.long_gaps > 0) as honesty_gap_hours
+        count(corroborated_line_hours.line_id) as honesty_gap_hours
     from measured_line_hours
     inner join good_service_hours
         on
             measured_line_hours.line_id = good_service_hours.line_id
             and measured_line_hours.london_date = good_service_hours.london_date
             and measured_line_hours.london_hour = good_service_hours.london_hour
+    left join corroborated_line_hours
+        on
+            measured_line_hours.line_id = corroborated_line_hours.line_id
+            and measured_line_hours.london_date = corroborated_line_hours.london_date
+            and measured_line_hours.london_hour = corroborated_line_hours.london_hour
     group by measured_line_hours.line_id, measured_line_hours.london_date
 ),
 
@@ -105,10 +153,15 @@ select
     daily.gate_judged_hours,
     daily.gate_in_band_hours,
     coalesce(honesty.good_service_measured_hours, 0) as good_service_measured_hours,
-    coalesce(honesty.honesty_gap_hours, 0) as honesty_gap_hours,
+    if(
+        corroborable_lines.line_id is not null,
+        coalesce(honesty.honesty_gap_hours, 0)
+    ) as honesty_gap_hours,
     {{ row_key(['daily.line_id', 'daily.london_date']) }} as line_measured_daily_key
 from daily
 left join honesty
     on
         daily.line_id = honesty.line_id
         and daily.london_date = honesty.london_date
+left join corroborable_lines
+    on daily.line_id = corroborable_lines.line_id

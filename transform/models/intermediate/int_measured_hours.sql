@@ -104,7 +104,9 @@ days as (
     select
         collected_days.london_date,
         today.day_type,
-        previous_day.day_type as previous_day_type
+        today.iso_day_of_week,
+        previous_day.day_type as previous_day_type,
+        previous_day.iso_day_of_week as previous_iso_day_of_week
     from collected_days
     inner join {{ ref('day_types') }} as today
         on day_of_week(collected_days.london_date) = today.iso_day_of_week
@@ -132,12 +134,20 @@ scheduled_rows as (
             (
                 not schedule.is_next_calendar_day
                 and schedule.day_type = days.day_type
+                and (
+                    schedule.iso_day_of_week is null
+                    or schedule.iso_day_of_week = days.iso_day_of_week
+                )
                 and (schedule.valid_from is null or schedule.valid_from <= days.london_date)
                 and (schedule.valid_to is null or schedule.valid_to > days.london_date)
             )
             or (
                 schedule.is_next_calendar_day
                 and schedule.day_type = days.previous_day_type
+                and (
+                    schedule.iso_day_of_week is null
+                    or schedule.iso_day_of_week = days.previous_iso_day_of_week
+                )
                 and (
                     schedule.valid_from is null
                     or schedule.valid_from <= date_add('day', -1, days.london_date)
@@ -209,7 +219,9 @@ in_service_headways as (
         headways.direction,
         headways.london_date,
         headways.london_hour,
-        headways.headway_seconds
+        headways.headway_seconds,
+        headways.previous_arrival_time,
+        headways.arrival_time
     from {{ ref('int_headways') }} as headways
     cross join
         unnest(
@@ -234,13 +246,58 @@ in_service_headways as (
         headways.direction,
         headways.london_date,
         headways.london_hour,
-        headways.headway_seconds
+        headways.headway_seconds,
+        headways.previous_arrival_time,
+        headways.arrival_time
     having count(scheduled.line_id) = count(*)
 ),
 
-headway_hours as (
+judged_headways as (
     -- Long gaps are judged against the longest scheduled gap of the hour
     -- (D34), so only a gap no scheduled gap comes near counts.
+    select
+        headways.*,
+        headways.headway_seconds > 2 * scheduled.scheduled_max_headway_seconds as is_long_gap
+    from in_service_headways as headways
+    inner join scheduled
+        on
+            headways.line_id = scheduled.line_id
+            and headways.naptan_id = scheduled.naptan_id
+            and headways.direction = scheduled.direction
+            and headways.london_date = scheduled.london_date
+            and headways.london_hour = scheduled.london_hour
+),
+
+good_service_long_gaps as (
+    -- D68: a long gap is Honesty Gap evidence only when the line's declared
+    -- status was Good Service in every UTC minute it spans, from the minute
+    -- of the train before to the minute of the train that ends it. A
+    -- missing minute breaks the span: missing data is never Good Service.
+    select gaps.headway_key
+    from judged_headways as gaps
+    -- Trino's sequence() allows 10,000 elements (about 7 days of minutes).
+    -- A judged gap is in service throughout (D30), so the scheduled-hours
+    -- rule bounds it far below that.
+    cross join
+        unnest(
+            sequence(
+                date_trunc('minute', gaps.previous_arrival_time),
+                date_trunc('minute', gaps.arrival_time),
+                interval '1' minute
+            )
+        ) as spanned (minute_utc)
+    left join {{ ref('int_line_minute_status') }} as status
+        on
+            gaps.line_id = status.line_id
+            and spanned.minute_utc = status.minute_utc
+    where gaps.is_long_gap
+    group by gaps.headway_key
+    having
+        count(*)
+        = count_if(coalesce(not status.is_missing and status.status_severity = 10, false))
+),
+
+headway_hours as (
     select
         headways.line_id,
         headways.naptan_id,
@@ -251,17 +308,11 @@ headway_hours as (
         sum(headways.headway_seconds) as sum_headway_seconds,
         sum(headways.headway_seconds * headways.headway_seconds) as sum_headway_squared_seconds,
         max(headways.headway_seconds) as max_headway_seconds,
-        count_if(
-            headways.headway_seconds > 2 * scheduled.scheduled_max_headway_seconds
-        ) as long_gaps
-    from in_service_headways as headways
-    inner join scheduled
-        on
-            headways.line_id = scheduled.line_id
-            and headways.naptan_id = scheduled.naptan_id
-            and headways.direction = scheduled.direction
-            and headways.london_date = scheduled.london_date
-            and headways.london_hour = scheduled.london_hour
+        count_if(headways.is_long_gap) as long_gaps,
+        count(good_service.headway_key) as good_service_long_gaps
+    from judged_headways as headways
+    left join good_service_long_gaps as good_service
+        on headways.headway_key = good_service.headway_key
     group by
         headways.line_id,
         headways.naptan_id,
@@ -289,7 +340,8 @@ hours as (
         headway_hours.sum_headway_seconds,
         headway_hours.sum_headway_squared_seconds,
         headway_hours.max_headway_seconds,
-        coalesce(headway_hours.long_gaps, 0) as long_gaps
+        coalesce(headway_hours.long_gaps, 0) as long_gaps,
+        coalesce(headway_hours.good_service_long_gaps, 0) as good_service_long_gaps
     from scheduled
     inner join stations
         on
@@ -374,6 +426,7 @@ select
     sum_headway_squared_seconds,
     max_headway_seconds,
     long_gaps,
+    good_service_long_gaps,
     scheduled_max_headway_seconds,
     -- PLAN 7.3: average wait for a passenger arriving at random, actual
     -- from the observed gaps and scheduled from the timetable's.

@@ -9,7 +9,7 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 # Minor bump for an additive change (a new file or field), major for a breaking one.
-SCHEMA_VERSION = "0.8.0"
+SCHEMA_VERSION = "0.9.0"
 SCHEMA_NAMES = (
     "league",
     "line",

@@ -82,12 +82,42 @@ unit_tests:
           - {line_id: bakerloo, day_type: sun, service_start_minute: 435, service_end_minute: 1440}
       - input: ref('severity_weights')
         rows: &severity_weights
-          - {severity_code: 5, description: Part Closure, weight_unplanned: 0, weight_planned: 0, is_closure: true, is_service_closed: false}
-          - {severity_code: 6, description: Severe Delays, weight_unplanned: 3, weight_planned: 3, is_closure: false, is_service_closed: false}
-          - {severity_code: 8, description: Bus Service, weight_unplanned: 5, weight_planned: 0, is_closure: false, is_service_closed: false}
-          - {severity_code: 9, description: Minor Delays, weight_unplanned: 1, weight_planned: 1, is_closure: false, is_service_closed: false}
-          - {severity_code: 10, description: Good Service, weight_unplanned: 0, weight_planned: 0, is_closure: false, is_service_closed: false}
-          - {severity_code: 20, description: Service Closed, weight_unplanned: 0, weight_planned: 0, is_closure: false, is_service_closed: true}
+          - {severity_code: 2, description: Suspended, weight_unplanned: 8, weight_planned: 8, is_closure: false, is_service_closed: false, is_works_when_planned: true}
+          - {severity_code: 3, description: Part Suspended, weight_unplanned: 5, weight_planned: 5, is_closure: false, is_service_closed: false, is_works_when_planned: true}
+          - {severity_code: 5, description: Part Closure, weight_unplanned: 0, weight_planned: 0, is_closure: true, is_service_closed: false, is_works_when_planned: false}
+          - {severity_code: 6, description: Severe Delays, weight_unplanned: 3, weight_planned: 3, is_closure: false, is_service_closed: false, is_works_when_planned: true}
+          - {severity_code: 7, description: Reduced Service, weight_unplanned: 1.5, weight_planned: 1.5, is_closure: false, is_service_closed: false, is_works_when_planned: false}
+          - {severity_code: 8, description: Bus Service, weight_unplanned: 5, weight_planned: 0, is_closure: false, is_service_closed: false, is_works_when_planned: false}
+          - {severity_code: 9, description: Minor Delays, weight_unplanned: 1, weight_planned: 1, is_closure: false, is_service_closed: false, is_works_when_planned: false}
+          - {severity_code: 10, description: Good Service, weight_unplanned: 0, weight_planned: 0, is_closure: false, is_service_closed: false, is_works_when_planned: false}
+          - {severity_code: 20, description: Service Closed, weight_unplanned: 0, weight_planned: 0, is_closure: false, is_service_closed: true, is_works_when_planned: false}
+      - input: ref('planned_works_reasons')
+        rows: &planned_works_reasons
+          - {pattern: '(^|[^a-z])planned (engineering )?works?([^a-z]|$)', signal: planned_works}
+          - {pattern: '(^|[^a-z])planned closures?([^a-z]|$)', signal: planned_works}
+          - {pattern: '(^|[^a-z])over[- ]?run', signal: overrun}
+          - {pattern: '(^|[^a-z])overran([^a-z]|$)', signal: overrun}
+          - {pattern: '(^|[^a-z])late finish', signal: overrun}
+          - {pattern: '(^|[^a-z])finish(es|ed|ing)? late([^a-z]|$)', signal: overrun}
+          - {pattern: '(^|[^a-z])taking longer than (expected|planned)', signal: overrun}
+          - {pattern: '(^|[^a-z])later than (expected|planned)', signal: overrun}
+          - {pattern: '(^|[^a-z])not (yet )?(been )?(completed|finished)([^a-z]|$)', signal: overrun}
+          - {pattern: '(^|[^a-z])not (yet )?complete([^a-z]|$)', signal: overrun}
+          - {pattern: '(^|[^a-z])(will|would) not be (completed|finished)([^a-z]|$)', signal: overrun}
+          - {pattern: '(^|[^a-z])taking longer to (complete|finish)([^a-z]|$)', signal: overrun}
+          - {pattern: '(^|[^a-z])no ([a-z&/-]+ ){0,4}service([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])no trains([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])not (stop|stopping|running|run|call|calling)([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])will not (stop|run|call)([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])fewer trains([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])(part|severe|minor) ?(suspended|delays|closure)([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])buses replace', signal: disruption}
+          - {pattern: '(^|[^a-z])rail replacement', signal: disruption}
+          - {pattern: '(^|[^a-z])(part )?suspen(ded|sion)([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])delay(s|ed)?([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])closed([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])reduced service([^a-z]|$)', signal: disruption}
+          - {pattern: '(^|[^a-z])part closure([^a-z]|$)', signal: disruption}
       - input: ref('stg_polls')
         rows:
           - {poll_id: p1, feed: line_status, is_ok: true, poll_minute: "2026-11-03 08:15:00", dt: "2026-11-03"}
@@ -179,6 +209,8 @@ unit_tests:
         rows: *operating_hours
       - input: ref('severity_weights')
         rows: *severity_weights
+      - input: ref('planned_works_reasons')
+        rows: *planned_works_reasons
       - input: ref('stg_polls')
         rows: []
       - input: ref('stg_line_status')
@@ -201,6 +233,169 @@ unit_tests:
         - {line_id: bakerloo, minute_utc: "2026-11-04 17:30:00", london_ts: "2026-11-04 17:30:00", london_date: "2026-11-04", week_start: "2026-11-02", time_band: pm_peak, time_weight: 2, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
         - {line_id: victoria, minute_utc: "2026-10-21 07:30:00", london_ts: "2026-10-21 08:30:00", london_date: "2026-10-21", week_start: "2026-10-19", time_band: am_peak, time_weight: 2, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
         - {line_id: bakerloo, minute_utc: "2026-10-21 07:30:00", london_ts: "2026-10-21 08:30:00", london_date: "2026-10-21", week_start: "2026-10-19", time_band: am_peak, time_weight: 2, is_scheduled: true, is_missing: true, missing_reason: no_successful_poll, is_scored: false}
+
+  - name: int_line_minute_status_planned_works_under_unplanned_codes
+    description: >
+      D69. Monday 2026-11-09 (W46), GMT, 10:00 to 10:02 inter_peak (time
+      weight 1); all three lines in service 05:30 to 00:30.
+      10:00. Northern: Part Suspended (5), filed real-time, but the reason
+      says "due to planned engineering work": planned works by reason text,
+      weight 0, engineering works, not scored, marked planned.
+      Suffragette: Severe Delays (3) filed as planned work, no works
+      wording: planned works by category, same treatment.
+      Victoria: Part Suspended whose reason says "overrunning planned
+      engineering work": the overrun pattern wins, so weight 5, scored,
+      not planned.
+      10:01. Northern: the planned-works Part Suspended (now weight 0) plus a
+      real-time Severe Delays for a signal failure: the delay wins with 3,
+      the minute is scored and the closure is noted (ADR-004).
+      Suffragette: Severe Delays filed as planned work but "taking longer than expected":
+      the overrun wins over the category, so weight_planned 3, scored.
+      Victoria: Part Suspended after "unplanned engineering work": the leading
+      non-letter rule keeps "unplanned" from matching, weight 5, scored.
+      10:02. Northern: the planned-works Part Suspended (0) ties with Good
+      Service (0); the lower code (3) wins, so engineering works, as a Part
+      Closure would. Suffragette: Suspended with no reason, weight 8.
+      Victoria: Reduced Service "due to planned engineering work" keeps 1.5:
+      code 7 is not a works-when-planned code.
+      Northern's Disruption Index over these three minutes is 100 x 3 / 1 =
+      300 (one scored minute); before D69 it was 100 x (5 + 5 + 5) / 3 = 500.
+    model: int_line_minute_status
+    overrides:
+      vars:
+        raw_start_date: "2026-11-09"
+    given:
+      - input: ref('int_utc_minutes')
+        rows:
+          - {minute_utc: "2026-11-09 10:00:00", dt: "2026-11-09"}
+          - {minute_utc: "2026-11-09 10:01:00", dt: "2026-11-09"}
+          - {minute_utc: "2026-11-09 10:02:00", dt: "2026-11-09"}
+      - input: ref('dim_lines')
+        rows:
+          - {line_id: northern}
+          - {line_id: suffragette}
+          - {line_id: victoria}
+      - input: ref('day_types')
+        rows: *day_types
+      - input: ref('time_bands')
+        rows: *time_bands
+      - input: ref('line_operating_hours')
+        rows:
+          - {line_id: northern, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
+          - {line_id: suffragette, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
+          - {line_id: victoria, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
+      - input: ref('severity_weights')
+        rows: *severity_weights
+      - input: ref('planned_works_reasons')
+        rows: *planned_works_reasons
+      - input: ref('stg_polls')
+        rows:
+          - {poll_id: q1, feed: line_status, is_ok: true, poll_minute: "2026-11-09 10:00:00", dt: "2026-11-09"}
+          - {poll_id: q2, feed: line_status, is_ok: true, poll_minute: "2026-11-09 10:01:00", dt: "2026-11-09"}
+          - {poll_id: q3, feed: line_status, is_ok: true, poll_minute: "2026-11-09 10:02:00", dt: "2026-11-09"}
+      - input: ref('stg_line_status')
+        rows:
+          - {poll_id: q1, request_path: /s, polled_at: "2026-11-09 10:00:01", poll_minute: "2026-11-09 10:00:00", line_id: northern, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Northern Line: No service between Kennington and Morden due to planned engineering work.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q1, request_path: /s, polled_at: "2026-11-09 10:00:01", poll_minute: "2026-11-09 10:00:00", line_id: suffragette, status_ordinal: 1, status_severity: 6, status_severity_description: Severe Delays, reason: "Suffragette Line: Severe delays while works take place.", is_planned: true, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q1, request_path: /s, polled_at: "2026-11-09 10:00:01", poll_minute: "2026-11-09 10:00:00", line_id: victoria, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Victoria Line: No service north of Seven Sisters due to overrunning planned engineering work.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: northern, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Northern Line: No service between Kennington and Morden due to planned engineering work.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: northern, status_ordinal: 2, status_severity: 6, status_severity_description: Severe Delays, reason: "Northern Line: Severe delays due to an earlier signal failure at Camden Town.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: suffragette, status_ordinal: 1, status_severity: 6, status_severity_description: Severe Delays, reason: "Suffragette Line: Severe delays due to engineering works taking longer than expected at Gospel Oak.", is_planned: true, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: victoria, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Victoria Line: Part suspended after unplanned engineering work on the track.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: northern, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Northern Line: No service between Kennington and Morden due to planned engineering work.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: northern, status_ordinal: 2, status_severity: 10, status_severity_description: Good Service, reason: null, is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: suffragette, status_ordinal: 1, status_severity: 2, status_severity_description: Suspended, reason: null, is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: victoria, status_ordinal: 1, status_severity: 7, status_severity_description: Reduced Service, reason: "Victoria Line: Reduced service due to planned engineering work.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+    expect:
+      rows:
+        - {line_id: northern, minute_utc: "2026-11-09 10:00:00", status_severity: 3, is_planned: true, planned_works_basis: reason_text, severity_weight: 0, has_closure_entry: true, is_engineering_works: true, is_scored: false}
+        - {line_id: suffragette, minute_utc: "2026-11-09 10:00:00", status_severity: 6, is_planned: true, planned_works_basis: planned_category, severity_weight: 0, has_closure_entry: true, is_engineering_works: true, is_scored: false}
+        - {line_id: victoria, minute_utc: "2026-11-09 10:00:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: northern, minute_utc: "2026-11-09 10:01:00", status_severity: 6, is_planned: false, planned_works_basis: null, severity_weight: 3, has_closure_entry: true, is_engineering_works: false, is_scored: true}
+        - {line_id: suffragette, minute_utc: "2026-11-09 10:01:00", status_severity: 6, is_planned: true, planned_works_basis: null, severity_weight: 3, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: victoria, minute_utc: "2026-11-09 10:01:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: northern, minute_utc: "2026-11-09 10:02:00", status_severity: 3, is_planned: true, planned_works_basis: reason_text, severity_weight: 0, has_closure_entry: true, is_engineering_works: true, is_scored: false}
+        - {line_id: suffragette, minute_utc: "2026-11-09 10:02:00", status_severity: 2, is_planned: false, planned_works_basis: null, severity_weight: 8, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: victoria, minute_utc: "2026-11-09 10:02:00", status_severity: 7, is_planned: false, planned_works_basis: null, severity_weight: 1.5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+
+  - name: int_line_minute_status_planned_works_mixed_messages
+    description: >
+      D69, sentence rule. Real W46 reasons, all Part Suspended (code 3)
+      filed real-time, Monday 2026-11-09 10:00 to 10:02 inter_peak. TfL puts
+      two events in one message; the reason is planned works only when every
+      sentence that reports a disruption says planned works. "GOOD SERVICE
+      on the rest of the line" and "Tickets will be accepted ..." report no
+      disruption.
+      Northern 10:00: a signal failure at Edgware, then planned works via
+      Bank. The first sentence is a disruption without works wording, so no
+      basis: weight 5, scored (before the sentence rule: reason_text, 0).
+      Northern 10:01 and 10:02: planned works only, then good service:
+      reason_text, weight 0, engineering works.
+      Windrush 10:00 and 10:02: a person taken ill, then planned works to
+      Crystal Palace and West Croydon; 10:01: a points failure at Denmark
+      Hill, then planned works. All three keep weight 5 and are scored.
+      Piccadilly 10:00: planned works in one sentence and "Engineering works
+      are overrunning" in the next: the overrun wins, no basis, weight 5.
+      10:01: Part Suspended with a null reason, filed real-time: nothing says
+      planned works, so no basis, weight 5. 10:02: "No Piccadilly line
+      service ..." names the line between "no" and "service" and reports a
+      signal failure without works wording; the next sentence is planned
+      works. Mixed, so no basis, weight 5.
+    model: int_line_minute_status
+    overrides:
+      vars:
+        raw_start_date: "2026-11-09"
+    given:
+      - input: ref('int_utc_minutes')
+        rows:
+          - {minute_utc: "2026-11-09 10:00:00", dt: "2026-11-09"}
+          - {minute_utc: "2026-11-09 10:01:00", dt: "2026-11-09"}
+          - {minute_utc: "2026-11-09 10:02:00", dt: "2026-11-09"}
+      - input: ref('dim_lines')
+        rows:
+          - {line_id: northern}
+          - {line_id: windrush}
+          - {line_id: piccadilly}
+      - input: ref('day_types')
+        rows: *day_types
+      - input: ref('time_bands')
+        rows: *time_bands
+      - input: ref('line_operating_hours')
+        rows:
+          - {line_id: northern, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
+          - {line_id: windrush, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
+          - {line_id: piccadilly, day_type: mon_thu, service_start_minute: 330, service_end_minute: 1470}
+      - input: ref('severity_weights')
+        rows: *severity_weights
+      - input: ref('planned_works_reasons')
+        rows: *planned_works_reasons
+      - input: ref('stg_polls')
+        rows:
+          - {poll_id: q1, feed: line_status, is_ok: true, poll_minute: "2026-11-09 10:00:00", dt: "2026-11-09"}
+          - {poll_id: q2, feed: line_status, is_ok: true, poll_minute: "2026-11-09 10:01:00", dt: "2026-11-09"}
+          - {poll_id: q3, feed: line_status, is_ok: true, poll_minute: "2026-11-09 10:02:00", dt: "2026-11-09"}
+      - input: ref('stg_line_status')
+        rows:
+          - {poll_id: q1, request_path: /s, polled_at: "2026-11-09 10:00:01", poll_minute: "2026-11-09 10:00:00", line_id: northern, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Northern Line: No service between Colindale and Edgware while we fix a signal failure at Edgware. Tickets will be accepted on London Buses via any reasonable route. NO SERVICE between Battersea Power Station/Morden and Charing Cross/Euston via Bank due to planned engineering works. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q1, request_path: /s, polled_at: "2026-11-09 10:00:01", poll_minute: "2026-11-09 10:00:00", line_id: windrush, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Windrush Line: No service between Surrey Quays and New Cross Gate while we help a person taken ill on a train. NO SERVICE between New Cross Gate to Crystal Palace and West Croydon due to planned engineering works. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: northern, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Northern Line: No service between Battersea Power Station/Morden and Charing Cross/Euston via Bank due to planned engineering works. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: windrush, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Windrush Line: No service between Surrey Quays and Clapham Junction due to a points failure at Denmark Hill. No service between New Cross Gate and Crystal Palace / West Croydon due to planned engineering work. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: northern, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Northern Line: No service between Morden and Charing cross due to planned engineering works. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: windrush, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "Windrush Line: No service between Surrey Quays and New Cross Gate while we help a person taken ill on a train. NO SERVICE between New Cross Gate and Crystal Palace / West Croydon due to planned engineering works. GOOD SERVICE on the rest of the line.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q1, request_path: /s, polled_at: "2026-11-09 10:00:01", poll_minute: "2026-11-09 10:00:00", line_id: piccadilly, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "No service between A and B due to planned engineering works. Engineering works are overrunning at C.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q2, request_path: /s, polled_at: "2026-11-09 10:01:01", poll_minute: "2026-11-09 10:01:00", line_id: piccadilly, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: null, is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+          - {poll_id: q3, request_path: /s, polled_at: "2026-11-09 10:02:01", poll_minute: "2026-11-09 10:02:00", line_id: piccadilly, status_ordinal: 1, status_severity: 3, status_severity_description: Part Suspended, reason: "No Piccadilly line service between A and B while we fix a signal failure. No service between C and D due to planned engineering works.", is_planned: false, valid_from: null, valid_to: null, dt: "2026-11-09"}
+    expect:
+      rows:
+        - {line_id: northern, minute_utc: "2026-11-09 10:00:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: windrush, minute_utc: "2026-11-09 10:00:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: northern, minute_utc: "2026-11-09 10:01:00", status_severity: 3, is_planned: true, planned_works_basis: reason_text, severity_weight: 0, has_closure_entry: true, is_engineering_works: true, is_scored: false}
+        - {line_id: windrush, minute_utc: "2026-11-09 10:01:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: northern, minute_utc: "2026-11-09 10:02:00", status_severity: 3, is_planned: true, planned_works_basis: reason_text, severity_weight: 0, has_closure_entry: true, is_engineering_works: true, is_scored: false}
+        - {line_id: windrush, minute_utc: "2026-11-09 10:02:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: piccadilly, minute_utc: "2026-11-09 10:00:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: piccadilly, minute_utc: "2026-11-09 10:01:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
+        - {line_id: piccadilly, minute_utc: "2026-11-09 10:02:00", status_severity: 3, is_planned: false, planned_works_basis: null, severity_weight: 5, has_closure_entry: false, is_engineering_works: false, is_scored: true}
 
   - name: int_incidents_merge_bridge_and_midnight
     description: >
@@ -313,6 +508,8 @@ unit_tests:
           - {schedule_name: Monday - Friday, day_type: mon_thu}
           - {schedule_name: Monday - Friday, day_type: fri}
           - {schedule_name: Sunday, day_type: sun}
+      - input: ref('day_types')
+        rows: *day_types
       - input: ref('seed_line_frequencies')
         rows:
           - {line_id: elizabeth, naptan_id: 910GTOTCTRD, direction: both, day_type: mon_thu, from_hour: 7, to_hour: 9, trains_per_hour: 24, source: estimate_test}
@@ -334,6 +531,123 @@ unit_tests:
         - {line_id: victoria, naptan_id: 940GZZLUOXC, direction: inbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 30, headway_count: 30, sum_headway_seconds: 3600, sum_headway_squared_seconds: 432000, mean_headway_seconds: 120, max_headway_seconds: 120, scheduled_average_wait_seconds: 60, is_fallback: true, source_detail: estimate_test}
         - {line_id: liberty, naptan_id: 910GUPMNSTR, direction: inbound, day_type: mon_thu, service_hour: 7, london_hour: 7, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 2, headway_count: 2, sum_headway_seconds: 3600, sum_headway_squared_seconds: 6480000, mean_headway_seconds: 1800, max_headway_seconds: 1800, scheduled_average_wait_seconds: 900, is_fallback: true, source_detail: estimate_test}
         - {line_id: elizabeth, naptan_id: 910GTOTCTRD, direction: outbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 24, headway_count: 24, sum_headway_seconds: 3600, sum_headway_squared_seconds: 540000, mean_headway_seconds: 150, max_headway_seconds: 150, scheduled_average_wait_seconds: 75, is_fallback: true, source_detail: estimate_test}
+
+  - name: int_scheduled_headways_single_weekday_schedules_tuesday_to_thursday
+    description: >
+      Metropolitan at stop A, outbound (a Barbican-style stop whose timetable
+      lists only Tuesdays, Wednesdays and Thursdays, D67). One fetch, the
+      first version (no valid_from, no valid_to). Each schedule has two
+      departures in hour 8 and so one gap, and each stays on its own weekday
+      (day type mon_thu, iso_day_of_week 2, 3 and 4), never summed into one
+      mon_thu row. Tuesdays 08:00 and 08:10: gap 10 min = 600 s, squares 100
+      min² = 360,000 s², mean 600 s, longest 600 s, average wait 360,000 /
+      (2 x 600) = 300 s. Wednesdays 08:00 and 08:20: 1200 s, 20² x 3600 =
+      1,440,000 s², wait 1,440,000 / 2400 = 600 s. Thursdays 08:00 and 08:05:
+      300 s, 90,000 s², wait 90,000 / 600 = 150 s. Each row has 2 departures
+      (not 6). Monday has no schedule, so no Monday row exists. The stop has a
+      timetable, so the frequency seed (empty here) could not fill Monday
+      either.
+    model: int_scheduled_headways
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_timetable')
+        rows:
+          - {poll_id: t, line_id: metropolitan, departure_stop_id: A, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Tuesdays, departure_minute_of_service_day: 480}
+          - {poll_id: t, line_id: metropolitan, departure_stop_id: A, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Tuesdays, departure_minute_of_service_day: 490}
+          - {poll_id: t, line_id: metropolitan, departure_stop_id: A, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Wednesdays, departure_minute_of_service_day: 480}
+          - {poll_id: t, line_id: metropolitan, departure_stop_id: A, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Wednesdays, departure_minute_of_service_day: 500}
+          - {poll_id: t, line_id: metropolitan, departure_stop_id: A, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Thursdays, departure_minute_of_service_day: 480}
+          - {poll_id: t, line_id: metropolitan, departure_stop_id: A, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Thursdays, departure_minute_of_service_day: 485}
+      - input: ref('timetable_schedule_day_types')
+        rows:
+          - {schedule_name: Tuesdays, day_type: mon_thu, iso_day_of_week: 2}
+          - {schedule_name: Wednesdays, day_type: mon_thu, iso_day_of_week: 3}
+          - {schedule_name: Thursdays, day_type: mon_thu, iso_day_of_week: 4}
+      - input: ref('day_types')
+        rows: *day_types
+      - input: ref('seed_line_frequencies')
+        rows: []
+    expect:
+      rows:
+        - {line_id: metropolitan, naptan_id: A, direction: outbound, day_type: mon_thu, iso_day_of_week: 2, service_hour: 8, valid_from: null, valid_to: null, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 600, sum_headway_squared_seconds: 360000, mean_headway_seconds: 600, max_headway_seconds: 600, scheduled_average_wait_seconds: 300, is_fallback: false, source_detail: Tuesdays}
+        - {line_id: metropolitan, naptan_id: A, direction: outbound, day_type: mon_thu, iso_day_of_week: 3, service_hour: 8, valid_from: null, valid_to: null, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 1200, sum_headway_squared_seconds: 1440000, mean_headway_seconds: 1200, max_headway_seconds: 1200, scheduled_average_wait_seconds: 600, is_fallback: false, source_detail: Wednesdays}
+        - {line_id: metropolitan, naptan_id: A, direction: outbound, day_type: mon_thu, iso_day_of_week: 4, service_hour: 8, valid_from: null, valid_to: null, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 300, sum_headway_squared_seconds: 90000, mean_headway_seconds: 300, max_headway_seconds: 300, scheduled_average_wait_seconds: 150, is_fallback: false, source_detail: Thursdays}
+
+  - name: int_scheduled_headways_single_weekday_schedule_beside_a_generic_one
+    description: >
+      District at stop B, inbound, one fetch. The timetable lists "Monday -
+      Thursday" (departures 10:00 and 10:12), "Wednesdays" (10:00 and 10:06)
+      and "Friday" (10:00 and 10:15). The single-weekday schedule wins on its
+      own weekday, and the generic one covers the other days of its day type
+      as one copy each, so no day gets both. Wednesday (iso 3): only the
+      Wednesdays schedule, 6 min gap = 360 s, 36 x 3600 = 129,600 s², wait
+      129,600 / 720 = 180 s, 2 departures (not 4). Monday, Tuesday and
+      Thursday (iso 1, 2, 4): the generic schedule, 12 min = 720 s, 144 x 3600
+      = 518,400 s², wait 518,400 / 1440 = 360 s, 2 departures. No row with a
+      null weekday and day type mon_thu remains. "Friday" is a generic
+      schedule of the fri day type, which has no single-weekday schedule, so
+      it stays one row with a null weekday: 15 min = 900 s, 810,000 s², wait
+      450 s.
+    model: int_scheduled_headways
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_timetable')
+        rows:
+          - {poll_id: t, line_id: district, departure_stop_id: B, direction: inbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Monday - Thursday, departure_minute_of_service_day: 600}
+          - {poll_id: t, line_id: district, departure_stop_id: B, direction: inbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Monday - Thursday, departure_minute_of_service_day: 612}
+          - {poll_id: t, line_id: district, departure_stop_id: B, direction: inbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Wednesdays, departure_minute_of_service_day: 600}
+          - {poll_id: t, line_id: district, departure_stop_id: B, direction: inbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Wednesdays, departure_minute_of_service_day: 606}
+          - {poll_id: t, line_id: district, departure_stop_id: B, direction: inbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Friday, departure_minute_of_service_day: 600}
+          - {poll_id: t, line_id: district, departure_stop_id: B, direction: inbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Friday, departure_minute_of_service_day: 615}
+      - input: ref('timetable_schedule_day_types')
+        rows:
+          - {schedule_name: Monday - Thursday, day_type: mon_thu, iso_day_of_week: null}
+          - {schedule_name: Wednesdays, day_type: mon_thu, iso_day_of_week: 3}
+          - {schedule_name: Friday, day_type: fri, iso_day_of_week: null}
+      - input: ref('day_types')
+        rows: *day_types
+      - input: ref('seed_line_frequencies')
+        rows: []
+    expect:
+      rows:
+        - {line_id: district, naptan_id: B, direction: inbound, day_type: mon_thu, iso_day_of_week: 1, service_hour: 10, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 720, sum_headway_squared_seconds: 518400, mean_headway_seconds: 720, max_headway_seconds: 720, scheduled_average_wait_seconds: 360, is_fallback: false, source_detail: Monday - Thursday}
+        - {line_id: district, naptan_id: B, direction: inbound, day_type: mon_thu, iso_day_of_week: 2, service_hour: 10, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 720, sum_headway_squared_seconds: 518400, mean_headway_seconds: 720, max_headway_seconds: 720, scheduled_average_wait_seconds: 360, is_fallback: false, source_detail: Monday - Thursday}
+        - {line_id: district, naptan_id: B, direction: inbound, day_type: mon_thu, iso_day_of_week: 3, service_hour: 10, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 360, sum_headway_squared_seconds: 129600, mean_headway_seconds: 360, max_headway_seconds: 360, scheduled_average_wait_seconds: 180, is_fallback: false, source_detail: Wednesdays}
+        - {line_id: district, naptan_id: B, direction: inbound, day_type: mon_thu, iso_day_of_week: 4, service_hour: 10, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 720, sum_headway_squared_seconds: 518400, mean_headway_seconds: 720, max_headway_seconds: 720, scheduled_average_wait_seconds: 360, is_fallback: false, source_detail: Monday - Thursday}
+        - {line_id: district, naptan_id: B, direction: inbound, day_type: fri, iso_day_of_week: null, service_hour: 10, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 900, sum_headway_squared_seconds: 810000, mean_headway_seconds: 900, max_headway_seconds: 900, scheduled_average_wait_seconds: 450, is_fallback: false, source_detail: Friday}
+
+  - name: int_scheduled_headways_normal_stop_has_no_weekday
+    description: >
+      Victoria at stop C, outbound, one fetch: "Monday - Friday" with
+      departures 08:00 and 08:04, and no single-weekday schedule. The
+      schedule maps to mon_thu and fri and each gets one row with a null
+      weekday, exactly as before D67: 4 min = 240 s, 240² = 57,600 s², mean
+      240 s, longest 240 s, average wait 57,600 / 480 = 120 s, 2 departures.
+    model: int_scheduled_headways
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+    given:
+      - input: ref('stg_timetable')
+        rows:
+          - {poll_id: t, line_id: victoria, departure_stop_id: C, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Monday - Friday, departure_minute_of_service_day: 480}
+          - {poll_id: t, line_id: victoria, departure_stop_id: C, direction: outbound, dt: "2026-11-18", polled_at: "2026-11-18 03:00:00", schedule_name: Monday - Friday, departure_minute_of_service_day: 484}
+      - input: ref('timetable_schedule_day_types')
+        rows:
+          - {schedule_name: Monday - Friday, day_type: mon_thu}
+          - {schedule_name: Monday - Friday, day_type: fri}
+      - input: ref('day_types')
+        rows: *day_types
+      - input: ref('seed_line_frequencies')
+        rows: []
+    expect:
+      rows:
+        - {line_id: victoria, naptan_id: C, direction: outbound, day_type: mon_thu, iso_day_of_week: null, service_hour: 8, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 240, sum_headway_squared_seconds: 57600, mean_headway_seconds: 240, max_headway_seconds: 240, scheduled_average_wait_seconds: 120, is_fallback: false, source_detail: Monday - Friday}
+        - {line_id: victoria, naptan_id: C, direction: outbound, day_type: fri, iso_day_of_week: null, service_hour: 8, scheduled_departures: 2, headway_count: 1, sum_headway_seconds: 240, sum_headway_squared_seconds: 57600, mean_headway_seconds: 240, max_headway_seconds: 240, scheduled_average_wait_seconds: 120, is_fallback: false, source_detail: Monday - Friday}
 
   - name: int_measured_hours_gate_observation_and_excess_wait
     description: >
@@ -517,6 +831,8 @@ unit_tests:
           - {headway_key: h8c, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 08:14:00", london_ts: "2026-11-04 08:19:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 300, spans_collection_gap: false}
           - {headway_key: h8d, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 08:19:00", london_ts: "2026-11-04 08:29:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 600, spans_collection_gap: true}
           - {headway_key: h9, line_id: victoria, naptan_id: X, direction: outbound, previous_london_ts: "2026-11-04 08:59:00", london_ts: "2026-11-04 09:01:00", london_date: "2026-11-04", london_hour: 9, headway_seconds: 120, spans_collection_gap: false}
+      - input: ref('int_line_minute_status')
+        rows: []
     expect:
       rows:
         - {naptan_id: X, london_date: "2026-11-04", london_hour: 0, scheduled_departures: 6, inferred_arrivals: 8, vehicle_passes: 6, inferred_without_vehicle_id: 0, observed_trains: 6, successful_polls: 60, is_observed: true, is_gate_judged: true, is_in_band: false, counts_for_reliability: false, headways: 1, long_gaps: 0, excess_wait_seconds: 0}
@@ -526,6 +842,176 @@ unit_tests:
         - {naptan_id: X, london_date: "2026-11-04", london_hour: 8, scheduled_departures: 30, inferred_arrivals: 24, vehicle_passes: 16, inferred_without_vehicle_id: 4, observed_trains: 20, successful_polls: 60, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, headways: 3, long_gaps: 1, excess_wait_seconds: 50}
         - {naptan_id: X, london_date: "2026-11-04", london_hour: 9, scheduled_departures: 30, inferred_arrivals: 1, vehicle_passes: 0, inferred_without_vehicle_id: 0, observed_trains: 0, successful_polls: 53, is_observed: false, is_gate_judged: false, is_in_band: false, counts_for_reliability: false, headways: 1, long_gaps: 0, excess_wait_seconds: 0}
         - {naptan_id: Y, london_date: "2026-10-25", london_hour: 1, scheduled_departures: 6, inferred_arrivals: 12, vehicle_passes: 0, inferred_without_vehicle_id: 0, observed_trains: 0, successful_polls: 120, is_observed: false, is_gate_judged: false, is_in_band: false, counts_for_reliability: false, headways: 0, long_gaps: 0, excess_wait_seconds: null}
+
+  - name: int_measured_hours_good_service_long_gaps
+    description: >
+      D68. Station X, Victoria outbound, Wednesday 4 November 2026 (GMT, so
+      London time is UTC). Hours 7 and 8 are scheduled with a longest gap of
+      120 s, so a gap over 240 s is long. Polls every minute 07:00:10 to
+      08:59:10. Declared status: Good Service every minute, except Minor
+      Delays (severity 9) from 07:57 to 07:59 and a missing minute at 08:42.
+      Gaps ending in hour 8: g1 08:10:30 to 08:15:30 (300 s), all six
+      minutes Good Service: long and counted. g2 07:57:00 to 08:02:00
+      (300 s) starts in the delays: long, ends in an all-Good-Service hour,
+      not counted. g3 08:40:00 to 08:45:00 (300 s) spans the missing minute:
+      long, not counted. g4 08:50:00 to 08:52:00 (120 s) is not long. Hour
+      8: 3 long gaps, 1 of them with a Good Service span. Hour 7: no gap.
+    model: int_measured_hours
+    overrides:
+      vars:
+        raw_start_date: "2026-10-01"
+        collection_gap_seconds: 150
+        min_polls_per_hour: 54
+        gate_low_ratio: 0.8
+        gate_high_ratio: 1.2
+    given:
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: victoria, naptan_id: X, station_name: X, role: core}
+      - input: ref('seed_measured_lines')
+        rows:
+          - {line_id: victoria, is_measured: true}
+      - input: ref('day_types')
+        rows:
+          - {iso_day_of_week: 2, day_type: mon_thu}
+          - {iso_day_of_week: 3, day_type: mon_thu}
+      - input: ref('stg_polls')
+        format: sql
+        rows: |
+          select
+              'X' || format_datetime(polled_at, 'yyyyMMddHHmmss') as poll_id,
+              'arrivals' as feed,
+              '/StopPoint/X/Arrivals' as request_path,
+              polled_at,
+              200 as http_status,
+              100 as latency_ms,
+              cast(null as varchar) as error,
+              true as is_ok,
+              cast(polled_at as date) as dt,
+              'k' as poll_key,
+              date_trunc('minute', polled_at) as poll_minute
+          from unnest(
+              sequence(
+                  timestamp '2026-11-04 07:00:10', timestamp '2026-11-04 08:59:10', interval '1' minute
+              )
+          ) as t (polled_at)
+      - input: ref('int_scheduled_headways')
+        rows:
+          - {line_id: victoria, naptan_id: X, direction: outbound, day_type: mon_thu, service_hour: 7, london_hour: 7, is_next_calendar_day: false, scheduled_departures: 30, sum_headway_seconds: 3600, sum_headway_squared_seconds: 432000, max_headway_seconds: 120, is_fallback: false}
+          - {line_id: victoria, naptan_id: X, direction: outbound, day_type: mon_thu, service_hour: 8, london_hour: 8, is_next_calendar_day: false, scheduled_departures: 30, sum_headway_seconds: 3600, sum_headway_squared_seconds: 432000, max_headway_seconds: 120, is_fallback: false}
+      - input: ref('int_inferred_arrivals')
+        rows: []
+      - input: ref('int_vehicle_passes')
+        rows: []
+      - input: ref('int_headways')
+        rows:
+          - {headway_key: g1, line_id: victoria, naptan_id: X, direction: outbound, previous_arrival_time: "2026-11-04 08:10:30", arrival_time: "2026-11-04 08:15:30", previous_london_ts: "2026-11-04 08:10:30", london_ts: "2026-11-04 08:15:30", london_date: "2026-11-04", london_hour: 8, headway_seconds: 300, spans_collection_gap: false}
+          - {headway_key: g2, line_id: victoria, naptan_id: X, direction: outbound, previous_arrival_time: "2026-11-04 07:57:00", arrival_time: "2026-11-04 08:02:00", previous_london_ts: "2026-11-04 07:57:00", london_ts: "2026-11-04 08:02:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 300, spans_collection_gap: false}
+          - {headway_key: g3, line_id: victoria, naptan_id: X, direction: outbound, previous_arrival_time: "2026-11-04 08:40:00", arrival_time: "2026-11-04 08:45:00", previous_london_ts: "2026-11-04 08:40:00", london_ts: "2026-11-04 08:45:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 300, spans_collection_gap: false}
+          - {headway_key: g4, line_id: victoria, naptan_id: X, direction: outbound, previous_arrival_time: "2026-11-04 08:50:00", arrival_time: "2026-11-04 08:52:00", previous_london_ts: "2026-11-04 08:50:00", london_ts: "2026-11-04 08:52:00", london_date: "2026-11-04", london_hour: 8, headway_seconds: 120, spans_collection_gap: false}
+      - input: ref('int_line_minute_status')
+        format: sql
+        rows: |
+          select
+              'victoria' as line_id,
+              minute_utc,
+              minute_utc = timestamp '2026-11-04 08:42:00' as is_missing,
+              if(
+                  minute_utc between timestamp '2026-11-04 07:57:00' and timestamp '2026-11-04 07:59:00',
+                  9,
+                  10
+              ) as status_severity
+          from unnest(
+              sequence(
+                  timestamp '2026-11-04 07:00:00', timestamp '2026-11-04 08:59:00', interval '1' minute
+              )
+          ) as t (minute_utc)
+    expect:
+      rows:
+        - {naptan_id: X, london_date: "2026-11-04", london_hour: 7, headways: 0, long_gaps: 0, good_service_long_gaps: 0}
+        - {naptan_id: X, london_date: "2026-11-04", london_hour: 8, headways: 4, long_gaps: 3, good_service_long_gaps: 1}
+
+  - name: int_measured_hours_single_weekday_schedules
+    description: >
+      D67. Station T, Metropolitan, November 2026 (GMT, so London time is
+      UTC). One arrivals poll on each of Tuesday 10 (08:00:10), Wednesday 11
+      (08:00:10) and Saturday 14 (01:00:10), so those three days are
+      collected; one poll an hour is under 54, so no hour is observed.
+      Scheduled rows: outbound "Tuesdays" (mon_thu, weekday 2), hour 8: 2
+      trains, one 600 s gap. Inbound "Monday - Thursday" (mon_thu, no
+      weekday), hour 8: 12 trains, 12 gaps of 300 s, sum 3600 s, squares 12
+      x 90,000 = 1,080,000 s². Outbound "Fridays" (fri, weekday 5), service
+      hour 25 (01:00 the next calendar day): 4 trains, 3 gaps of 900 s, sum
+      2700 s, squares 2,430,000 s². Outbound "Thursdays" (mon_thu, weekday
+      4), service hour 25: 3 trains.
+      Tuesday 10, hour 8: outbound gets the Tuesdays row (2 trains, wait
+      360,000 / 1200 = 300 s); inbound gets the generic row (12 trains,
+      wait 1,080,000 / 7200 = 150 s). Wednesday 11, hour 8: the generic row
+      only (inbound, 12, 150 s); no outbound row, since the Tuesdays row is
+      not Wednesday's. Wednesday 11, hour 1: the Thursdays service hour 25
+      would need the previous day to be a Thursday; it is a Tuesday, so no
+      row. Saturday 14, hour 1: the previous day is Friday 13 (weekday 5),
+      so the Fridays service hour 25 applies: 4 trains, wait 2,430,000 /
+      5400 = 450 s.
+    model: int_measured_hours
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+        collection_gap_seconds: 150
+        min_polls_per_hour: 54
+        gate_low_ratio: 0.8
+        gate_high_ratio: 1.2
+    given:
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: metropolitan, naptan_id: T, station_name: T, role: core}
+      - input: ref('seed_measured_lines')
+        rows:
+          - {line_id: metropolitan, is_measured: true}
+      - input: ref('day_types')
+        rows: *day_types
+      - input: ref('stg_polls')
+        format: sql
+        rows: |
+          select
+              'T' || format_datetime(polled_at, 'yyyyMMddHHmmss') as poll_id,
+              'arrivals' as feed,
+              '/StopPoint/T/Arrivals' as request_path,
+              polled_at,
+              200 as http_status,
+              100 as latency_ms,
+              cast(null as varchar) as error,
+              true as is_ok,
+              cast(polled_at as date) as dt,
+              'k' as poll_key,
+              date_trunc('minute', polled_at) as poll_minute
+          from unnest(
+              array[
+                  timestamp '2026-11-10 08:00:10',
+                  timestamp '2026-11-11 08:00:10',
+                  timestamp '2026-11-14 01:00:10'
+              ]
+          ) as t (polled_at)
+      - input: ref('int_scheduled_headways')
+        rows:
+          - {line_id: metropolitan, naptan_id: T, direction: outbound, day_type: mon_thu, iso_day_of_week: 2, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 2, sum_headway_seconds: 600, sum_headway_squared_seconds: 360000, max_headway_seconds: 600, is_fallback: false}
+          - {line_id: metropolitan, naptan_id: T, direction: inbound, day_type: mon_thu, iso_day_of_week: null, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 12, sum_headway_seconds: 3600, sum_headway_squared_seconds: 1080000, max_headway_seconds: 300, is_fallback: false}
+          - {line_id: metropolitan, naptan_id: T, direction: outbound, day_type: fri, iso_day_of_week: 5, service_hour: 25, london_hour: 1, is_next_calendar_day: true, valid_from: null, valid_to: null, scheduled_departures: 4, sum_headway_seconds: 2700, sum_headway_squared_seconds: 2430000, max_headway_seconds: 900, is_fallback: false}
+          - {line_id: metropolitan, naptan_id: T, direction: outbound, day_type: mon_thu, iso_day_of_week: 4, service_hour: 25, london_hour: 1, is_next_calendar_day: true, valid_from: null, valid_to: null, scheduled_departures: 3, sum_headway_seconds: 1200, sum_headway_squared_seconds: 720000, max_headway_seconds: 600, is_fallback: false}
+      - input: ref('int_inferred_arrivals')
+        rows: []
+      - input: ref('int_vehicle_passes')
+        rows: []
+      - input: ref('int_headways')
+        rows: []
+      - input: ref('int_line_minute_status')
+        rows: []
+    expect:
+      rows:
+        - {naptan_id: T, direction: outbound, london_date: "2026-11-10", london_hour: 8, scheduled_departures: 2, scheduled_average_wait_seconds: 300, successful_polls: 1, is_observed: false}
+        - {naptan_id: T, direction: inbound, london_date: "2026-11-10", london_hour: 8, scheduled_departures: 12, scheduled_average_wait_seconds: 150, successful_polls: 1, is_observed: false}
+        - {naptan_id: T, direction: inbound, london_date: "2026-11-11", london_hour: 8, scheduled_departures: 12, scheduled_average_wait_seconds: 150, successful_polls: 1, is_observed: false}
+        - {naptan_id: T, direction: outbound, london_date: "2026-11-14", london_hour: 1, scheduled_departures: 4, scheduled_average_wait_seconds: 450, successful_polls: 1, is_observed: false}
 
   - name: int_vehicle_passes_visits_and_passes
     description: >

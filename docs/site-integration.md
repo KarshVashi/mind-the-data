@@ -253,7 +253,26 @@ How the map should consume them: colour by `summary.measured_status`, and show `
 - **Measured fields** also move slightly through D65, which gives predictions TfL lists with no direction the direction the same train or its platform shows. The Metropolitan's excess wait in W46 falls from 3.76 to 3.17 minutes; other lines move by under 0.1 minutes.
 - Every archived week is rewritten on the next export (D39). W46 is restated: Metropolitan trains run 67.6% to 76.7%, District 68.2% to 74.0%, Overground and Elizabeth line 20 to 70 points lower (for example Mildmay 108% to 86%). The weekly insight line may name a different line.
 - The owner settled D65 and D66 on 18 November 2026, so `open_decisions` stays empty and both are in `settled_decisions`.
-- Station files are unchanged in meaning: `trains_on_boards_share` per station still includes termini (see D66).
+- Station files: see "Station views at an end of a line" below (D70).
+
+### Changed by D68 and D69 (`schema_version` 0.9.0, change of meaning)
+
+- **`measured.honesty_gap_hours` and `honesty_gap_share`** keep their names and types, but count an hour only when at least two core and branch measurement stations (termini excluded) in the same direction recorded a long gap ending in it, each gap's whole span Good Service with no missing minute (D68). Values fall, for W46 roughly to the "two stations" figures in D68 (main Tube lines 26% (Bakerloo) to 72% (Piccadilly) of measured Good Service hours, from 48% to 85%; Liberty, Lioness and Windrush null). The denominator is unchanged.
+- **`measured.honesty_gap_withheld_reason`** is new (additive). It is `honesty_gap_not_corroborable` on a measured line with fewer than two core and branch measurement stations (Lioness, Windrush and Liberty), and then `honesty_gap_hours` and `honesty_gap_share` are `null`. Show them as "cannot be checked on this line", never as 0 or 0%: 0 would say TfL was always right. `good_service_measured_hours` keeps its value. Null on every other line.
+- **Declared fields** move for lines whose planned engineering works TfL filed under Part Suspended, Suspended or Severe Delays (D69): those minutes now count as engineering works and leave the score, as Planned Closure does, while overrunning works still count. `disruption_index`, `good_service_pct`, ranks and engineering-works hours can change, mostly on the Northern and Suffragette. `is_engineering_works` now also covers these minutes.
+- Both are pending, so `open_decisions` lists `D68` and `D69` until the owner settles them (D36).
+- Station files gain the withheld reason `terminus` (D70, below). D67 changes no published field.
+- Every archived week is rewritten on the next export (D39).
+
+### Station views at an end of a line (D70, station files only)
+
+Stations are judged per line. At a station that is the first or last stop of a line's routes (a terminus or the end of a branch), every row for that line is `measured_status: "withheld"` with `measured_withheld_reason: "terminus"`. In those rows:
+
+- `trains_observed`, `trains_per_hour`, `median_gap_minutes`, `long_gaps_per_100_hours`, `trains_on_boards_share` and `excess_wait_minutes` are `null`. Show them as "not shown at the end of the line", not as 0 and not as good service.
+- `scheduled_trains`, `observed_hours`, `gate_judged_hours` and `gate_pass_share` keep their values and may be shown.
+- A station that ends one line and is a through station on another has withheld rows for the first and measured rows for the second. Read each `measured_history` entry's own `measured_status`.
+- `summary.measured_status` is `measured` when any row is, so a station that ends one line and is measured on another is `measured` with `status_reasons: ["terminus"]` and `directions_measured` below `directions_total`. A station that ends every line it serves is `withheld` with `status_reasons: ["terminus"]`. On the map, colour that case "no data", and word the reason as "End of the line: TfL's boards do not show its departures reliably".
+- No field is added or removed; `terminus` is a new value of an existing free-text field. Nothing is published while `STATIONS_PUBLISH_ENABLED` is off.
 
 ### Still needed
 

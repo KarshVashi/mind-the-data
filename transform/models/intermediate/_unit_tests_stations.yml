@@ -226,6 +226,91 @@ unit_tests:
         - {naptan_id: E, direction: outbound, london_hour: 8, is_scheduled: false, scheduled_departures: null, successful_polls: 60, is_observed: true, inferred_arrivals: 10, vehicle_passes: 0, inferred_without_vehicle_id: 10, observed_trains: 10, is_gate_judged: true, is_in_band: true}
         - {naptan_id: E, direction: outbound, london_hour: 9, is_scheduled: false, scheduled_departures: null, successful_polls: 0, is_observed: false, inferred_arrivals: 6, vehicle_passes: 0, inferred_without_vehicle_id: 6, observed_trains: 6, is_gate_judged: false, is_in_band: false}
 
+  - name: int_station_measured_hours_single_weekday_schedules
+    description: >
+      D67, the same schedules as int_measured_hours_single_weekday_schedules.
+      Station T, Metropolitan, November 2026 (GMT). One line feed poll on
+      each of Tuesday 10 (08:00:10), Wednesday 11 (08:00:10) and Saturday 14
+      (01:00:10); no train inferred or seen. Outbound "Tuesdays" (weekday 2)
+      hour 8, 2 trains; inbound "Monday - Thursday" (no weekday) hour 8, 12
+      trains; outbound "Fridays" (weekday 5) service hour 25, 4 trains;
+      outbound "Thursdays" (weekday 4) service hour 25, 3 trains.
+      Tuesday 10 hour 8: outbound 2, inbound 12. Wednesday 11 hour 8:
+      inbound 12 only; the outbound direction has no schedule that day and
+      no train, so no hour. Wednesday 11 hour 1: the previous day is a
+      Tuesday, not a Thursday, so no row. Saturday 14 hour 1: Friday's
+      service hour 25, 4 trains. Every hour is scheduled and none observed
+      (one poll an hour).
+    model: int_station_measured_hours
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+        collection_gap_seconds: 150
+        min_polls_per_hour: 54
+        gate_low_ratio: 0.8
+        gate_high_ratio: 1.2
+    given:
+      - input: ref('dim_station')
+        rows:
+          - {naptan_id: T, line_ids: [metropolitan]}
+      - input: ref('day_types')
+        rows:
+          - {iso_day_of_week: 1, day_type: mon_thu}
+          - {iso_day_of_week: 2, day_type: mon_thu}
+          - {iso_day_of_week: 3, day_type: mon_thu}
+          - {iso_day_of_week: 4, day_type: mon_thu}
+          - {iso_day_of_week: 5, day_type: fri}
+          - {iso_day_of_week: 6, day_type: sat}
+          - {iso_day_of_week: 7, day_type: sun}
+      - input: ref('int_scheduled_headways')
+        rows:
+          - {line_id: metropolitan, naptan_id: T, direction: outbound, day_type: mon_thu, iso_day_of_week: 2, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 2, sum_headway_seconds: 600, sum_headway_squared_seconds: 360000, max_headway_seconds: 600, is_fallback: false}
+          - {line_id: metropolitan, naptan_id: T, direction: inbound, day_type: mon_thu, iso_day_of_week: null, service_hour: 8, london_hour: 8, is_next_calendar_day: false, valid_from: null, valid_to: null, scheduled_departures: 12, sum_headway_seconds: 3600, sum_headway_squared_seconds: 1080000, max_headway_seconds: 300, is_fallback: false}
+          - {line_id: metropolitan, naptan_id: T, direction: outbound, day_type: fri, iso_day_of_week: 5, service_hour: 25, london_hour: 1, is_next_calendar_day: true, valid_from: null, valid_to: null, scheduled_departures: 4, sum_headway_seconds: 2700, sum_headway_squared_seconds: 2430000, max_headway_seconds: 900, is_fallback: false}
+          - {line_id: metropolitan, naptan_id: T, direction: outbound, day_type: mon_thu, iso_day_of_week: 4, service_hour: 25, london_hour: 1, is_next_calendar_day: true, valid_from: null, valid_to: null, scheduled_departures: 3, sum_headway_seconds: 1200, sum_headway_squared_seconds: 720000, max_headway_seconds: 600, is_fallback: false}
+      - input: ref('stg_line_arrival_polls')
+        format: sql
+        rows: |
+          select
+              'm' || format_datetime(polled_at, 'yyyyMMddHHmmss') as poll_id,
+              '/Line/metropolitan/Arrivals' as request_path,
+              polled_at,
+              true as is_ok,
+              cast(polled_at as date) as dt
+          from unnest(
+              array[
+                  timestamp '2026-11-10 08:00:10',
+                  timestamp '2026-11-11 08:00:10',
+                  timestamp '2026-11-14 01:00:10'
+              ]
+          ) as t (polled_at)
+      - input: ref('int_station_inferred_arrivals')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as line_id,
+              cast(null as varchar) as naptan_id,
+              cast(null as varchar) as direction,
+              cast(null as timestamp(6)) as arrival_time,
+              cast(null as varchar) as last_vehicle_id
+          where false
+      - input: ref('int_station_vehicle_passes')
+        format: sql
+        rows: |
+          select
+              cast(null as varchar) as line_id,
+              cast(null as varchar) as naptan_id,
+              cast(null as varchar) as direction,
+              cast(null as date) as london_date,
+              cast(null as integer) as london_hour
+          where false
+    expect:
+      rows:
+        - {naptan_id: T, direction: outbound, london_date: "2026-11-10", london_hour: 8, is_scheduled: true, scheduled_departures: 2, scheduled_average_wait_seconds: 300, successful_polls: 1, is_observed: false}
+        - {naptan_id: T, direction: inbound, london_date: "2026-11-10", london_hour: 8, is_scheduled: true, scheduled_departures: 12, scheduled_average_wait_seconds: 150, successful_polls: 1, is_observed: false}
+        - {naptan_id: T, direction: inbound, london_date: "2026-11-11", london_hour: 8, is_scheduled: true, scheduled_departures: 12, scheduled_average_wait_seconds: 150, successful_polls: 1, is_observed: false}
+        - {naptan_id: T, direction: outbound, london_date: "2026-11-14", london_hour: 1, is_scheduled: true, scheduled_departures: 4, scheduled_average_wait_seconds: 450, successful_polls: 1, is_observed: false}
+
   - name: int_station_service_headways_midnight_unserved_hours_and_no_timetable
     description: >
       Sunday 8 to Monday 9 November (GMT). X Victoria outbound has hours of

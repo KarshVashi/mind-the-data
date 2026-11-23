@@ -214,9 +214,17 @@ def test_measured_view_validates_when_present(marts: RecordedMarts) -> None:
         good_service_measured_hours=88,
     )
     partly = MeasuredView(None, None, None, None, None, measured_hours=1)
+    # D68: too few core and branch stations to corroborate, so null, not 0.
+    uncorroborable = replace(
+        measured,
+        honesty_gap_hours=None,
+        honesty_gap_share=None,
+        honesty_gap_withheld_reason="honesty_gap_not_corroborable",
+    )
     standings = list(league.standings)
     standings[0] = replace(standings[0], measured=measured, measured_withheld_reason=None)
     standings[1] = replace(standings[1], measured=partly, measured_withheld_reason=None)
+    standings[3] = replace(standings[3], measured=uncorroborable, measured_withheld_reason=None)
     league = replace(league, standings=tuple(standings))
     # The Honesty Gap is off the card by default (D54); trains run leads.
     insight = pick_insight(league)
@@ -228,6 +236,20 @@ def test_measured_view_validates_when_present(marts: RecordedMarts) -> None:
     assert doc["lines"][0]["measured_status"] == "measured"
     assert doc["lines"][0]["measured_withheld_reason"] is None
     assert doc["lines"][2]["measured_status"] == "not_measured"
+    by_line = {line["line_id"]: line for line in doc["lines"]}
+    assert by_line[standings[0].line.line_id]["measured"]["honesty_gap_withheld_reason"] is None
+    unknown = by_line[standings[3].line.line_id]["measured"]
+    assert {
+        k: unknown[k]
+        for k in ("honesty_gap_hours", "honesty_gap_share", "honesty_gap_withheld_reason")
+    } == {
+        "honesty_gap_hours": None,
+        "honesty_gap_share": None,
+        "honesty_gap_withheld_reason": "honesty_gap_not_corroborable",
+    }
+    unknown["honesty_gap_withheld_reason"] = "too_few_stations"
+    with pytest.raises(ValidationError, match="too_few_stations"):
+        validate(doc, "league")
 
 
 @pytest.mark.parametrize(
@@ -355,8 +377,8 @@ def test_methodology_thresholds_follow_dbt(marts: RecordedMarts) -> None:
     assert doc["thresholds"]["min_open_share_to_rank"] == 0.5
     # D19: the index is a time-weighted mean severity x 100, so Suspended (8) tops it.
     assert (doc["disruption_index"]["min"], doc["disruption_index"]["max"]) == (0.0, 800.0)
-    assert doc["open_decisions"] == []
-    assert OPEN_METRIC_DECISIONS == ()
+    assert doc["open_decisions"] == ["D68", "D69"]
+    assert OPEN_METRIC_DECISIONS == ("D68", "D69")
     assert doc["settled_decisions"] == [f"D{n}" for n in SETTLED_IDS]
     assert not set(doc["settled_decisions"]) & set(doc["open_decisions"])
     # The measured view's thresholds and withheld lines mirror the dbt vars.

@@ -90,6 +90,11 @@ vars:
   # fct_line_weekly_measured ranks a line on the measured view only when at least
   # this share of its scheduled station-direction-hours passed the gate.
   min_measured_share: 0.5
+  # fct_line_measured_daily counts a Good Service hour toward the Honesty
+  # Gap only when at least this many measurement stations, in the same
+  # direction, had a long gap ending in it whose whole span was Good Service
+  # (D68). Fixed before the 18 to 24 November 2026 data was examined.
+  honesty_gap_min_stations: 2
   # Divisions (M6, ADR-015): seeded from the first this-many complete weeks
   # (every line's week ended, at least `provisional_completeness` observed).
   # The plan's four weeks were shortened to two; the seeding is marked
@@ -149,7 +154,13 @@ seeds:
         weight_planned: double
         is_closure: boolean
         is_service_closed: boolean
+        is_works_when_planned: boolean
         source: varchar
+    planned_works_reasons:
+      +column_types:
+        pattern: varchar
+        signal: varchar
+        note: varchar
     time_bands:
       +column_types:
         day_class: varchar
@@ -174,10 +185,7 @@ seeds:
       +column_types:
         schedule_name: varchar
         day_type: varchar
-    timetable_schedules_unmodelled:
-      +column_types:
-        schedule_name: varchar
-        reason: varchar
+        iso_day_of_week: integer
     seed_measurement_stations:
       +column_types:
         line_id: varchar

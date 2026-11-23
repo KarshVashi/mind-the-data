@@ -13,6 +13,13 @@
 --   `measured_view_withheld_lines` whose boards misfile trains on a shared
 --   section (D52, reason shared_section_misfiled). Vehicle-id linking
 --   follows seed_vehicle_id_lines in the shared inference, as for lines.
+-- - withheld, reason terminus (D70): the station is an end of the line
+--   (dim_line_station_role). TfL lists departing trains there with no
+--   direction and arriving ones on several platforms, so the trains seen,
+--   the share of the timetable and the gaps between them are wrong, and
+--   all of them are withheld, as the line-level share leaves termini out
+--   (D66). Scheduled trains and the gate counts stay. The same station on
+--   another line, where it is not an end, is judged on its own row.
 -- - not_measured: the station-direction-week itself fails, with the
 --   line-week rules in the same order: no observed hour, no hour the gate
 --   could judge, more than `gate_max_out_of_band_share` of judged hours
@@ -141,6 +148,7 @@ statuses as (
                     '{{ line }}'{{ ',' if not loop.last }}
                 {%- endfor %}
             ) then 'shared_section_misfiled'
+            when coalesce(line_roles.is_terminus, false) then 'terminus'
             when weekly.observed_hours = 0 then 'no_observed_hours'
             when weekly.gate_judged_hours = 0 then 'gate_not_judged'
             when
@@ -154,6 +162,10 @@ statuses as (
     from weekly
     left join {{ ref('seed_measured_lines') }} as measured_lines
         on weekly.line_id = measured_lines.line_id
+    left join {{ ref('dim_line_station_role') }} as line_roles
+        on
+            weekly.line_id = line_roles.line_id
+            and weekly.naptan_id = line_roles.naptan_id
     left join medians
         on
             weekly.line_id = medians.line_id
@@ -166,7 +178,10 @@ classified as (
     select
         *,
         case
-            when measured_withheld_reason in ('line_not_measured', 'shared_section_misfiled')
+            when
+                measured_withheld_reason in (
+                    'line_not_measured', 'shared_section_misfiled', 'terminus'
+                )
                 then 'withheld'
             when measured_withheld_reason is not null then 'not_measured'
             else 'measured'

@@ -130,7 +130,8 @@ unit_tests:
       terminus, so the line-week gate (D51) judges station a only: 3 judged
       hours, 2 in band. Declared status: 08:00 is Good Service in every
       minute, 09:00 has a Minor Delays minute, so 1 Good Service hour with a
-      measurement, and it has a long gap: Honesty Gap 1.
+      measurement. Its long gap, with a Good Service span, is at station a
+      only, so it is not corroborated (D68): Honesty Gap 0 of 1.
       Bakerloo: one counted hour, excess -30 s (kept, not clipped), judged
       against fallback frequencies (D33), Good Service: Honesty Gap 0 of 1.
       Central: 4 scheduled hours, 2 observed, 1 counted; 10:00 has 5 trains
@@ -141,18 +142,18 @@ unit_tests:
     given:
       - input: ref('int_measured_hours')
         rows:
-          - {line_id: victoria, naptan_id: a, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 60, long_gaps: 1, observed_trains: 30, scheduled_departures: 40}
-          - {line_id: victoria, naptan_id: b, role: terminus, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 0, observed_trains: 30, scheduled_departures: 40}
-          - {line_id: victoria, naptan_id: a, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 30, long_gaps: 0, observed_trains: 0, scheduled_departures: 10}
-          - {line_id: victoria, naptan_id: b, role: terminus, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 30, long_gaps: 0, observed_trains: 0, scheduled_departures: 10}
-          - {line_id: victoria, naptan_id: a, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 10, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: 600, long_gaps: 5, observed_trains: 0, scheduled_departures: 10}
-          - {line_id: victoria, naptan_id: c, role: branch, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: false, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0, observed_trains: 8, scheduled_departures: 10}
-          - {line_id: bakerloo, naptan_id: a, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: true, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: -30, long_gaps: 0, observed_trains: 0, scheduled_departures: 0}
-          - {line_id: dlr, naptan_id: c, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: false, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: 900, long_gaps: 9, observed_trains: 3, scheduled_departures: 10}
-          - {line_id: central, naptan_id: d, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 0, observed_trains: 0, scheduled_departures: 10}
-          - {line_id: central, naptan_id: d, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: 0, long_gaps: 0, observed_trains: 0, scheduled_departures: 10}
-          - {line_id: central, naptan_id: d, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 10, is_line_measured: true, is_fallback: false, is_observed: false, is_gate_judged: false, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0, observed_trains: 5, scheduled_departures: 30}
-          - {line_id: central, naptan_id: d, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 11, is_line_measured: true, is_fallback: false, is_observed: false, is_gate_judged: false, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0, observed_trains: 0, scheduled_departures: 30}
+          - {line_id: victoria, naptan_id: a, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 60, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 30, scheduled_departures: 40}
+          - {line_id: victoria, naptan_id: b, role: terminus, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 0, good_service_long_gaps: 0, observed_trains: 30, scheduled_departures: 40}
+          - {line_id: victoria, naptan_id: a, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 30, long_gaps: 0, good_service_long_gaps: 0, observed_trains: 0, scheduled_departures: 10}
+          - {line_id: victoria, naptan_id: b, role: terminus, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 30, long_gaps: 0, good_service_long_gaps: 0, observed_trains: 0, scheduled_departures: 10}
+          - {line_id: victoria, naptan_id: a, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 10, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: 600, long_gaps: 5, good_service_long_gaps: 0, observed_trains: 0, scheduled_departures: 10}
+          - {line_id: victoria, naptan_id: c, role: branch, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: false, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0, good_service_long_gaps: 0, observed_trains: 8, scheduled_departures: 10}
+          - {line_id: bakerloo, naptan_id: a, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: true, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: -30, long_gaps: 0, good_service_long_gaps: 0, observed_trains: 0, scheduled_departures: 0}
+          - {line_id: dlr, naptan_id: c, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: false, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: 900, long_gaps: 9, good_service_long_gaps: 0, observed_trains: 3, scheduled_departures: 10}
+          - {line_id: central, naptan_id: d, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 0, good_service_long_gaps: 0, observed_trains: 0, scheduled_departures: 10}
+          - {line_id: central, naptan_id: d, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 9, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: 0, long_gaps: 0, good_service_long_gaps: 0, observed_trains: 0, scheduled_departures: 10}
+          - {line_id: central, naptan_id: d, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 10, is_line_measured: true, is_fallback: false, is_observed: false, is_gate_judged: false, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0, good_service_long_gaps: 0, observed_trains: 5, scheduled_departures: 30}
+          - {line_id: central, naptan_id: d, role: core, week_start: "2026-10-26", london_date: "2026-10-27", london_hour: 11, is_line_measured: true, is_fallback: false, is_observed: false, is_gate_judged: false, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: null, long_gaps: 0, good_service_long_gaps: 0, observed_trains: 0, scheduled_departures: 30}
       - input: ref('int_line_minute_status')
         rows:
           - {line_id: victoria, london_date: "2026-10-27", london_ts: "2026-10-27 08:00:00", is_missing: false, status_severity: 10}
@@ -161,11 +162,161 @@ unit_tests:
           - {line_id: victoria, london_date: "2026-10-27", london_ts: "2026-10-27 09:30:00", is_missing: false, status_severity: 9}
           - {line_id: bakerloo, london_date: "2026-10-27", london_ts: "2026-10-27 08:00:00", is_missing: false, status_severity: 10}
           - {line_id: dlr, london_date: "2026-10-27", london_ts: "2026-10-27 08:00:00", is_missing: false, status_severity: 10}
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: victoria, naptan_id: a, role: core}
+          - {line_id: victoria, naptan_id: b, role: terminus}
+          - {line_id: victoria, naptan_id: c, role: branch}
+          - {line_id: bakerloo, naptan_id: a, role: core}
+          - {line_id: bakerloo, naptan_id: x, role: core}
+          - {line_id: central, naptan_id: d, role: core}
+          - {line_id: central, naptan_id: y, role: core}
     expect:
       rows:
-        - {line_id: victoria, london_date: "2026-10-27", scheduled_measurement_hours: 6, observed_measurement_hours: 6, observed_trains: 38, observed_hours_scheduled_trains: 70, measured_hours: 4, excess_wait_hours: 4, sum_excess_wait_seconds: 120, long_gaps: 1, fallback_measured_hours: 0, gate_judged_hours: 3, gate_in_band_hours: 2, good_service_measured_hours: 1, honesty_gap_hours: 1}
+        - {line_id: victoria, london_date: "2026-10-27", scheduled_measurement_hours: 6, observed_measurement_hours: 6, observed_trains: 38, observed_hours_scheduled_trains: 70, measured_hours: 4, excess_wait_hours: 4, sum_excess_wait_seconds: 120, long_gaps: 1, fallback_measured_hours: 0, gate_judged_hours: 3, gate_in_band_hours: 2, good_service_measured_hours: 1, honesty_gap_hours: 0}
         - {line_id: bakerloo, london_date: "2026-10-27", scheduled_measurement_hours: 1, observed_measurement_hours: 1, observed_trains: 0, observed_hours_scheduled_trains: 0, measured_hours: 1, excess_wait_hours: 1, sum_excess_wait_seconds: -30, long_gaps: 0, fallback_measured_hours: 1, gate_judged_hours: 1, gate_in_band_hours: 1, good_service_measured_hours: 1, honesty_gap_hours: 0}
         - {line_id: central, london_date: "2026-10-27", scheduled_measurement_hours: 4, observed_measurement_hours: 2, observed_trains: 0, observed_hours_scheduled_trains: 20, measured_hours: 1, excess_wait_hours: 1, sum_excess_wait_seconds: 0, long_gaps: 0, fallback_measured_hours: 0, gate_judged_hours: 2, gate_in_band_hours: 1, good_service_measured_hours: 0, honesty_gap_hours: 0}
+
+  - name: fct_line_measured_daily_honesty_gap_corroborated
+    description: >
+      D68. Jubilee, Wednesday 11 November 2026. Every row below is one
+      measurement station and direction in a London hour; good_service_long_gaps
+      are long gaps ending in the hour whose whole span was Good Service
+      (int_measured_hours). Declared status is Good Service in every minute
+      of hours 8 to 15 except 13:30 (Minor Delays).
+      Hour 8: stations a and b outbound each have one: corroborated, counts.
+      Hour 9: a outbound has two, b none: one station, not counted.
+      Hour 10: a outbound, b inbound: directions differ, not counted.
+      Hour 11: a and b outbound both have a long gap, but b's began during
+      declared delays (good_service_long_gaps 0): not counted.
+      Hour 12: b's hour is out of the gate band, so only a counts: not
+      counted. Hour 13 is not all Good Service: outside the denominator.
+      Hour 14: core a and branch c outbound: the line's directions span its
+      branches, so this counts.
+      Hour 15: terminus t and core a outbound each have one: a terminus
+      does not corroborate, so only a counts: not counted.
+      Good Service hours with a measurement: 8, 9, 10, 11, 12, 14, 15 = 7.
+      Honesty Gap: hours 8 and 14 = 2. Measured hours 15 (b at 12 is out;
+      a and t at 15 add 2), long gaps 2 + 2 + 2 + 2 + 1 + 2 + 2 + 2 = 15,
+      unchanged by D68.
+    model: fct_line_measured_daily
+    overrides:
+      vars:
+        honesty_gap_min_stations: 2
+    given:
+      - input: ref('int_measured_hours')
+        rows:
+          - {line_id: jubilee, naptan_id: a, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: b, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: a, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 9, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 2, good_service_long_gaps: 2, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: b, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 9, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 0, good_service_long_gaps: 0, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: a, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 10, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: b, direction: inbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 10, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: a, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 11, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: b, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 11, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 0, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: a, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 12, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: b, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 12, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: false, counts_for_reliability: false, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: a, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 13, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: b, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 13, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: a, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 14, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: c, direction: outbound, role: branch, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 14, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: a, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 15, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: jubilee, naptan_id: t, direction: outbound, role: terminus, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 15, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+      - input: ref('int_line_minute_status')
+        rows:
+          - {line_id: jubilee, london_date: "2026-11-11", london_ts: "2026-11-11 08:00:00", is_missing: false, status_severity: 10}
+          - {line_id: jubilee, london_date: "2026-11-11", london_ts: "2026-11-11 09:00:00", is_missing: false, status_severity: 10}
+          - {line_id: jubilee, london_date: "2026-11-11", london_ts: "2026-11-11 10:00:00", is_missing: false, status_severity: 10}
+          - {line_id: jubilee, london_date: "2026-11-11", london_ts: "2026-11-11 11:00:00", is_missing: false, status_severity: 10}
+          - {line_id: jubilee, london_date: "2026-11-11", london_ts: "2026-11-11 12:00:00", is_missing: false, status_severity: 10}
+          - {line_id: jubilee, london_date: "2026-11-11", london_ts: "2026-11-11 13:00:00", is_missing: false, status_severity: 10}
+          - {line_id: jubilee, london_date: "2026-11-11", london_ts: "2026-11-11 14:00:00", is_missing: false, status_severity: 10}
+          - {line_id: jubilee, london_date: "2026-11-11", london_ts: "2026-11-11 15:00:00", is_missing: false, status_severity: 10}
+          - {line_id: jubilee, london_date: "2026-11-11", london_ts: "2026-11-11 13:30:00", is_missing: false, status_severity: 9}
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: jubilee, naptan_id: a, role: core}
+          - {line_id: jubilee, naptan_id: b, role: core}
+          - {line_id: jubilee, naptan_id: c, role: branch}
+          - {line_id: jubilee, naptan_id: t, role: terminus}
+    expect:
+      rows:
+        - {line_id: jubilee, london_date: "2026-11-11", measured_hours: 15, long_gaps: 15, good_service_measured_hours: 7, honesty_gap_hours: 2}
+
+  - name: fct_line_measured_daily_honesty_gap_not_corroborable
+    description: >
+      D68. A line with fewer than `honesty_gap_min_stations` core and branch
+      measurement stations has a null Honesty Gap, not 0. Wednesday 11
+      November 2026, Good Service in every minute of hours 8 and 9.
+      Lioness has one core station (w) and two termini (e, j). Hour 8: w
+      and terminus e outbound each have a long gap with a Good Service span;
+      hour 9: w alone. A terminus never corroborates, so no hour of the line
+      can count: Honesty Gap null. Its denominator still counts: 2 Good
+      Service hours with a measurement; 3 measured hours, 3 long gaps.
+      Mildmay, the control, has two core stations (h, l) and the same
+      pattern with l in place of e: hour 8 is corroborated, hour 9 is not.
+      Honesty Gap 1 of 2.
+    model: fct_line_measured_daily
+    overrides:
+      vars:
+        honesty_gap_min_stations: 2
+    given:
+      - input: ref('int_measured_hours')
+        rows:
+          - {line_id: lioness, naptan_id: w, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: lioness, naptan_id: e, direction: outbound, role: terminus, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: lioness, naptan_id: w, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 9, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: mildmay, naptan_id: h, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: mildmay, naptan_id: l, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 8, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+          - {line_id: mildmay, naptan_id: h, direction: outbound, role: core, week_start: "2026-11-09", london_date: "2026-11-11", london_hour: 9, is_line_measured: true, is_fallback: false, is_observed: true, is_gate_judged: true, is_in_band: true, counts_for_reliability: true, excess_wait_seconds: 0, long_gaps: 1, good_service_long_gaps: 1, observed_trains: 20, scheduled_departures: 20}
+      - input: ref('int_line_minute_status')
+        rows:
+          - {line_id: lioness, london_date: "2026-11-11", london_ts: "2026-11-11 08:00:00", is_missing: false, status_severity: 10}
+          - {line_id: lioness, london_date: "2026-11-11", london_ts: "2026-11-11 09:00:00", is_missing: false, status_severity: 10}
+          - {line_id: mildmay, london_date: "2026-11-11", london_ts: "2026-11-11 08:00:00", is_missing: false, status_severity: 10}
+          - {line_id: mildmay, london_date: "2026-11-11", london_ts: "2026-11-11 09:00:00", is_missing: false, status_severity: 10}
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: lioness, naptan_id: e, role: terminus}
+          - {line_id: lioness, naptan_id: w, role: core}
+          - {line_id: lioness, naptan_id: j, role: terminus}
+          - {line_id: mildmay, naptan_id: s, role: terminus}
+          - {line_id: mildmay, naptan_id: h, role: core}
+          - {line_id: mildmay, naptan_id: l, role: core}
+          - {line_id: mildmay, naptan_id: r, role: terminus}
+    expect:
+      rows:
+        - {line_id: lioness, london_date: "2026-11-11", measured_hours: 3, long_gaps: 3, good_service_measured_hours: 2, honesty_gap_hours: null}
+        - {line_id: mildmay, london_date: "2026-11-11", measured_hours: 3, long_gaps: 3, good_service_measured_hours: 2, honesty_gap_hours: 1}
+
+  - name: fct_line_weekly_measured_honesty_gap_not_corroborable
+    description: >
+      D68. A day with a null Honesty Gap makes the week's null, never a sum
+      of zeros, and its share null, with honesty_gap_withheld_reason
+      `honesty_gap_not_corroborable`. Week of 9 November 2026. Lioness: two
+      days, both null, 5 Good Service hours: hours null, share null.
+      Mildmay: 1 + 2 = 3 of 2 + 4 = 6 Good Service hours: 3 hours, share
+      0.5, no reason.
+    model: fct_line_weekly_measured
+    given:
+      - input: ref('fct_line_weekly')
+        rows:
+          - {line_id: lioness, week_start: "2026-11-09"}
+          - {line_id: mildmay, week_start: "2026-11-09"}
+      - input: ref('seed_measured_lines')
+        rows:
+          - {line_id: lioness, is_measured: true}
+          - {line_id: mildmay, is_measured: true}
+      - input: ref('fct_line_measured_daily')
+        rows:
+          - {line_id: lioness, week_start: "2026-11-09", scheduled_measurement_hours: 2, observed_measurement_hours: 2, observed_trains: 20, observed_hours_scheduled_trains: 20, measured_hours: 2, excess_wait_hours: 2, sum_excess_wait_seconds: 0, long_gaps: 1, fallback_measured_hours: 2, gate_judged_hours: 2, gate_in_band_hours: 2, good_service_measured_hours: 2, honesty_gap_hours: null}
+          - {line_id: lioness, week_start: "2026-11-09", scheduled_measurement_hours: 3, observed_measurement_hours: 3, observed_trains: 30, observed_hours_scheduled_trains: 30, measured_hours: 3, excess_wait_hours: 3, sum_excess_wait_seconds: 0, long_gaps: 2, fallback_measured_hours: 3, gate_judged_hours: 3, gate_in_band_hours: 3, good_service_measured_hours: 3, honesty_gap_hours: null}
+          - {line_id: mildmay, week_start: "2026-11-09", scheduled_measurement_hours: 2, observed_measurement_hours: 2, observed_trains: 20, observed_hours_scheduled_trains: 20, measured_hours: 2, excess_wait_hours: 2, sum_excess_wait_seconds: 0, long_gaps: 1, fallback_measured_hours: 2, gate_judged_hours: 2, gate_in_band_hours: 2, good_service_measured_hours: 2, honesty_gap_hours: 1}
+          - {line_id: mildmay, week_start: "2026-11-09", scheduled_measurement_hours: 4, observed_measurement_hours: 4, observed_trains: 40, observed_hours_scheduled_trains: 40, measured_hours: 4, excess_wait_hours: 4, sum_excess_wait_seconds: 0, long_gaps: 2, fallback_measured_hours: 4, gate_judged_hours: 4, gate_in_band_hours: 4, good_service_measured_hours: 4, honesty_gap_hours: 2}
+    expect:
+      rows:
+        - {line_id: lioness, good_service_measured_hours: 5, honesty_gap_hours: null, honesty_gap_share: null, honesty_gap_withheld_reason: honesty_gap_not_corroborable}
+        - {line_id: mildmay, good_service_measured_hours: 6, honesty_gap_hours: 3, honesty_gap_share: 0.5, honesty_gap_withheld_reason: null}
 
   - name: fct_line_weekly_measured_view_and_publish_rule
     description: >
