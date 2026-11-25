@@ -1,0 +1,302 @@
+version: 2
+
+# Hand-computed cases for board dropouts (D75, pending). Inputs from the
+# line feed's models are given as SQL so timestamps keep their types.
+
+unit_tests:
+  - name: stg_timetable_stop_intervals_stages_each_pattern_in_order
+    description: >
+      One Metropolitan timetable from Wembley Park lists two stopping
+      patterns: interval 0 calls at Preston Road then Harrow, interval 1
+      runs fast to Harrow. Each call is a row, numbered along its pattern.
+      A disambiguation response has no timetable and gives no rows.
+    model: stg_timetable_stop_intervals
+    overrides:
+      macros:
+        is_incremental: false
+      vars:
+        start_date: null
+        end_date: null
+        raw_start_date: "2026-11-01"
+        station_initial_days: null
+    given:
+      - input: source('raw', 'ref_timetable')
+        format: sql
+        rows: |
+          select
+              'p1' as poll_id,
+              '2026-11-03T02:00:00.000Z' as polled_at,
+              'ref_timetable' as feed,
+              cast(row('/Line/metropolitan/Timetable/940GZZLUWYP?direction=inbound') as row(path varchar)) as request,
+              200 as http_status,
+              400 as latency_ms,
+              cast(null as varchar) as error,
+              '{"lineId": "metropolitan", "direction": "inbound",
+                "timetable": {"departureStopId": "940GZZLUWYP", "routes": [
+                  {"stationIntervals": [
+                     {"id": "0", "intervals": [
+                        {"stopId": "940GZZLUPRD", "timeToArrival": 2.0},
+                        {"stopId": "940GZZLUHOH", "timeToArrival": 7.0}]},
+                     {"id": "1", "intervals": [
+                        {"stopId": "940GZZLUHOH", "timeToArrival": 5.0}]}],
+                   "schedules": []}]}}' as payload,
+              '2026-11-03' as dt,
+              '02' as hour
+          union all
+          select 'p1', '2026-11-03T02:00:00.000Z', 'ref_timetable',
+              cast(row('/Line/metropolitan/Timetable/940GZZLUWYP') as row(path varchar)),
+              200, 300, cast(null as varchar),
+              '{"lineId": "metropolitan", "disambiguation": {"disambiguationOptions": []}}',
+              '2026-11-03', '02'
+    expect:
+      rows:
+        - {line_id: metropolitan, direction: inbound, departure_stop_id: 940GZZLUWYP, interval_id: 0, interval_ordinal: 1, stop_ordinal: 1, stop_id: 940GZZLUPRD, minutes_to_arrival: 2.0}
+        - {line_id: metropolitan, direction: inbound, departure_stop_id: 940GZZLUWYP, interval_id: 0, interval_ordinal: 1, stop_ordinal: 2, stop_id: 940GZZLUHOH, minutes_to_arrival: 7.0}
+        - {line_id: metropolitan, direction: inbound, departure_stop_id: 940GZZLUWYP, interval_id: 1, interval_ordinal: 2, stop_ordinal: 1, stop_id: 940GZZLUHOH, minutes_to_arrival: 5.0}
+
+  - name: int_board_dropouts_shown_dropped_skipped_terminus_and_span
+    description: >
+      Victoria has two inbound routes: V1 to V6, and a short turn V1 to V4,
+      so V1, V4 and V6 are termini. Vehicle a passes V1 10:00, V2 10:02
+      (and V2 again at 10:02:30 under the other direction, which collapses
+      into one call), V3 10:04, V4 10:06: shown at V2 (V1, V2, V3) and at V3
+      (V2, V3, V4). Vehicle b passes V2 11:00 then V4 11:04, never V3:
+      dropped at V3, estimated at 11:02, judged. Vehicle c passes V3, V4, V5:
+      shown at V4, which ends the short turn, so excluded as a terminus.
+      Vehicle e passes V1 14:00 then V3 14:25: 25 minutes is over the 20
+      minute bound, so the dropout at V2 is excluded (span_too_long).
+      Metropolitan runs M1 to M4, and a timetabled pattern from M1 calls next
+      at M3, so a train may run through M2: vehicle f (M1 then M3, dropped)
+      and vehicle g (M1, M2, M3, shown) are both excluded. Northern runs N1,
+      N2, N3 on one branch and N1, N3 on the other: vehicle i, shown at N2,
+      is excluded because a dropout at N2 could never be told from the
+      other branch. The Elizabeth line is not measured: vehicle h's dropout
+      at E2 is kept but excluded. X's own listings decide a candidate:
+      vehicle b was never listed at V3 (never_listed). Vehicle j (V2 19:00,
+      V4 19:04) was listed at V3 at 19:01:30, 60 s out, with no direction,
+      so it made no pass but was shown. Vehicle k (V2 20:00, V4 20:04) was
+      listed at V3 at 20:00, 300 s out, and never closer: dropped
+      (listed_not_arriving). Two V3 listings of b count for nothing: one at
+      09:00, before the 10-minute lead-in to its pass at V2, and one at
+      10:55, 30 s out but outbound, the train's previous trip the other way.
+      The Victoria feed has no successful poll from 20:58 to 21:03, a
+      collection gap: vehicle m (V2 21:05, V4 21:09, never listed at V3) is
+      excluded, since its run from 20:55 overlaps the gap. Vehicle n (V1
+      then V4, three stops apart) is no candidate and has no row. The window is 17 November; every
+      row is in GMT, so London is UTC.
+    model: int_board_dropouts
+    overrides:
+      macros:
+        is_incremental: false
+      vars:
+        raw_start_date: "2026-11-17"
+        start_date: null
+        end_date: "2026-11-17"
+        station_initial_days: null
+        board_dropout_max_span_minutes: 20
+        vehicle_pass_threshold_seconds: 120
+    given:
+      - input: ref('seed_board_dropout_lines')
+        rows:
+          - {line_id: victoria, is_measured: true}
+          - {line_id: metropolitan, is_measured: true}
+          - {line_id: northern, is_measured: true}
+          - {line_id: elizabeth, is_measured: false}
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: victoria, naptan_id: V2, role: core}
+      - input: ref('stg_route_sequence')
+        format: sql
+        rows: |
+          select
+              line_id, 'inbound' as direction, poll_id, '/Line/' || line_id || '/Route/Sequence/inbound' as request_path,
+              timestamp '2026-11-17 03:00:00' as polled_at, route_ordinal, stop_sequence, naptan_id,
+              date '2026-11-17' as dt
+          from (
+              values
+                  ('victoria', 'r1', 1, 1, 'V1'), ('victoria', 'r1', 1, 2, 'V2'),
+                  ('victoria', 'r1', 1, 3, 'V3'), ('victoria', 'r1', 1, 4, 'V4'),
+                  ('victoria', 'r1', 1, 5, 'V5'), ('victoria', 'r1', 1, 6, 'V6'),
+                  ('victoria', 'r1', 2, 1, 'V1'), ('victoria', 'r1', 2, 2, 'V2'),
+                  ('victoria', 'r1', 2, 3, 'V3'), ('victoria', 'r1', 2, 4, 'V4'),
+                  ('metropolitan', 'r2', 1, 1, 'M1'), ('metropolitan', 'r2', 1, 2, 'M2'),
+                  ('metropolitan', 'r2', 1, 3, 'M3'), ('metropolitan', 'r2', 1, 4, 'M4'),
+                  ('northern', 'r3', 1, 1, 'N1'), ('northern', 'r3', 1, 2, 'N2'),
+                  ('northern', 'r3', 1, 3, 'N3'),
+                  ('northern', 'r3', 2, 1, 'N1'), ('northern', 'r3', 2, 2, 'N3'),
+                  ('elizabeth', 'r4', 1, 1, 'E1'), ('elizabeth', 'r4', 1, 2, 'E2'),
+                  ('elizabeth', 'r4', 1, 3, 'E3')
+          ) as t (line_id, poll_id, route_ordinal, stop_sequence, naptan_id)
+      - input: ref('stg_timetable_stop_intervals')
+        format: sql
+        rows: |
+          select
+              't1' as poll_id, '/Line/metropolitan/Timetable/M1?direction=inbound' as request_path,
+              'metropolitan' as line_id, 'M1' as departure_stop_id, 1 as route_ordinal,
+              1 as interval_ordinal, stop_ordinal, stop_id, date '2026-11-17' as dt
+          from (values (1, 'M3'), (2, 'M4')) as t (stop_ordinal, stop_id)
+      - input: ref('int_station_vehicle_passes')
+        format: sql
+        rows: |
+          select
+              line_id, naptan_id, direction, vehicle_id, pass_time,
+              cast(pass_time as date) as london_date,
+              vehicle_id || naptan_id || format_datetime(pass_time, 'HHmmss') as vehicle_pass_key
+          from (
+              values
+                  ('victoria', 'V1', 'inbound', 'a', timestamp '2026-11-17 10:00:00'),
+                  ('victoria', 'V2', 'inbound', 'a', timestamp '2026-11-17 10:02:00'),
+                  ('victoria', 'V2', 'outbound', 'a', timestamp '2026-11-17 10:02:30'),
+                  ('victoria', 'V3', 'inbound', 'a', timestamp '2026-11-17 10:04:00'),
+                  ('victoria', 'V4', 'inbound', 'a', timestamp '2026-11-17 10:06:00'),
+                  ('victoria', 'V2', 'inbound', 'b', timestamp '2026-11-17 11:00:00'),
+                  ('victoria', 'V4', 'inbound', 'b', timestamp '2026-11-17 11:04:00'),
+                  ('victoria', 'V3', 'inbound', 'c', timestamp '2026-11-17 12:00:00'),
+                  ('victoria', 'V4', 'inbound', 'c', timestamp '2026-11-17 12:02:00'),
+                  ('victoria', 'V5', 'inbound', 'c', timestamp '2026-11-17 12:04:00'),
+                  ('victoria', 'V1', 'inbound', 'e', timestamp '2026-11-17 14:00:00'),
+                  ('victoria', 'V3', 'inbound', 'e', timestamp '2026-11-17 14:25:00'),
+                  ('metropolitan', 'M1', 'inbound', 'f', timestamp '2026-11-17 15:00:00'),
+                  ('metropolitan', 'M3', 'inbound', 'f', timestamp '2026-11-17 15:05:00'),
+                  ('metropolitan', 'M1', 'inbound', 'g', timestamp '2026-11-17 16:00:00'),
+                  ('metropolitan', 'M2', 'inbound', 'g', timestamp '2026-11-17 16:02:00'),
+                  ('metropolitan', 'M3', 'inbound', 'g', timestamp '2026-11-17 16:04:00'),
+                  ('northern', 'N1', 'inbound', 'i', timestamp '2026-11-17 17:00:00'),
+                  ('northern', 'N2', 'inbound', 'i', timestamp '2026-11-17 17:02:00'),
+                  ('northern', 'N3', 'inbound', 'i', timestamp '2026-11-17 17:04:00'),
+                  ('elizabeth', 'E1', 'inbound', 'h', timestamp '2026-11-17 18:00:00'),
+                  ('elizabeth', 'E3', 'inbound', 'h', timestamp '2026-11-17 18:06:00'),
+                  ('victoria', 'V2', 'inbound', 'j', timestamp '2026-11-17 19:00:00'),
+                  ('victoria', 'V4', 'inbound', 'j', timestamp '2026-11-17 19:04:00'),
+                  ('victoria', 'V2', 'inbound', 'k', timestamp '2026-11-17 20:00:00'),
+                  ('victoria', 'V4', 'inbound', 'k', timestamp '2026-11-17 20:04:00'),
+                  ('victoria', 'V2', 'inbound', 'm', timestamp '2026-11-17 21:05:00'),
+                  ('victoria', 'V4', 'inbound', 'm', timestamp '2026-11-17 21:09:00'),
+                  ('victoria', 'V1', 'inbound', 'n', timestamp '2026-11-17 22:00:00'),
+                  ('victoria', 'V4', 'inbound', 'n', timestamp '2026-11-17 22:06:00')
+          ) as t (line_id, naptan_id, direction, vehicle_id, pass_time)
+      - input: ref('stg_line_arrival_polls')
+        format: sql
+        rows: |
+          select
+              format_datetime(polled_at, 'HHmm') as poll_id, '/Line/victoria/Arrivals' as request_path,
+              polled_at, true as is_ok, cast(polled_at as date) as dt
+          from unnest(
+              sequence(timestamp '2026-11-17 09:00:00', timestamp '2026-11-17 20:58:00', interval '1' minute)
+              || sequence(timestamp '2026-11-17 21:03:00', timestamp '2026-11-17 23:00:00', interval '1' minute)
+          ) as t (polled_at)
+      - input: ref('int_station_arrivals_directed')
+        format: sql
+        rows: |
+          select
+              'victoria' as line_id, 'V3' as naptan_id, direction, vehicle_id, polled_at,
+              expected_arrival, cast(polled_at as date) as dt
+          from (
+              values
+                  (cast(null as varchar), 'j', timestamp '2026-11-17 19:01:30', timestamp '2026-11-17 19:02:30'),
+                  ('inbound', 'k', timestamp '2026-11-17 20:00:00', timestamp '2026-11-17 20:05:00'),
+                  ('inbound', 'b', timestamp '2026-11-17 09:00:00', timestamp '2026-11-17 09:01:00'),
+                  ('outbound', 'b', timestamp '2026-11-17 10:55:00', timestamp '2026-11-17 10:55:30')
+          ) as t (direction, vehicle_id, polled_at, expected_arrival)
+    expect:
+      rows:
+        - {line_id: victoria, naptan_id: V2, vehicle_id: a, board_outcome: shown, dropout_kind: null, exclusion_reason: null, is_judged: true, is_dropped: false, direction: inbound, estimated_pass_time: "2026-11-17 10:02:00", week_start: "2026-11-16"}
+        - {line_id: victoria, naptan_id: V3, vehicle_id: a, board_outcome: shown, dropout_kind: null, exclusion_reason: null, is_judged: true, is_dropped: false, direction: inbound, estimated_pass_time: "2026-11-17 10:04:00", week_start: "2026-11-16"}
+        - {line_id: victoria, naptan_id: V3, vehicle_id: b, board_outcome: dropped, dropout_kind: never_listed, exclusion_reason: null, is_judged: true, is_dropped: true, direction: inbound, estimated_pass_time: "2026-11-17 11:02:00", week_start: "2026-11-16"}
+        - {line_id: victoria, naptan_id: V4, vehicle_id: c, board_outcome: shown, dropout_kind: null, exclusion_reason: terminus, is_judged: false, is_dropped: false, direction: inbound, estimated_pass_time: "2026-11-17 12:02:00", week_start: "2026-11-16"}
+        - {line_id: victoria, naptan_id: V2, vehicle_id: e, board_outcome: dropped, dropout_kind: never_listed, exclusion_reason: span_too_long, is_judged: false, is_dropped: true, direction: inbound, estimated_pass_time: "2026-11-17 14:12:30", week_start: "2026-11-16"}
+        - {line_id: metropolitan, naptan_id: M2, vehicle_id: f, board_outcome: dropped, dropout_kind: never_listed, exclusion_reason: timetabled_run_through, is_judged: false, is_dropped: true, direction: inbound, estimated_pass_time: "2026-11-17 15:02:30", week_start: "2026-11-16"}
+        - {line_id: metropolitan, naptan_id: M2, vehicle_id: g, board_outcome: shown, dropout_kind: null, exclusion_reason: timetabled_run_through, is_judged: false, is_dropped: false, direction: inbound, estimated_pass_time: "2026-11-17 16:02:00", week_start: "2026-11-16"}
+        - {line_id: northern, naptan_id: N2, vehicle_id: i, board_outcome: shown, dropout_kind: null, exclusion_reason: dropout_undetectable, is_judged: false, is_dropped: false, direction: inbound, estimated_pass_time: "2026-11-17 17:02:00", week_start: "2026-11-16"}
+        - {line_id: victoria, naptan_id: V3, vehicle_id: j, board_outcome: shown, dropout_kind: null, exclusion_reason: null, is_judged: true, is_dropped: false, direction: inbound, estimated_pass_time: "2026-11-17 19:02:30", week_start: "2026-11-16"}
+        - {line_id: victoria, naptan_id: V3, vehicle_id: k, board_outcome: dropped, dropout_kind: listed_not_arriving, exclusion_reason: null, is_judged: true, is_dropped: true, direction: inbound, estimated_pass_time: "2026-11-17 20:02:00", week_start: "2026-11-16"}
+        - {line_id: victoria, naptan_id: V3, vehicle_id: m, board_outcome: dropped, dropout_kind: never_listed, exclusion_reason: collection_gap, is_judged: false, is_dropped: true, direction: inbound, estimated_pass_time: "2026-11-17 21:07:00", week_start: "2026-11-16"}
+        - {line_id: elizabeth, naptan_id: E2, vehicle_id: h, board_outcome: dropped, dropout_kind: never_listed, exclusion_reason: line_not_measured, is_judged: false, is_dropped: true, direction: inbound, estimated_pass_time: "2026-11-17 18:03:00", week_start: "2026-11-16"}
+
+  - name: rpt_board_reliability_weekly_counts_each_long_gap_once
+    description: >
+      Week of 16 November, minimum 4 judged trains and 2 long gaps.
+      Victoria X has 6 judged trains, 3 dropped: 0.5. Y has 2 judged, 1
+      dropped: below the minimum, so null. The line has 8 judged, 4
+      dropped: 0.5. A dropped train at X that is not judged (09:05) counts
+      nowhere. Long gaps at X: g1 inbound 08:00 to 08:10 holds two inbound
+      dropouts (08:05 and 08:07) and counts once; g2 outbound over the same minutes does not (other
+      direction); g3 inbound 09:00 to 09:10 holds only the excluded
+      dropout; g4 inbound 11:55 to 12:05 holds the 12:00 dropout, whose
+      direction is unknown, so it matches no gap. g5 is out of band and g6
+      is not long: neither counts. Y: g7 inbound, long, no dropout. W has a
+      long gap but no judged train, so no row. The line: 5 long gaps, 1
+      with a dropout: 0.2. Metropolitan Z: 4 judged, 1 dropped (0.25), and
+      1 long gap with that dropout inside it: under 2 long gaps, so the
+      line's long-gap share is null. x4 was listed but never shown
+      arriving; every other dropout was never listed: X 2, Y 1, line 3.
+      Only X is a core measurement station (Y is a terminus), so the
+      line's measurement-station long gaps are X's: 4, 1 with a dropout.
+    model: rpt_board_reliability_weekly
+    overrides:
+      vars:
+        board_dropout_min_trains: 4
+        board_dropout_min_long_gaps: 2
+    given:
+      - input: ref('seed_board_dropout_lines')
+        rows:
+          - {line_id: victoria, caveat: null}
+          - {line_id: metropolitan, caveat: null}
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: victoria, naptan_id: X, role: core}
+          - {line_id: victoria, naptan_id: Y, role: terminus}
+      - input: ref('dim_station')
+        rows:
+          - {naptan_id: X, station_name: Ex}
+          - {naptan_id: Y, station_name: Why}
+          - {naptan_id: Z, station_name: Zed}
+      - input: ref('int_board_dropouts')
+        format: sql
+        rows: |
+          select
+              key as board_dropout_key, line_id, naptan_id, direction, estimated_pass_time,
+              is_judged, is_dropped, date '2026-11-16' as week_start,
+              if(is_dropped, if(key = 'x4', 'listed_not_arriving', 'never_listed')) as dropout_kind
+          from (
+              values
+                  ('x1', 'victoria', 'X', 'inbound', timestamp '2026-11-17 08:05:00', true, true),
+                  ('x2', 'victoria', 'X', 'inbound', timestamp '2026-11-17 11:00:00', true, false),
+                  ('x3', 'victoria', 'X', null, timestamp '2026-11-17 12:00:00', true, true),
+                  ('x4', 'victoria', 'X', 'inbound', timestamp '2026-11-17 08:07:00', true, true),
+                  ('x5', 'victoria', 'X', 'inbound', timestamp '2026-11-17 08:12:00', true, false),
+                  ('x6', 'victoria', 'X', 'outbound', timestamp '2026-11-17 08:03:00', true, false),
+                  ('x7', 'victoria', 'X', 'inbound', timestamp '2026-11-17 09:05:00', false, true),
+                  ('y1', 'victoria', 'Y', 'inbound', timestamp '2026-11-17 10:05:00', true, true),
+                  ('y2', 'victoria', 'Y', 'inbound', timestamp '2026-11-17 10:15:00', true, false),
+                  ('z1', 'metropolitan', 'Z', 'inbound', timestamp '2026-11-17 08:05:00', true, true),
+                  ('z2', 'metropolitan', 'Z', 'inbound', timestamp '2026-11-17 08:15:00', true, false),
+                  ('z3', 'metropolitan', 'Z', 'inbound', timestamp '2026-11-17 08:25:00', true, false),
+                  ('z4', 'metropolitan', 'Z', 'inbound', timestamp '2026-11-17 08:35:00', true, false)
+          ) as t (key, line_id, naptan_id, direction, estimated_pass_time, is_judged, is_dropped)
+      - input: ref('int_station_service_headways')
+        format: sql
+        rows: |
+          select
+              headway_key, line_id, naptan_id, direction, previous_arrival_time, arrival_time,
+              is_long_gap, is_in_band, true as is_scheduled, date '2026-11-16' as week_start
+          from (
+              values
+                  ('g1', 'victoria', 'X', 'inbound', timestamp '2026-11-17 08:00:00', timestamp '2026-11-17 08:10:00', true, true),
+                  ('g2', 'victoria', 'X', 'outbound', timestamp '2026-11-17 08:00:00', timestamp '2026-11-17 08:10:00', true, true),
+                  ('g3', 'victoria', 'X', 'inbound', timestamp '2026-11-17 09:00:00', timestamp '2026-11-17 09:10:00', true, true),
+                  ('g4', 'victoria', 'X', 'inbound', timestamp '2026-11-17 11:55:00', timestamp '2026-11-17 12:05:00', true, true),
+                  ('g5', 'victoria', 'X', 'inbound', timestamp '2026-11-17 10:55:00', timestamp '2026-11-17 11:05:00', true, false),
+                  ('g6', 'victoria', 'X', 'inbound', timestamp '2026-11-17 10:58:00', timestamp '2026-11-17 11:01:00', false, true),
+                  ('g7', 'victoria', 'Y', 'inbound', timestamp '2026-11-17 13:00:00', timestamp '2026-11-17 13:10:00', true, true),
+                  ('g8', 'victoria', 'W', 'inbound', timestamp '2026-11-17 13:00:00', timestamp '2026-11-17 13:10:00', true, true),
+                  ('g9', 'metropolitan', 'Z', 'inbound', timestamp '2026-11-17 08:00:00', timestamp '2026-11-17 08:10:00', true, true)
+          ) as t (
+              headway_key, line_id, naptan_id, direction, previous_arrival_time, arrival_time,
+              is_long_gap, is_in_band
+          )
+    expect:
+      rows:
+        - {line_id: victoria, naptan_id: X, station_name: Ex, is_measurement_station: true, trains_judged: 6, trains_dropped: 3, trains_never_listed: 2, dropout_share: 0.5, long_gaps: 4, long_gaps_with_dropout: 1, line_trains_judged: 8, line_trains_dropped: 4, line_trains_never_listed: 3, line_dropout_share: 0.5, line_long_gaps: 5, line_long_gaps_with_dropout: 1, line_long_gap_dropout_share: 0.2, line_measurement_long_gaps: 4, line_measurement_long_gaps_with_dropout: 1}
+        - {line_id: victoria, naptan_id: Y, station_name: Why, is_measurement_station: false, trains_judged: 2, trains_dropped: 1, trains_never_listed: 1, dropout_share: null, long_gaps: 1, long_gaps_with_dropout: 0, line_trains_judged: 8, line_trains_dropped: 4, line_trains_never_listed: 3, line_dropout_share: 0.5, line_long_gaps: 5, line_long_gaps_with_dropout: 1, line_long_gap_dropout_share: 0.2, line_measurement_long_gaps: 4, line_measurement_long_gaps_with_dropout: 1}
+        - {line_id: metropolitan, naptan_id: Z, station_name: Zed, is_measurement_station: false, trains_judged: 4, trains_dropped: 1, trains_never_listed: 1, dropout_share: 0.25, long_gaps: 1, long_gaps_with_dropout: 1, line_trains_judged: 4, line_trains_dropped: 1, line_trains_never_listed: 1, line_dropout_share: 0.25, line_long_gaps: 1, line_long_gaps_with_dropout: 1, line_long_gap_dropout_share: null, line_measurement_long_gaps: 0, line_measurement_long_gaps_with_dropout: 0}

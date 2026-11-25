@@ -1,0 +1,130 @@
+version: 2
+
+# Hand-computed cases for countdown drift (D71, pending). The arithmetic is
+# in the description.
+
+unit_tests:
+  - name: int_prediction_errors_matches_by_vehicle_and_countdown
+    description: >
+      Tuesday 3 November 2026 (GMT, so London time is UTC; week of 2 Nov).
+      Victoria at X (core), southbound. Horizons 2, 5 and 10 minutes,
+      buckets 30 s either side (lower edge in, upper edge out), lookback 30
+      minutes beyond the horizon. Platform 1 unless named.
+      a0, vehicle 101, arrives 07:45:00, last seen 07:44:30.
+        10 min: o1 at 07:40:00 said 07:50:00 (600 s); actual 300 s: early
+        by 300 s. 2 and 5 min: nothing, unmatched.
+      a1, vehicle 101 again, arrives 08:10:00, last seen 08:09:00.
+        10 min: o1 (600 s, 0 s from the horizon) is inside the lookback but
+        was polled before a0's last sighting, so it belongs to that visit
+        and is skipped. p1 at 07:59:00 said 08:08:30 (570 s, 30 s off); p2
+        at 08:00:00 said 08:09:40 (580 s, 20 s off) is nearer and wins.
+        Actual 600 s: late by 20 s, signed +20.
+        5 min: p3 at 08:05:00 said 08:10:00 (300 s); actual 300 s: exact.
+        2 min: p4 at 08:08:00 said 08:10:30 (150 s), on the upper edge, out;
+        w1 at 08:08:00 said 08:10:00 (120 s) but on Platform 2, another
+        board; p5 at 08:09:00 (60 s) is the last sighting: unmatched.
+      a2, vehicle 102, arrives 08:20:00, last seen 08:18:05.
+        5 min: q1 at 08:14:50 said 08:20:10 (320 s); actual 310 s: early by
+        10 s, signed -10.
+        2 min: q3 at 08:18:05 said 08:20:00 (115 s, in the bucket) is the
+        last sighting, which sets the arrival time, so it is not scored
+        against itself; q2 (185 s) is out: unmatched. 10 min: unmatched.
+      a5, vehicle 105, arrives 09:00:00, last seen 08:59:30.
+        2 min: r1 at 08:58:00 said 08:59:30 (90 s, exactly the lower edge,
+        in); actual 120 s: late by 30 s.
+        10 min: r2 at 08:49:40 said 08:59:20 (580 s) and r3 at 08:50:40 said
+        09:01:00 (620 s) are both 20 s off; the earlier poll, r2, wins.
+        Actual 620 s: late by 40 s. 5 min: unmatched.
+      a6, vehicle 106, on a board with no platform name, arrives 09:10:00.
+        5 min: u1 at 09:05:00, also no platform name, said 09:10:00: exact.
+      a7, vehicle 107, arrives 10:00:00. 10 min: h1 at 09:25:00 said
+        09:35:00 (600 s); the train came 2,100 s later: late by 1,500 s,
+        still matched because the lookback counts from the horizon (40
+        minutes before the arrival).
+      Left out, no rows: vehicle 199's prediction, whose train has no
+      inferred arrival; a3 at terminus T; a4 on the District, which does
+      not link by vehicle id.
+    model: int_prediction_errors
+    overrides:
+      vars:
+        raw_start_date: "2026-11-01"
+        prediction_accuracy_horizons: [2, 5, 10]
+        prediction_accuracy_bucket_half_width_seconds: 30
+        prediction_accuracy_lookback_minutes: 30
+    given:
+      - input: ref('seed_vehicle_id_lines')
+        rows:
+          - {line_id: victoria, link_by_vehicle_id: true}
+          - {line_id: district, link_by_vehicle_id: false}
+      - input: ref('seed_measurement_stations')
+        rows:
+          - {line_id: victoria, naptan_id: X, role: core}
+          - {line_id: victoria, naptan_id: T, role: terminus}
+          - {line_id: district, naptan_id: X, role: core}
+      - input: ref('int_inferred_arrivals')
+        format: sql
+        rows: |
+          select
+              arrival_key, '/StopPoint/' || naptan_id || '/Arrivals' as request_path,
+              naptan_id, line_id, platform_name,
+              'southbound' as direction, last_vehicle_id, arrival_time, last_seen_at
+          from (
+              values
+                  ('a0', 'X', 'victoria', 'Platform 1', '101', timestamp '2026-11-03 07:45:00', timestamp '2026-11-03 07:44:30'),
+                  ('a1', 'X', 'victoria', 'Platform 1', '101', timestamp '2026-11-03 08:10:00', timestamp '2026-11-03 08:09:00'),
+                  ('a2', 'X', 'victoria', 'Platform 1', '102', timestamp '2026-11-03 08:20:00', timestamp '2026-11-03 08:18:05'),
+                  ('a3', 'T', 'victoria', 'Platform 1', '103', timestamp '2026-11-03 08:30:00', timestamp '2026-11-03 08:29:00'),
+                  ('a4', 'X', 'district', 'Platform 1', '104', timestamp '2026-11-03 08:40:00', timestamp '2026-11-03 08:39:00'),
+                  ('a5', 'X', 'victoria', 'Platform 1', '105', timestamp '2026-11-03 09:00:00', timestamp '2026-11-03 08:59:30'),
+                  ('a6', 'X', 'victoria', null, '106', timestamp '2026-11-03 09:10:00', timestamp '2026-11-03 09:09:00'),
+                  ('a7', 'X', 'victoria', 'Platform 1', '107', timestamp '2026-11-03 10:00:00', timestamp '2026-11-03 09:59:00')
+          ) as t (arrival_key, naptan_id, line_id, platform_name, last_vehicle_id, arrival_time, last_seen_at)
+      - input: ref('int_arrivals_directed')
+        format: sql
+        rows: |
+          select
+              '/StopPoint/' || naptan_id || '/Arrivals' as request_path,
+              naptan_id, line_id, platform_name,
+              'southbound' as direction, vehicle_id, poll_id, polled_at, expected_arrival,
+              cast(polled_at as date) as dt
+          from (
+              values
+                  ('X', 'victoria', 'Platform 1', '101', 'o1', timestamp '2026-11-03 07:40:00', timestamp '2026-11-03 07:50:00'),
+                  ('X', 'victoria', 'Platform 1', '101', 'p1', timestamp '2026-11-03 07:59:00', timestamp '2026-11-03 08:08:30'),
+                  ('X', 'victoria', 'Platform 1', '101', 'p2', timestamp '2026-11-03 08:00:00', timestamp '2026-11-03 08:09:40'),
+                  ('X', 'victoria', 'Platform 1', '101', 'p3', timestamp '2026-11-03 08:05:00', timestamp '2026-11-03 08:10:00'),
+                  ('X', 'victoria', 'Platform 1', '101', 'p4', timestamp '2026-11-03 08:08:00', timestamp '2026-11-03 08:10:30'),
+                  ('X', 'victoria', 'Platform 2', '101', 'w1', timestamp '2026-11-03 08:08:00', timestamp '2026-11-03 08:10:00'),
+                  ('X', 'victoria', 'Platform 1', '101', 'p5', timestamp '2026-11-03 08:09:00', timestamp '2026-11-03 08:10:00'),
+                  ('X', 'victoria', 'Platform 1', '102', 'q1', timestamp '2026-11-03 08:14:50', timestamp '2026-11-03 08:20:10'),
+                  ('X', 'victoria', 'Platform 1', '102', 'q2', timestamp '2026-11-03 08:17:05', timestamp '2026-11-03 08:20:10'),
+                  ('X', 'victoria', 'Platform 1', '102', 'q3', timestamp '2026-11-03 08:18:05', timestamp '2026-11-03 08:20:00'),
+                  ('X', 'victoria', 'Platform 1', '199', 's1', timestamp '2026-11-03 08:15:00', timestamp '2026-11-03 08:20:00'),
+                  ('T', 'victoria', 'Platform 1', '103', 't1', timestamp '2026-11-03 08:25:00', timestamp '2026-11-03 08:30:00'),
+                  ('X', 'district', 'Platform 1', '104', 'd1', timestamp '2026-11-03 08:35:00', timestamp '2026-11-03 08:40:00'),
+                  ('X', 'victoria', 'Platform 1', '105', 'r1', timestamp '2026-11-03 08:58:00', timestamp '2026-11-03 08:59:30'),
+                  ('X', 'victoria', 'Platform 1', '105', 'r2', timestamp '2026-11-03 08:49:40', timestamp '2026-11-03 08:59:20'),
+                  ('X', 'victoria', 'Platform 1', '105', 'r3', timestamp '2026-11-03 08:50:40', timestamp '2026-11-03 09:01:00'),
+                  ('X', 'victoria', null, '106', 'u1', timestamp '2026-11-03 09:05:00', timestamp '2026-11-03 09:10:00'),
+                  ('X', 'victoria', 'Platform 1', '107', 'h1', timestamp '2026-11-03 09:25:00', timestamp '2026-11-03 09:35:00')
+          ) as t (naptan_id, line_id, platform_name, vehicle_id, poll_id, polled_at, expected_arrival)
+    expect:
+      rows:
+        - {arrival_key: a0, horizon_minutes: 2, is_matched: false, poll_id: null, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a0, horizon_minutes: 5, is_matched: false, poll_id: null, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a0, horizon_minutes: 10, is_matched: true, poll_id: o1, predicted_seconds: 600, actual_seconds: 300, signed_error_seconds: -300, abs_error_seconds: 300, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a1, horizon_minutes: 2, is_matched: false, poll_id: null, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a1, horizon_minutes: 5, is_matched: true, poll_id: p3, predicted_seconds: 300, actual_seconds: 300, signed_error_seconds: 0, abs_error_seconds: 0, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a1, horizon_minutes: 10, is_matched: true, poll_id: p2, predicted_seconds: 580, actual_seconds: 600, signed_error_seconds: 20, abs_error_seconds: 20, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a2, horizon_minutes: 2, is_matched: false, poll_id: null, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a2, horizon_minutes: 5, is_matched: true, poll_id: q1, predicted_seconds: 320, actual_seconds: 310, signed_error_seconds: -10, abs_error_seconds: 10, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a2, horizon_minutes: 10, is_matched: false, poll_id: null, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a5, horizon_minutes: 2, is_matched: true, poll_id: r1, predicted_seconds: 90, actual_seconds: 120, signed_error_seconds: 30, abs_error_seconds: 30, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a5, horizon_minutes: 5, is_matched: false, poll_id: null, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a5, horizon_minutes: 10, is_matched: true, poll_id: r2, predicted_seconds: 580, actual_seconds: 620, signed_error_seconds: 40, abs_error_seconds: 40, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a6, horizon_minutes: 2, is_matched: false, poll_id: null, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a6, horizon_minutes: 5, is_matched: true, poll_id: u1, predicted_seconds: 300, actual_seconds: 300, signed_error_seconds: 0, abs_error_seconds: 0, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a6, horizon_minutes: 10, is_matched: false, poll_id: null, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a7, horizon_minutes: 2, is_matched: false, poll_id: null, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a7, horizon_minutes: 5, is_matched: false, poll_id: null, predicted_seconds: null, actual_seconds: null, signed_error_seconds: null, abs_error_seconds: null, role: core, week_start: "2026-11-02"}
+        - {arrival_key: a7, horizon_minutes: 10, is_matched: true, poll_id: h1, predicted_seconds: 600, actual_seconds: 2100, signed_error_seconds: 1500, abs_error_seconds: 1500, role: core, week_start: "2026-11-02"}

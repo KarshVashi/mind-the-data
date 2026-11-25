@@ -64,6 +64,15 @@ vars:
   # a pass when it came within this many seconds of the station.
   vehicle_pass_visit_gap_seconds: 600
   vehicle_pass_threshold_seconds: 120
+  # Board dropouts (D75, pending): a train seen at the stations either side
+  # of X, but not at X, judged only when the two passes are at most this far
+  # apart. Longer, and the train may have been held, stabled or reversed.
+  board_dropout_max_span_minutes: 20
+  # rpt_board_reliability_weekly: a station-week's dropout share needs at
+  # least this many judged trains, and a line-week's share of long gaps
+  # with a dropout at least this many long gaps.
+  board_dropout_min_trains: 100
+  board_dropout_min_long_gaps: 20
   # Lines whose trains-run share fct_line_weekly withholds: the Circle and
   # Hammersmith & City boards file one line's trains under the other on the
   # shared section (ADR-014).
@@ -109,10 +118,28 @@ vars:
   # Last month rpt_divisions_monthly builds ('YYYY-MM-DD'); null means the
   # current month. Unit tests pin it.
   division_months_through: null
+  # Segment run times (D72): a pair of passes further apart than this is not
+  # one run (a layover or a lost id; missed passes and turnbacks are
+  # dropped by the adjacency and direction rules), and a segment needs this many runs in a week to be reported.
+  segment_max_run_seconds: 900
+  segment_min_runs: 30
+  # Lines whose vehicle ids are only partly reliable: reported, flagged.
+  segment_partial_id_lines: ["metropolitan"]
   # Weekly Iceberg maintenance (macros/iceberg_maintenance.sql, D64): OPTIMIZE
   # rewrites only partitions this many days back, which covers a week of
   # daily merges plus their lookback_days.
   maintenance_lookback_days: 9
+  # Countdown accuracy (D71, pending): the countdowns scored, in minutes. A
+  # prediction is in a horizon's bucket when its countdown at the poll is
+  # within the half-width of it, lower edge in, upper edge out. Predictions
+  # are matched to an arrival only if polled at most the horizon plus the
+  # lookback before it (so up to that lookback late), and a
+  # line-week-horizon is shown only with at least the minimum of matched
+  # predictions.
+  prediction_accuracy_horizons: [2, 5, 10]
+  prediction_accuracy_bucket_half_width_seconds: 30
+  prediction_accuracy_lookback_minutes: 30
+  prediction_accuracy_min_matched: 200
   # analyses/league_preview.sql: a week to show instead of the latest
   # complete one ('YYYY-MM-DD', a Monday).
   preview_week_start: null
@@ -186,6 +213,11 @@ seeds:
         schedule_name: varchar
         day_type: varchar
         iso_day_of_week: integer
+    disruption_cause_patterns:
+      +column_types:
+        cause: varchar
+        pattern: varchar
+        priority: integer
     seed_measurement_stations:
       +column_types:
         line_id: varchar
@@ -204,6 +236,12 @@ seeds:
         link_by_vehicle_id: boolean
         decision_status: varchar
         review_recommendation: varchar
+    seed_board_dropout_lines:
+      +column_types:
+        line_id: varchar
+        is_measured: boolean
+        caveat: varchar
+        reason: varchar
     seed_line_frequencies:
       +column_types:
         line_id: varchar
